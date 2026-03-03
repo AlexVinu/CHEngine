@@ -49,7 +49,12 @@ namespace CHModules
         }
 
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+#ifdef CHE_PLATFORM_APPLE
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+#else
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+#endif
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         
         m_Window = glfwCreateWindow(width, height, title, nullptr, nullptr);
