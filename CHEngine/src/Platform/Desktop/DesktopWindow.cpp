@@ -29,9 +29,7 @@ namespace CHEngine {
 
 	void DesktopWindow::OnUpdate()
 	{
-		//glfwPollEvents();
 		m_Renderer->PollEvents();
-		//glfwSwapBuffers(m_Window);
 		m_Renderer->SwapBuffers();
 	}
 
