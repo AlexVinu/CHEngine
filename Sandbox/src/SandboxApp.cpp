@@ -6,7 +6,6 @@
 //#include "Rendering/RendererOGL/src/RendererOGL.h"
 //#include "Rendering/RendererOGL/src/ShaderOGL.h"
 
-#include <windows.h>
 class ExampleLayer : public CHEngine::Layer
 {
 public:

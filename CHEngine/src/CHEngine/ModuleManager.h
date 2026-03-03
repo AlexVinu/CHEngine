@@ -102,7 +102,7 @@ namespace CHEngine
             return reinterpret_cast<void*>(
                 GetProcAddress(handle, name));
         #else
-            return dlsym(m_Module, name);
+            return dlsym(handle, name);
         #endif
         }
 
@@ -111,7 +111,7 @@ namespace CHEngine
         #if defined(CHE_PLATFORM_WINDOWS)
             FreeLibrary(handle);
         #else
-            dlclose(m_Module);
+            dlclose(handle);
         #endif
             handle = nullptr;
         }
