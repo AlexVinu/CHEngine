@@ -9,6 +9,8 @@ namespace CHEngine
             return _aligned_malloc(size, alignment);
         #else
             void* ptr = nullptr;
+            if (alignment < sizeof(void*))
+                alignment = sizeof(void*);
             posix_memalign(&ptr, alignment, size);
             return ptr;
         #endif
