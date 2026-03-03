@@ -4,17 +4,17 @@
 
 namespace CHEngine {
 
-	class WindowsWindow : public Window
+	class DesktopWindow : public Window
 	{
 	public:
-		WindowsWindow(const WindowProps& props, IRenderFactory* render_factory);
-		virtual ~WindowsWindow();
+		DesktopWindow(const WindowProps& props, IRenderFactory* render_factory);
+		virtual ~DesktopWindow();
 
 		void OnUpdate() override;
 
 		inline unsigned int GetWidth() const override { return m_Data.Width; }
 		inline unsigned int GetHeight() const override { return m_Data.Height; }
-	
+
 		// Window attributes
 		inline void SetEventCallback(const EventCallbackFn& callback) override { m_Data.EventCallback = callback; }
 		void SetVSync(bool enabled) override;

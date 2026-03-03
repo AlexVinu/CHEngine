@@ -4,9 +4,17 @@
 #include "spdlog/spdlog.h"
 
 #ifdef CHE_LOG_EXPORT
-#define CHE_LOG_API __declspec(dllexport)
+	#ifdef _MSC_VER
+		#define CHE_LOG_API __declspec(dllexport)
+	#else
+		#define CHE_LOG_API __attribute__((visibility("default")))
+	#endif
 #else
-#define CHE_LOG_API __declspec(dllimport)
+	#ifdef _MSC_VER
+		#define CHE_LOG_API __declspec(dllimport)
+	#else
+		#define CHE_LOG_API
+	#endif
 #endif
 
 namespace CHEngine {

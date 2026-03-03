@@ -1,5 +1,5 @@
 #include "chepch.h"
-#include "WindowsWindow.h"
+#include "DesktopWindow.h"
 
 #include "CHEngine/Events/ApplicationEvent.h"
 #include "CHEngine/Events/MouseEvent.h"
@@ -14,20 +14,20 @@ namespace CHEngine {
 
 	Window* Window::Create(IRenderFactory* render_factory, const WindowProps& props)
 	{
-		return new WindowsWindow(props, render_factory);
+		return new DesktopWindow(props, render_factory);
 	}
 
-	WindowsWindow::WindowsWindow(const WindowProps& props, IRenderFactory* render_factory)
+	DesktopWindow::DesktopWindow(const WindowProps& props, IRenderFactory* render_factory)
 	{
 		Init(props, render_factory);
 	}
 
-	WindowsWindow::~WindowsWindow()
+	DesktopWindow::~DesktopWindow()
 	{
 		Shutdown();
 	}
 
-	void WindowsWindow::OnUpdate()
+	void DesktopWindow::OnUpdate()
 	{
 		//glfwPollEvents();
 		m_Renderer->PollEvents();
@@ -35,18 +35,18 @@ namespace CHEngine {
 		m_Renderer->SwapBuffers();
 	}
 
-	void WindowsWindow::SetVSync(bool enabled)
+	void DesktopWindow::SetVSync(bool enabled)
 	{
 		m_Renderer->SetVSync(enabled);
 		m_Data.VSync = enabled;
 	}
 
-	bool WindowsWindow::IsVSync() const
+	bool DesktopWindow::IsVSync() const
 	{
 		return m_Data.VSync;
 	}
 
-	void WindowsWindow::Init(const WindowProps& props, IRenderFactory* render_factory)
+	void DesktopWindow::Init(const WindowProps& props, IRenderFactory* render_factory)
 	{
 		m_Data.Title = props.Title;
 		m_Data.Width = props.Width;
@@ -55,18 +55,14 @@ namespace CHEngine {
 		CHE_CORE_INFO("Creating window {0}, ({1}, {2})", props.Title, props.Width, props.Height);
 		m_Renderer = render_factory->CreateRenderer(props.Width, props.Height, props.Title.c_str(), GLFWErrorCallback);
 
-		//m_Window = glfwCreateWindow((int)props.Width, (int)props.Height, m_Data.Title.c_str(), nullptr, nullptr);
-		//glfwMakeContextCurrent(m_Window);
-		//glfwSetWindowUserPointer(m_Window, &m_Data);
-		//SetVSync(true);
 		m_Renderer->SetVSync(true);
 
 		RendererWindowContext ctx{};
-		ctx.UserPointer = this; // WindowsWindow*
+		ctx.UserPointer = this;
 
 		ctx.ResizeCallback = [](void* user, int width, int height)
 			{
-				auto* window = (WindowsWindow*)user;
+				auto* window = (DesktopWindow*)user;
 				window->m_Data.Width = width;
 				window->m_Data.Height = height;
 
@@ -76,14 +72,14 @@ namespace CHEngine {
 
 		ctx.CloseCallback = [](void* user)
 			{
-				auto* window = (WindowsWindow*)user;
+				auto* window = (DesktopWindow*)user;
 				WindowCloseEvent event;
 				window->m_Data.EventCallback(event);
 			};
 
 		ctx.KeyCallback = [](void* user, int key, int scancode, int action, int mods)
 			{
-				auto* window = (WindowsWindow*)user;
+				auto* window = (DesktopWindow*)user;
 				switch (action)
 				{
 					case (int)EventType::KeyPressed:
@@ -109,7 +105,7 @@ namespace CHEngine {
 
 		ctx.MouseButtonCallback = [](void* user, int button, int action, int mods)
 			{
-				auto* window = (WindowsWindow*)user;
+				auto* window = (DesktopWindow*)user;
 
 				switch (action)
 				{
@@ -130,23 +126,22 @@ namespace CHEngine {
 
 		ctx.ScrollCallback = [](void* user, float xOffset, float yOffset)
 			{
-				auto* window = (WindowsWindow*)user;
+				auto* window = (DesktopWindow*)user;
 				MouseScrolledEvent event(xOffset, yOffset);
 				window->m_Data.EventCallback(event);
 			};
 
 		ctx.CursorPosCallback = [](void* user, float x, float y)
 			{
-				auto* window = (WindowsWindow*)user;
+				auto* window = (DesktopWindow*)user;
 				MouseMovedEvent event(x, y);
 				window->m_Data.EventCallback(event);
 			};
 
-		// Передаём в renderer
 		m_Renderer->SetWindowContext(ctx);
 	}
 
-	void WindowsWindow::Shutdown()
+	void DesktopWindow::Shutdown()
 	{
 	}
 }

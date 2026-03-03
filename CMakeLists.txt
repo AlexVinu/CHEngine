@@ -23,10 +23,14 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${OUTPUT_DIR_PREFIX})
 set(MODULES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Modules")
 
 if(WIN32)
-    set(OUTPUT_SYSTEM_PREFIX "-windows-x32-64")
-    add_compile_definitions(
-        CHE_PLATFORM_WINDOWS
-    )
+    set(OUTPUT_SYSTEM_PREFIX "-windows-x64")
+    add_compile_definitions(CHE_PLATFORM_WINDOWS)
+elseif(APPLE)
+    set(OUTPUT_SYSTEM_PREFIX "-macos-x64")
+    add_compile_definitions(CHE_PLATFORM_APPLE CHE_PLATFORM_UNIX)
+elseif(UNIX)
+    set(OUTPUT_SYSTEM_PREFIX "-linux-x64")
+    add_compile_definitions(CHE_PLATFORM_LINUX CHE_PLATFORM_UNIX)
 endif()
 
 # Режимы сборки
@@ -36,6 +40,26 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
+# Создание библиотек/интерфейсов необходимых множеству проектов
+
+#CHEngine Interfaces -------------------------------
+
+add_library(CHEngine_INTERFACES INTERFACE)
+
+add_subdirectory(${CHE_VENDOR_DIR}/GLM)
+
+# Добавляем интерфейсы
+target_include_directories(CHEngine_INTERFACES INTERFACE
+    ${CHE_INTERFACES_DIR}
+    ${CHE_SRC_DIR}
+)
+
+# Общие определения для всех, кто использует интерфейсы
+if(MSVC)
+    target_compile_definitions(CHEngine_INTERFACES INTERFACE _CRT_SECURE_NO_WARNINGS)
+endif()
+
+#CHEngine Interfaces =================================
 if(CHE_BUILD_OPENGL)
     add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
 endif()

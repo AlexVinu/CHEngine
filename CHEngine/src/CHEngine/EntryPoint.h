@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef CHE_PLATFORM_WINDOWS
-
 extern CHEngine::Application* CHEngine::CreateApplication();
 
 int main(int argc, char** argv)
@@ -16,5 +14,3 @@ int main(int argc, char** argv)
 	app->Run();
 	delete app;
 }
-
-#endif
