@@ -27,6 +27,7 @@ if(WIN32)
         PUBLIC
             "src"  # Основная директория с заголовками
             "vendor/spdlog/include"
+            "Interfaces"
         
     )
     target_precompile_headers(${PROJECT_NAME} PUBLIC 

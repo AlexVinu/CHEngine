@@ -55,8 +55,7 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
         glad
-        CHEngine_INTERFACES
-        glm
+        
         glfw
 )
 

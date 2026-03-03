@@ -36,50 +36,6 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
-# Создание библиотек/интерфейсов необходимых множеству проектов
-
-#PCH ----------------------------------
-#add_library(chepch INTERFACE)
-
-#target_precompile_headers(chepch INTERFACE
-#    ${CHE_CORE_DIR}/chepch.h
-#)
-#PCH ==================================
-
-#Core ---------------------------------
-#add_library(CHEngine_CORE INTERFACE)
-#target_link_libraries(CHEngine_CORE 
-#    INTERFACE CHEngine_Log chepch)
-
-#target_include_directories(CHEngine_CORE INTERFACE 
-#    ${CHE_CORE_DIR}  # Для доступа к Core  
-#) 
-
-# Общие определения для всех
-#target_compile_definitions(CHEngine_CORE INTERFACE
-#    $<$<BOOL:${WIN32}>:_CRT_SECURE_NO_WARNINGS>
-#)
-#Core ===================================
-
-#CHEngine Interfaces -------------------------------
-    
-add_library(CHEngine_INTERFACES INTERFACE)
-
-add_subdirectory(${CHE_VENDOR_DIR}/GLM)
-
-# Добавляем интерфейсы
-target_include_directories(CHEngine_INTERFACES INTERFACE
-    ${CHE_INTERFACES_DIR}
-    ${CHE_SRC_DIR}
-)
-
-# Общие определения для всех, кто использует интерфейсы
-target_compile_definitions(CHEngine_INTERFACES INTERFACE
-    $<$<BOOL:${WIN32}>:_CRT_SECURE_NO_WARNINGS>
-)
-    
-#CHEngine Interfaces =================================
-
 if(CHE_BUILD_OPENGL)
     add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
 endif()

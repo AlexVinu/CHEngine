@@ -68,7 +68,7 @@ if(WIN32)
     # Подключаемые библиотеки
     target_link_libraries(${PROJECT_NAME}  
     PUBLIC
-        CHEngine_CORE CHEngine_INTERFACES
+        CHEngine_CORE
     )
     
     # Настройка выходных директорий

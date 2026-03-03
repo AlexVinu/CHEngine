@@ -1,7 +1,7 @@
 #pragma once
 
 #include <Core.h>
-#include "CHEngine/Events/EventData.h"
+#include "EventData.h"
 
 namespace CHEngine
 {
