@@ -1,61 +1,61 @@
 # CHEngine
 
-A cross-platform game engine written in C++ with support for Windows, macOS, and Linux.
+Кроссплатформенный игровой движок на C++ с поддержкой Windows, macOS и Linux.
 
-## Features
+## Возможности
 
-- **Cross-platform support**: Build and run on Windows (MSVC), macOS (Clang), and Linux (GCC/Clang)
-- **OpenGL rendering**: Hardware-accelerated graphics with GLAD and GLFW
-- **Modular architecture**: Pluggable renderer modules with dynamic loading
-- **Event system**: Event-driven application with layer-based rendering pipeline
-- **Logging**: Structured logging with spdlog
+- **Кроссплатформенная поддержка**: Сборка и запуск на Windows (MSVC), macOS (Clang) и Linux (GCC/Clang)
+- **Рендеринг на OpenGL**: Аппаратное ускорение графики с GLAD и GLFW
+- **Модульная архитектура**: Подключаемые модули рендера с динамической загрузкой
+- **Система событий**: Event-driven приложение с слойной архитектурой рендеринга
+- **Логирование**: Структурированное логирование с spdlog
 
-## Supported Platforms
+## Поддерживаемые платформы
 
-| Platform | Compiler | Status |
+| Платформа | Компилятор | Статус |
 |----------|----------|--------|
-| Windows  | MSVC 2022 | ✅ Supported |
-| macOS    | Clang    | ✅ Supported |
-| Linux    | GCC/Clang| ✅ Supported |
+| Windows  | MSVC 2022 | ✅ Поддерживается |
+| macOS    | Clang    | ✅ Поддерживается |
+| Linux    | GCC/Clang| ✅ Поддерживается |
 
-## Project Structure
+## Структура проекта
 
 ```
 CHEngine/
-├── Core/                          # Core library
+├── Core/                          # Ядро движка
 │   ├── src/
-│   │   ├── Core.h                # Platform-specific macros
-│   │   ├── Log/                  # Logging system
-│   │   └── Memory/               # Memory utilities
-│   └── vendor/spdlog/            # Logging dependency
-├── CHEngine/                       # Main engine
+│   │   ├── Core.h                # Платформенные макросы
+│   │   ├── Log/                  # Система логирования
+│   │   └── Memory/               # Утилиты для памяти
+│   └── vendor/spdlog/            # Библиотека логирования
+├── CHEngine/                       # Основной движок
 │   ├── src/
-│   │   ├── CHEngine/             # Application, events, layers
-│   │   ├── Platform/Desktop/     # Cross-platform window implementation
-│   │   └── Interfaces/           # Renderer interfaces
+│   │   ├── CHEngine/             # Приложение, события, слои
+│   │   ├── Platform/Desktop/     # Кроссплатформенная реализация окна
+│   │   └── Interfaces/           # Интерфейсы рендера
 │   ├── vendor/
-│   │   ├── GLFW/                 # Window management
-│   │   └── GLM/                  # Math library
+│   │   ├── GLFW/                 # Управление окном и вводом
+│   │   └── GLM/                  # Математическая библиотека
 │   └── CMakeLists.txt
 ├── Modules/
-│   └── Rendering/RendererOGL/    # OpenGL renderer module
-├── Sandbox/                        # Example application
-└── CMakeLists.txt                 # Root CMake configuration
+│   └── Rendering/RendererOGL/    # Модуль рендера OpenGL
+├── Sandbox/                        # Пример приложения
+└── CMakeLists.txt                 # Корневая конфигурация CMake
 ```
 
-## Dependencies
+## Зависимости
 
-### Required
+### Обязательные
 - **CMake** 3.20+
-- **C++20** compiler (MSVC 2022, Clang, or GCC 10+)
+- **C++20** компилятор (MSVC 2022, Clang или GCC 10+)
 
-### Included (Vendored)
-- **spdlog** - Fast C++ logging library
-- **GLFW** - Window and input management
-- **GLAD** - OpenGL loader
-- **GLM** - Mathematics library
+### Встроенные (Vendored)
+- **spdlog** - Быстрая библиотека логирования для C++
+- **GLFW** - Управление окном и вводом
+- **GLAD** - OpenGL загрузчик
+- **GLM** - Математическая библиотека
 
-## Building
+## Сборка
 
 ### Windows (MSVC)
 
@@ -72,7 +72,7 @@ cmake --build . --config Debug
 mkdir build
 cd build
 cmake -G "Xcode" ..
-# or
+# или
 cmake -G "Unix Makefiles" ..
 cmake --build .
 ```
@@ -86,58 +86,58 @@ cmake -G "Unix Makefiles" ..
 cmake --build .
 ```
 
-## Configuration
+## Конфигурация
 
-The project uses CMake with the following options:
+Проект использует CMake со следующими опциями:
 
 ```cmake
--DCHE_BUILD_SANDBOX=ON      # Build example Sandbox application
--DCHE_BUILD_OPENGL=ON       # Build OpenGL renderer module
+-DCHE_BUILD_SANDBOX=ON      # Сборка приложения-примера Sandbox
+-DCHE_BUILD_OPENGL=ON       # Сборка модуля рендера OpenGL
 ```
 
-## Platform Defines
+## Платформенные дефайны
 
-The engine automatically defines platform-specific macros:
+Движок автоматически определяет платформенные макросы:
 
-- `CHE_PLATFORM_WINDOWS` - Windows platform
-- `CHE_PLATFORM_APPLE` - macOS platform
-- `CHE_PLATFORM_LINUX` - Linux platform
-- `CHE_PLATFORM_UNIX` - Any Unix-like system (macOS or Linux)
+- `CHE_PLATFORM_WINDOWS` - Платформа Windows
+- `CHE_PLATFORM_APPLE` - Платформа macOS
+- `CHE_PLATFORM_LINUX` - Платформа Linux
+- `CHE_PLATFORM_UNIX` - Любая Unix-подобная система (macOS или Linux)
 
-## Architecture Highlights
+## Архитектурные решения
 
-### Cross-Platform C++ Macros
+### Кроссплатформенные C++ макросы
 
 ```cpp
-// Core.h provides platform-agnostic export macros
+// Core.h предоставляет платформо-независимые макросы экспорта
 #define CHENGINE_API __attribute__((visibility("default")))  // Unix
 #define CHENGINE_API __declspec(dllexport)                   // Windows
 
-// Debugbreak macro
+// Макрос отладочного прерывания
 #define CHE_DEBUGBREAK() __builtin_trap()      // GCC/Clang
 #define CHE_DEBUGBREAK() __debugbreak()        // MSVC
 ```
 
-### Compiler Flags
+### Флаги компилятора
 
 **MSVC:**
 ```cmake
-/utf-8 /W4              # Warnings
-/Od /Zi                 # Debug
-/O2                     # Release
+/utf-8 /W4              # Предупреждения
+/Od /Zi                 # Отладка
+/O2                     # Релиз
 ```
 
 **GCC/Clang:**
 ```cmake
--Wall -Wextra -Wpedantic    # Warnings
--fvisibility=hidden         # Symbol visibility
--g -O0                      # Debug
--O2                         # Release
+-Wall -Wextra -Wpedantic    # Предупреждения
+-fvisibility=hidden         # Видимость символов
+-g -O0                      # Отладка
+-O2                         # Релиз
 ```
 
-### Dynamic Module Loading
+### Динамическая загрузка модулей
 
-Platform-specific module names are handled transparently:
+Платформо-специфичные имена модулей обрабатываются прозрачно:
 
 ```cpp
 #if defined(CHE_PLATFORM_WINDOWS)
@@ -149,9 +149,9 @@ Platform-specific module names are handled transparently:
 #endif
 ```
 
-## Compilation Outputs
+## Результаты компиляции
 
-Build artifacts are organized by platform and configuration:
+Артефакты сборки организованы по платформам и конфигурациям:
 
 ```
 bin/
@@ -162,9 +162,9 @@ bin/
 └── ...
 ```
 
-## Running the Example
+## Запуск примера
 
-After building, run the Sandbox application:
+После сборки запустите приложение Sandbox:
 
 ```bash
 # Windows
@@ -177,49 +177,49 @@ After building, run the Sandbox application:
 ./bin/Debug-linux-x64/Sandbox/Sandbox
 ```
 
-## Development
+## Разработка
 
-### Adding Platform-Specific Code
+### Добавление платформо-специфичного кода
 
-Use the platform defines in conditional compilation:
+Используйте платформенные дефайны для условной компиляции:
 
 ```cpp
 #ifdef CHE_PLATFORM_WINDOWS
-    // Windows-specific code
+    // Код специфичный для Windows
 #elif defined(CHE_PLATFORM_UNIX)
-    // Unix-specific code (Linux/macOS)
+    // Код для Unix-подобных систем (Linux/macOS)
 #endif
 ```
 
-### Compiler-Specific Code
+### Код специфичный для компилятора
 
-For compiler differences, use:
+Для различий между компиляторами используйте:
 
 ```cpp
 #ifdef _MSC_VER
-    // MSVC-specific
+    // Специфично для MSVC
 #else
     // GCC/Clang
 #endif
 ```
 
-## Key Changes (v1.0 - Cross-Platform)
+## Ключевые изменения (v1.0 - Кроссплатформенность)
 
-- Removed Windows-only guards from CMakeLists.txt
-- Added platform detection for APPLE, LINUX, UNIX
-- Replaced `__declspec(dllexport/import)` with `__attribute__((visibility()))`
-- Unified compiler flags (MSVC vs GCC/Clang)
-- Renamed `WindowsWindow` → `DesktopWindow` (GLFW-based, platform-agnostic)
-- Platform-specific module loading (.dll/.so/.dylib)
-- Fixed dlopen/dlsym bugs on non-Windows platforms
+- Удалены Windows-only guards из CMakeLists.txt
+- Добавлено определение платформ APPLE, LINUX, UNIX
+- Заменены `__declspec(dllexport/import)` на `__attribute__((visibility()))`
+- Унифицированы флаги компилятора (MSVC vs GCC/Clang)
+- Переименован `WindowsWindow` → `DesktopWindow` (GLFW-based, платформо-независимый)
+- Платформо-специфичная загрузка модулей (.dll/.so/.dylib)
+- Исправлены ошибки dlopen/dlsym на не-Windows платформах
 
-## License
+## Лицензия
 
-See LICENSE file for details.
+Смотрите файл LICENSE для деталей.
 
-## Contributing
+## Внесение вклада
 
-Contributions are welcome! Please ensure:
-- Code compiles on Windows, macOS, and Linux
-- Platform-specific code is properly guarded with defines
-- CMakeLists.txt changes maintain cross-platform compatibility
+Приветствуются вклады! Пожалуйста, убедитесь что:
+- Код компилируется на Windows, macOS и Linux
+- Платформо-специфичный код правильно защищен дефайнами
+- Изменения CMakeLists.txt сохраняют кроссплатформенность
