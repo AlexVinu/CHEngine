@@ -1,0 +1,6 @@
+[submodule "CHEngine/vendor/spdlog"]
+	path = CHEngine/vendor/spdlog
+	url = https://github.com/gabime/spdlog
+[submodule "CHEngine/vendor/GLFW"]
+	path = CHEngine/vendor/GLFW
+	url = https://github.com/thecherno/glfw
