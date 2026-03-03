@@ -10,7 +10,7 @@ option(CHE_BUILD_OPENGL "Build OpengGL render" ON)
 
 # Директории исходников/интерфейсов/зависимостей
 set(CHE_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}/src")
-set(CHE_INTERFACES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}/Interfaces")
+set(CHE_INTERFACES_DIR "${CMAKE_CURRENT_SOURCE_DIR}/Core/Interfaces")
 set(CHE_VENDOR_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}/vendor")
 
 # Директории вывода

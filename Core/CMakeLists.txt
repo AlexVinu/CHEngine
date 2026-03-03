@@ -43,6 +43,7 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     CHE_BUILD_DLL
     CHE_BUILD_CORE_DLL
+    CHE_LOG_EXPORT
     CHE_ENABLE_ASSERTS
     $<$<CONFIG:Debug>:CHE_DEBUG>
     $<$<CONFIG:Release>:CHE_RELEASE>

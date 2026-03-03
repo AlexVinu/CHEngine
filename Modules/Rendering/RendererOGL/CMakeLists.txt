@@ -66,8 +66,9 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
+        CHEngine_INTERFACES
         glad
-        
+        glm
         glfw
 )
 
