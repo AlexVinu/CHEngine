@@ -17,12 +17,14 @@ namespace CHEngine {
 	#else
 		m_ModuleManager.LoadModule("libRendererOGL.so");
 	#endif
-		auto* renderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
+		m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
 
-		m_RenderResources.Init(renderFactory);
+		m_RenderResources.Init(m_RenderFactory);
 
-		m_Window = std::unique_ptr<Window>(Window::Create(renderFactory));
+		m_Window = std::unique_ptr<Window>(Window::Create(m_RenderFactory));
 		m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
+
+		m_ImGuiLayer = m_RenderFactory->CreateImGuiLayer(m_Window->GetNativeWindow());
 
 		m_RenderApi = m_RenderResources.CreateRenderAPI();
 
@@ -78,6 +80,9 @@ namespace CHEngine {
 
 	Application::~Application()
 	{
+		if (m_ImGuiLayer && m_RenderFactory)
+			m_RenderFactory->Delete(m_ImGuiLayer);
+
 		m_RenderResources.Shutdown();
 	}
 
@@ -130,6 +135,14 @@ namespace CHEngine {
 
 			for (Layer* layer : m_LayerStack)
 				layer->OnUpdate();
+
+			if (m_ImGuiLayer)
+			{
+				m_ImGuiLayer->Begin();
+				for (Layer* layer : m_LayerStack)
+					layer->OnImGuiRender();
+				m_ImGuiLayer->End();
+			}
 
 			m_Window->OnUpdate();
 		}

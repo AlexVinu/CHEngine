@@ -7,6 +7,7 @@
 #include "IShader.h"
 #include "IRenderApi.h"
 #include "IRenderer.h"
+#include "IImGuiLayer.h"
 
 #include "IModuleFactory.h"
 
@@ -28,6 +29,9 @@ namespace CHEngine {
         virtual void Delete(IShader* ptr) = 0;
         virtual void Delete(RendererAPI* ptr) = 0;
         virtual void Delete(IRenderer* ptr) = 0;
+
+        virtual IImGuiLayer* CreateImGuiLayer(void* nativeWindow) = 0;
+        virtual void Delete(IImGuiLayer* ptr) = 0;
     };
 }
 

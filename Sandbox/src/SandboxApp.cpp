@@ -1,27 +1,28 @@
 #include <CHEngine.h>
 
-//#include "Rendering/RendererOGL/src/VertexArrayOGL.h"
-//#include "Rendering/RendererOGL/src/BufferOGL.h"
-//#include "Rendering/RendererOGL/src/RenderApiOGL.h"
-//#include "Rendering/RendererOGL/src/RendererOGL.h"
-//#include "Rendering/RendererOGL/src/ShaderOGL.h"
-
 class ExampleLayer : public CHEngine::Layer
 {
 public:
 	ExampleLayer()
-		: Layer("Example") {
-
+		: Layer("Example")
+	{
 	}
 
 	void OnUpdate() override
 	{
-		CHE_INFO("ExampleLayer::Update");
+	}
+
+	void OnImGuiRender() override
+	{
+		ImGui::Begin("CHEngine Debug");
+		ImGui::Text("Hello from ExampleLayer!");
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)",
+			1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::End();
 	}
 
 	void OnEvent(CHEngine::Event& e) override
 	{
-		CHE_TRACE("{0}", e);
 	}
 };
 
@@ -35,7 +36,6 @@ public:
 
 	~Sandbox()
 	{
-
 	}
 };
 

@@ -46,6 +46,8 @@ namespace CHEngine
 		virtual void SetViewport(uint32_t width, uint32_t height) = 0;
 
 		virtual void SetWindowContext(const RendererWindowContext& context) = 0;
+
+		virtual void* GetNativeWindow() = 0;
 		//	void BeginScene(OrthographicCamera& camera);
 		//	void EndScene();
 

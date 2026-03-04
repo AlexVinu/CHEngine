@@ -24,6 +24,8 @@ namespace CHModules
 
 		virtual void SetWindowContext(const CHEngine::RendererWindowContext& context) override;
 
+		virtual void* GetNativeWindow() override { return m_Window; }
+
 		static CHEngine::EventType ConvertFromGLFW(int action);
 	private:
 		CHEngine::RendererWindowContext m_WindowContext;

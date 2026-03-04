@@ -20,6 +20,9 @@ namespace CHModules
         virtual void Delete(CHEngine::RendererAPI* ptr) override;
         virtual void Delete(CHEngine::IRenderer* ptr) override;
 
+        virtual CHEngine::IImGuiLayer* CreateImGuiLayer(void* nativeWindow) override;
+        virtual void Delete(CHEngine::IImGuiLayer* ptr) override;
+
         virtual CHEngine::ModuleType GetType() const;
     };
 }
