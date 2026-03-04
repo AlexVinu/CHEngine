@@ -1,6 +1,9 @@
 #include "chepch.h"
 #include "RenderResourceManager.h"
 
+#include <fstream>
+#include <sstream>
+
 namespace CHEngine {
 
 	void RenderResourceManager::Init(IRenderFactory* factory)
@@ -19,6 +22,34 @@ namespace CHEngine {
 		m_RenderApis = HandlePool<RendererAPI, RenderAPITag>(
 			[this](RendererAPI* ptr) { m_Factory->Delete(ptr); }
 		);
+	}
+
+	String RenderResourceManager::ReadTextFile(const String& path)
+	{
+		std::ifstream file(path.c_str());
+		if (!file.is_open())
+		{
+			CHE_CORE_ERROR("RenderResourceManager: cannot open file '{0}'", path.c_str());
+			return {};
+		}
+		std::ostringstream ss;
+		ss << file.rdbuf();
+		return String(ss.str().c_str());
+	}
+
+	ShaderHandle RenderResourceManager::CreateShaderFromFile(const String& vertexPath, const String& fragmentPath)
+	{
+		String vertexSrc   = ReadTextFile(vertexPath);
+		String fragmentSrc = ReadTextFile(fragmentPath);
+
+		if (vertexSrc.size() == 0 || fragmentSrc.size() == 0)
+		{
+			CHE_CORE_ERROR("RenderResourceManager: shader file(s) could not be read, shader not created");
+			return ShaderHandle::Invalid();
+		}
+
+		CHE_CORE_INFO("Loaded shader: '{0}' + '{1}'", vertexPath.c_str(), fragmentPath.c_str());
+		return CreateShader(vertexSrc, fragmentSrc);
 	}
 
 	ShaderHandle RenderResourceManager::CreateShader(const String& vertexSrc, const String& fragmentSrc)
