@@ -15,8 +15,9 @@ file(GLOB_RECURSE CHE_HEADERS
 
 add_subdirectory(vendor/GLAD)
 add_subdirectory(vendor/GLFW)
+
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS}  "src/RenderFactoryOGL.h" "src/RenderFactoryOGL.cpp")
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS})
 
 # C++ стандарт и настройки
 set_target_properties(${PROJECT_NAME} PROPERTIES
@@ -62,7 +63,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
 )
 
-# Подключаемые библиотеки
+# imgui бекенды компилируются здесь — у нас есть GLFW и GLAD
+target_sources(${PROJECT_NAME} PRIVATE
+    ${IMGUI_INCLUDE_DIR}/backends/imgui_impl_glfw.cpp
+    ${IMGUI_INCLUDE_DIR}/backends/imgui_impl_opengl3.cpp
+)
+target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_IMPL_OPENGL_LOADER_GLAD)
+
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
@@ -70,6 +77,7 @@ target_link_libraries(${PROJECT_NAME}
         glad
         glm
         glfw
+        imgui
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

@@ -24,6 +24,7 @@ add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS})
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         "src"
+        ${IMGUI_INCLUDE_DIR}
     PRIVATE
         ${CHE_INTERFACES_DIR}
         ${CHE_CORE_DIR}
@@ -71,7 +72,7 @@ endif()
 # Подключаемые библиотеки
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
-        CHEngine_CORE CHEngine_INTERFACES
+        CHEngine_CORE CHEngine_INTERFACES imgui
 )
 
 # Линковка dl на Unix

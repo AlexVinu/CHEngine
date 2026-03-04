@@ -10,6 +10,10 @@
 #include "CHEngine/Layer/Layer.h"
 #include "Log/Log.h"
 
+// ImGui --------------------------
+#include <imgui.h>
+// ================================
+
 // --Entry Point -------------------
 #include "CHEngine/EntryPoint.h"
 // -----------------------

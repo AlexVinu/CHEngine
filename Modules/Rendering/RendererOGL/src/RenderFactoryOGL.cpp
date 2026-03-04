@@ -1,5 +1,6 @@
 #include "RenderFactoryOGL.h"
 
+#include "ImGuiLayerOGL.h"
 #include "BufferOGL.h"
 #include "VertexArrayOGL.h"
 #include "ShaderOGL.h"
@@ -85,4 +86,17 @@ extern "C"
 	{
 		delete factory;
 	}
+}
+// ImGui layer methods (appended)
+namespace CHModules {
+    CHEngine::IImGuiLayer* RenderFactoryOGL::CreateImGuiLayer(void* nativeWindow)
+    {
+        CHE_MODULE_INFO("ImGuiLayerOGL CREATED");
+        return new CHModules::ImGuiLayerOGL(nativeWindow);
+    }
+    void RenderFactoryOGL::Delete(CHEngine::IImGuiLayer* ptr)
+    {
+        CHE_MODULE_INFO("ImGuiLayerOGL DELETED");
+        delete ptr;
+    }
 }

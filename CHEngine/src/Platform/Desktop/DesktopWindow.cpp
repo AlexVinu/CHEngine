@@ -139,6 +139,11 @@ namespace CHEngine {
 		m_Renderer->SetWindowContext(ctx);
 	}
 
+	void* DesktopWindow::GetNativeWindow() const
+	{
+		return m_Renderer->GetNativeWindow();
+	}
+
 	void DesktopWindow::Shutdown()
 	{
 	}
