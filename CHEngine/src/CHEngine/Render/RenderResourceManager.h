@@ -27,6 +27,7 @@ namespace CHEngine {
 		void Init(IRenderFactory* factory);
 
 		ShaderHandle      CreateShader(const String& vertexSrc, const String& fragmentSrc);
+		ShaderHandle      CreateShaderFromFile(const String& vertexPath, const String& fragmentPath);
 		VertexArrayHandle CreateVertexArray();
 		RenderAPIHandle   CreateRenderAPI();
 
@@ -44,6 +45,8 @@ namespace CHEngine {
 		void Shutdown();
 
 	private:
+		static String ReadTextFile(const String& path);
+
 		IRenderFactory* m_Factory = nullptr;
 
 		HandlePool<IShader,      ShaderTag>      m_Shaders;
