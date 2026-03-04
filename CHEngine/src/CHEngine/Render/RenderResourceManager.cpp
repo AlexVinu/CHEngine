@@ -37,19 +37,36 @@ namespace CHEngine {
 		return String(ss.str().c_str());
 	}
 
-	ShaderHandle RenderResourceManager::CreateShaderFromFile(const String& vertexPath, const String& fragmentPath)
+	ShaderHandle RenderResourceManager::CreateShaderFromFile(const String& name,
+	                                                         const String& vertexPath,
+	                                                         const String& fragmentPath)
 	{
 		String vertexSrc   = ReadTextFile(vertexPath);
 		String fragmentSrc = ReadTextFile(fragmentPath);
 
-		if (vertexSrc.size() == 0 || fragmentSrc.size() == 0)
+		bool valid = (vertexSrc.size() > 0 && fragmentSrc.size() > 0);
+
+		ShaderHandle handle = ShaderHandle::Invalid();
+		if (valid)
 		{
-			CHE_CORE_ERROR("RenderResourceManager: shader file(s) could not be read, shader not created");
-			return ShaderHandle::Invalid();
+			handle = CreateShader(vertexSrc, fragmentSrc);
+			valid  = handle.IsValid();
 		}
 
-		CHE_CORE_INFO("Loaded shader: '{0}' + '{1}'", vertexPath.c_str(), fragmentPath.c_str());
-		return CreateShader(vertexSrc, fragmentSrc);
+		if (valid)
+			CHE_CORE_INFO("Loaded shader '{0}': '{1}' + '{2}'", name.c_str(), vertexPath.c_str(), fragmentPath.c_str());
+		else
+			CHE_CORE_ERROR("RenderResourceManager: failed to load shader '{0}'", name.c_str());
+
+		ShaderEntry entry;
+		entry.name     = name;
+		entry.vertPath = vertexPath;
+		entry.fragPath = fragmentPath;
+		entry.handle   = handle;
+		entry.valid    = valid;
+		m_ShaderEntries.push_back(std::move(entry));
+
+		return handle;
 	}
 
 	ShaderHandle RenderResourceManager::CreateShader(const String& vertexSrc, const String& fragmentSrc)
@@ -61,6 +78,53 @@ namespace CHEngine {
 			return ShaderHandle::Invalid();
 		}
 		return m_Shaders.Add(shader);
+	}
+
+	bool RenderResourceManager::ReloadShader(ShaderHandle h)
+	{
+		ShaderEntry* entry = nullptr;
+		for (auto& e : m_ShaderEntries)
+		{
+			if (e.handle == h)
+			{
+				entry = &e;
+				break;
+			}
+		}
+
+		if (!entry)
+		{
+			CHE_CORE_ERROR("ReloadShader: no entry found for this handle");
+			return false;
+		}
+
+		String vertexSrc   = ReadTextFile(entry->vertPath);
+		String fragmentSrc = ReadTextFile(entry->fragPath);
+
+		if (vertexSrc.size() == 0 || fragmentSrc.size() == 0)
+		{
+			CHE_CORE_ERROR("ReloadShader: could not read files for '{0}'", entry->name.c_str());
+			entry->valid = false;
+			return false;
+		}
+
+		IShader* shader = m_Shaders.Get(h);
+		if (!shader)
+		{
+			CHE_CORE_ERROR("ReloadShader: shader handle is no longer valid");
+			entry->valid = false;
+			return false;
+		}
+
+		bool success = shader->Reload(vertexSrc, fragmentSrc);
+		entry->valid = success;
+
+		if (success)
+			CHE_CORE_INFO("Reloaded shader '{0}'", entry->name.c_str());
+		else
+			CHE_CORE_ERROR("ReloadShader: compilation failed for '{0}' — keeping old program", entry->name.c_str());
+
+		return success;
 	}
 
 	VertexArrayHandle RenderResourceManager::CreateVertexArray()
@@ -146,6 +210,7 @@ namespace CHEngine {
 		m_Shaders.Clear();
 		m_VertexArrays.Clear();
 		m_RenderApis.Clear();
+		m_ShaderEntries.clear();
 	}
 
 }
