@@ -73,7 +73,6 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_IMPL_OPENGL_LOADER_GLAD
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
-        CHEngine_INTERFACES
         glad
         glm
         glfw

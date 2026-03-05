@@ -3,10 +3,6 @@ project(CHEngine LANGUAGES CXX)
 
 message(STATUS "Configuring ${PROJECT_NAME}...")
 
-# Добавляем GLFW как подпроект
-#add_subdirectory(vendor/GLFW)
-#add_subdirectory(vendor/GLAD)
-
 # Автоматический поиск всех исходных файлов
 file(GLOB_RECURSE CHE_SOURCES
     "src/*.cpp"
@@ -72,7 +68,7 @@ endif()
 # Подключаемые библиотеки
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
-        CHEngine_CORE CHEngine_INTERFACES imgui
+        CHEngine_CORE imgui
 )
 
 # Линковка dl на Unix

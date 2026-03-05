@@ -5,6 +5,7 @@ message(STATUS "Configuring ${PROJECT_NAME}...")
 
 # Добавляем подпроект
 add_subdirectory(vendor/spdlog)
+add_subdirectory(vendor/imgui-docking)
 
 # Автоматический поиск всех исходных файлов
 file(GLOB_RECURSE CHE_SOURCES
@@ -22,6 +23,7 @@ add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS})
 # Директории включения
 target_include_directories(${PROJECT_NAME}
     PUBLIC
+        "Interfaces"
         "src"
         "vendor/spdlog/include"
 )
@@ -75,6 +77,10 @@ endif()
 if(UNIX)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 endif()
+
+target_link_libraries(${PROJECT_NAME} 
+    PUBLIC 
+    imgui)
 
 # Настройка выходных директорий
 set_target_properties(${PROJECT_NAME} PROPERTIES

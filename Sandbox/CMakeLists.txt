@@ -59,7 +59,7 @@ endif()
 
 # Подключение CHEngine
 target_link_libraries(${PROJECT_NAME} PRIVATE
-    CHEngine CHEngine_CORE glad glfw
+    CHEngine CHEngine_CORE glad glfw imgui
 )
 
 # Линковка dl на Unix

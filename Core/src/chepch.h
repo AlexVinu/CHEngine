@@ -6,8 +6,8 @@
 #include <algorithm>
 #include <functional>
 
-#include "Memory/String.h"
-#include "Memory/Vector.h"
+#include "Containers/String.h"
+#include "Containers/Vector.h"
 
 #include "Log/Log.h"
 #ifdef CHE_PLATFORM_WINDOWS

@@ -8,6 +8,34 @@ extern "C" { \
     CHE_MODULE_API void DestroyFactory(CHEngine::IModuleFactory*); \
 }
 
+#define IMPLEMENT_MODULE_FACTORY(FactoryType) \
+    extern "C" \
+{ \
+    CHE_MODULE_API CHEngine::IModuleFactory* CreateFactory() \
+    { \
+        return new FactoryType(); \
+    } \
+    CHE_MODULE_API void DestroyFactory(CHEngine::IModuleFactory* factory) \
+    { \
+        delete factory; \
+    } \
+}
+
+// Templates for unify creation
+template<typename T, typename... Args>
+T* CreateImpl(Args&&... args)
+{
+    CHE_MODULE_INFO("Object CREATED");
+    return new T(std::forward<Args>(args)...);
+}
+
+template<typename T>
+void DestroyImpl(T* ptr)
+{
+    CHE_MODULE_INFO("Object DELETED");
+    delete ptr;
+}
+
 namespace CHEngine {
     enum class ModuleType
     {

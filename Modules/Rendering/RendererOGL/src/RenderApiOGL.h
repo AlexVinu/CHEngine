@@ -5,7 +5,7 @@
 namespace CHModules {
 	class RendererApiOGL : public CHEngine::RendererAPI
 	{
-
+	public:
 		virtual ~RendererApiOGL() = default;
 
 		virtual void Clear() override;

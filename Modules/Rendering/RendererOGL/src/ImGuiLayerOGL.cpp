@@ -19,13 +19,13 @@ namespace CHModules {
 
         ImGui::StyleColorsDark();
 
-#ifdef CHE_PLATFORM_APPLE
+        #ifdef CHE_PLATFORM_APPLE
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 410");
-#else
+        #else
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 460");
-#endif
+        #endif
     }
 
     ImGuiLayerOGL::~ImGuiLayerOGL()
