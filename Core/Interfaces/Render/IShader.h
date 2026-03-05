@@ -1,7 +1,7 @@
 #pragma once
 
 #include<Core.h>
-#include <Memory/String.h>
+#include <Containers/String.h>
 
 namespace CHEngine {
 
