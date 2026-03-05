@@ -2,8 +2,8 @@
 
 #include <Core.h>
 #include <cstdint>
-#include "Memory/String.h"
-#include "Memory/Vector.h"
+#include "Containers/String.h"
+#include "Containers/Vector.h"
 
 namespace CHEngine
 {

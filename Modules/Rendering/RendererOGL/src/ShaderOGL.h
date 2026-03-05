@@ -2,7 +2,7 @@
 
 #include <Render/IShader.h>
 
-#include <Memory/String.h>
+#include <Containers/String.h>
 
 namespace CHModules
 {

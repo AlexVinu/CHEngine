@@ -10,13 +10,13 @@ namespace CHEngine {
 	Application::Application()
 		:m_ModuleManager()
 	{
-	#if defined(CHE_PLATFORM_WINDOWS)
+		#if defined(CHE_PLATFORM_WINDOWS)
 		m_ModuleManager.LoadModule("RendererOGL.dll");
-	#elif defined(CHE_PLATFORM_APPLE)
+		#elif defined(CHE_PLATFORM_APPLE)
 		m_ModuleManager.LoadModule("libRendererOGL.dylib");
-	#else
+		#else
 		m_ModuleManager.LoadModule("libRendererOGL.so");
-	#endif
+		#endif
 		m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
 
 		m_RenderResources.Init(m_RenderFactory);

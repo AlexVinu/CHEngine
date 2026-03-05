@@ -40,74 +40,57 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
-# Создание библиотек/интерфейсов необходимых множеству проектов
-
-#CHEngine Interfaces -------------------------------
-
-add_library(CHEngine_INTERFACES INTERFACE)
-
-add_subdirectory(${CHE_VENDOR_DIR}/GLM)
-
-# Добавляем интерфейсы
-target_include_directories(CHEngine_INTERFACES INTERFACE
-    ${CHE_INTERFACES_DIR}
-    ${CHE_SRC_DIR}
-)
-
-# Общие определения для всех, кто использует интерфейсы
-if(MSVC)
-    target_compile_definitions(CHEngine_INTERFACES INTERFACE _CRT_SECURE_NO_WARNINGS)
-endif()
-
-#CHEngine Interfaces =================================
-
 # ImGui — объявляем FetchContent до RendererOGL
-include(FetchContent)
-FetchContent_Declare(
-    imgui_dep
-    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-    GIT_TAG        v1.91.6
-)
-FetchContent_MakeAvailable(imgui_dep)
-set(IMGUI_INCLUDE_DIR "${imgui_dep_SOURCE_DIR}" CACHE PATH "" FORCE)
+#include(FetchContent)
+#FetchContent_Declare(
+#    imgui_dep
+#    GIT_REPOSITORY https://github.com/ocornut/imgui.git
+#    GIT_TAG        v1.91.6
+#)
+#FetchContent_MakeAvailable(imgui_dep)
+#set(IMGUI_INCLUDE_DIR "${imgui_dep_SOURCE_DIR}" CACHE PATH "" FORCE)
+#
 
-if(CHE_BUILD_OPENGL)
-    add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
-    # После этого glfw и glad уже определены как targets
-endif()
+#
 
 # imgui core как SHARED lib — только ядро, без GLFW/OpenGL бекендов
 # Бекенды (impl_glfw, impl_opengl3) компилируются в RendererOGL.dylib,
 # где уже есть GLFW и GLAD, чтобы избежать дублирования ObjC-классов.
-add_library(imgui SHARED
-    ${imgui_dep_SOURCE_DIR}/imgui.cpp
-    ${imgui_dep_SOURCE_DIR}/imgui_draw.cpp
-    ${imgui_dep_SOURCE_DIR}/imgui_tables.cpp
-    ${imgui_dep_SOURCE_DIR}/imgui_widgets.cpp
-    ${imgui_dep_SOURCE_DIR}/imgui_demo.cpp
-)
-target_include_directories(imgui PUBLIC
-    ${imgui_dep_SOURCE_DIR}
-    ${imgui_dep_SOURCE_DIR}/backends
-)
+#add_library(imgui SHARED
+#    ${imgui_dep_SOURCE_DIR}/imgui.cpp
+#    ${imgui_dep_SOURCE_DIR}/imgui_draw.cpp
+#   ${imgui_dep_SOURCE_DIR}/imgui_tables.cpp
+#    ${imgui_dep_SOURCE_DIR}/imgui_widgets.cpp
+#    ${imgui_dep_SOURCE_DIR}/imgui_demo.cpp
+#)
+#target_include_directories(imgui PUBLIC
+#    ${imgui_dep_SOURCE_DIR}
+#    ${imgui_dep_SOURCE_DIR}/backends
+#)
+#
+#set_target_properties(imgui PROPERTIES
+#    POSITION_INDEPENDENT_CODE ON
+#    RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/bin"
+#    LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
+#    ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
+#)
+#
+#add_custom_command(TARGET imgui POST_BUILD
+#    COMMAND ${CMAKE_COMMAND} -E copy
+#        $<TARGET_FILE:imgui>
+#        "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/Sandbox/$<TARGET_FILE_NAME:imgui>"
+#    COMMENT "Copying imgui to Sandbox directory"
+#)
 
-set_target_properties(imgui PROPERTIES
-    POSITION_INDEPENDENT_CODE ON
-    RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/bin"
-    LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
-    ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
-)
-
-add_custom_command(TARGET imgui POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-        $<TARGET_FILE:imgui>
-        "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/Sandbox/$<TARGET_FILE_NAME:imgui>"
-    COMMENT "Copying imgui to Sandbox directory"
-)
+add_subdirectory(${CHE_VENDOR_DIR}/GLM)
 
 # Добавление подпроектов
 add_subdirectory(Core)      # Ядро
 add_subdirectory(CHEngine)  # Основной движок
+
+if(CHE_BUILD_OPENGL)
+    add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
+endif()
 
 if(CHE_BUILD_SANDBOX)
     add_subdirectory(Sandbox)  # Песочница

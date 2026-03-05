@@ -3,7 +3,7 @@
 #include <Core.h>
 #include <Memory/Handle.h>
 #include <Memory/HandlePool.h>
-#include <Memory/String.h>
+#include <Containers/String.h>
 
 #include "Render/IRenderFactory.h"
 

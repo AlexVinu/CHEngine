@@ -7,10 +7,10 @@ namespace CHEngine {
 	template<typename Tag>
 	struct Handle
 	{
-		static constexpr uint32_t INVALID_INDEX = 0xFFFFFF;
+		static constexpr uint64_t INVALID_INDEX = 0xFFFFFFFF;
 
-		uint32_t index      : 24 = INVALID_INDEX;
-		uint32_t generation :  8 = 0;
+		uint64_t index      :  32 = INVALID_INDEX;
+		uint64_t generation :  32 = 0;
 
 		bool IsValid() const { return index != INVALID_INDEX; }
 
