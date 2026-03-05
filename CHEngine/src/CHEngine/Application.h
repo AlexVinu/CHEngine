@@ -27,9 +27,19 @@ namespace CHEngine {
 		void PushLayer(Layer* layer);
 		void PushOverlay(Layer* overlay);
 
+		// Global singleton access (set in constructor).
+		static Application& Get() { return *s_Instance; }
+
+		RenderResourceManager& GetRenderResources() { return m_RenderResources; }
+
+		ShaderHandle GetActiveShader() const        { return m_Shader; }
+		void         SetActiveShader(ShaderHandle h) { m_Shader = h; }
+
 	private:
 		bool OnWindowClosed(WindowCloseEvent& e);
 		bool OnWindowResized(WindowResizeEvent& e);
+
+		static Application* s_Instance;
 
 		ModuleManager m_ModuleManager;
 		RenderResourceManager m_RenderResources;

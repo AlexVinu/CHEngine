@@ -7,16 +7,21 @@ namespace CHEngine {
 
 #define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
 
+	Application* Application::s_Instance = nullptr;
+
 	Application::Application()
 		:m_ModuleManager()
 	{
-		#if defined(CHE_PLATFORM_WINDOWS)
+		CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
+		s_Instance = this;
+
+#if defined(CHE_PLATFORM_WINDOWS)
 		m_ModuleManager.LoadModule("RendererOGL.dll");
-		#elif defined(CHE_PLATFORM_APPLE)
+#elif defined(CHE_PLATFORM_APPLE)
 		m_ModuleManager.LoadModule("libRendererOGL.dylib");
-		#else
+#else
 		m_ModuleManager.LoadModule("libRendererOGL.so");
-		#endif
+#endif
 		m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
 
 		m_RenderResources.Init(m_RenderFactory);
@@ -49,6 +54,7 @@ namespace CHEngine {
 		m_RenderResources.Get(m_VertexArray)->SetIndexBuffer(indexBuffer);
 
 		m_Shader = m_RenderResources.CreateShaderFromFile(
+			String("Basic"),
 			String("shaders/basic.vert"),
 			String("shaders/basic.frag")
 		);
