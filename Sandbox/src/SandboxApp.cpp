@@ -1,5 +1,6 @@
 #include <CHEngine.h>
 
+#include <glm/gtc/type_ptr.hpp>
 #include <string>
 
 class ExampleLayer : public CHEngine::Layer
@@ -7,30 +8,76 @@ class ExampleLayer : public CHEngine::Layer
 public:
 	ExampleLayer()
 		: Layer("Example")
-		, m_TintColor{ 1.0f, 1.0f, 1.0f, 1.0f }   // white = no tint
+		, m_TintColor{ 1.0f, 1.0f, 1.0f, 1.0f }
+		, m_Camera(45.0f, 0.1f, 100.0f)
 	{
 	}
 
 	void OnUpdate() override
 	{
-		// Set u_Color uniform on the active shader every frame.
-		// The shader is already bound by Application::Run() before OnUpdate().
 		auto& app    = CHEngine::Application::Get();
 		auto* shader = app.GetRenderResources().Get(app.GetActiveShader());
-		if (shader)
-			shader->SetFloat4(CHEngine::String("u_Color"),
-				m_TintColor[0], m_TintColor[1], m_TintColor[2], m_TintColor[3]);
+		if (!shader) return;
+
+		// --- u_Color tint ---
+		shader->SetFloat4(CHEngine::String("u_Color"),
+			m_TintColor[0], m_TintColor[1], m_TintColor[2], m_TintColor[3]);
+
+		// --- u_ViewProjection ---
+		glm::mat4 vp = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
+		shader->SetMat4(CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
 	}
 
 	void OnImGuiRender() override
 	{
+		// Update aspect ratio from current window size
+		ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+		if (displaySize.y > 0.0f)
+			m_AspectRatio = displaySize.x / displaySize.y;
+
 		// ---- Debug info ----
 		ImGui::Begin("CHEngine Debug");
 		ImGui::Text("%.3f ms/frame  (%.1f FPS)",
 			1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::End();
 
-		// ---- Color Control ----
+		// ---- Camera ----
+		ImGui::Begin("Camera");
+
+		glm::vec3 pos = m_Camera.GetPosition();
+		float yaw     = m_Camera.GetYaw();
+		float pitch   = m_Camera.GetPitch();
+		float fov     = m_Camera.GetFOV();
+
+		bool changed = false;
+		changed |= ImGui::DragFloat3("Position",  glm::value_ptr(pos),   0.05f);
+		changed |= ImGui::SliderFloat("Yaw",      &yaw,   -180.0f, 180.0f, "%.1f°");
+		changed |= ImGui::SliderFloat("Pitch",    &pitch,  -89.0f,  89.0f, "%.1f°");
+		changed |= ImGui::SliderFloat("FOV",      &fov,    10.0f,  120.0f, "%.1f°");
+
+		if (changed)
+		{
+			m_Camera.SetPosition(pos);
+			m_Camera.SetYaw(yaw);
+			m_Camera.SetPitch(pitch);
+			m_Camera.SetFOV(fov);
+		}
+
+		if (ImGui::Button("Reset camera"))
+		{
+			m_Camera.SetPosition({ 0.0f, 0.0f, 3.0f });
+			m_Camera.SetYaw(-90.0f);
+			m_Camera.SetPitch(0.0f);
+			m_Camera.SetFOV(45.0f);
+		}
+
+		ImGui::Separator();
+		ImGui::Text("Forward: (%.2f, %.2f, %.2f)", m_Camera.GetForward().x,
+		                                             m_Camera.GetForward().y,
+		                                             m_Camera.GetForward().z);
+		ImGui::End();
+
+		// ---- Color ----
 		ImGui::Begin("Color");
 		ImGui::Text("Tint color:");
 		ImGui::ColorEdit4("##tint", m_TintColor);
@@ -87,12 +134,12 @@ public:
 		ImGui::End();
 	}
 
-	void OnEvent(CHEngine::Event& e) override
-	{
-	}
+	void OnEvent(CHEngine::Event& e) override {}
 
 private:
-	float m_TintColor[4];   // RGBA, passed as u_Color uniform each frame
+	float           m_TintColor[4];
+	float           m_AspectRatio = 16.0f / 9.0f;
+	CHEngine::Camera m_Camera;
 };
 
 class Sandbox : public CHEngine::Application
@@ -100,7 +147,6 @@ class Sandbox : public CHEngine::Application
 public:
 	Sandbox()
 	{
-		// ("Basic" is already registered by Application base class)
 		GetRenderResources().CreateShaderFromFile(
 			CHEngine::String("Flat"),
 			CHEngine::String("shaders/flat.vert"),

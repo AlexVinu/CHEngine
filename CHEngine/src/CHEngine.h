@@ -10,6 +10,10 @@
 #include "CHEngine/Layer/Layer.h"
 #include "Log/Log.h"
 
+// Camera -------------------------
+#include "CHEngine/Camera/Camera.h"
+// ================================
+
 // ImGui --------------------------
 #include <imgui.h>
 // ================================
