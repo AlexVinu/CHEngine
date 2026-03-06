@@ -113,4 +113,39 @@ namespace CHModules
 		return true;
 	}
 
+	// ---------------------------------------------------------------------------
+	// Uniform setters — shader must be bound before calling these
+	// ---------------------------------------------------------------------------
+
+	void ShaderOGL::SetInt(const CHEngine::String& name, int value)
+	{
+		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+		glUniform1i(location, value);
+	}
+
+	void ShaderOGL::SetFloat(const CHEngine::String& name, float value)
+	{
+		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+		glUniform1f(location, value);
+	}
+
+	void ShaderOGL::SetFloat3(const CHEngine::String& name, float x, float y, float z)
+	{
+		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+		glUniform3f(location, x, y, z);
+	}
+
+	void ShaderOGL::SetFloat4(const CHEngine::String& name, float x, float y, float z, float w)
+	{
+		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+		glUniform4f(location, x, y, z, w);
+	}
+
+	void ShaderOGL::SetMat4(const CHEngine::String& name, const float* matrix)
+	{
+		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+		// GL_FALSE = matrix is already column-major (GLM default)
+		glUniformMatrix4fv(location, 1, GL_FALSE, matrix);
+	}
+
 }

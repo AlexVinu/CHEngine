@@ -112,11 +112,15 @@ namespace CHEngine {
 		{
 			m_RenderResources.Get(m_RenderApi)->Clear();
 
+			// Bind active shader first so that OnUpdate() can set uniforms
 			m_RenderResources.Get(m_Shader)->Bind();
-			m_RenderResources.Get(m_RenderApi)->DrawIndexed(m_RenderResources.Get(m_VertexArray));
 
+			// Layers: game logic + uniform setup
 			for (Layer* layer : m_LayerStack)
 				layer->OnUpdate();
+
+			// Draw with whatever uniforms the layers have set
+			m_RenderResources.Get(m_RenderApi)->DrawIndexed(m_RenderResources.Get(m_VertexArray));
 
 			if (m_ImGuiLayer)
 			{

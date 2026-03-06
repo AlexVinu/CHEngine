@@ -7,11 +7,19 @@ class ExampleLayer : public CHEngine::Layer
 public:
 	ExampleLayer()
 		: Layer("Example")
+		, m_TintColor{ 1.0f, 1.0f, 1.0f, 1.0f }   // white = no tint
 	{
 	}
 
 	void OnUpdate() override
 	{
+		// Set u_Color uniform on the active shader every frame.
+		// The shader is already bound by Application::Run() before OnUpdate().
+		auto& app    = CHEngine::Application::Get();
+		auto* shader = app.GetRenderResources().Get(app.GetActiveShader());
+		if (shader)
+			shader->SetFloat4(CHEngine::String("u_Color"),
+				m_TintColor[0], m_TintColor[1], m_TintColor[2], m_TintColor[3]);
 	}
 
 	void OnImGuiRender() override
@@ -22,6 +30,14 @@ public:
 			1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
 		ImGui::End();
 
+		// ---- Color Control ----
+		ImGui::Begin("Color");
+		ImGui::Text("Tint color:");
+		ImGui::ColorEdit4("##tint", m_TintColor);
+		if (ImGui::Button("Reset"))
+			m_TintColor[0] = m_TintColor[1] = m_TintColor[2] = m_TintColor[3] = 1.0f;
+		ImGui::End();
+
 		// ---- Shader Manager ----
 		ImGui::Begin("Shader Manager");
 
@@ -30,7 +46,6 @@ public:
 		const auto& entries = res.GetShaderEntries();
 		CHEngine::ShaderHandle activeShader = app.GetActiveShader();
 
-		// Show active shader name
 		const char* activeName = "(unknown)";
 		for (const auto& e : entries)
 			if (e.handle == activeShader) { activeName = e.name.c_str(); break; }
@@ -44,7 +59,6 @@ public:
 			const auto& e = entries[i];
 			bool isActive = (e.handle == activeShader);
 
-			// Shader name with status colour
 			if (!e.valid)
 				ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "[ERR] %s", e.name.c_str());
 			else if (isActive)
@@ -52,7 +66,6 @@ public:
 			else
 				ImGui::Text("      %s", e.name.c_str());
 
-			// "Use" button (disabled when already active)
 			ImGui::SameLine(160.0f);
 			if (isActive)
 			{
@@ -66,7 +79,6 @@ public:
 					app.SetActiveShader(e.handle);
 			}
 
-			// "Reload" button — re-reads files and recompiles
 			ImGui::SameLine();
 			if (ImGui::Button(("Reload##reload" + std::to_string(i)).c_str(), ImVec2(60, 0)))
 				res.ReloadShader(e.handle);
@@ -78,6 +90,9 @@ public:
 	void OnEvent(CHEngine::Event& e) override
 	{
 	}
+
+private:
+	float m_TintColor[4];   // RGBA, passed as u_Color uniform each frame
 };
 
 class Sandbox : public CHEngine::Application
@@ -85,7 +100,6 @@ class Sandbox : public CHEngine::Application
 public:
 	Sandbox()
 	{
-		// Register additional demo shaders
 		// ("Basic" is already registered by Application base class)
 		GetRenderResources().CreateShaderFromFile(
 			CHEngine::String("Flat"),
@@ -101,9 +115,7 @@ public:
 		PushLayer(new ExampleLayer());
 	}
 
-	~Sandbox()
-	{
-	}
+	~Sandbox() {}
 };
 
 CHEngine::Application* CHEngine::CreateApplication()
