@@ -36,41 +36,59 @@ namespace CHEngine {
 
 		m_VertexArray = m_RenderResources.CreateVertexArray();
 
-		// Unit cube centred at origin (-0.5 … 0.5 on each axis)
-		float vertices[8 * 3] = {
-			// Back face (-Z)
-			-0.5f, -0.5f, -0.5f,  // 0
-			 0.5f, -0.5f, -0.5f,  // 1
-			 0.5f,  0.5f, -0.5f,  // 2
-			-0.5f,  0.5f, -0.5f,  // 3
-			// Front face (+Z)
-			-0.5f, -0.5f,  0.5f,  // 4
-			 0.5f, -0.5f,  0.5f,  // 5
-			 0.5f,  0.5f,  0.5f,  // 6
-			-0.5f,  0.5f,  0.5f,  // 7
+		// 24 unique vertices: 4 per face, so each face gets its own colour.
+		// Vertex layout: x, y, z,   r, g, b
+		// Face colours: Front=Red, Back=Green, Left=Blue, Right=Yellow, Bottom=Cyan, Top=Magenta
+		float vertices[24 * 6] = {
+			// Front (+Z)  — Red
+			-0.5f, -0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
+			 0.5f, -0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
+			 0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
+			-0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
+			// Back (-Z)   — Green
+			 0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
+			-0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
+			-0.5f,  0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
+			 0.5f,  0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
+			// Left (-X)   — Blue
+			-0.5f, -0.5f, -0.5f,   0.2f, 0.4f, 1.0f,
+			-0.5f, -0.5f,  0.5f,   0.2f, 0.4f, 1.0f,
+			-0.5f,  0.5f,  0.5f,   0.2f, 0.4f, 1.0f,
+			-0.5f,  0.5f, -0.5f,   0.2f, 0.4f, 1.0f,
+			// Right (+X)  — Yellow
+			 0.5f, -0.5f,  0.5f,   1.0f, 1.0f, 0.2f,
+			 0.5f, -0.5f, -0.5f,   1.0f, 1.0f, 0.2f,
+			 0.5f,  0.5f, -0.5f,   1.0f, 1.0f, 0.2f,
+			 0.5f,  0.5f,  0.5f,   1.0f, 1.0f, 0.2f,
+			// Bottom (-Y) — Cyan
+			-0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 1.0f,
+			 0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 1.0f,
+			 0.5f, -0.5f,  0.5f,   0.2f, 1.0f, 1.0f,
+			-0.5f, -0.5f,  0.5f,   0.2f, 1.0f, 1.0f,
+			// Top (+Y)    — Magenta
+			-0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 1.0f,
+			 0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 1.0f,
+			 0.5f,  0.5f, -0.5f,   1.0f, 0.2f, 1.0f,
+			-0.5f,  0.5f, -0.5f,   1.0f, 0.2f, 1.0f,
 		};
 
 		auto vertexBuffer = m_RenderResources.CreateVertexBuffer(vertices, sizeof(vertices));
 		BufferLayout layout = {
 			{ ShaderDataType::Float3, "a_Position" },
+			{ ShaderDataType::Float3, "a_Color"    },
 		};
 		vertexBuffer->SetLayout(layout);
 		m_RenderResources.Get(m_VertexArray)->AddVertexBuffer(vertexBuffer);
 
 		// 6 faces × 2 triangles × 3 indices = 36
+		// Face i uses vertices [i*4 .. i*4+3]
 		uint32_t indices[36] = {
-			// Front  (+Z)
-			4, 5, 6,  4, 6, 7,
-			// Back   (-Z)
-			1, 0, 3,  1, 3, 2,
-			// Left   (-X)
-			0, 4, 7,  0, 7, 3,
-			// Right  (+X)
-			5, 1, 2,  5, 2, 6,
-			// Bottom (-Y)
-			0, 1, 5,  0, 5, 4,
-			// Top    (+Y)
-			7, 6, 2,  7, 2, 3,
+			 0,  1,  2,   0,  2,  3,   // Front
+			 4,  5,  6,   4,  6,  7,   // Back
+			 8,  9, 10,   8, 10, 11,   // Left
+			12, 13, 14,  12, 14, 15,   // Right
+			16, 17, 18,  16, 18, 19,   // Bottom
+			20, 21, 22,  20, 22, 23,   // Top
 		};
 		auto indexBuffer = m_RenderResources.CreateIndexBuffer(indices, sizeof(indices) / sizeof(uint32_t));
 
