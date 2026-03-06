@@ -32,13 +32,22 @@ namespace CHEngine {
 		m_ImGuiLayer = m_RenderFactory->CreateImGuiLayer(m_Window->GetNativeWindow());
 
 		m_RenderApi = m_RenderResources.CreateRenderAPI();
+		m_RenderResources.Get(m_RenderApi)->SetClearColor(0.12f, 0.12f, 0.12f, 1.0f);
 
 		m_VertexArray = m_RenderResources.CreateVertexArray();
 
-		float vertices[3 * 3] = {
-			-0.5f, -0.5f, 0.0f,
-			 0.5f, -0.5f, 0.0f,
-			 0.0f,  0.5f, 0.0f
+		// Unit cube centred at origin (-0.5 … 0.5 on each axis)
+		float vertices[8 * 3] = {
+			// Back face (-Z)
+			-0.5f, -0.5f, -0.5f,  // 0
+			 0.5f, -0.5f, -0.5f,  // 1
+			 0.5f,  0.5f, -0.5f,  // 2
+			-0.5f,  0.5f, -0.5f,  // 3
+			// Front face (+Z)
+			-0.5f, -0.5f,  0.5f,  // 4
+			 0.5f, -0.5f,  0.5f,  // 5
+			 0.5f,  0.5f,  0.5f,  // 6
+			-0.5f,  0.5f,  0.5f,  // 7
 		};
 
 		auto vertexBuffer = m_RenderResources.CreateVertexBuffer(vertices, sizeof(vertices));
@@ -48,7 +57,21 @@ namespace CHEngine {
 		vertexBuffer->SetLayout(layout);
 		m_RenderResources.Get(m_VertexArray)->AddVertexBuffer(vertexBuffer);
 
-		uint32_t indices[3] = { 0, 1, 2 };
+		// 6 faces × 2 triangles × 3 indices = 36
+		uint32_t indices[36] = {
+			// Front  (+Z)
+			4, 5, 6,  4, 6, 7,
+			// Back   (-Z)
+			1, 0, 3,  1, 3, 2,
+			// Left   (-X)
+			0, 4, 7,  0, 7, 3,
+			// Right  (+X)
+			5, 1, 2,  5, 2, 6,
+			// Bottom (-Y)
+			0, 1, 5,  0, 5, 4,
+			// Top    (+Y)
+			7, 6, 2,  7, 2, 3,
+		};
 		auto indexBuffer = m_RenderResources.CreateIndexBuffer(indices, sizeof(indices) / sizeof(uint32_t));
 
 		m_RenderResources.Get(m_VertexArray)->SetIndexBuffer(indexBuffer);
