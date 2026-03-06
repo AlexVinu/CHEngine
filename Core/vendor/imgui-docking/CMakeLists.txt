@@ -26,8 +26,8 @@ if(MSVC)
     )
 else()
     target_compile_options(${PROJECT_NAME} PRIVATE
-        -Wall -Wextra -Wpedantic
-        -fvisibility=hidden
+        # No -fvisibility=hidden: ImGui doesn't annotate its public symbols,
+        # so all symbols must be visible for other dylibs (RendererOGL) to link.
         $<$<CONFIG:Debug>:-g -O0>
         $<$<CONFIG:Release>:-O2>
         $<$<CONFIG:Dist>:-O2>

@@ -84,6 +84,9 @@ set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
 add_subdirectory(${CHE_VENDOR_DIR}/GLM)
 
+# ImGui vendor path — used by RendererOGL to compile GLFW/OpenGL3 backends
+set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Core/vendor/imgui-docking/imgui" CACHE PATH "" FORCE)
+
 # Добавление подпроектов
 add_subdirectory(Core)      # Ядро
 add_subdirectory(CHEngine)  # Основной движок
