@@ -1,6 +1,8 @@
 #include <CHEngine.h>
 
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <chrono>
 #include <string>
 
 class ExampleLayer : public CHEngine::Layer
@@ -10,11 +12,25 @@ public:
 		: Layer("Example")
 		, m_TintColor{ 1.0f, 1.0f, 1.0f, 1.0f }
 		, m_Camera(45.0f, 0.1f, 100.0f)
+		, m_LastTime(std::chrono::steady_clock::now())
 	{
 	}
 
 	void OnUpdate() override
 	{
+		// --- Delta time ---
+		auto now    = std::chrono::steady_clock::now();
+		float dt    = std::chrono::duration<float>(now - m_LastTime).count();
+		m_LastTime  = now;
+
+		// --- Auto-rotate ---
+		if (m_AutoRotate)
+		{
+			m_RotX += m_SpeedX * dt;
+			m_RotY += m_SpeedY * dt;
+			m_RotZ += m_SpeedZ * dt;
+		}
+
 		auto& app    = CHEngine::Application::Get();
 		auto* shader = app.GetRenderResources().Get(app.GetActiveShader());
 		if (!shader) return;
@@ -26,6 +42,13 @@ public:
 		// --- u_ViewProjection ---
 		glm::mat4 vp = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
 		shader->SetMat4(CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
+
+		// --- u_Transform (model matrix) ---
+		glm::mat4 transform = glm::mat4(1.0f);
+		transform = glm::rotate(transform, glm::radians(m_RotX), glm::vec3(1.0f, 0.0f, 0.0f));
+		transform = glm::rotate(transform, glm::radians(m_RotY), glm::vec3(0.0f, 1.0f, 0.0f));
+		transform = glm::rotate(transform, glm::radians(m_RotZ), glm::vec3(0.0f, 0.0f, 1.0f));
+		shader->SetMat4(CHEngine::String("u_Transform"), glm::value_ptr(transform));
 	}
 
 	void OnImGuiRender() override
@@ -75,6 +98,28 @@ public:
 		ImGui::Text("Forward: (%.2f, %.2f, %.2f)", m_Camera.GetForward().x,
 		                                             m_Camera.GetForward().y,
 		                                             m_Camera.GetForward().z);
+		ImGui::End();
+
+		// ---- Cube ----
+		ImGui::Begin("Cube");
+
+		ImGui::SeparatorText("Rotation");
+		ImGui::Checkbox("Auto rotate", &m_AutoRotate);
+
+		ImGui::BeginDisabled(!m_AutoRotate);
+		ImGui::SliderFloat("Speed X°/s", &m_SpeedX, -180.0f, 180.0f, "%.0f");
+		ImGui::SliderFloat("Speed Y°/s", &m_SpeedY, -180.0f, 180.0f, "%.0f");
+		ImGui::SliderFloat("Speed Z°/s", &m_SpeedZ, -180.0f, 180.0f, "%.0f");
+		ImGui::EndDisabled();
+
+		ImGui::Spacing();
+		ImGui::DragFloat("Angle X", &m_RotX, 1.0f, -360.0f, 360.0f, "%.1f°");
+		ImGui::DragFloat("Angle Y", &m_RotY, 1.0f, -360.0f, 360.0f, "%.1f°");
+		ImGui::DragFloat("Angle Z", &m_RotZ, 1.0f, -360.0f, 360.0f, "%.1f°");
+
+		if (ImGui::Button("Reset rotation"))
+			m_RotX = m_RotY = m_RotZ = 0.0f;
+
 		ImGui::End();
 
 		// ---- Color ----
@@ -140,6 +185,17 @@ private:
 	float           m_TintColor[4];
 	float           m_AspectRatio = 16.0f / 9.0f;
 	CHEngine::Camera m_Camera;
+
+	// Rotation state
+	float m_RotX    =   0.0f;
+	float m_RotY    =   0.0f;
+	float m_RotZ    =   0.0f;
+	bool  m_AutoRotate = true;
+	float m_SpeedX  =   0.0f;   // degrees / second
+	float m_SpeedY  =  30.0f;
+	float m_SpeedZ  =   0.0f;
+
+	std::chrono::steady_clock::time_point m_LastTime;
 };
 
 class Sandbox : public CHEngine::Application

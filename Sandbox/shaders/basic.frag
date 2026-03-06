@@ -2,14 +2,12 @@
 
 layout(location = 0) out vec4 color;
 
-in vec3 v_Position;
+in vec3 v_Color;
 
-// Tint color set from CPU via uniform.
-// Default (1,1,1,1) = no tint, shows position gradient.
+// Global tint multiplier (set from CPU). Default (1,1,1,1) = no tint.
 uniform vec4 u_Color;
 
 void main()
 {
-    vec4 posColor = vec4(v_Position * 0.5 + 0.5, 1.0);
-    color = posColor * u_Color;
+    color = vec4(v_Color, 1.0) * u_Color;
 }
