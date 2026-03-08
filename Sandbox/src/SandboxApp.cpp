@@ -19,9 +19,9 @@ public:
 	void OnUpdate() override
 	{
 		// --- Delta time ---
-		auto now    = std::chrono::steady_clock::now();
-		float dt    = std::chrono::duration<float>(now - m_LastTime).count();
-		m_LastTime  = now;
+		auto now = std::chrono::steady_clock::now();
+		float dt = std::chrono::duration<float>(now - m_LastTime).count();
+		m_LastTime = now;
 
 		// --- Auto-rotate ---
 		if (m_AutoRotate)
@@ -31,7 +31,7 @@ public:
 			m_RotZ += m_SpeedZ * dt;
 		}
 
-		auto& app    = CHEngine::Application::Get();
+		auto& app = CHEngine::Application::Get();
 		auto* shader = app.GetRenderResources().Get(app.GetActiveShader());
 		if (!shader) return;
 
@@ -68,15 +68,15 @@ public:
 		ImGui::Begin("Camera");
 
 		glm::vec3 pos = m_Camera.GetPosition();
-		float yaw     = m_Camera.GetYaw();
-		float pitch   = m_Camera.GetPitch();
-		float fov     = m_Camera.GetFOV();
+		float yaw = m_Camera.GetYaw();
+		float pitch = m_Camera.GetPitch();
+		float fov = m_Camera.GetFOV();
 
 		bool changed = false;
-		changed |= ImGui::DragFloat3("Position",  glm::value_ptr(pos),   0.05f);
-		changed |= ImGui::SliderFloat("Yaw",      &yaw,   -180.0f, 180.0f, "%.1f°");
-		changed |= ImGui::SliderFloat("Pitch",    &pitch,  -89.0f,  89.0f, "%.1f°");
-		changed |= ImGui::SliderFloat("FOV",      &fov,    10.0f,  120.0f, "%.1f°");
+		changed |= ImGui::DragFloat3("Position", glm::value_ptr(pos), 0.05f);
+		changed |= ImGui::SliderFloat("Yaw", &yaw, -180.0f, 180.0f, "%.1f°");
+		changed |= ImGui::SliderFloat("Pitch", &pitch, -89.0f, 89.0f, "%.1f°");
+		changed |= ImGui::SliderFloat("FOV", &fov, 10.0f, 120.0f, "%.1f°");
 
 		if (changed)
 		{
@@ -96,8 +96,8 @@ public:
 
 		ImGui::Separator();
 		ImGui::Text("Forward: (%.2f, %.2f, %.2f)", m_Camera.GetForward().x,
-		                                             m_Camera.GetForward().y,
-		                                             m_Camera.GetForward().z);
+			m_Camera.GetForward().y,
+			m_Camera.GetForward().z);
 		ImGui::End();
 
 		// ---- Cube ----
@@ -133,7 +133,11 @@ public:
 		// ---- Shader Manager ----
 		ImGui::Begin("Shader Manager");
 
-		// Show active shader name
+		auto& app = CHEngine::Application::Get();
+		auto& res = app.GetRenderResources();
+		const auto& entries = res.GetShaderEntries();
+		CHEngine::ShaderHandle activeShader = app.GetActiveShader();
+
 		const char* activeName = "(unknown)";
 		for (const auto& e : entries)
 			if (e.handle == activeShader) { activeName = e.name.c_str(); break; }
@@ -183,13 +187,13 @@ private:
 	CHEngine::Camera m_Camera;
 
 	// Rotation state
-	float m_RotX    =   0.0f;
-	float m_RotY    =   0.0f;
-	float m_RotZ    =   0.0f;
+	float m_RotX = 0.0f;
+	float m_RotY = 0.0f;
+	float m_RotZ = 0.0f;
 	bool  m_AutoRotate = true;
-	float m_SpeedX  =   0.0f;   // degrees / second
-	float m_SpeedY  =  30.0f;
-	float m_SpeedZ  =   0.0f;
+	float m_SpeedX = 0.0f;   // degrees / second
+	float m_SpeedY = 30.0f;
+	float m_SpeedZ = 0.0f;
 
 	std::chrono::steady_clock::time_point m_LastTime;
 };
