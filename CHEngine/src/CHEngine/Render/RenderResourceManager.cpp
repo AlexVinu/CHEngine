@@ -83,7 +83,7 @@ namespace CHEngine {
 	bool RenderResourceManager::ReloadShader(ShaderHandle h)
 	{
 		ShaderEntry* entry = nullptr;
-		for (auto& e : m_ShaderEntries)
+		for (ShaderEntry& e : m_ShaderEntries)
 		{
 			if (e.handle == h)
 			{
@@ -188,6 +188,11 @@ namespace CHEngine {
 	RendererAPI* RenderResourceManager::Get(RenderAPIHandle h) const
 	{
 		return m_RenderApis.Get(h);
+	}
+
+	const std::vector<ShaderEntry>& RenderResourceManager::GetShaderEntries() const 
+	{ 
+		return m_ShaderEntries; 
 	}
 
 	void RenderResourceManager::DestroyShader(ShaderHandle h)

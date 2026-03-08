@@ -24,6 +24,11 @@ public:
 
 	void OnImGuiRender() override
 	{
+		auto& app = CHEngine::Application::Get();
+		auto& res = app.GetRenderResources();
+		const auto& entries = res.GetShaderEntries();
+		CHEngine::ShaderHandle activeShader = app.GetActiveShader();
+
 		// ---- Debug info ----
 		ImGui::Begin("CHEngine Debug");
 		ImGui::Text("%.3f ms/frame  (%.1f FPS)",
@@ -41,11 +46,7 @@ public:
 		// ---- Shader Manager ----
 		ImGui::Begin("Shader Manager");
 
-		auto& app           = CHEngine::Application::Get();
-		auto& res           = app.GetRenderResources();
-		const auto& entries = res.GetShaderEntries();
-		CHEngine::ShaderHandle activeShader = app.GetActiveShader();
-
+		// Show active shader name
 		const char* activeName = "(unknown)";
 		for (const auto& e : entries)
 			if (e.handle == activeShader) { activeName = e.name.c_str(); break; }

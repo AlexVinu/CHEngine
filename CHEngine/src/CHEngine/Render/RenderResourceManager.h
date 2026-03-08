@@ -59,7 +59,7 @@ namespace CHEngine {
 		// Returns true on success; the old GPU program remains on failure.
 		bool ReloadShader(ShaderHandle h);
 
-		const std::vector<ShaderEntry>& GetShaderEntries() const { return m_ShaderEntries; }
+		const std::vector<ShaderEntry>& GetShaderEntries() const;
 
 		void DestroyShader(ShaderHandle h);
 		void DestroyVertexArray(VertexArrayHandle h);
