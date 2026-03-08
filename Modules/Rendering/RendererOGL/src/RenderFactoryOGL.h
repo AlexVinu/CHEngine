@@ -12,7 +12,7 @@ namespace CHModules
         virtual CHEngine::IShader* CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
         virtual CHEngine::RendererAPI* CreateRenderAPI() override;
         virtual CHEngine::IRenderer* CreateRenderer(const unsigned int width, const unsigned int height, const char* title, CHEngine::ErrorCallbackFn errorCallbackFn) override;
-	
+
         virtual void Delete(CHEngine::IVertexBuffer* ptr) override;
         virtual void Delete(CHEngine::IIndexBuffer* ptr) override;
         virtual void Delete(CHEngine::IVertexArray* ptr) override;

@@ -40,48 +40,6 @@ endif()
 
 set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
-# ImGui — объявляем FetchContent до RendererOGL
-#include(FetchContent)
-#FetchContent_Declare(
-#    imgui_dep
-#    GIT_REPOSITORY https://github.com/ocornut/imgui.git
-#    GIT_TAG        v1.91.6
-#)
-#FetchContent_MakeAvailable(imgui_dep)
-#set(IMGUI_INCLUDE_DIR "${imgui_dep_SOURCE_DIR}" CACHE PATH "" FORCE)
-#
-
-#
-
-# imgui core как SHARED lib — только ядро, без GLFW/OpenGL бекендов
-# Бекенды (impl_glfw, impl_opengl3) компилируются в RendererOGL.dylib,
-# где уже есть GLFW и GLAD, чтобы избежать дублирования ObjC-классов.
-#add_library(imgui SHARED
-#    ${imgui_dep_SOURCE_DIR}/imgui.cpp
-#    ${imgui_dep_SOURCE_DIR}/imgui_draw.cpp
-#   ${imgui_dep_SOURCE_DIR}/imgui_tables.cpp
-#    ${imgui_dep_SOURCE_DIR}/imgui_widgets.cpp
-#    ${imgui_dep_SOURCE_DIR}/imgui_demo.cpp
-#)
-#target_include_directories(imgui PUBLIC
-#    ${imgui_dep_SOURCE_DIR}
-#    ${imgui_dep_SOURCE_DIR}/backends
-#)
-#
-#set_target_properties(imgui PROPERTIES
-#    POSITION_INDEPENDENT_CODE ON
-#    RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/bin"
-#    LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
-#    ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
-#)
-#
-#add_custom_command(TARGET imgui POST_BUILD
-#    COMMAND ${CMAKE_COMMAND} -E copy
-#        $<TARGET_FILE:imgui>
-#        "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/Sandbox/$<TARGET_FILE_NAME:imgui>"
-#    COMMENT "Copying imgui to Sandbox directory"
-#)
-
 add_subdirectory(${CHE_VENDOR_DIR}/GLM)
 
 # ImGui vendor path — used by RendererOGL to compile GLFW/OpenGL3 backends

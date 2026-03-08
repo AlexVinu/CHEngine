@@ -2,7 +2,7 @@
 
 #include <Core.h>
 
-#include "IAllocator.h"
+#include "EngineContext.h"
 
 namespace CHEngine
 {
@@ -21,8 +21,5 @@ namespace CHEngine
         // ћожно добавить дополнительные методы, например set allocator
         static void SetAllocator(IAllocator* allocator);
 
-    private:
-        // √лобальный указатель на allocator
-        static IAllocator* s_Allocator;
     };
 }
