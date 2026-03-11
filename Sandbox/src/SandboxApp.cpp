@@ -1,3 +1,5 @@
+// Define before CHEngine.h so the entry-point (main) is compiled only here
+#define CHE_INCLUDE_ENTRY_POINT
 #include <CHEngine.h>
 #include "SceneViewLayer.h"
 

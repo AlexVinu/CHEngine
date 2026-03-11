@@ -30,10 +30,17 @@ set_source_files_properties(
     "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
     PROPERTIES COMPILE_FLAGS "-w"
 )
-set_source_files_properties(
-    "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
-    PROPERTIES COMPILE_FLAGS "-w -fvisibility=default"
-)
+if(MSVC)
+    set_source_files_properties(
+        "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
+        PROPERTIES COMPILE_FLAGS "/W0"
+    )
+else()
+    set_source_files_properties(
+        "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
+        PROPERTIES COMPILE_FLAGS "-w -fvisibility=default"
+    )
+endif()
 
 # Директории включения
 target_include_directories(${PROJECT_NAME}
@@ -102,6 +109,13 @@ endif()
 # macOS frameworks (needed by tinyfiledialogs)
 if(APPLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE "-framework AppKit")
+endif()
+
+# Windows system libs (needed by tinyfiledialogs: file dialogs, COM, shell)
+if(WIN32)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        comdlg32 ole32 oleaut32 shell32 user32
+    )
 endif()
 
 # Настройка выходных директорий
