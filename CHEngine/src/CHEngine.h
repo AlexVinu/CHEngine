@@ -14,8 +14,23 @@
 #include "CHEngine/Camera/Camera.h"
 // ================================
 
+// Mesh & Model Loading -----------
+#include "CHEngine/Mesh/Mesh.h"
+#include "CHEngine/Mesh/ModelLoader.h"
+// ================================
+
+// Scene --------------------------
+#include "CHEngine/Scene/Scene.h"
+#include "CHEngine/Scene/SceneObject.h"
+// ================================
+
+// Utils --------------------------
+#include "CHEngine/Utils/FileDialog.h"
+// ================================
+
 // ImGui --------------------------
 #include <imgui.h>
+#include <ImGuizmo.h>
 // ================================
 
 // --Entry Point -------------------
