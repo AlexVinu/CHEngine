@@ -1,5 +1,5 @@
 # CHEngine/CMakeLists.txt
-project(CHEngine LANGUAGES CXX)
+project(CHEngine LANGUAGES CXX C)
 
 message(STATUS "Configuring ${PROJECT_NAME}...")
 
@@ -13,17 +13,40 @@ file(GLOB_RECURSE CHE_HEADERS
     "src/*.hpp"
 )
 
+# Vendor sources (compiled into CHEngine)
+set(CHE_VENDOR_SOURCES
+    "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
+    "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
+)
+
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS})
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES})
+
+# Skip precompiled headers for vendor sources
+set_source_files_properties(${CHE_VENDOR_SOURCES} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
+# Disable strict warnings for vendor C file
+set_source_files_properties(
+    "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
+    PROPERTIES COMPILE_FLAGS "-w"
+)
+set_source_files_properties(
+    "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
+    PROPERTIES COMPILE_FLAGS "-w -fvisibility=default"
+)
 
 # Директории включения
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         "src"
         ${IMGUI_INCLUDE_DIR}
+        "${CHE_VENDOR_DIR}/ImGuizmo"
     PRIVATE
         ${CHE_INTERFACES_DIR}
         ${CHE_CORE_DIR}
+        "${CHE_VENDOR_DIR}/tinyobjloader"
+        "${CHE_VENDOR_DIR}/tinygltf"
+        "${CHE_VENDOR_DIR}/tinyfiledialogs"
 )
 
 # C++ стандарт и настройки
@@ -74,6 +97,11 @@ target_link_libraries(${PROJECT_NAME}
 # Линковка dl на Unix
 if(UNIX)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
+endif()
+
+# macOS frameworks (needed by tinyfiledialogs)
+if(APPLE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE "-framework AppKit")
 endif()
 
 # Настройка выходных директорий
