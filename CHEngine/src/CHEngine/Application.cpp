@@ -50,7 +50,8 @@ namespace CHEngine {
 		m_ImGuiLayer = m_RenderFactory->CreateImGuiLayer(m_Window->GetNativeWindow());
 
 		m_RenderApi = m_RenderResources.CreateRenderAPI();
-		m_RenderResources.Get(m_RenderApi)->SetClearColor(0.12f, 0.12f, 0.12f, 1.0f);
+		// Background matches UITheme bg (#F2F2F7 light) — perceived as mid-grey in 3D
+		m_RenderResources.Get(m_RenderApi)->SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
 
 		m_Shader = m_RenderResources.CreateShaderFromFile(
 			String("Basic"),

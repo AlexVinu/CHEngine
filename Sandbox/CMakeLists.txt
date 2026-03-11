@@ -80,4 +80,12 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMENT "Copying shaders to output directory"
 )
 
+# Копируем ассеты (шрифты и т.д.)
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/assets"
+        "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/${PROJECT_NAME}/assets"
+    COMMENT "Copying assets to output directory"
+)
+
 message(STATUS "✅ ${PROJECT_NAME} configured successfully")

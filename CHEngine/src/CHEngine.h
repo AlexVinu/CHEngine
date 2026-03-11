@@ -34,5 +34,10 @@
 // ================================
 
 // --Entry Point -------------------
+// Only included in the ONE translation unit that defines main.
+// Define CHE_INCLUDE_ENTRY_POINT before including CHEngine.h in your
+// application's main .cpp (e.g. SandboxApp.cpp).
+#ifdef CHE_INCLUDE_ENTRY_POINT
 #include "CHEngine/EntryPoint.h"
-// -----------------------
+#endif
+// ---------------------------------
