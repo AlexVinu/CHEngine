@@ -1,4 +1,4 @@
-# CHEngine
+# CHЁngine
 <img width="2000" height="400" alt="84956" src="https://github.com/user-attachments/assets/ececca6f-cde5-4221-bba6-d378dbd6d750" />
 
 Кроссплатформенный игровой движок на C++ с поддержкой Windows, macOS и Linux.
