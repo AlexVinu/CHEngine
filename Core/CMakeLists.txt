@@ -18,7 +18,7 @@ file(GLOB_RECURSE CHE_HEADERS
 )
 
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} )
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS}  "Interfaces/WindowHandler/IWindowHandler.h" "Interfaces/WindowHandler/IWindowHandlerFactory.h" "src/WindowProps.h")
 
 # Директории включения
 target_include_directories(${PROJECT_NAME}
@@ -45,7 +45,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     CHE_BUILD_DLL
     CHE_BUILD_CORE_DLL
-    CHE_LOG_EXPORT
     CHE_ENABLE_ASSERTS
     $<$<CONFIG:Debug>:CHE_DEBUG>
     $<$<CONFIG:Release>:CHE_RELEASE>

@@ -3,6 +3,8 @@
 
 #include "Log/Log.h"
 
+#include "Events/MouseEvent.h"
+
 namespace CHEngine {
 
 #define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
@@ -17,19 +19,113 @@ namespace CHEngine {
 
 		#if defined(CHE_PLATFORM_WINDOWS)
 		m_ModuleManager.LoadModule("RendererOGL.dll");
+		m_ModuleManager.LoadModule("WindowHandlerGLFW.dll");
+		m_ModuleManager.LoadModule("ImGuiGLFW_OGL.dll");
 		#elif defined(CHE_PLATFORM_APPLE)
 		m_ModuleManager.LoadModule("libRendererOGL.dylib");
+		m_ModuleManager.LoadModule("libWindowHandlerGLFW.dylib");
+		m_ModuleManager.LoadModule("libImGuiGLFW_OGL.dylib");
 		#else
 		m_ModuleManager.LoadModule("libRendererOGL.so");
+		m_ModuleManager.LoadModule("libWindowHandlerGLFW.so");
+		m_ModuleManager.LoadModule("libImGuiGLFW_OGL.so");
 		#endif
-		m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
+
+		m_RenderFactory        = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Renderer);
+		m_WindowHandlerFactory = m_ModuleManager.GetModule<IWindowHandlerFactory>(ModuleType::WindowHandler);
+		m_ImGuiFactory         = m_ModuleManager.GetModule<IImGuiFactory>(ModuleType::ImGui);
 
 		m_RenderResources.Init(m_RenderFactory);
 
-		m_Window = std::unique_ptr<Window>(Window::Create(m_RenderFactory));
-		m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
+		WindowProps props;
+		m_WindowHandler = m_WindowHandlerFactory->Create(props, nullptr);
 
-		m_ImGuiLayer = m_RenderFactory->CreateImGuiLayer(m_Window->GetNativeWindow());
+		// Пробрасываем события окна напрямую в Application::OnEvent
+		if (m_WindowHandler)
+		{
+			RendererWindowContext ctx{};
+			ctx.UserPointer = this;
+
+			ctx.ResizeCallback = [](void* user, int width, int height)
+				{
+					auto* app = static_cast<Application*>(user);
+					WindowResizeEvent event(width, height);
+					app->OnEvent(event);
+				};
+
+			ctx.CloseCallback = [](void* user)
+				{
+					auto* app = static_cast<Application*>(user);
+					WindowCloseEvent event;
+					app->OnEvent(event);
+				};
+
+			ctx.KeyCallback = [](void* user, int key, int scancode, int action, int mods)
+				{
+					auto* app = static_cast<Application*>(user);
+					switch (action)
+					{
+					case (int)EventType::KeyPressed:
+					{
+						KeyPressedEvent event(key, 0);
+						app->OnEvent(event);
+						break;
+					}
+					case (int)EventType::KeyReleased:
+					{
+						KeyReleasedEvent event(key);
+						app->OnEvent(event);
+						break;
+					}
+					case (int)EventType::KeyRepeat:
+					{
+						KeyPressedEvent event(key, 1);
+						app->OnEvent(event);
+						break;
+					}
+					}
+				};
+
+			ctx.MouseButtonCallback = [](void* user, int button, int action, int mods)
+				{
+					auto* app = static_cast<Application*>(user);
+
+					switch (action)
+					{
+					case (int)EventType::KeyPressed:
+					{
+						MouseButtonPressedEvent event(button);
+						app->OnEvent(event);
+						break;
+					}
+					case (int)EventType::KeyReleased:
+					{
+						MouseButtonReleasedEvent event(button);
+						app->OnEvent(event);
+						break;
+					}
+					}
+				};
+
+			ctx.ScrollCallback = [](void* user, float xOffset, float yOffset)
+				{
+					auto* app = static_cast<Application*>(user);
+					MouseScrolledEvent event(xOffset, yOffset);
+					app->OnEvent(event);
+				};
+
+			ctx.CursorPosCallback = [](void* user, float x, float y)
+				{
+					auto* app = static_cast<Application*>(user);
+					MouseMovedEvent event(x, y);
+					app->OnEvent(event);
+				};
+
+			m_WindowHandler->SetWindowContext(ctx);
+			m_WindowHandler->SetVSync(true);
+		}
+
+		m_ImGuiLayer = m_ImGuiFactory->Create(m_WindowHandler ? m_WindowHandler->GetNativeWindow() : nullptr);
 
 		m_RenderApi = m_RenderResources.CreateRenderAPI();
 		m_RenderResources.Get(m_RenderApi)->SetClearColor(0.12f, 0.12f, 0.12f, 1.0f);
@@ -103,8 +199,11 @@ namespace CHEngine {
 
 	Application::~Application()
 	{
-		if (m_ImGuiLayer && m_RenderFactory)
-			m_RenderFactory->Delete(m_ImGuiLayer);
+		if (m_ImGuiLayer && m_ImGuiFactory)
+			m_ImGuiFactory->Delete(m_ImGuiLayer);
+
+		if (m_WindowHandler && m_WindowHandlerFactory)
+			m_WindowHandlerFactory->Delete(m_WindowHandler);
 
 		m_RenderResources.Shutdown();
 	}
@@ -171,7 +270,11 @@ namespace CHEngine {
 				m_ImGuiLayer->End();
 			}
 
-			m_Window->OnUpdate();
+			if (m_WindowHandler)
+			{
+				m_WindowHandler->SwapBuffers();
+				m_WindowHandler->PollEvents();
+			}
 		}
 	}
 }

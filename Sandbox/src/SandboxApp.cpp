@@ -179,8 +179,20 @@ public:
 		ImGui::End();
 	}
 
-	void OnEvent(CHEngine::Event& e) override {}
-
+	void OnEvent(CHEngine::Event& e) override {
+		CHEngine::EventDispatcher dispatcher(e);
+		dispatcher.Dispatch<CHEngine::KeyPressedEvent>(std::bind(&ExampleLayer::OnKeyPressedEvent, this, std::placeholders::_1));
+	}
+	bool OnKeyPressedEvent(CHEngine::KeyPressedEvent& e)
+	{
+		auto pos = m_Camera.GetPosition();
+		switch(e.GetKeyCode())
+		{
+		case 87: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z + 1)); break;
+		case 83: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z - 1)); break;
+		}
+		return false;
+	}
 private:
 	float           m_TintColor[4];
 	float           m_AspectRatio = 16.0f / 9.0f;
