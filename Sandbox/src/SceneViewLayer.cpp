@@ -341,8 +341,23 @@ void SceneViewLayer::RenderScene()
 
         for (auto& mesh : obj->Meshes)
         {
+            bool hasTex = mesh.DiffuseTexture.IsValid();
+            shader->SetInt(CHEngine::String("u_UseTexture"), hasTex ? 1 : 0);
+            if (hasTex)
+            {
+                auto* tex = res.Get(mesh.DiffuseTexture);
+                if (tex) tex->Bind(0);
+                shader->SetInt(CHEngine::String("u_DiffuseTexture"), 0);
+            }
+
             auto* vao = res.Get(mesh.GetVertexArray());
             if (vao) api->DrawIndexed(vao);
+
+            if (hasTex)
+            {
+                auto* tex = res.Get(mesh.DiffuseTexture);
+                if (tex) tex->Unbind();
+            }
         }
     }
 }
@@ -801,10 +816,37 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
 {
     auto& res    = CHEngine::Application::Get().GetRenderResources();
     auto  result = CHEngine::ModelLoader::Load(filepath, res);
-    if (result.success)
+    if (!result.success)
+        return;
+
+    // Compute geometric centroid across all meshes so the gizmo
+    // snaps to the visual centre of the model.
+    glm::vec3 centroid(0.0f);
+    size_t    totalVerts = 0;
+    for (auto& mesh : result.meshes)
     {
-        auto* obj = m_Scene.AddModel(result.name, std::move(result.meshes));
-        m_SelectedObjectID = obj->ID;
-        FocusOnSelected();
+        for (const auto& v : mesh.GetVertices())
+        {
+            centroid += v.Position;
+            ++totalVerts;
+        }
     }
+    if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
+
+    // Re-centre vertices around local origin and rebuild GPU buffers.
+    if (totalVerts > 0 && glm::length(centroid) > 1e-5f)
+    {
+        for (auto& mesh : result.meshes)
+        {
+            res.DestroyVertexArray(mesh.GetVertexArray());
+            auto verts = mesh.GetVertices();
+            for (auto& v : verts) v.Position -= centroid;
+            mesh.Build(res, verts, mesh.GetIndices());
+        }
+    }
+
+    auto* obj = m_Scene.AddModel(result.name, std::move(result.meshes));
+    obj->ObjectTransform.Position = centroid;
+    m_SelectedObjectID = obj->ID;
+    FocusOnSelected();
 }

@@ -3,6 +3,7 @@
 #include "BufferOGL.h"
 #include "VertexArrayOGL.h"
 #include "ShaderOGL.h"
+#include "TextureOGL.h"
 #include "RendererOGL.h"
 #include "RenderApiOGL.h"
 
@@ -33,16 +34,16 @@ namespace CHModules
         return CreateImpl<RendererApiOGL>();
     }
 
-    CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(
-        uint32_t width,
-        uint32_t height)
+    CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(void* nativeWindow)
     {
-        return CreateImpl<RendererOGL>(width, height);
+        auto* renderer = CreateImpl<RendererOGL>();
+        renderer->Init(nativeWindow);
+        return renderer;
     }
 
     CHEngine::ModuleType RenderFactoryOGL::GetType() const
     {
-        return CHEngine::ModuleType::Renderer;
+        return CHEngine::ModuleType::Render;
     }
 
     void RenderFactoryOGL::Delete(CHEngine::IVertexBuffer* ptr)
@@ -74,6 +75,17 @@ namespace CHModules
     {
         DestroyImpl(static_cast<RendererOGL*>(ptr));
     }
+
+    CHEngine::ITexture* RenderFactoryOGL::CreateTexture(const uint8_t* data, uint32_t width,
+                                                         uint32_t height, uint32_t channels)
+    {
+        return CreateImpl<TextureOGL>(data, width, height, channels);
+    }
+
+    void RenderFactoryOGL::Delete(CHEngine::ITexture* ptr)
+    {
+        DestroyImpl(static_cast<TextureOGL*>(ptr));
+    }
 }
 
-IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryOGL);
+IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryOGL)

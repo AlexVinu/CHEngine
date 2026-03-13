@@ -42,8 +42,26 @@ set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
 add_subdirectory(${CHE_VENDOR_DIR}/GLM)
 
-# ImGui vendor path — used by RendererOGL to compile GLFW/OpenGL3 backends
+# ImGui vendor path — used by ImGuiOGL to compile GLFW/OpenGL3 backends
 set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Core/vendor/imgui-docking/imgui" CACHE PATH "" FORCE)
+
+# Shared GLFW — собирается как SHARED dylib, используется всеми модулями
+# Это ключевое для разделения состояния GLFW между WindowGLFW и ImGuiOGL
+set(GLFW_VENDOR_DIR "${MODULES_DIR}/Rendering/RendererOGL/vendor/GLFW")
+set(GLAD_VENDOR_DIR "${MODULES_DIR}/Rendering/RendererOGL/vendor/GLAD")
+
+set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_TESTS    OFF CACHE BOOL "" FORCE)
+set(GLFW_BUILD_DOCS     OFF CACHE BOOL "" FORCE)
+set(GLFW_INSTALL        OFF CACHE BOOL "" FORCE)
+set(GLFW_LIBRARY_TYPE "SHARED" CACHE STRING "" FORCE)
+add_subdirectory(${GLFW_VENDOR_DIR} vendors/GLFW)
+
+# Shared GLAD — shared dylib, инициализируется один раз в RendererOGL,
+# функциональные указатели GL видны во всех модулях через общий libglad.dylib
+add_library(glad SHARED ${GLAD_VENDOR_DIR}/src/glad.c)
+target_include_directories(glad PUBLIC ${GLAD_VENDOR_DIR}/include)
+set_target_properties(glad PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 # Добавление подпроектов
 add_subdirectory(Core)      # Ядро
@@ -53,6 +71,8 @@ if(CHE_BUILD_OPENGL)
     add_subdirectory(${MODULES_DIR}/WindowHandler/WindowHandlerGLFW)
     add_subdirectory(${MODULES_DIR}/ImGui/ImGuiGLFW_OGL)
     add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
+    add_subdirectory(${MODULES_DIR}/Window/WindowGLFW)
+    add_subdirectory(${MODULES_DIR}/UI/ImGuiOGL)
 endif()
 
 if(CHE_BUILD_SANDBOX)

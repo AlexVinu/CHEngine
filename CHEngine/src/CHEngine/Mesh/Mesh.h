@@ -32,6 +32,9 @@ namespace CHEngine {
 		const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
 		const std::vector<uint32_t>& GetIndices() const { return m_Indices; }
 
+		// Diffuse/albedo texture. Invalid handle = no texture (use vertex color).
+		TextureHandle DiffuseTexture;
+
 	private:
 		VertexArrayHandle m_VertexArray;
 		uint32_t m_IndexCount = 0;

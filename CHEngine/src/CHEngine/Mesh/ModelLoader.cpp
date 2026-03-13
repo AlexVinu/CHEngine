@@ -178,6 +178,31 @@ namespace CHEngine {
 			{
 				Mesh mesh;
 				mesh.Build(resources, vertices, indices);
+
+				// Load diffuse texture from material if available
+				int matIdx = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[0];
+				if (matIdx >= 0 && matIdx < (int)materials.size())
+				{
+					const std::string& texName = materials[matIdx].diffuse_texname;
+					if (!texName.empty())
+					{
+						std::string texPath = baseDir + texName;
+						int w, h, ch;
+						stbi_set_flip_vertically_on_load(1);
+						uint8_t* pixels = stbi_load(texPath.c_str(), &w, &h, &ch, 0);
+						if (pixels)
+						{
+							mesh.DiffuseTexture = resources.CreateTexture(
+								pixels, (uint32_t)w, (uint32_t)h, (uint32_t)ch);
+							stbi_image_free(pixels);
+						}
+						else
+						{
+							CHE_CORE_WARN("OBJ: failed to load texture '{0}'", texPath.c_str());
+						}
+					}
+				}
+
 				result.meshes.push_back(std::move(mesh));
 			}
 		}
@@ -336,6 +361,50 @@ namespace CHEngine {
 				{
 					Mesh mesh;
 					mesh.Build(resources, vertices, indices);
+
+					// Resolve diffuse texture from material.
+					// Supports pbrMetallicRoughness and KHR_materials_pbrSpecularGlossiness.
+					if (primitive.material >= 0 && primitive.material < (int)model.materials.size())
+					{
+						const auto& mat = model.materials[primitive.material];
+
+						// Primary: standard PBR
+						int texIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
+
+						// Fallback: KHR_materials_pbrSpecularGlossiness → diffuseTexture
+						if (texIdx < 0)
+						{
+							auto extIt = mat.extensions.find("KHR_materials_pbrSpecularGlossiness");
+							if (extIt != mat.extensions.end() && extIt->second.IsObject())
+							{
+								const auto& sg = extIt->second;
+								if (sg.Has("diffuseTexture"))
+								{
+									const auto& dt = sg.Get("diffuseTexture");
+									if (dt.IsObject() && dt.Has("index"))
+										texIdx = dt.Get("index").GetNumberAsInt();
+								}
+							}
+						}
+
+						if (texIdx >= 0 && texIdx < (int)model.textures.size())
+						{
+							int imgIdx = model.textures[texIdx].source;
+							if (imgIdx >= 0 && imgIdx < (int)model.images.size())
+							{
+								const auto& img = model.images[imgIdx];
+								if (!img.image.empty() && img.width > 0 && img.height > 0)
+								{
+									mesh.DiffuseTexture = resources.CreateTexture(
+										img.image.data(),
+										(uint32_t)img.width,
+										(uint32_t)img.height,
+										(uint32_t)img.component);
+								}
+							}
+						}
+					}
+
 					result.meshes.push_back(std::move(mesh));
 				}
 			}
