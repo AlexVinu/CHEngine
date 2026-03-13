@@ -3,7 +3,10 @@
 
 #include "Log/Log.h"
 
-#include "Events/MouseEvent.h"
+#include <filesystem>
+#if defined(CHE_PLATFORM_APPLE)
+#include <mach-o/dyld.h>
+#endif
 
 namespace CHEngine {
 
@@ -15,6 +18,19 @@ namespace CHEngine {
 		:m_ModuleManager()
 	{
 		CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
+
+#if defined(CHE_PLATFORM_APPLE)
+		{
+			char exePath[4096];
+			uint32_t size = sizeof(exePath);
+			if (_NSGetExecutablePath(exePath, &size) == 0)
+			{
+				auto exeDir = std::filesystem::path(exePath).parent_path();
+				std::filesystem::current_path(exeDir);
+				CHE_CORE_INFO("Working directory set to: {0}", exeDir.string().c_str());
+			}
+		}
+#endif
 		s_Instance = this;
 
 		#if defined(CHE_PLATFORM_WINDOWS)
@@ -128,67 +144,8 @@ namespace CHEngine {
 		m_ImGuiLayer = m_ImGuiFactory->Create(m_WindowHandler ? m_WindowHandler->GetNativeWindow() : nullptr);
 
 		m_RenderApi = m_RenderResources.CreateRenderAPI();
-		m_RenderResources.Get(m_RenderApi)->SetClearColor(0.12f, 0.12f, 0.12f, 1.0f);
-
-		m_VertexArray = m_RenderResources.CreateVertexArray();
-
-		// 24 unique vertices: 4 per face, so each face gets its own colour.
-		// Vertex layout: x, y, z,   r, g, b
-		// Face colours: Front=Red, Back=Green, Left=Blue, Right=Yellow, Bottom=Cyan, Top=Magenta
-		float vertices[24 * 6] = {
-			// Front (+Z)  — Red
-			-0.5f, -0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
-			 0.5f, -0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
-			 0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
-			-0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 0.2f,
-			// Back (-Z)   — Green
-			 0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
-			-0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
-			-0.5f,  0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
-			 0.5f,  0.5f, -0.5f,   0.2f, 1.0f, 0.2f,
-			// Left (-X)   — Blue
-			-0.5f, -0.5f, -0.5f,   0.2f, 0.4f, 1.0f,
-			-0.5f, -0.5f,  0.5f,   0.2f, 0.4f, 1.0f,
-			-0.5f,  0.5f,  0.5f,   0.2f, 0.4f, 1.0f,
-			-0.5f,  0.5f, -0.5f,   0.2f, 0.4f, 1.0f,
-			// Right (+X)  — Yellow
-			 0.5f, -0.5f,  0.5f,   1.0f, 1.0f, 0.2f,
-			 0.5f, -0.5f, -0.5f,   1.0f, 1.0f, 0.2f,
-			 0.5f,  0.5f, -0.5f,   1.0f, 1.0f, 0.2f,
-			 0.5f,  0.5f,  0.5f,   1.0f, 1.0f, 0.2f,
-			// Bottom (-Y) — Cyan
-			-0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 1.0f,
-			 0.5f, -0.5f, -0.5f,   0.2f, 1.0f, 1.0f,
-			 0.5f, -0.5f,  0.5f,   0.2f, 1.0f, 1.0f,
-			-0.5f, -0.5f,  0.5f,   0.2f, 1.0f, 1.0f,
-			// Top (+Y)    — Magenta
-			-0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 1.0f,
-			 0.5f,  0.5f,  0.5f,   1.0f, 0.2f, 1.0f,
-			 0.5f,  0.5f, -0.5f,   1.0f, 0.2f, 1.0f,
-			-0.5f,  0.5f, -0.5f,   1.0f, 0.2f, 1.0f,
-		};
-
-		auto vertexBuffer = m_RenderResources.CreateVertexBuffer(vertices, sizeof(vertices));
-		BufferLayout layout = {
-			{ ShaderDataType::Float3, "a_Position" },
-			{ ShaderDataType::Float3, "a_Color"    },
-		};
-		vertexBuffer->SetLayout(layout);
-		m_RenderResources.Get(m_VertexArray)->AddVertexBuffer(vertexBuffer);
-
-		// 6 faces × 2 triangles × 3 indices = 36
-		// Face i uses vertices [i*4 .. i*4+3]
-		uint32_t indices[36] = {
-			 0,  1,  2,   0,  2,  3,   // Front
-			 4,  5,  6,   4,  6,  7,   // Back
-			 8,  9, 10,   8, 10, 11,   // Left
-			12, 13, 14,  12, 14, 15,   // Right
-			16, 17, 18,  16, 18, 19,   // Bottom
-			20, 21, 22,  20, 22, 23,   // Top
-		};
-		auto indexBuffer = m_RenderResources.CreateIndexBuffer(indices, sizeof(indices) / sizeof(uint32_t));
-
-		m_RenderResources.Get(m_VertexArray)->SetIndexBuffer(indexBuffer);
+		// Background matches UITheme bg (#F2F2F7 light) — perceived as mid-grey in 3D
+		m_RenderResources.Get(m_RenderApi)->SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
 
 		m_Shader = m_RenderResources.CreateShaderFromFile(
 			String("Basic"),
@@ -252,15 +209,9 @@ namespace CHEngine {
 		{
 			m_RenderResources.Get(m_RenderApi)->Clear();
 
-			// Bind active shader first so that OnUpdate() can set uniforms
-			m_RenderResources.Get(m_Shader)->Bind();
-
-			// Layers: game logic + uniform setup
+			// Layers handle their own rendering and logic
 			for (Layer* layer : m_LayerStack)
 				layer->OnUpdate();
-
-			// Draw with whatever uniforms the layers have set
-			m_RenderResources.Get(m_RenderApi)->DrawIndexed(m_RenderResources.Get(m_VertexArray));
 
 			if (m_ImGuiLayer)
 			{

@@ -35,6 +35,7 @@ namespace CHEngine {
 		static Application& Get() { return *s_Instance; }
 
 		RenderResourceManager& GetRenderResources() { return m_RenderResources; }
+		RenderAPIHandle GetRenderApiHandle() const { return m_RenderApi; }
 
 		ShaderHandle GetActiveShader() const        { return m_Shader; }
 		void         SetActiveShader(ShaderHandle h) { m_Shader = h; }
@@ -56,7 +57,6 @@ namespace CHEngine {
 		LayerStack m_LayerStack;
 
 		ShaderHandle      m_Shader;
-		VertexArrayHandle m_VertexArray;
 		RenderAPIHandle   m_RenderApi;
 
 		IImGuiLayer* m_ImGuiLayer = nullptr;

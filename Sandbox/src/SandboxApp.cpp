@@ -1,4 +1,7 @@
+// Define before CHEngine.h so the entry-point (main) is compiled only here
+#define CHE_INCLUDE_ENTRY_POINT
 #include <CHEngine.h>
+#include "SceneViewLayer.h"
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
@@ -226,7 +229,11 @@ public:
 			CHEngine::String("shaders/neon.frag")
 		);
 
-		PushLayer(new ExampleLayer());
+		// Scene editor (default)
+		PushLayer(new SceneViewLayer());
+
+		// Old cube demo (uncomment to use instead):
+		// PushLayer(new ExampleLayer());
 	}
 
 	~Sandbox() {}
