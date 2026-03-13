@@ -1,0 +1,46 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/CMakeFiles/imgui_dep-populate"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/CMakeFiles/imgui_dep-populate.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/CMakeFiles/imgui_dep-populate-complete.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-build.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-configure.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-download.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-install.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-mkdir.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-patch.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-test.rule"
+		},
+		{
+			"file" : "/Users/marat/Downloads/CHEngine-main-2/build/_deps/imgui_dep-subbuild/imgui_dep-populate-prefix/src/imgui_dep-populate-stamp/imgui_dep-populate-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"imgui_dep-populate"
+		],
+		"name" : "imgui_dep-populate"
+	}
+}
