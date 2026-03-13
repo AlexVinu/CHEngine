@@ -1,5 +1,4 @@
 #pragma once
-#include "Log/Log.h"
 
 #ifdef CHE_PLATFORM_WINDOWS
 	#ifdef CHE_BUILD_DLL

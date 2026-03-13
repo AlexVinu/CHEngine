@@ -50,6 +50,8 @@ add_subdirectory(Core)      # Ядро
 add_subdirectory(CHEngine)  # Основной движок
 
 if(CHE_BUILD_OPENGL)
+    add_subdirectory(${MODULES_DIR}/WindowHandler/WindowHandlerGLFW)
+    add_subdirectory(${MODULES_DIR}/ImGui/ImGuiGLFW_OGL)
     add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
 endif()
 

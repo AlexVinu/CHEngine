@@ -3,12 +3,16 @@
 #include <Core.h>
 
 #include "Events/Event.h"
+#include "Events/KeyEvent.h"
 #include "CHEngine/Events/ApplicationEvent.h"
 #include "CHEngine/Layer/LayerStack.h"
 #include "Window.h"
+#include "WindowHandler/IWindowHandler.h"
+#include "WindowHandler/IWindowHandlerFactory.h"
+#include "UISystem/IImGuiFactory.h"
 
 #include "Render/RenderResourceManager.h"
-#include "Render/IImGuiLayer.h"
+#include "UISystem/IImGuiLayer.h"
 
 #include "ModuleManager.h"
 
@@ -43,7 +47,10 @@ namespace CHEngine {
 
 		ModuleManager m_ModuleManager;
 		RenderResourceManager m_RenderResources;
-		IRenderFactory* m_RenderFactory = nullptr;
+		IRenderFactory*        m_RenderFactory        = nullptr;
+		IWindowHandlerFactory* m_WindowHandlerFactory = nullptr;
+		IImGuiFactory*         m_ImGuiFactory         = nullptr;
+		IWindowHandler*        m_WindowHandler        = nullptr;
 
 		bool m_Running = true;
 		LayerStack m_LayerStack;
@@ -53,8 +60,6 @@ namespace CHEngine {
 		RenderAPIHandle   m_RenderApi;
 
 		IImGuiLayer* m_ImGuiLayer = nullptr;
-
-		std::unique_ptr<Window> m_Window;
 	};
 
 	// To be defined in client

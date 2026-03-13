@@ -14,7 +14,7 @@ file(GLOB_RECURSE CHE_HEADERS
 )
 
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS})
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} "../Core/src/Input.h")
 
 # Директории включения
 target_include_directories(${PROJECT_NAME}

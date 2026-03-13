@@ -11,7 +11,7 @@ namespace CHModules
         virtual CHEngine::IVertexArray* CreateVertexArray() override;
         virtual CHEngine::IShader* CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
         virtual CHEngine::RendererAPI* CreateRenderAPI() override;
-        virtual CHEngine::IRenderer* CreateRenderer(const unsigned int width, const unsigned int height, const char* title, CHEngine::ErrorCallbackFn errorCallbackFn) override;
+        virtual CHEngine::IRenderer* CreateRenderer(uint32_t width, uint32_t height) override;
 
         virtual void Delete(CHEngine::IVertexBuffer* ptr) override;
         virtual void Delete(CHEngine::IIndexBuffer* ptr) override;
@@ -19,9 +19,6 @@ namespace CHModules
         virtual void Delete(CHEngine::IShader* ptr) override;
         virtual void Delete(CHEngine::RendererAPI* ptr) override;
         virtual void Delete(CHEngine::IRenderer* ptr) override;
-
-        virtual CHEngine::IImGuiLayer* CreateImGuiLayer(void* nativeWindow) override;
-        virtual void Delete(CHEngine::IImGuiLayer* ptr) override;
 
         virtual CHEngine::ModuleType GetType() const;
     };

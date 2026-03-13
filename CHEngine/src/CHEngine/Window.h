@@ -5,24 +5,9 @@
 #include "Core.h"
 #include "CHEngine/Events/Event.h"
 #include "Render/IRenderFactory.h"
+#include "WindowProps.h"
 
 namespace CHEngine {
-
-	struct WindowProps
-	{
-		std::string Title;
-		unsigned int Width;
-		unsigned int Height;
-
-		WindowProps(const std::string& title = "CHEngine",
-			unsigned int width = 1280,
-			unsigned int height = 720)
-			: Title(title), Width(width), Height(height)
-		{
-
-		}
-	};
-
 	// Interface
 	class CHENGINE_API Window
 	{

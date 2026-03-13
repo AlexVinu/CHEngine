@@ -1,6 +1,5 @@
 #include "RenderFactoryOGL.h"
 
-#include "ImGuiLayerOGL.h"
 #include "BufferOGL.h"
 #include "VertexArrayOGL.h"
 #include "ShaderOGL.h"
@@ -35,22 +34,15 @@ namespace CHModules
     }
 
     CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(
-        const unsigned int width,
-        const unsigned int height,
-        const char* title,
-        CHEngine::ErrorCallbackFn errorCallbackFn)
+        uint32_t width,
+        uint32_t height)
     {
-        return CreateImpl<RendererOGL>(width, height, title, errorCallbackFn);
-    }
-
-    CHEngine::IImGuiLayer* RenderFactoryOGL::CreateImGuiLayer(void* nativeWindow)
-    {
-        return CreateImpl<ImGuiLayerOGL>(nativeWindow);
+        return CreateImpl<RendererOGL>(width, height);
     }
 
     CHEngine::ModuleType RenderFactoryOGL::GetType() const
     {
-        return CHEngine::ModuleType::Render;
+        return CHEngine::ModuleType::Renderer;
     }
 
     void RenderFactoryOGL::Delete(CHEngine::IVertexBuffer* ptr)
@@ -81,11 +73,6 @@ namespace CHModules
     void RenderFactoryOGL::Delete(CHEngine::IRenderer* ptr)
     {
         DestroyImpl(static_cast<RendererOGL*>(ptr));
-    }
-
-    void RenderFactoryOGL::Delete(CHEngine::IImGuiLayer* ptr)
-    {
-        DestroyImpl(static_cast<ImGuiLayerOGL*>(ptr));
     }
 }
 

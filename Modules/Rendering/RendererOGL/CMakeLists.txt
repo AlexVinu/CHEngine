@@ -13,9 +13,6 @@ file(GLOB_RECURSE CHE_HEADERS
     "src/*.inl"
 )
 
-add_subdirectory(vendor/GLAD)
-add_subdirectory(vendor/GLFW)
-
 # Создание динамической библиотеки
 add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS})
 
@@ -74,8 +71,8 @@ target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
         glad
-        glm
         glfw
+        glm
         imgui
 )
 
