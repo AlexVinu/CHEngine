@@ -22,6 +22,10 @@ namespace CHEngine {
 		m_RenderApis = HandlePool<RendererAPI, RenderAPITag>(
 			[this](RendererAPI* ptr) { m_Factory->Delete(ptr); }
 		);
+
+		m_Textures = HandlePool<ITexture, TextureTag>(
+			[this](ITexture* ptr) { m_Factory->Delete(ptr); }
+		);
 	}
 
 	String RenderResourceManager::ReadTextFile(const String& path)
@@ -149,6 +153,18 @@ namespace CHEngine {
 		return m_RenderApis.Add(api);
 	}
 
+	TextureHandle RenderResourceManager::CreateTexture(const uint8_t* data, uint32_t width,
+	                                                   uint32_t height, uint32_t channels)
+	{
+		ITexture* tex = m_Factory->CreateTexture(data, width, height, channels);
+		if (!tex)
+		{
+			CHE_CORE_ERROR("RenderResourceManager: failed to create texture ({0}x{1})", width, height);
+			return TextureHandle::Invalid();
+		}
+		return m_Textures.Add(tex);
+	}
+
 	std::shared_ptr<IVertexBuffer> RenderResourceManager::CreateVertexBuffer(float* vertices, uint32_t size)
 	{
 		IVertexBuffer* vb = m_Factory->CreateVertexBuffer(vertices, size);
@@ -190,6 +206,11 @@ namespace CHEngine {
 		return m_RenderApis.Get(h);
 	}
 
+	ITexture* RenderResourceManager::Get(TextureHandle h) const
+	{
+		return m_Textures.Get(h);
+	}
+
 	const std::vector<ShaderEntry>& RenderResourceManager::GetShaderEntries() const 
 	{ 
 		return m_ShaderEntries; 
@@ -210,11 +231,17 @@ namespace CHEngine {
 		m_RenderApis.Remove(h);
 	}
 
+	void RenderResourceManager::DestroyTexture(TextureHandle h)
+	{
+		m_Textures.Remove(h);
+	}
+
 	void RenderResourceManager::Shutdown()
 	{
 		m_Shaders.Clear();
 		m_VertexArrays.Clear();
 		m_RenderApis.Clear();
+		m_Textures.Clear();
 		m_ShaderEntries.clear();
 	}
 

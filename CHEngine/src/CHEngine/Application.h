@@ -3,66 +3,67 @@
 #include <Core.h>
 
 #include "Events/Event.h"
-#include "Events/KeyEvent.h"
 #include "CHEngine/Events/ApplicationEvent.h"
 #include "CHEngine/Layer/LayerStack.h"
 #include "Window.h"
-#include "WindowHandler/IWindowHandler.h"
-#include "WindowHandler/IWindowHandlerFactory.h"
-#include "UISystem/IImGuiFactory.h"
 
 #include "Render/RenderResourceManager.h"
-#include "UISystem/IImGuiLayer.h"
+#include "Render/IImGuiLayer.h"
+
+#include "IWindowFactory.h"
+#include "IImGuiFactory.h"
 
 #include "ModuleManager.h"
 
 namespace CHEngine {
 
-	class CHENGINE_API Application
-	{
-	public:
-		Application();
-		virtual ~Application();
+    class CHENGINE_API Application
+    {
+    public:
+        Application();
+        virtual ~Application();
 
-		void Run();
+        void Run();
 
-		void OnEvent(Event& e);
+        void OnEvent(Event& e);
 
-		void PushLayer(Layer* layer);
-		void PushOverlay(Layer* overlay);
+        void PushLayer(Layer* layer);
+        void PushOverlay(Layer* overlay);
 
-		// Global singleton access (set in constructor).
-		static Application& Get() { return *s_Instance; }
+        static Application& Get() { return *s_Instance; }
 
-		RenderResourceManager& GetRenderResources() { return m_RenderResources; }
-		RenderAPIHandle GetRenderApiHandle() const { return m_RenderApi; }
+        RenderResourceManager& GetRenderResources() { return m_RenderResources; }
+        RenderAPIHandle GetRenderApiHandle() const { return m_RenderApi; }
 
-		ShaderHandle GetActiveShader() const        { return m_Shader; }
-		void         SetActiveShader(ShaderHandle h) { m_Shader = h; }
+        ShaderHandle GetActiveShader() const         { return m_Shader; }
+        void         SetActiveShader(ShaderHandle h)  { m_Shader = h; }
 
-	private:
-		bool OnWindowClosed(WindowCloseEvent& e);
-		bool OnWindowResized(WindowResizeEvent& e);
+    private:
+        bool OnWindowClosed(WindowCloseEvent& e);
+        bool OnWindowResized(WindowResizeEvent& e);
 
-		static Application* s_Instance;
+        static Application* s_Instance;
 
-		ModuleManager m_ModuleManager;
-		RenderResourceManager m_RenderResources;
-		IRenderFactory*        m_RenderFactory        = nullptr;
-		IWindowHandlerFactory* m_WindowHandlerFactory = nullptr;
-		IImGuiFactory*         m_ImGuiFactory         = nullptr;
-		IWindowHandler*        m_WindowHandler        = nullptr;
+        ModuleManager         m_ModuleManager;
+        RenderResourceManager m_RenderResources;
 
-		bool m_Running = true;
-		LayerStack m_LayerStack;
+        IWindowFactory* m_WindowFactory = nullptr;
+        IRenderFactory* m_RenderFactory = nullptr;
+        IImGuiFactory*  m_ImGuiFactory  = nullptr;
 
-		ShaderHandle      m_Shader;
-		RenderAPIHandle   m_RenderApi;
+        bool            m_Running = true;
+        LayerStack      m_LayerStack;
 
-		IImGuiLayer* m_ImGuiLayer = nullptr;
-	};
+        ShaderHandle    m_Shader;
+        RenderAPIHandle m_RenderApi;
 
-	// To be defined in client
-	Application* CreateApplication();
+        IImGuiLayer* m_ImGuiLayer  = nullptr;
+        IRenderer*   m_OGLRenderer = nullptr;  // держит GLAD инициализированным
+
+        std::unique_ptr<Window> m_Window;
+    };
+
+    // To be defined in client
+    Application* CreateApplication();
 
 }

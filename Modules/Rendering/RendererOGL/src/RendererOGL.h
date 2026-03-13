@@ -7,15 +7,19 @@
 
 namespace CHModules
 {
-	class RendererOGL : public CHEngine::IRenderer
-	{
-	public:
-		RendererOGL(uint32_t width, uint32_t height);
-		virtual ~RendererOGL();
+    // OpenGL рендерер. Отвечает только за инициализацию GLAD и управление viewport.
+    // Создание окна, swap buffers, события — вынесены в WindowGLFW модуль.
+    class RendererOGL : public CHEngine::IRenderer
+    {
+    public:
+        RendererOGL() = default;
+        ~RendererOGL() override = default;
 
-		virtual void Init(uint32_t width, uint32_t height) override;
-		virtual void Shutdown() override;
+        // Инициализировать GLAD используя текущий GL-контекст (из WindowGLFW).
+        // nativeWindow используется только для получения glfwGetProcAddress.
+        void Init(void* nativeWindow) override;
+        void Shutdown() override {}
 
-		virtual void SetViewport(uint32_t width, uint32_t height) override;
-	};
+        void SetViewport(uint32_t width, uint32_t height) override;
+    };
 }
