@@ -1,7 +1,8 @@
 #pragma once
 
 #include <CHEngine.h>
-#include "UITheme.h"
+#include "UIThemeActive.h"
+#include "UndoStack.h"
 
 #include <glm/glm.hpp>
 #include <chrono>
@@ -90,4 +91,9 @@ private:
 
     // Delta-time
     std::chrono::steady_clock::time_point m_LastTime;
+
+    // Undo
+    UndoStack               m_UndoStack;
+    CHEngine::Transform     m_TransformBeforeDrag;
+    bool                    m_GizmoWasUsing = false;
 };
