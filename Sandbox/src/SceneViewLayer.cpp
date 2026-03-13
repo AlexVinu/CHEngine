@@ -13,7 +13,8 @@ SceneViewLayer::SceneViewLayer()
     , m_Camera(45.0f, 0.1f, 500.0f)
     , m_LastTime(std::chrono::steady_clock::now())
 {
-    UITheme::Apply();
+    UIActive::SetTheme(AppTheme::RetroOS);
+    UIActive::SyncLayout();
 
     auto& app = CHEngine::Application::Get();
     auto& res = app.GetRenderResources();
@@ -58,6 +59,7 @@ void SceneViewLayer::OnImGuiRender()
 
     ImGuizmo::BeginFrame();
     UpdateCameraInput();
+    UIActive::SyncLayout();
 
     // ── Layout computation ─────────────────────────────────────────────────
     //
@@ -79,7 +81,7 @@ void SceneViewLayer::OnImGuiRender()
     //    3. Call DrawNewPanel(pos, size, reset)
     // ──────────────────────────────────────────────────────────────────────
 
-    const auto& L      = UITheme::g_Layout;
+    const auto& L      = UIActive::g_Layout;
     const float leftW  = W * L.leftFrac;
     const float rightW = W * L.rightFrac;
     const float sH     = H - L.toolbarH;
@@ -368,7 +370,7 @@ void SceneViewLayer::RenderScene()
 
 void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
 {
-    UITheme::BeginToolbar(pos, size);
+    UIActive::BeginToolbar(pos, size);
 
     // Vertical-centering helper — nudges each item so its visual centre
     // aligns with the toolbar's horizontal midline.
@@ -385,12 +387,18 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
             }
         } vcenter{ centerY };
 
-        // Hotkeys T / R / S
+        // Hotkeys T / R / S / Undo
         if (!ImGui::GetIO().WantTextInput)
         {
             if (ImGui::IsKeyPressed(ImGuiKey_T, false)) m_GizmoOperation = ImGuizmo::TRANSLATE;
             if (ImGui::IsKeyPressed(ImGuiKey_R, false)) m_GizmoOperation = ImGuizmo::ROTATE;
             if (ImGui::IsKeyPressed(ImGuiKey_S, false)) m_GizmoOperation = ImGuizmo::SCALE;
+
+            // Cmd+Z (macOS) или Alt+Z (Windows/Linux)
+            const bool undoMod = ImGui::GetIO().KeySuper   // Cmd на Mac
+                              || ImGui::GetIO().KeyAlt;    // Alt на Windows
+            if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+                m_UndoStack.Undo();
         }
 
         // Gizmo segmented control
@@ -399,7 +407,7 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
                      : (m_GizmoOperation == ImGuizmo::ROTATE   ) ? 1 : 2;
 
         vcenter(ImGui::GetFrameHeight());
-        if (UITheme::SegmentedControl("##gizmo", gizmoLabels, 3, &gizmoSel,
+        if (UIActive::SegmentedControl("##gizmo", gizmoLabels, 3, &gizmoSel,
                                        ImVec2(272.0f, 0.0f)))
         {
             m_GizmoOperation = (gizmoSel == 0) ? ImGuizmo::TRANSLATE
@@ -411,12 +419,12 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
 
         ImGui::SameLine(0, 20);
         vcenter(20.0f);
-        if (UITheme::Toggle("Local", &m_LocalMode))
+        if (UIActive::Toggle("Local", &m_LocalMode))
             m_GizmoMode = m_LocalMode ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
 
         ImGui::SameLine(0, 20);
         vcenter(20.0f);
-        UITheme::Toggle("Grid", &m_ShowGrid);
+        UIActive::Toggle("Grid", &m_ShowGrid);
 
         // Snap hint
         {
@@ -436,33 +444,40 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
                                   "  Scale      0.1 unit");
         }
 
-        // Right side: FPS + Reset Layout
+        // Right side: Theme toggle + FPS
         float       fps    = ImGui::GetIO().Framerate;
         char        fpsBuf[32];
         snprintf(fpsBuf, sizeof(fpsBuf), "%.0f fps", fps);
-        const char* resetLabel  = "Reset Layout";
-        float       rightBlockW = ImGui::CalcTextSize(fpsBuf).x
-                                + ImGui::CalcTextSize(resetLabel).x
-                                + ImGui::GetStyle().FramePadding.x * 4.0f
-                                + ImGui::GetStyle().ItemSpacing.x  * 3.0f + 8.0f;
-        float avail = ImGui::GetContentRegionAvail().x;
+        const char* themeLabel = (UIActive::g_Theme == AppTheme::RetroOS) ? "Theme: Retro" : "Theme: Dark";
+        const float pad = ImGui::GetStyle().FramePadding.x;
+        float rightBlockW = ImGui::CalcTextSize(themeLabel).x + pad * 2.0f
+                          + 8.0f
+                          + ImGui::CalcTextSize(fpsBuf).x
+                          + ImGui::GetStyle().WindowPadding.x;
 
-        if (avail > rightBlockW)
+        float startX = ImGui::GetWindowWidth() - rightBlockW;
+        if (startX > ImGui::GetCursorPosX() + 10.0f)
         {
-            ImGui::SameLine(0, avail - rightBlockW);
+            ImGui::SetCursorPosX(startX);
+            vcenter(ImGui::GetFrameHeight());
+            if (ImGui::Button(themeLabel))
+            {
+                AppTheme next = (UIActive::g_Theme == AppTheme::RetroOS)
+                              ? AppTheme::Dark : AppTheme::RetroOS;
+                UIActive::SetTheme(next);
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Switch UI theme");
+            ImGui::SameLine(0, 8);
             vcenter(ImGui::GetTextLineHeight());
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
             ImGui::TextUnformatted(fpsBuf);
             ImGui::PopStyleColor();
-            ImGui::SameLine(0, 8);
-            vcenter(ImGui::GetFrameHeight());
-            if (ImGui::Button(resetLabel))
-                m_ResetLayout = true;
         }
 
     } // end vcenter scope
 
-    UITheme::EndToolbar();
+    UIActive::EndToolbar();
 }
 
 // ============================================================================
@@ -471,9 +486,9 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
 
 void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
-    UITheme::BeginPanel("Scene", pos, size, 0, resetSize);
+    UIActive::BeginPanel("Scene", pos, size, 0, resetSize);
 
-    if (UITheme::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
+    if (UIActive::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
     {
         std::string path = CHEngine::FileDialog::OpenFile(
             "3D Models (*.obj, *.glb, *.gltf)", "");
@@ -530,7 +545,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
         m_Scene.RemoveObject(deleteID);
     }
 
-    UITheme::EndPanel();
+    UIActive::EndPanel();
 }
 
 // ============================================================================
@@ -539,7 +554,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
 void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
-    UITheme::BeginPanel("Properties", pos, size, 0, resetSize);
+    UIActive::BeginPanel("Properties", pos, size, 0, resetSize);
 
     CHEngine::SceneObject* sel = m_Scene.FindByID(m_SelectedObjectID);
     if (!sel)
@@ -548,7 +563,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f,0.686f,0.706f,1.0f));
         ImGui::TextUnformatted("No object selected");
         ImGui::PopStyleColor();
-        UITheme::EndPanel();
+        UIActive::EndPanel();
         return;
     }
 
@@ -561,9 +576,10 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         sel->Name = nameBuf;
 
     // TRANSFORM
-    UITheme::SectionHeader("TRANSFORM");
+    UIActive::SectionHeader("TRANSFORM");
 
     const float labelW = 64.0f;
+    // Для undo: захватить трансформ при начале редактирования слайдера
     auto row = [&](const char* label, const char* id, glm::vec3& vec,
                    float speed, float mn = -FLT_MAX, float mx = FLT_MAX)
     {
@@ -573,6 +589,10 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         ImGui::SameLine(labelW);
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::DragFloat3(id, glm::value_ptr(vec), speed, mn, mx);
+        if (ImGui::IsItemActivated())
+            m_TransformBeforeDrag = sel->ObjectTransform;
+        if (ImGui::IsItemDeactivatedAfterEdit())
+            m_UndoStack.PushTransform(&m_Scene, sel->ID, m_TransformBeforeDrag);
     };
     row("Position", "##pos", sel->ObjectTransform.Position, 0.05f);
     row("Rotation", "##rot", sel->ObjectTransform.Rotation, 0.5f);
@@ -580,17 +600,24 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
     ImGui::Spacing();
     if (ImGui::Button("Reset Transform", ImVec2(-1.0f, 0.0f)))
+    {
+        m_UndoStack.PushTransform(&m_Scene, sel->ID, sel->ObjectTransform);
         sel->ObjectTransform = {};
+    }
 
     // MATERIAL
-    UITheme::SectionHeader("MATERIAL");
+    UIActive::SectionHeader("MATERIAL");
     ImGui::SetNextItemWidth(-1.0f);
     ImGui::ColorEdit4("##color", glm::value_ptr(sel->Color));
     ImGui::Spacing();
-    UITheme::Toggle("Visible", &sel->Visible);
+    {
+        bool before = sel->Visible;
+        if (UIActive::Toggle("Visible", &sel->Visible) && sel->Visible != before)
+            m_UndoStack.PushVisibility(&m_Scene, sel->ID, before);
+    }
 
     // INFO
-    UITheme::SectionHeader("INFO");
+    UIActive::SectionHeader("INFO");
     uint32_t tv = 0, ti = 0;
     for (auto& m : sel->Meshes)
     {
@@ -607,7 +634,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     if (ImGui::Button("Focus Camera  (F)", ImVec2(-1.0f, 0.0f)))
         FocusOnSelected();
 
-    UITheme::EndPanel();
+    UIActive::EndPanel();
 }
 
 // ============================================================================
@@ -616,11 +643,11 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
 void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
-    UITheme::BeginPanel("Camera", pos, size, 0, resetSize);
+    UIActive::BeginPanel("Camera", pos, size, 0, resetSize);
 
-    UITheme::SectionHeader("VIEW");
+    UIActive::SectionHeader("VIEW");
 
-    if (UITheme::PrimaryButton("Perspective", ImVec2(-1.0f, 0.0f)))
+    if (UIActive::PrimaryButton("Perspective", ImVec2(-1.0f, 0.0f)))
         { SetViewPreset(-90.0f, -15.0f); m_Camera.SetFOV(45.0f); }
 
     ImGui::Spacing();
@@ -641,7 +668,7 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     }
     ImGui::PopStyleVar();
 
-    UITheme::SectionHeader("ORBIT");
+    UIActive::SectionHeader("ORBIT");
 
     bool        orb = false;
     const float lw  = 62.0f;
@@ -696,11 +723,11 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     ImGui::Text("Pos  %.2f  %.2f  %.2f", cpos.x, cpos.y, cpos.z);
     ImGui::PopStyleColor();
 
-    UITheme::SectionHeader("CONTROLS");
-    UITheme::Toggle("Follow Selected", &m_FollowObject);
+    UIActive::SectionHeader("CONTROLS");
+    UIActive::Toggle("Follow Selected", &m_FollowObject);
 
     ImGui::Spacing();
-    if (UITheme::DestructiveButton("Reset Camera", ImVec2(-1.0f, 0.0f)))
+    if (UIActive::DestructiveButton("Reset Camera", ImVec2(-1.0f, 0.0f)))
     {
         m_OrbitTarget = { 0.0f, 0.0f, 0.0f };
         m_OrbitDist   = 8.0f;
@@ -710,7 +737,7 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         ApplyOrbit();
     }
 
-    UITheme::EndPanel();
+    UIActive::EndPanel();
 }
 
 // ============================================================================
@@ -794,6 +821,10 @@ void SceneViewLayer::DrawGizmo()
         else if (m_GizmoOperation == ImGuizmo::SCALE)     snap = snapS;
     }
 
+    // Запомнить трансформ перед началом drag
+    if (!m_GizmoWasUsing && ImGuizmo::IsUsing())
+        m_TransformBeforeDrag = selected->ObjectTransform;
+
     ImGuizmo::Manipulate(
         glm::value_ptr(view), glm::value_ptr(proj),
         m_GizmoOperation, m_GizmoMode, mm,
@@ -806,6 +837,12 @@ void SceneViewLayer::DrawGizmo()
         selected->ObjectTransform.Rotation = { r[0], r[1], r[2] };
         selected->ObjectTransform.Scale    = { s[0], s[1], s[2] };
     }
+
+    // Drag закончился — пушим команду
+    if (m_GizmoWasUsing && !ImGuizmo::IsUsing())
+        m_UndoStack.PushTransform(&m_Scene, selected->ID, m_TransformBeforeDrag);
+
+    m_GizmoWasUsing = ImGuizmo::IsUsing();
 }
 
 // ============================================================================
@@ -848,5 +885,6 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
     auto* obj = m_Scene.AddModel(result.name, std::move(result.meshes));
     obj->ObjectTransform.Position = centroid;
     m_SelectedObjectID = obj->ID;
+    m_UndoStack.PushImport(&m_Scene, obj->ID, &m_SelectedObjectID);
     FocusOnSelected();
 }
