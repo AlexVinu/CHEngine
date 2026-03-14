@@ -457,30 +457,6 @@ src/Platform/Desktop/DesktopWindow.cpp.s:
 	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.s
 .PHONY : src/Platform/Desktop/DesktopWindow.cpp.s
 
-vendor/ImGuizmo/ImGuizmo.o: vendor/ImGuizmo/ImGuizmo.cpp.o
-.PHONY : vendor/ImGuizmo/ImGuizmo.o
-
-# target to build an object file
-vendor/ImGuizmo/ImGuizmo.cpp.o:
-	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o
-.PHONY : vendor/ImGuizmo/ImGuizmo.cpp.o
-
-vendor/ImGuizmo/ImGuizmo.i: vendor/ImGuizmo/ImGuizmo.cpp.i
-.PHONY : vendor/ImGuizmo/ImGuizmo.i
-
-# target to preprocess a source file
-vendor/ImGuizmo/ImGuizmo.cpp.i:
-	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.i
-.PHONY : vendor/ImGuizmo/ImGuizmo.cpp.i
-
-vendor/ImGuizmo/ImGuizmo.s: vendor/ImGuizmo/ImGuizmo.cpp.s
-.PHONY : vendor/ImGuizmo/ImGuizmo.s
-
-# target to generate assembly for a file
-vendor/ImGuizmo/ImGuizmo.cpp.s:
-	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.s
-.PHONY : vendor/ImGuizmo/ImGuizmo.cpp.s
-
 vendor/tinyfiledialogs/tinyfiledialogs.o: vendor/tinyfiledialogs/tinyfiledialogs.c.o
 .PHONY : vendor/tinyfiledialogs/tinyfiledialogs.o
 
@@ -556,9 +532,6 @@ help:
 	@echo "... src/Platform/Desktop/DesktopWindow.o"
 	@echo "... src/Platform/Desktop/DesktopWindow.i"
 	@echo "... src/Platform/Desktop/DesktopWindow.s"
-	@echo "... vendor/ImGuizmo/ImGuizmo.o"
-	@echo "... vendor/ImGuizmo/ImGuizmo.i"
-	@echo "... vendor/ImGuizmo/ImGuizmo.s"
 	@echo "... vendor/tinyfiledialogs/tinyfiledialogs.o"
 	@echo "... vendor/tinyfiledialogs/tinyfiledialogs.i"
 	@echo "... vendor/tinyfiledialogs/tinyfiledialogs.s"

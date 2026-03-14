@@ -16,6 +16,15 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx" "Sandbox/CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer.cpp" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Camera.cpp" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_IO.cpp" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Panels.cpp" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Render.cpp" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/Sandbox/vendor/ImGuizmo/ImGuizmo.cpp" "Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o" "gcc" "Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

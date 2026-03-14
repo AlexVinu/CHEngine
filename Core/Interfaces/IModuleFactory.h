@@ -37,9 +37,17 @@ void DestroyImpl(T* ptr)
 }
 
 namespace CHEngine {
+    // ВАЖНО: всегда задавать явные значения.
+    // Без них добавление нового элемента в середину списка сдвигает все остальные,
+    // и скомпилированные DLL начинают возвращать неверный тип (как это уже случалось).
     enum class ModuleType
     {
-        Window, WindowHandler, Render, ImGui, Physics, None
+        Window        = 0,
+        WindowHandler = 1,
+        Render        = 2,
+        ImGui         = 3,
+        Physics       = 4,
+        None          = 5
     };
 
     struct IModuleFactory

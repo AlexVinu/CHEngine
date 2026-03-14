@@ -56,6 +56,9 @@ namespace CHEngine {
         m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
         m_ImGuiFactory  = m_ModuleManager.GetModule<IImGuiFactory>(ModuleType::ImGui);
 
+        if (!m_ImGuiFactory)
+            CHE_CORE_ERROR("Failed to load ImGuiOGL module! ImGui will be unavailable.");
+
         m_RenderResources.Init(m_RenderFactory);
 
         // ─── 2. Создать окно (GLFW window + context, glfwMakeContextCurrent) ─
@@ -67,7 +70,8 @@ namespace CHEngine {
 
         // ─── 4. Создать ImGui layer ──────────────────────────────────────────
         // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
-        m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetNativeWindow());
+        if (m_ImGuiFactory)
+            m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetNativeWindow());
 
         // ─── 5. Создать рендер-объекты (нужен GLAD, поэтому после шага 3) ───
         m_RenderApi = m_RenderResources.CreateRenderAPI();

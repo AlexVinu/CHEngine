@@ -18,8 +18,6 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
     j["version"] = 1;
     j["objects"]  = json::array();
 
-    auto& reg = m_Scene->GetRegistry();
-
     for (auto& obj : m_Scene->GetObjects()) {
         json o;
         o["name"]    = obj->Name;
@@ -31,17 +29,8 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
         o["rotation"] = { t.Rotation.x, t.Rotation.y, t.Rotation.z };
         o["scale"]    = { t.Scale.x,    t.Scale.y,    t.Scale.z    };
 
-        // Find SourcePath from ECS MeshComponent by matching TagComponent ID
-        std::string srcPath;
-        auto view = reg.view<TagComponent, MeshComponent>();
-        for (auto e : view) {
-            auto& tc = view.get<TagComponent>(e);
-            if (tc.ID == obj->ID) {
-                srcPath = view.get<MeshComponent>(e).SourcePath;
-                break;
-            }
-        }
-        o["meshPath"] = srcPath;
+        // Retrieve SourcePath via Scene's accessor (avoids exposing entt publicly)
+        o["meshPath"] = m_Scene->GetMeshSourcePath(obj->ID);
 
         j["objects"].push_back(o);
     }

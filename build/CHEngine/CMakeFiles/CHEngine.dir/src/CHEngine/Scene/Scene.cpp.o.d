@@ -1272,7 +1272,6 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Scene/Scene.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/entt/entt.hpp \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/list \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/set \

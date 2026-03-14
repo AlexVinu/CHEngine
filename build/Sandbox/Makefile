@@ -217,6 +217,126 @@ src/SceneViewLayer.cpp.s:
 	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.s
 .PHONY : src/SceneViewLayer.cpp.s
 
+src/SceneViewLayer_Camera.o: src/SceneViewLayer_Camera.cpp.o
+.PHONY : src/SceneViewLayer_Camera.o
+
+# target to build an object file
+src/SceneViewLayer_Camera.cpp.o:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o
+.PHONY : src/SceneViewLayer_Camera.cpp.o
+
+src/SceneViewLayer_Camera.i: src/SceneViewLayer_Camera.cpp.i
+.PHONY : src/SceneViewLayer_Camera.i
+
+# target to preprocess a source file
+src/SceneViewLayer_Camera.cpp.i:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.i
+.PHONY : src/SceneViewLayer_Camera.cpp.i
+
+src/SceneViewLayer_Camera.s: src/SceneViewLayer_Camera.cpp.s
+.PHONY : src/SceneViewLayer_Camera.s
+
+# target to generate assembly for a file
+src/SceneViewLayer_Camera.cpp.s:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.s
+.PHONY : src/SceneViewLayer_Camera.cpp.s
+
+src/SceneViewLayer_IO.o: src/SceneViewLayer_IO.cpp.o
+.PHONY : src/SceneViewLayer_IO.o
+
+# target to build an object file
+src/SceneViewLayer_IO.cpp.o:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o
+.PHONY : src/SceneViewLayer_IO.cpp.o
+
+src/SceneViewLayer_IO.i: src/SceneViewLayer_IO.cpp.i
+.PHONY : src/SceneViewLayer_IO.i
+
+# target to preprocess a source file
+src/SceneViewLayer_IO.cpp.i:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.i
+.PHONY : src/SceneViewLayer_IO.cpp.i
+
+src/SceneViewLayer_IO.s: src/SceneViewLayer_IO.cpp.s
+.PHONY : src/SceneViewLayer_IO.s
+
+# target to generate assembly for a file
+src/SceneViewLayer_IO.cpp.s:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.s
+.PHONY : src/SceneViewLayer_IO.cpp.s
+
+src/SceneViewLayer_Panels.o: src/SceneViewLayer_Panels.cpp.o
+.PHONY : src/SceneViewLayer_Panels.o
+
+# target to build an object file
+src/SceneViewLayer_Panels.cpp.o:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o
+.PHONY : src/SceneViewLayer_Panels.cpp.o
+
+src/SceneViewLayer_Panels.i: src/SceneViewLayer_Panels.cpp.i
+.PHONY : src/SceneViewLayer_Panels.i
+
+# target to preprocess a source file
+src/SceneViewLayer_Panels.cpp.i:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.i
+.PHONY : src/SceneViewLayer_Panels.cpp.i
+
+src/SceneViewLayer_Panels.s: src/SceneViewLayer_Panels.cpp.s
+.PHONY : src/SceneViewLayer_Panels.s
+
+# target to generate assembly for a file
+src/SceneViewLayer_Panels.cpp.s:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.s
+.PHONY : src/SceneViewLayer_Panels.cpp.s
+
+src/SceneViewLayer_Render.o: src/SceneViewLayer_Render.cpp.o
+.PHONY : src/SceneViewLayer_Render.o
+
+# target to build an object file
+src/SceneViewLayer_Render.cpp.o:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o
+.PHONY : src/SceneViewLayer_Render.cpp.o
+
+src/SceneViewLayer_Render.i: src/SceneViewLayer_Render.cpp.i
+.PHONY : src/SceneViewLayer_Render.i
+
+# target to preprocess a source file
+src/SceneViewLayer_Render.cpp.i:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.i
+.PHONY : src/SceneViewLayer_Render.cpp.i
+
+src/SceneViewLayer_Render.s: src/SceneViewLayer_Render.cpp.s
+.PHONY : src/SceneViewLayer_Render.s
+
+# target to generate assembly for a file
+src/SceneViewLayer_Render.cpp.s:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.s
+.PHONY : src/SceneViewLayer_Render.cpp.s
+
+vendor/ImGuizmo/ImGuizmo.o: vendor/ImGuizmo/ImGuizmo.cpp.o
+.PHONY : vendor/ImGuizmo/ImGuizmo.o
+
+# target to build an object file
+vendor/ImGuizmo/ImGuizmo.cpp.o:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o
+.PHONY : vendor/ImGuizmo/ImGuizmo.cpp.o
+
+vendor/ImGuizmo/ImGuizmo.i: vendor/ImGuizmo/ImGuizmo.cpp.i
+.PHONY : vendor/ImGuizmo/ImGuizmo.i
+
+# target to preprocess a source file
+vendor/ImGuizmo/ImGuizmo.cpp.i:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.i
+.PHONY : vendor/ImGuizmo/ImGuizmo.cpp.i
+
+vendor/ImGuizmo/ImGuizmo.s: vendor/ImGuizmo/ImGuizmo.cpp.s
+.PHONY : vendor/ImGuizmo/ImGuizmo.s
+
+# target to generate assembly for a file
+vendor/ImGuizmo/ImGuizmo.cpp.s:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.s
+.PHONY : vendor/ImGuizmo/ImGuizmo.cpp.s
+
 # Help Target
 help:
 	@echo "The following are some of the valid targets for this Makefile:"
@@ -238,6 +358,21 @@ help:
 	@echo "... src/SceneViewLayer.o"
 	@echo "... src/SceneViewLayer.i"
 	@echo "... src/SceneViewLayer.s"
+	@echo "... src/SceneViewLayer_Camera.o"
+	@echo "... src/SceneViewLayer_Camera.i"
+	@echo "... src/SceneViewLayer_Camera.s"
+	@echo "... src/SceneViewLayer_IO.o"
+	@echo "... src/SceneViewLayer_IO.i"
+	@echo "... src/SceneViewLayer_IO.s"
+	@echo "... src/SceneViewLayer_Panels.o"
+	@echo "... src/SceneViewLayer_Panels.i"
+	@echo "... src/SceneViewLayer_Panels.s"
+	@echo "... src/SceneViewLayer_Render.o"
+	@echo "... src/SceneViewLayer_Render.i"
+	@echo "... src/SceneViewLayer_Render.s"
+	@echo "... vendor/ImGuizmo/ImGuizmo.o"
+	@echo "... vendor/ImGuizmo/ImGuizmo.i"
+	@echo "... vendor/ImGuizmo/ImGuizmo.s"
 .PHONY : help
 
 

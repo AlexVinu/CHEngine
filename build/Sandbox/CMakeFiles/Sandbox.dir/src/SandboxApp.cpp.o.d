@@ -1294,19 +1294,15 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/gtc/../matrix.hpp \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/entt/entt.hpp \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/list \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/set \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/unordered_set \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/RecentFiles.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imconfig.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/stddef.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/ImGuizmo/ImGuizmo.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/EntryPoint.h \
   /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer.h \
+  /Users/marat/Downloads/CHEngine-main-2/Sandbox/vendor/ImGuizmo/ImGuizmo.h \
   /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/UIThemeActive.h \
   /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/UITheme.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui_internal.h \

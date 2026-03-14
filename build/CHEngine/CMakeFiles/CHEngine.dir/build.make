@@ -295,24 +295,10 @@ CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.s: cmake
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.s"
 	cd /Users/marat/Downloads/CHEngine-main-2/build/CHEngine && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx -S /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/Platform/Desktop/DesktopWindow.cpp -o CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.s
 
-CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o: CHEngine/CMakeFiles/CHEngine.dir/flags.make
-CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o: /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/ImGuizmo/ImGuizmo.cpp
-CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o: CHEngine/CMakeFiles/CHEngine.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building CXX object CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o"
-	cd /Users/marat/Downloads/CHEngine-main-2/build/CHEngine && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -w -fvisibility=default -MD -MT CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o -MF CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o.d -o CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o -c /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/ImGuizmo/ImGuizmo.cpp
-
-CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.i: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.i"
-	cd /Users/marat/Downloads/CHEngine-main-2/build/CHEngine && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -w -fvisibility=default -E /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/ImGuizmo/ImGuizmo.cpp > CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.i
-
-CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.s: cmake_force
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.s"
-	cd /Users/marat/Downloads/CHEngine-main-2/build/CHEngine && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -w -fvisibility=default -S /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/ImGuizmo/ImGuizmo.cpp -o CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.s
-
 CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o: CHEngine/CMakeFiles/CHEngine.dir/flags.make
 CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o: /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/tinyfiledialogs/tinyfiledialogs.c
 CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o: CHEngine/CMakeFiles/CHEngine.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Building C object CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_15) "Building C object CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o"
 	cd /Users/marat/Downloads/CHEngine-main-2/build/CHEngine && /usr/bin/cc $(C_DEFINES) $(C_INCLUDES) $(C_FLAGS) -w -MD -MT CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o -MF CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o.d -o CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o -c /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/tinyfiledialogs/tinyfiledialogs.c
 
 CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.i: cmake_force
@@ -338,7 +324,6 @@ CHEngine_OBJECTS = \
 "CMakeFiles/CHEngine.dir/src/CHEngine/Scene/SceneSerializer.cpp.o" \
 "CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o" \
 "CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o" \
-"CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o" \
 "CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o"
 
 # External object files for target CHEngine
@@ -358,14 +343,13 @@ CHEngine_EXTERNAL_OBJECTS =
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Scene/SceneSerializer.cpp.o
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o
-/Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: CHEngine/CMakeFiles/CHEngine.dir/build.make
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine_CORE.dylib
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/libimgui.dylib
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: /Users/marat/Downloads/CHEngine-main-2/bin/libglm.a
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib: CHEngine/CMakeFiles/CHEngine.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_17) "Linking CXX shared library /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_16) "Linking CXX shared library /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib"
 	cd /Users/marat/Downloads/CHEngine-main-2/build/CHEngine && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/CHEngine.dir/link.txt --verbose=$(VERBOSE)
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold "Copying CHEngine to Sandbox directory"
 	cd /Users/marat/Downloads/CHEngine-main-2/build/CHEngine && /opt/homebrew/bin/cmake -E copy /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/CHEngine.dylib

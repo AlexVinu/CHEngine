@@ -29,8 +29,6 @@ file(REMOVE_RECURSE
   "CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o.d"
   "CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o"
   "CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o.d"
-  "CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o"
-  "CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o.d"
   "CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o"
   "CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o.d"
 )
