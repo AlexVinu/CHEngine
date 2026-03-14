@@ -13,14 +13,27 @@ file(GLOB_RECURSE SANDBOX_HEADERS
     "src/*.hpp"
 )
 
+set(SANDBOX_IMGUIZMO_SRC "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImGuizmo/ImGuizmo.cpp")
+
 # Создание консольного приложения
-add_executable(${PROJECT_NAME} ${SANDBOX_SOURCES} ${SANDBOX_HEADERS})
+add_executable(${PROJECT_NAME} ${SANDBOX_SOURCES} ${SANDBOX_HEADERS} ${SANDBOX_IMGUIZMO_SRC})
+
+# ImGuizmo doesn't work with PCH
+set_source_files_properties(${SANDBOX_IMGUIZMO_SRC} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+
+# ImGuizmo visibility
+if(NOT MSVC)
+    set_source_files_properties(${SANDBOX_IMGUIZMO_SRC}
+        PROPERTIES COMPILE_FLAGS "-fvisibility=default"
+    )
+endif()
 
 # Директории включения
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CHE_SRC_DIR}
     ${MODULES_DIR}
     "${CHE_VENDOR_DIR}/spdlog/include"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImGuizmo"
 )
 
 # C++ стандарт и настройки

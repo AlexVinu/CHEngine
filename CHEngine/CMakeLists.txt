@@ -15,7 +15,6 @@ file(GLOB_RECURSE CHE_HEADERS
 
 # Vendor sources (compiled into CHEngine)
 set(CHE_VENDOR_SOURCES
-    "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
     "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
 )
 
@@ -30,24 +29,11 @@ set_source_files_properties(
     "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
     PROPERTIES COMPILE_FLAGS "-w"
 )
-if(MSVC)
-    set_source_files_properties(
-        "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
-        PROPERTIES COMPILE_FLAGS "/W0"
-    )
-else()
-    set_source_files_properties(
-        "${CHE_VENDOR_DIR}/ImGuizmo/ImGuizmo.cpp"
-        PROPERTIES COMPILE_FLAGS "-w -fvisibility=default"
-    )
-endif()
-
 # Директории включения
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         "src"
         ${IMGUI_INCLUDE_DIR}
-        "${CHE_VENDOR_DIR}/ImGuizmo"
         "${CHE_VENDOR_DIR}"
     PRIVATE
         ${CHE_INTERFACES_DIR}

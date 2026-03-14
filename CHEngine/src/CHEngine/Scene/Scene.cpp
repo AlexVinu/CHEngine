@@ -1,83 +1,115 @@
 #include "chepch.h"
 #include "Scene.h"
+#include "Components.h"
+
+#include <entt/entt.hpp>
 
 namespace CHEngine {
 
-	SceneObject* Scene::AddObject(const std::string& name)
-	{
-		auto obj = std::make_unique<SceneObject>(name);
-		SceneObject* ptr = obj.get();
-		m_Objects.push_back(std::move(obj));
+// ---------------------------------------------------------------------------
+// Pimpl struct — entt lives only in this translation unit
+// ---------------------------------------------------------------------------
+struct Scene::SceneRegistry {
+	entt::registry registry;
+};
 
-		// Mirror into ECS
-		CreateEntity(ptr->Name, ptr->ID);
+// ---------------------------------------------------------------------------
+// Constructor / Destructor
+// ---------------------------------------------------------------------------
 
-		return ptr;
-	}
+Scene::Scene()
+	: m_pRegistry(std::make_unique<SceneRegistry>())
+{}
 
-	SceneObject* Scene::AddModel(const std::string& name, std::vector<Mesh>&& meshes,
-	                             const std::string& sourcePath)
-	{
-		auto obj = std::make_unique<SceneObject>(name);
-		obj->Meshes = std::move(meshes);
-		SceneObject* ptr = obj.get();
-		m_Objects.push_back(std::move(obj));
+Scene::~Scene() = default;
 
-		// Mirror into ECS - copy meshes into MeshComponent
-		Entity e = CreateEntity(ptr->Name, ptr->ID);
-		auto& mc = m_Registry.get<MeshComponent>(static_cast<entt::entity>(e.GetRawHandle()));
-		mc.Meshes = ptr->Meshes;
-		mc.SourcePath = sourcePath;
+// ---------------------------------------------------------------------------
+// Helper (local to this TU): mirror SceneObject into ECS
+// Returns the entt handle so AddModel can patch MeshComponent.SourcePath
+// ---------------------------------------------------------------------------
+static entt::entity CreateECSEntity(entt::registry& reg,
+                                    const std::string& name, uint32_t id)
+{
+	entt::entity e = reg.create();
+	reg.emplace<TagComponent>(e, TagComponent{name, id});
+	reg.emplace<TransformComponent>(e);
+	reg.emplace<MeshComponent>(e);
+	reg.emplace<ColorComponent>(e);
+	reg.emplace<VisibilityComponent>(e);
+	return e;
+}
 
-		return ptr;
-	}
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
-	void Scene::RemoveObject(uint32_t id)
-	{
-		m_Objects.erase(
-			std::remove_if(m_Objects.begin(), m_Objects.end(),
-				[id](const std::unique_ptr<SceneObject>& obj) { return obj->ID == id; }),
-			m_Objects.end()
-		);
+SceneObject* Scene::AddObject(const std::string& name)
+{
+	auto obj = std::make_unique<SceneObject>(name);
+	SceneObject* ptr = obj.get();
+	m_Objects.push_back(std::move(obj));
 
-		// Find entity by ID and destroy it
-		auto view = m_Registry.view<TagComponent>();
-		for (auto e : view) {
-			if (view.get<TagComponent>(e).ID == id) {
-				m_Registry.destroy(e);
-				break;
-			}
+	CreateECSEntity(m_pRegistry->registry, ptr->Name, ptr->ID);
+
+	return ptr;
+}
+
+SceneObject* Scene::AddModel(const std::string& name, std::vector<Mesh>&& meshes,
+                             const std::string& sourcePath)
+{
+	auto obj = std::make_unique<SceneObject>(name);
+	obj->Meshes = std::move(meshes);
+	SceneObject* ptr = obj.get();
+	m_Objects.push_back(std::move(obj));
+
+	entt::entity e = CreateECSEntity(m_pRegistry->registry, ptr->Name, ptr->ID);
+	auto& mc = m_pRegistry->registry.get<MeshComponent>(e);
+	mc.Meshes = ptr->Meshes;
+	mc.SourcePath = sourcePath;
+
+	return ptr;
+}
+
+void Scene::RemoveObject(uint32_t id)
+{
+	m_Objects.erase(
+		std::remove_if(m_Objects.begin(), m_Objects.end(),
+			[id](const std::unique_ptr<SceneObject>& obj) { return obj->ID == id; }),
+		m_Objects.end()
+	);
+
+	// Find entity by ID and destroy it
+	auto view = m_pRegistry->registry.view<TagComponent>();
+	for (auto e : view) {
+		if (view.get<TagComponent>(e).ID == id) {
+			m_pRegistry->registry.destroy(e);
+			break;
 		}
 	}
-
-	SceneObject* Scene::FindByID(uint32_t id)
-	{
-		for (auto& obj : m_Objects)
-			if (obj->ID == id)
-				return obj.get();
-		return nullptr;
-	}
-
-	void Scene::Clear()
-	{
-		m_Objects.clear();
-		m_Registry.clear();
-	}
-
-	Entity Scene::CreateEntity(const std::string& name, uint32_t id)
-	{
-		entt::entity e = m_Registry.create();
-		m_Registry.emplace<TagComponent>(e, TagComponent{name, id});
-		m_Registry.emplace<TransformComponent>(e);
-		m_Registry.emplace<MeshComponent>(e);
-		m_Registry.emplace<ColorComponent>(e);
-		m_Registry.emplace<VisibilityComponent>(e);
-		return Entity(static_cast<uint32_t>(e), this);
-	}
-
-	void Scene::DestroyEntity(Entity entity)
-	{
-		m_Registry.destroy(static_cast<entt::entity>(entity.GetRawHandle()));
-	}
-
 }
+
+SceneObject* Scene::FindByID(uint32_t id)
+{
+	for (auto& obj : m_Objects)
+		if (obj->ID == id)
+			return obj.get();
+	return nullptr;
+}
+
+void Scene::Clear()
+{
+	m_Objects.clear();
+	m_pRegistry->registry.clear();
+}
+
+std::string Scene::GetMeshSourcePath(uint32_t objectID) const
+{
+	auto view = m_pRegistry->registry.view<TagComponent, MeshComponent>();
+	for (auto e : view) {
+		if (view.get<TagComponent>(e).ID == objectID)
+			return view.get<MeshComponent>(e).SourcePath;
+	}
+	return {};
+}
+
+} // namespace CHEngine

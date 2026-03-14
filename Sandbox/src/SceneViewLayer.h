@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CHEngine.h>
+#include <ImGuizmo.h>
 #include "UIThemeActive.h"
 #include "UndoStack.h"
 #include "ContentBrowserPanel.h"

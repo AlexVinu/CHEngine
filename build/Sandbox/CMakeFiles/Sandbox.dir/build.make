@@ -135,11 +135,94 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.s"
 	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -S /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer.cpp -o CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.s
 
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/flags.make
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Camera.cpp
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Building CXX object Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -MD -MT Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o -MF CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o.d -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o -c /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Camera.cpp
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.i"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -E /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Camera.cpp > CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.i
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.s"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -S /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Camera.cpp -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.s
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/flags.make
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o: /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_IO.cpp
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_6) "Building CXX object Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -MD -MT Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o -MF CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o.d -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o -c /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_IO.cpp
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.i"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -E /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_IO.cpp > CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.i
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.s"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -S /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_IO.cpp -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.s
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/flags.make
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o: /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Panels.cpp
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_7) "Building CXX object Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -MD -MT Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o -MF CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o.d -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o -c /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Panels.cpp
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.i"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -E /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Panels.cpp > CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.i
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.s"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -S /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Panels.cpp -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.s
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/flags.make
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o: /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Render.cpp
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_8) "Building CXX object Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -MD -MT Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o -MF CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o.d -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o -c /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Render.cpp
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.i"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -E /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Render.cpp > CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.i
+
+Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.s"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -Winvalid-pch -Xclang -include-pch -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx.pch -Xclang -include -Xclang /Users/marat/Downloads/CHEngine-main-2/build/Sandbox/CMakeFiles/Sandbox.dir/cmake_pch.hxx -S /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/SceneViewLayer_Render.cpp -o CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.s
+
+Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/flags.make
+Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o: /Users/marat/Downloads/CHEngine-main-2/Sandbox/vendor/ImGuizmo/ImGuizmo.cpp
+Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o: Sandbox/CMakeFiles/Sandbox.dir/compiler_depend.ts
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_9) "Building CXX object Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -fvisibility=default -MD -MT Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o -MF CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o.d -o CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o -c /Users/marat/Downloads/CHEngine-main-2/Sandbox/vendor/ImGuizmo/ImGuizmo.cpp
+
+Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.i: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.i"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -fvisibility=default -E /Users/marat/Downloads/CHEngine-main-2/Sandbox/vendor/ImGuizmo/ImGuizmo.cpp > CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.i
+
+Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.s: cmake_force
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.s"
+	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -fvisibility=default -S /Users/marat/Downloads/CHEngine-main-2/Sandbox/vendor/ImGuizmo/ImGuizmo.cpp -o CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.s
+
 # Object files for target Sandbox
 Sandbox_OBJECTS = \
 "CMakeFiles/Sandbox.dir/src/ContentBrowserPanel.cpp.o" \
 "CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o" \
-"CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o"
+"CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o" \
+"CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o" \
+"CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o" \
+"CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o" \
+"CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o" \
+"CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o"
 
 # External object files for target Sandbox
 Sandbox_EXTERNAL_OBJECTS =
@@ -148,6 +231,11 @@ Sandbox_EXTERNAL_OBJECTS =
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/src/ContentBrowserPanel.cpp.o
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o
+/Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o
+/Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o
+/Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o
+/Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o
+/Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/vendor/ImGuizmo/ImGuizmo.cpp.o
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/build.make
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine.dylib
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/CHEngine_CORE.dylib
@@ -156,7 +244,7 @@ Sandbox_EXTERNAL_OBJECTS =
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/libimgui.dylib
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: /Users/marat/Downloads/CHEngine-main-2/bin/libglm.a
 /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox: Sandbox/CMakeFiles/Sandbox.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_5) "Linking CXX executable /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_10) "Linking CXX executable /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/Sandbox"
 	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && $(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/Sandbox.dir/link.txt --verbose=$(VERBOSE)
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold "Copying shaders to output directory"
 	cd /Users/marat/Downloads/CHEngine-main-2/build/Sandbox && /opt/homebrew/bin/cmake -E copy_directory /Users/marat/Downloads/CHEngine-main-2/Sandbox/shaders /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/Sandbox/shaders

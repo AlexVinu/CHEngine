@@ -1272,12 +1272,6 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Scene/SceneSerializer.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/entt/entt.hpp \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/list \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/set \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/unordered_set \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/nlohmann/json.hpp \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/valarray \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/filesystem \
@@ -1350,4 +1344,5 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Scene/SceneSerializer.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__type_traits/is_execution_policy.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/any \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h

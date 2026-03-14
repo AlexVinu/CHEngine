@@ -31,7 +31,14 @@ namespace CHEngine
         {
             ModuleHandle handle = load(path.c_str());
             if (!handle)
+            {
+            #if defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
+                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", path, dlerror());
+            #else
+                CHE_CORE_ERROR("LoadModule FAILED '{}'", path);
+            #endif
                 return false;
+            }
 
             auto create = reinterpret_cast<CreateFn>(
                 getSymbol(handle, "CreateFactory"));
@@ -40,7 +47,10 @@ namespace CHEngine
                 getSymbol(handle, "DestroyFactory"));
 
             if (!create || !destroy)
+            {
+                CHE_CORE_ERROR("LoadModule '{}': CreateFactory/DestroyFactory symbol not found", path);
                 return false;
+            }
 
             IModuleFactory* module = create();
 

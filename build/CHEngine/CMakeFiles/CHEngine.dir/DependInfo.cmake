@@ -37,7 +37,6 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/CHEngine/src/Platform/Desktop/DesktopWindow.cpp" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o.d"
-  "/Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/ImGuizmo/ImGuizmo.cpp" "CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/vendor/ImGuizmo/ImGuizmo.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.
