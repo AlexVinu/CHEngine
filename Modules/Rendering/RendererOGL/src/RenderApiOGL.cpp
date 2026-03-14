@@ -37,4 +37,19 @@ namespace CHModules
 	{
 		glViewport(0, 0, width, height);
 	}
+
+	void RendererApiOGL::SetBlend(bool enable)
+	{
+		if (enable) {
+			glEnable(GL_BLEND);
+			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		} else {
+			glDisable(GL_BLEND);
+		}
+	}
+
+	void RendererApiOGL::SetDepthWrite(bool enable)
+	{
+		glDepthMask(enable ? GL_TRUE : GL_FALSE);
+	}
 }

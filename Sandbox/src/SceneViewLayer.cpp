@@ -224,58 +224,25 @@ void SceneViewLayer::BuildGrid()
 {
     auto& res = CHEngine::Application::Get().GetRenderResources();
 
-    struct LineVertex { glm::vec3 pos, color; };
-    std::vector<LineVertex> verts;
-    std::vector<uint32_t>   indices;
-
-    const int       N       = 10;
-    const glm::vec3 gridDim(0.22f, 0.22f, 0.22f);
-    const glm::vec3 grid5  (0.38f, 0.38f, 0.38f);
-    const glm::vec3 xColor (0.80f, 0.18f, 0.18f);
-    const glm::vec3 yColor (0.18f, 0.75f, 0.18f);
-    const glm::vec3 zColor (0.18f, 0.35f, 0.85f);
-
-    auto addLine = [&](glm::vec3 a, glm::vec3 b, glm::vec3 col)
-    {
-        uint32_t i = static_cast<uint32_t>(verts.size());
-        verts.push_back({ a, col });
-        verts.push_back({ b, col });
-        indices.push_back(i);
-        indices.push_back(i + 1);
+    // Full-screen quad in NDC space.
+    // The fragment shader unprojects each pixel to world space and
+    // renders an infinite analytical grid — no explicit grid geometry.
+    float verts[] = {
+        -1.0f, -1.0f,
+         1.0f, -1.0f,
+         1.0f,  1.0f,
+        -1.0f,  1.0f,
     };
-
-    for (int i = -N; i <= N; i++)
-    {
-        if (i == 0) continue;
-        glm::vec3 col = (i % 5 == 0) ? grid5 : gridDim;
-        addLine({ -(float)N, 0.0f, (float)i }, { (float)N, 0.0f, (float)i }, col);
-        addLine({ (float)i, 0.0f, -(float)N }, { (float)i, 0.0f, (float)N }, col);
-    }
-
-    const float ext = (float)N + 0.5f;
-    addLine({ -ext, 0.0f, 0.0f }, {  ext, 0.0f, 0.0f }, xColor);
-    addLine({ 0.0f, -ext, 0.0f }, { 0.0f,  ext, 0.0f }, yColor);
-    addLine({ 0.0f, 0.0f, -ext }, { 0.0f, 0.0f,  ext }, zColor);
-
-    std::vector<float> flat;
-    flat.reserve(verts.size() * 6);
-    for (auto& v : verts)
-    {
-        flat.push_back(v.pos.x);    flat.push_back(v.pos.y);    flat.push_back(v.pos.z);
-        flat.push_back(v.color.r);  flat.push_back(v.color.g);  flat.push_back(v.color.b);
-    }
+    uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
 
     m_GridVAO = res.CreateVertexArray();
-    auto vb = res.CreateVertexBuffer(flat.data(),
-        static_cast<uint32_t>(flat.size() * sizeof(float)));
+    auto vb = res.CreateVertexBuffer(verts, static_cast<uint32_t>(sizeof(verts)));
     CHEngine::BufferLayout layout = {
-        { CHEngine::ShaderDataType::Float3, "a_Position" },
-        { CHEngine::ShaderDataType::Float3, "a_Color"    },
+        { CHEngine::ShaderDataType::Float2, "a_NDC" },
     };
     vb->SetLayout(layout);
     res.Get(m_GridVAO)->AddVertexBuffer(vb);
-    auto ib = res.CreateIndexBuffer(indices.data(),
-        static_cast<uint32_t>(indices.size()));
+    auto ib = res.CreateIndexBuffer(indices, 6u);
     res.Get(m_GridVAO)->SetIndexBuffer(ib);
 }
 
@@ -292,16 +259,27 @@ void SceneViewLayer::RenderScene()
 
     glm::mat4 vp = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
 
-    // Grid & axes
+    // Infinite grid (full-screen quad + analytical fragment shader)
     if (m_ShowGrid)
     {
         auto* gs  = res.Get(m_GridShader);
         auto* gva = res.Get(m_GridVAO);
         if (gs && gva)
         {
+            glm::mat4 invVP = glm::inverse(vp);
+            glm::vec3 camPos = m_Camera.GetPosition();
+
+            api->SetBlend(true);
+            api->SetDepthWrite(false);
+
             gs->Bind();
-            gs->SetMat4(CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
-            api->DrawLines(gva);
+            gs->SetMat4  (CHEngine::String("u_InvViewProj"), glm::value_ptr(invVP));
+            gs->SetFloat3(CHEngine::String("u_CameraPos"),
+                          camPos.x, camPos.y, camPos.z);
+            api->DrawIndexed(gva);
+
+            api->SetDepthWrite(true);
+            api->SetBlend(false);
         }
     }
 
