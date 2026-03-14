@@ -86,6 +86,16 @@ namespace CHModules
     {
         DestroyImpl(static_cast<TextureOGL*>(ptr));
     }
+
+    CHEngine::IFramebuffer* RenderFactoryOGL::CreateFramebuffer(uint32_t width, uint32_t height)
+    {
+        return new FramebufferOGL(width, height);
+    }
+
+    void RenderFactoryOGL::Delete(CHEngine::IFramebuffer* ptr)
+    {
+        delete static_cast<FramebufferOGL*>(ptr);
+    }
 }
 
 IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryOGL)

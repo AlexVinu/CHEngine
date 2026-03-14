@@ -48,12 +48,14 @@ target_include_directories(${PROJECT_NAME}
         "src"
         ${IMGUI_INCLUDE_DIR}
         "${CHE_VENDOR_DIR}/ImGuizmo"
+        "${CHE_VENDOR_DIR}"
     PRIVATE
         ${CHE_INTERFACES_DIR}
         ${CHE_CORE_DIR}
         "${CHE_VENDOR_DIR}/tinyobjloader"
         "${CHE_VENDOR_DIR}/tinygltf"
         "${CHE_VENDOR_DIR}/tinyfiledialogs"
+        "${CHE_VENDOR_DIR}/nlohmann"
 )
 
 # C++ стандарт и настройки

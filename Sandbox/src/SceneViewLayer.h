@@ -3,6 +3,7 @@
 #include <CHEngine.h>
 #include "UIThemeActive.h"
 #include "UndoStack.h"
+#include "ContentBrowserPanel.h"
 
 #include <glm/glm.hpp>
 #include <chrono>
@@ -59,6 +60,10 @@ private:
     // ── Model import ─────────────────────────────────────────────────────────
     void ImportModel(const std::string& filepath);
 
+    // ── Scene serialization ───────────────────────────────────────────────────
+    void SaveScene();
+    void LoadScene(const std::string& path = "");
+
     // =========================================================================
     // State
     // =========================================================================
@@ -80,6 +85,12 @@ private:
     uint32_t  m_SelectedObjectID = 0;
     float     m_AspectRatio      = 16.0f / 9.0f;
 
+    // Framebuffer (offscreen render target)
+    CHEngine::FramebufferHandle m_Framebuffer;
+    ImVec2                      m_ViewportPos     = { 0.0f,   0.0f };
+    ImVec2                      m_ViewportSize    = { 1280.0f, 720.0f };
+    bool                        m_ViewportHovered = false;
+
     // Gizmo
     ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE;
     ImGuizmo::MODE      m_GizmoMode      = ImGuizmo::WORLD;
@@ -96,4 +107,11 @@ private:
     UndoStack               m_UndoStack;
     CHEngine::Transform     m_TransformBeforeDrag;
     bool                    m_GizmoWasUsing = false;
+
+    // Recent files
+    CHEngine::RecentFiles   m_RecentFiles;
+
+    // Content Browser (bottom panel)
+    ContentBrowserPanel     m_ContentBrowser;
+    float                   m_ContentBrowserHeight = 200.0f;
 };

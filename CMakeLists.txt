@@ -59,24 +59,8 @@ add_subdirectory(${GLFW_VENDOR_DIR} vendors/GLFW)
 
 # Shared GLAD — shared dylib, инициализируется один раз в RendererOGL,
 # функциональные указатели GL видны во всех модулях через общий libglad.dylib
-#add_library(glad SHARED ${GLAD_VENDOR_DIR}/src/glad.c)
-#target_include_directories(glad PUBLIC ${GLAD_VENDOR_DIR}/include)
-#
-#if(MSVC)
-#    set_target_properties(glad PROPERTIES
-#        WINDOWS_EXPORT_ALL_SYMBOLS ON
-#        MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
-#    )
-#endif()
-#
-## Вывод DLL в общую bin-папку движка
-#set_target_properties(glad PROPERTIES
-#    POSITION_INDEPENDENT_CODE ON
-#    RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/bin"
-#    LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
-#    ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
-#)
-
+# GLAD: собирается как SHARED, vendor CMakeLists настроен с WINDOWS_EXPORT_ALL_SYMBOLS
+# и корректными output директориями для всех платформ
 add_subdirectory(${GLAD_VENDOR_DIR})
 
 # Добавление подпроектов

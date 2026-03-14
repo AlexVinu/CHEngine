@@ -29,6 +29,10 @@
 // Scene --------------------------
 #include "CHEngine/Scene/Scene.h"
 #include "CHEngine/Scene/SceneObject.h"
+#include "CHEngine/Scene/Components.h"
+#include "CHEngine/Scene/Entity.h"
+#include "CHEngine/Scene/SceneSerializer.h"
+#include "CHEngine/Scene/RecentFiles.h"
 // ================================
 
 // Utils --------------------------

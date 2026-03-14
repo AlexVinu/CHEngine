@@ -3052,7 +3052,7 @@ namespace IMGUIZMO_NAMESPACE
                      ImU32 selectionColor = GetColorU32(SELECTION);
                      gContext.mDrawList->AddConvexPolyFilled(faceCoordsScreen, 4, selectionColor);
 
-                     if (io.MouseDown[0] && !isClicking && !isDraging && GImGui->ActiveId == 0) {
+                     if (io.MouseDown[0] && !isClicking && !isDraging && ImGui::GetCurrentContext() && ImGui::GetCurrentContext()->ActiveId == 0) {
                         overBox = boxCoordInt;
                         isClicking = true;
                         isDraging = true;

@@ -26,6 +26,10 @@ namespace CHEngine {
 		m_Textures = HandlePool<ITexture, TextureTag>(
 			[this](ITexture* ptr) { m_Factory->Delete(ptr); }
 		);
+
+		m_Framebuffers = HandlePool<IFramebuffer, FramebufferTag>(
+			[this](IFramebuffer* ptr) { m_Factory->Delete(ptr); }
+		);
 	}
 
 	String RenderResourceManager::ReadTextFile(const String& path)
@@ -165,6 +169,17 @@ namespace CHEngine {
 		return m_Textures.Add(tex);
 	}
 
+	FramebufferHandle RenderResourceManager::CreateFramebuffer(uint32_t width, uint32_t height)
+	{
+		IFramebuffer* fb = m_Factory->CreateFramebuffer(width, height);
+		if (!fb)
+		{
+			CHE_CORE_ERROR("RenderResourceManager: failed to create framebuffer ({0}x{1})", width, height);
+			return FramebufferHandle::Invalid();
+		}
+		return m_Framebuffers.Add(fb);
+	}
+
 	std::shared_ptr<IVertexBuffer> RenderResourceManager::CreateVertexBuffer(float* vertices, uint32_t size)
 	{
 		IVertexBuffer* vb = m_Factory->CreateVertexBuffer(vertices, size);
@@ -211,6 +226,11 @@ namespace CHEngine {
 		return m_Textures.Get(h);
 	}
 
+	IFramebuffer* RenderResourceManager::Get(FramebufferHandle h) const
+	{
+		return m_Framebuffers.Get(h);
+	}
+
 	const std::vector<ShaderEntry>& RenderResourceManager::GetShaderEntries() const 
 	{ 
 		return m_ShaderEntries; 
@@ -236,12 +256,18 @@ namespace CHEngine {
 		m_Textures.Remove(h);
 	}
 
+	void RenderResourceManager::DestroyFramebuffer(FramebufferHandle h)
+	{
+		m_Framebuffers.Remove(h);
+	}
+
 	void RenderResourceManager::Shutdown()
 	{
 		m_Shaders.Clear();
 		m_VertexArrays.Clear();
 		m_RenderApis.Clear();
 		m_Textures.Clear();
+		m_Framebuffers.Clear();
 		m_ShaderEntries.clear();
 	}
 
