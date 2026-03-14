@@ -6,6 +6,7 @@
 #include "IVertexArray.h"
 #include "IShader.h"
 #include "ITexture.h"
+#include "IFramebuffer.h"
 #include "IRenderApi.h"
 #include "IRenderer.h"
 
@@ -31,6 +32,8 @@ namespace CHEngine {
         virtual ITexture* CreateTexture(const uint8_t* data, uint32_t width,
                                         uint32_t height, uint32_t channels) = 0;
 
+        virtual IFramebuffer* CreateFramebuffer(uint32_t width, uint32_t height) = 0;
+
         virtual void Delete(IVertexBuffer* ptr) = 0;
         virtual void Delete(IIndexBuffer*  ptr) = 0;
         virtual void Delete(IVertexArray*  ptr) = 0;
@@ -38,6 +41,7 @@ namespace CHEngine {
         virtual void Delete(RendererAPI*   ptr) = 0;
         virtual void Delete(IRenderer*     ptr) = 0;
         virtual void Delete(ITexture*      ptr) = 0;
+        virtual void Delete(IFramebuffer*  ptr) = 0;
     };
 }
 

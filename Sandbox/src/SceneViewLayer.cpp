@@ -32,8 +32,11 @@ SceneViewLayer::SceneViewLayer()
     );
 
     BuildGrid();
+    m_Framebuffer = res.CreateFramebuffer(1280, 720);
     m_Camera.SetPitch(-30.0f);   // default: look slightly down so grid is visible
     ApplyOrbit();
+
+    m_RecentFiles.LoadFromFile("recent_scenes.txt");
 }
 
 // ============================================================================
@@ -56,7 +59,6 @@ void SceneViewLayer::OnImGuiRender()
     const ImVec2 disp = ImGui::GetIO().DisplaySize;
     const float  W    = disp.x;
     const float  H    = disp.y;
-    if (H > 0.0f) m_AspectRatio = W / H;
 
     ImGuizmo::BeginFrame();
     UpdateCameraInput();
@@ -106,8 +108,71 @@ void SceneViewLayer::OnImGuiRender()
     DrawScenePanel   (scenePos, sceneSize, reset);
     DrawPropsPanel   (propsPos, propsSize, reset);
     DrawCameraPanel  (camPos,   camSize,   reset);
+
+    // ── Center viewport panel ─────────────────────────────────────────────
+    {
+        const float  vpH    = sH - m_ContentBrowserHeight;
+        const ImVec2 vpPos  = { leftW,       L.toolbarH };
+        const ImVec2 vpSize = { W - leftW - rightW, vpH };
+
+        ImGui::SetNextWindowPos(vpPos);
+        ImGui::SetNextWindowSize(vpSize);
+        ImGui::Begin("##viewport", nullptr,
+            ImGuiWindowFlags_NoTitleBar        |
+            ImGuiWindowFlags_NoScrollbar       |
+            ImGuiWindowFlags_NoScrollWithMouse |
+            ImGuiWindowFlags_NoMove            |
+            ImGuiWindowFlags_NoBringToFrontOnFocus |
+            ImGuiWindowFlags_NoNavFocus);
+
+        m_ViewportHovered = ImGui::IsWindowHovered();
+        m_ViewportPos     = ImGui::GetWindowPos();
+
+        ImVec2 panelSize = ImGui::GetContentRegionAvail();
+
+        // Resize FBO if panel size changed
+        if (panelSize.x > 1.0f && panelSize.y > 1.0f &&
+            (panelSize.x != m_ViewportSize.x || panelSize.y != m_ViewportSize.y))
+        {
+            m_ViewportSize = panelSize;
+            auto& res2 = CHEngine::Application::Get().GetRenderResources();
+            auto* fbo2 = res2.Get(m_Framebuffer);
+            if (fbo2) fbo2->Resize((uint32_t)panelSize.x, (uint32_t)panelSize.y);
+            m_AspectRatio = panelSize.x / panelSize.y;
+        }
+
+        // Display the rendered scene as a texture (flip Y: OpenGL bottom-left → ImGui top-left)
+        auto& res2 = CHEngine::Application::Get().GetRenderResources();
+        auto* fbo2 = res2.Get(m_Framebuffer);
+        if (fbo2)
+        {
+            uint32_t texID = fbo2->GetColorAttachmentID();
+            ImGui::Image((ImTextureID)(uintptr_t)texID, panelSize, ImVec2(0, 1), ImVec2(1, 0));
+        }
+
+        // Gizmo MUST be inside the viewport window and use its drawlist
+        DrawGizmo();
+
+        ImGui::End();
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    // ── Content Browser — bottom panel ────────────────────────────────────
+    {
+        const float  bottomY     = L.toolbarH + (sH - m_ContentBrowserHeight);
+        const ImVec2 browserPos  = { leftW,               bottomY                    };
+        const ImVec2 browserSize = { W - leftW - rightW,  m_ContentBrowserHeight     };
+        std::string action = m_ContentBrowser.OnImGuiRender(browserPos, browserSize);
+        if (!action.empty()) {
+            if (action.rfind("model:", 0) == 0)
+                ImportModel(action.substr(6));
+            else if (action.rfind("scene:", 0) == 0)
+                LoadScene(action.substr(6));
+        }
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     DrawOrbitIndicator();
-    DrawGizmo();
 }
 
 // ============================================================================
@@ -157,8 +222,8 @@ void SceneViewLayer::UpdateCameraInput()
 {
     ImGuiIO& io = ImGui::GetIO();
 
-    // Only when cursor is over the 3D viewport (not any panel)
-    if (io.WantCaptureMouse) return;
+    // Only when cursor is over the 3D viewport and not over gizmo
+    if (!m_ViewportHovered || ImGuizmo::IsOver() || io.WantCaptureMouse) return;
 
     // Two-finger swipe: zoom (Y) + orbit yaw (X)
     if (io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f)
@@ -258,6 +323,12 @@ void SceneViewLayer::RenderScene()
     auto* api = res.Get(m_RenderApi);
     if (!api) return;
 
+    // ── Bind FBO — all rendering goes into the offscreen texture ─────────
+    auto* fbo = res.Get(m_Framebuffer);
+    if (fbo) fbo->Bind();
+    api->Clear();
+    // ─────────────────────────────────────────────────────────────────────
+
     glm::mat4 vp = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
 
     // Infinite grid (full-screen quad + analytical fragment shader)
@@ -341,6 +412,10 @@ void SceneViewLayer::RenderScene()
             }
         }
     }
+
+    // ── Unbind FBO — restore default framebuffer ─────────────────────────
+    if (fbo) fbo->Unbind();
+    // ─────────────────────────────────────────────────────────────────────
 }
 
 // ============================================================================
@@ -404,6 +479,19 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         ImGui::SameLine(0, 20);
         vcenter(20.0f);
         UIActive::Toggle("Grid", &m_ShowGrid);
+
+        // Scene save/load buttons
+        ImGui::SameLine(0, 12);
+        vcenter(20.0f);
+        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+        ImGui::SameLine(0, 12);
+        vcenter(ImGui::GetFrameHeight());
+        if (ImGui::Button("Save Scene"))
+            SaveScene();
+        ImGui::SameLine(0, 4);
+        vcenter(ImGui::GetFrameHeight());
+        if (ImGui::Button("Open Scene"))
+            LoadScene();
 
         // Snap hint
         {
@@ -770,8 +858,9 @@ void SceneViewLayer::DrawGizmo()
     if (!selected) return;
 
     ImGuizmo::SetOrthographic(false);
+    ImGuizmo::SetDrawlist();   // render into current window's drawlist (viewport)
     ImGuiIO& io = ImGui::GetIO();
-    ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+    ImGuizmo::SetRect(m_ViewportPos.x, m_ViewportPos.y, m_ViewportSize.x, m_ViewportSize.y);
 
     glm::mat4 view = m_Camera.GetViewMatrix();
     glm::mat4 proj = m_Camera.GetProjectionMatrix(m_AspectRatio);
@@ -825,6 +914,48 @@ void SceneViewLayer::DrawGizmo()
 }
 
 // ============================================================================
+//  Scene serialization
+// ============================================================================
+
+void SceneViewLayer::SaveScene()
+{
+    auto& res = CHEngine::Application::Get().GetRenderResources();
+    (void)res;
+
+    const char* filters[] = { "*.chscene" };
+    std::string path = CHEngine::FileDialog::SaveFile(
+        "Save Scene", "scene.chscene", filters, 1, ".chscene");
+    if (path.empty()) return;
+
+    CHEngine::SceneSerializer serializer(&m_Scene);
+    if (serializer.SaveToFile(path)) {
+        m_RecentFiles.AddPath(path);
+        m_RecentFiles.SaveToFile("recent_scenes.txt");
+    }
+}
+
+void SceneViewLayer::LoadScene(const std::string& path)
+{
+    auto& res = CHEngine::Application::Get().GetRenderResources();
+
+    std::string filePath = path;
+    if (filePath.empty()) {
+        filePath = CHEngine::FileDialog::OpenFile("Scene Files (*.chscene)", "*.chscene");
+    }
+    if (filePath.empty()) return;
+
+    // Clear undo and selection
+    m_UndoStack = UndoStack{};
+    m_SelectedObjectID = 0;
+
+    CHEngine::SceneSerializer serializer(&m_Scene);
+    if (serializer.LoadFromFile(filePath, res)) {
+        m_RecentFiles.AddPath(filePath);
+        m_RecentFiles.SaveToFile("recent_scenes.txt");
+    }
+}
+
+// ============================================================================
 //  Model import
 // ============================================================================
 
@@ -861,7 +992,7 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
         }
     }
 
-    auto* obj = m_Scene.AddModel(result.name, std::move(result.meshes));
+    auto* obj = m_Scene.AddModel(result.name, std::move(result.meshes), filepath);
     obj->ObjectTransform.Position = centroid;
     m_SelectedObjectID = obj->ID;
     m_UndoStack.PushImport(&m_Scene, obj->ID, &m_SelectedObjectID);

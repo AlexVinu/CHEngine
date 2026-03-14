@@ -1,0 +1,20 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/marat/Downloads/CHEngine-main-2/build/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/vendor/GLM/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/vendor/GLM/glm/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/vendors/GLFW/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/vendors/GLFW/src/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Modules/Rendering/RendererOGL/vendor/GLAD/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Core/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Core/vendor/spdlog/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Core/vendor/imgui-docking/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Modules/Rendering/RendererOGL/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Modules/Window/WindowGLFW/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Modules/UI/ImGuiOGL/cmake_install.cmake",
+		"/Users/marat/Downloads/CHEngine-main-2/build/Sandbox/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
