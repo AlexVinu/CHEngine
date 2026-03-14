@@ -15,6 +15,8 @@ namespace CHEngine {
 		virtual void DrawIndexed(const CHEngine::IVertexArray* vertexArray) = 0;
 		virtual void DrawLines(const CHEngine::IVertexArray* vertexArray) = 0;
 		virtual void SetViewport(uint32_t width, uint32_t height) = 0;
+		virtual void SetBlend(bool enable) = 0;
+		virtual void SetDepthWrite(bool enable) = 0;
 	};
 
 }

@@ -1,14 +1,15 @@
 #version 330 core
 
-layout(location = 0) in vec3 a_Position;
-layout(location = 1) in vec3 a_Color;
+// Full-screen quad in NDC space (-1..1).
+// The fragment shader unprojects each pixel to world space and draws
+// the grid analytically — no geometry needed, just 2 triangles.
+layout(location = 0) in vec2 a_NDC;
 
-out vec3 v_Color;
-
-uniform mat4 u_ViewProjection;
+out vec2 v_NDC;
 
 void main()
 {
-    v_Color     = a_Color;
-    gl_Position = u_ViewProjection * vec4(a_Position, 1.0);
+    v_NDC       = a_NDC;
+    // Push to far plane so the grid renders behind all opaque objects
+    gl_Position = vec4(a_NDC, 0.9999, 1.0);
 }
