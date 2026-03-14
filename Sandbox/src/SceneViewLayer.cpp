@@ -32,6 +32,7 @@ SceneViewLayer::SceneViewLayer()
     );
 
     BuildGrid();
+    m_Camera.SetPitch(-30.0f);   // default: look slightly down so grid is visible
     ApplyOrbit();
 }
 
