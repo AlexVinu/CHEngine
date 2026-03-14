@@ -1,2 +1,0 @@
-/usr/bin/ar qc /Users/marat/Downloads/CHEngine-main-2/bin/libglad.a CMakeFiles/glad.dir/src/glad.c.o
-/usr/bin/ranlib /Users/marat/Downloads/CHEngine-main-2/bin/libglad.a

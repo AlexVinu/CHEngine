@@ -39,7 +39,7 @@ void DestroyImpl(T* ptr)
 namespace CHEngine {
     enum class ModuleType
     {
-        Window, Render, ImGui, Physics, None
+        Window, WindowHandler, Render, ImGui, Physics, None
     };
 
     struct IModuleFactory
