@@ -54,7 +54,7 @@ namespace CHEngine {
 
         CHE_CORE_INFO("Creating window {0} ({1}, {2})", props.Title, props.Width, props.Height);
 
-        m_PlatformWindow = windowFactory->CreateWindow(
+        m_PlatformWindow = windowFactory->CreateIWindow(
             props.Width, props.Height,
             props.Title.c_str(),
             GLFWErrorCallback);

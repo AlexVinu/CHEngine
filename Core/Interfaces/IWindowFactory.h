@@ -9,7 +9,7 @@ namespace CHEngine {
     {
         virtual ~IWindowFactory() = default;
 
-        virtual IWindow* CreateWindow(
+        virtual IWindow* CreateIWindow(
             uint32_t width, uint32_t height,
             const char* title,
             ErrorCallbackFn errorCallbackFn) = 0;
