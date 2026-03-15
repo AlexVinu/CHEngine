@@ -7,6 +7,11 @@
 #include <filesystem>
 #if defined(CHE_PLATFORM_APPLE)
 #include <mach-o/dyld.h>
+#elif defined(CHE_PLATFORM_WINDOWS)
+#include <Windows.h>
+#elif defined(CHE_PLATFORM_LINUX)
+#include <unistd.h>
+#include <climits>      // PATH_MAX
 #endif
 
 namespace CHEngine {
@@ -20,18 +25,34 @@ namespace CHEngine {
     {
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
-#if defined(CHE_PLATFORM_APPLE)
+        // Set working directory to executable location so relative paths
+        // (shaders/, assets/) resolve correctly on all platforms.
         {
+            std::filesystem::path exeDir;
+#if defined(CHE_PLATFORM_APPLE)
             char exePath[4096];
             uint32_t size = sizeof(exePath);
             if (_NSGetExecutablePath(exePath, &size) == 0)
+                exeDir = std::filesystem::path(exePath).parent_path();
+#elif defined(CHE_PLATFORM_WINDOWS)
+            char exePath[MAX_PATH];
+            if (GetModuleFileNameA(nullptr, exePath, MAX_PATH) > 0)
+                exeDir = std::filesystem::path(exePath).parent_path();
+#elif defined(CHE_PLATFORM_LINUX)
+            char exePath[PATH_MAX];
+            ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+            if (len > 0)
             {
-                auto exeDir = std::filesystem::path(exePath).parent_path();
+                exePath[len] = '\0';
+                exeDir = std::filesystem::path(exePath).parent_path();
+            }
+#endif
+            if (!exeDir.empty())
+            {
                 std::filesystem::current_path(exeDir);
                 CHE_CORE_INFO("Working directory set to: {0}", exeDir.string().c_str());
             }
         }
-#endif
         s_Instance = this;
 
         // ─── 1. Загрузить все 3 модуля ───────────────────────────────────────

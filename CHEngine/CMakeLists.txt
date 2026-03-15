@@ -32,10 +32,17 @@ set_source_files_properties(
 )
 
 # Disable strict warnings for vendor C file
-set_source_files_properties(
-    "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
-    PROPERTIES COMPILE_FLAGS "-w"
-)
+if(MSVC)
+    set_source_files_properties(
+        "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
+        PROPERTIES COMPILE_FLAGS "/W0"
+    )
+else()
+    set_source_files_properties(
+        "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
+        PROPERTIES COMPILE_FLAGS "-w"
+    )
+endif()
 # Директории включения
 target_include_directories(${PROJECT_NAME}
     PUBLIC

@@ -33,12 +33,16 @@ namespace CHModules {
             });
         }
 
+        // OpenGL version: macOS caps at 4.1 (Apple limitation),
+        // Windows/Linux request 4.5 for broad compatibility.
+        // Shaders use #version 330 core, so 3.3+ would suffice,
+        // but 4.x gives access to DSA, compute shaders, etc. if needed.
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 #ifdef CHE_PLATFORM_APPLE
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #else
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 #endif
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
