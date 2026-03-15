@@ -32,14 +32,17 @@ void SceneViewLayer::BuildGrid()
     uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
 
     m_GridVAO = res.CreateVertexArray();
+    auto* vao = res.Get(m_GridVAO);
+    if (!vao) return;
+
     auto vb = res.CreateVertexBuffer(verts, static_cast<uint32_t>(sizeof(verts)));
     CHEngine::BufferLayout layout = {
         { CHEngine::ShaderDataType::Float2, "a_NDC" },
     };
     vb->SetLayout(layout);
-    res.Get(m_GridVAO)->AddVertexBuffer(vb);
+    vao->AddVertexBuffer(vb);
     auto ib = res.CreateIndexBuffer(indices, 6u);
-    res.Get(m_GridVAO)->SetIndexBuffer(ib);
+    vao->SetIndexBuffer(ib);
 }
 
 // ============================================================================
