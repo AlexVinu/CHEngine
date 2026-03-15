@@ -143,8 +143,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
     if (UIActive::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
     {
-        std::string path = CHEngine::FileDialog::OpenFile(
-            "3D Models (*.obj, *.glb, *.gltf)", "");
+        std::string path = CHEngine::FileDialog::OpenModelFile();
         if (!path.empty()) ImportModel(path);
     }
 

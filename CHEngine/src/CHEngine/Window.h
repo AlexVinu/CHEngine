@@ -42,6 +42,10 @@ namespace CHEngine {
 
         virtual void* GetNativeWindow() const = 0;
 
+        // Возвращает низкоуровневый платформенный IWindow (GLFW и т.д.)
+        // Используется Input::BeginFrame для прямого опроса состояния.
+        virtual IWindow* GetPlatformWindow() const = 0;
+
         static Window* Create(IWindowFactory* windowFactory, const WindowProps& props = WindowProps());
     };
 }

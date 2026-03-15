@@ -35,6 +35,11 @@
 #include "CHEngine/Scene/RecentFiles.h"
 // ================================
 
+// Input --------------------------
+#include "CHEngine/Input/Input.h"
+#include <Input/KeyCodes.h>
+// ================================
+
 // Utils --------------------------
 #include "CHEngine/Utils/FileDialog.h"
 // ================================

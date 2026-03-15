@@ -2,6 +2,7 @@
 
 #include <Core.h>
 #include "EventData.h"
+#include <Input/KeyCodes.h>
 
 namespace CHEngine
 {
@@ -50,5 +51,10 @@ namespace CHEngine
 
         virtual uint32_t GetWidth() const = 0;
         virtual uint32_t GetHeight() const = 0;
+
+        // ── Polling input (без OS-задержки, вызывается каждый кадр) ──────────
+        virtual bool IsKeyDown(int key) const = 0;
+        virtual bool IsMouseButtonDown(int button) const = 0;
+        virtual void GetMousePosition(float& x, float& y) const = 0;
     };
 }

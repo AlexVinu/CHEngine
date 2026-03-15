@@ -30,7 +30,9 @@ void SceneViewLayer::LoadScene(const std::string& path)
 
     std::string filePath = path;
     if (filePath.empty()) {
-        filePath = CHEngine::FileDialog::OpenFile("Scene Files (*.chscene)", "*.chscene");
+        const char* filters[] = { "*.chscene" };
+        filePath = CHEngine::FileDialog::OpenFile(
+            "Scene Files (*.chscene)", filters, 1, "Open Scene");
     }
     if (filePath.empty()) return;
 

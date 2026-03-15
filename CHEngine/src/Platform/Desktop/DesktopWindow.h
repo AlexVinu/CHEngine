@@ -19,6 +19,7 @@ namespace CHEngine {
         void SetVSync(bool enabled) override;
         bool IsVSync() const override;
         void* GetNativeWindow() const override;
+        IWindow* GetPlatformWindow() const override { return m_PlatformWindow; }
 
     private:
         void Init(const WindowProps& props, IWindowFactory* windowFactory);

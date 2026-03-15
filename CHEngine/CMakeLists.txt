@@ -35,8 +35,8 @@ target_include_directories(${PROJECT_NAME}
         "src"
         ${IMGUI_INCLUDE_DIR}
         "${CHE_VENDOR_DIR}"
+        ${CHE_INTERFACES_DIR}   # PUBLIC: Sandbox и другие клиенты видят <Input/KeyCodes.h> и т.д.
     PRIVATE
-        ${CHE_INTERFACES_DIR}
         ${CHE_CORE_DIR}
         "${CHE_VENDOR_DIR}/tinyobjloader"
         "${CHE_VENDOR_DIR}/tinygltf"
