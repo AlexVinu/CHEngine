@@ -42,8 +42,6 @@ namespace CHEngine {
 
 		virtual void SetVSync(bool enabled) = 0;
 
-		//virtual void SetViewport(uint32_t width, uint32_t height, (void*)(uint32_t, uint32_t)) = 0;
-
 		virtual void SetWindowContext(const RendererWindowContext& context) = 0;
 
 		virtual void* GetNativeWindow() = 0;

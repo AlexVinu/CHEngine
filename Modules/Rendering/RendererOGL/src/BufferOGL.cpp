@@ -1,7 +1,7 @@
 #include <chepch.h>
 #include "BufferOGL.h"
 
-#include<glad/glad.h>
+#include <glad/glad.h>
 
 namespace CHModules
 {
