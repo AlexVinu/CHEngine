@@ -27,6 +27,10 @@ namespace CHModules {
         uint32_t GetWidth()  const override { return m_Width; }
         uint32_t GetHeight() const override { return m_Height; }
 
+        bool IsKeyDown(int key) const override;
+        bool IsMouseButtonDown(int button) const override;
+        void GetMousePosition(float& x, float& y) const override;
+
         static CHEngine::EventType ConvertFromGLFW(int action);
 
     private:

@@ -2,6 +2,7 @@
 #include "Application.h"
 
 #include "Log/Log.h"
+#include "CHEngine/Input/Input.h"
 
 #include <filesystem>
 #if defined(CHE_PLATFORM_APPLE)
@@ -137,6 +138,9 @@ namespace CHEngine {
     {
         while (m_Running)
         {
+            // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
+            Input::BeginFrame(m_Window->GetPlatformWindow());
+
             m_RenderResources.Get(m_RenderApi)->Clear();
 
             for (Layer* layer : m_LayerStack)

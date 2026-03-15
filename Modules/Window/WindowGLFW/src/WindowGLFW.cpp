@@ -83,6 +83,28 @@ namespace CHModules {
         glfwSwapInterval(enabled ? 1 : 0);
     }
 
+    bool WindowGLFW::IsKeyDown(int key) const
+    {
+        return m_Window && glfwGetKey(m_Window, key) == GLFW_PRESS;
+    }
+
+    bool WindowGLFW::IsMouseButtonDown(int button) const
+    {
+        return m_Window && glfwGetMouseButton(m_Window, button) == GLFW_PRESS;
+    }
+
+    void WindowGLFW::GetMousePosition(float& x, float& y) const
+    {
+        if (m_Window) {
+            double dx, dy;
+            glfwGetCursorPos(m_Window, &dx, &dy);
+            x = static_cast<float>(dx);
+            y = static_cast<float>(dy);
+        } else {
+            x = y = 0.0f;
+        }
+    }
+
     void WindowGLFW::SetWindowContext(const CHEngine::WindowContext& context)
     {
         m_Context = context;

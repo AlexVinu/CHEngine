@@ -1,10 +1,13 @@
 #include "SceneViewLayer.h"
 
+#include <CHEngine/Input/Input.h>
+#include <Input/KeyCodes.h>
+
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
 // ============================================================================
-//  Orbit camera
+//  Orbit camera helpers
 // ============================================================================
 
 void SceneViewLayer::ApplyOrbit()
@@ -50,17 +53,17 @@ void SceneViewLayer::UpdateCameraInput()
 {
     ImGuiIO& io = ImGui::GetIO();
 
-    // Only when cursor is over the 3D viewport and not over gizmo
-    if (!m_ViewportHovered || ImGuizmo::IsOver()) return;
+    if (!m_ViewportHovered) return;
 
-    // Two-finger swipe: zoom (Y) + orbit yaw (X)
+    // Блокируем только когда gizmo активно перетаскивается
+    if (ImGuizmo::IsUsing()) return;
+
+    // ── Scroll: zoom + yaw pan ───────────────────────────────────────────────
     if (io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f)
     {
         if (io.KeyCtrl)
         {
-            // Ctrl + vertical swipe → orbit pitch
             m_Camera.SetPitch(m_Camera.GetPitch() + io.MouseWheel * 3.0f);
-            ApplyOrbit();
         }
         else
         {
@@ -71,12 +74,11 @@ void SceneViewLayer::UpdateCameraInput()
             }
             if (io.MouseWheelH != 0.0f)
                 m_Camera.SetYaw(m_Camera.GetYaw() - io.MouseWheelH * 3.0f);
-
-            ApplyOrbit();
         }
+        ApplyOrbit();
     }
 
-    // Alt + LMB drag  OR  MMB drag → orbit (rotate around target)
+    // ── Orbit: Alt+LMB drag  OR  MMB drag ────────────────────────────────────
     bool orbitByAltLMB = io.KeyAlt && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f);
     bool orbitByMMB    = !io.KeyShift && ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f);
     if (orbitByAltLMB || orbitByMMB)
@@ -86,8 +88,8 @@ void SceneViewLayer::UpdateCameraInput()
         ApplyOrbit();
     }
 
-    // RMB drag  OR  Shift + MMB drag → pan
-    bool panByRMB   = ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f);
+    // ── Pan: RMB drag  OR  Shift+MMB drag ────────────────────────────────────
+    bool panByRMB      = ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f);
     bool panByShiftMMB = io.KeyShift && ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f);
     if (panByRMB || panByShiftMMB)
     {
@@ -99,11 +101,46 @@ void SceneViewLayer::UpdateCameraInput()
         ApplyOrbit();
     }
 
-    // F → frame selected
-    if (ImGui::IsKeyPressed(ImGuiKey_F) && m_SelectedObjectID != 0)
+    // ── RMB held + WASD = Blender-style fly (без OS-задержки через Input) ───
+    if (ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    {
+        float speed = 0.05f * m_OrbitDist;
+        if (CHEngine::Input::IsKeyDown(CHEngine::Key::LeftShift) ||
+            CHEngine::Input::IsKeyDown(CHEngine::Key::RightShift))
+            speed *= 4.0f;
+
+        glm::vec3 fwd   = m_Camera.GetForward();
+        glm::vec3 right = m_Camera.GetRight();
+        glm::vec3 up    = m_Camera.GetUp();
+        glm::vec3 move  = glm::vec3(0.0f);
+
+        if (CHEngine::Input::IsKeyDown(CHEngine::Key::W)) move += fwd   * speed;
+        if (CHEngine::Input::IsKeyDown(CHEngine::Key::S)) move -= fwd   * speed;
+        if (CHEngine::Input::IsKeyDown(CHEngine::Key::A)) move -= right * speed;
+        if (CHEngine::Input::IsKeyDown(CHEngine::Key::D)) move += right * speed;
+        if (CHEngine::Input::IsKeyDown(CHEngine::Key::E)) move += up    * speed;
+        if (CHEngine::Input::IsKeyDown(CHEngine::Key::Q)) move -= up    * speed;
+
+        if (glm::length(move) > 0.0001f)
+        {
+            m_OrbitTarget += move;
+            ApplyOrbit();
+        }
+
+        // RMB + drag → look around (вместо pan)
+        if (io.MouseDelta.x != 0.0f || io.MouseDelta.y != 0.0f)
+        {
+            m_Camera.SetYaw  (m_Camera.GetYaw()   - io.MouseDelta.x * 0.3f);
+            m_Camera.SetPitch(m_Camera.GetPitch() + io.MouseDelta.y * 0.3f);
+            ApplyOrbit();
+        }
+    }
+
+    // ── F → frame selected ───────────────────────────────────────────────────
+    if (CHEngine::Input::IsKeyPressed(CHEngine::Key::F) && m_SelectedObjectID != 0)
         FocusOnSelected();
 
-    // Follow mode
+    // ── Follow mode ──────────────────────────────────────────────────────────
     if (m_FollowObject && m_SelectedObjectID != 0)
     {
         auto* obj = m_Scene.FindByID(m_SelectedObjectID);

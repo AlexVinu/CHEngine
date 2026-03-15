@@ -124,7 +124,10 @@ void SceneViewLayer::OnImGuiRender()
             ImGuiWindowFlags_NoBringToFrontOnFocus |
             ImGuiWindowFlags_NoNavFocus);
 
-        m_ViewportHovered = ImGui::IsWindowHovered();
+        // AllowWhenBlockedByActiveItem: хост остаётся "hovered" пока
+        // пользователь тянет Image-виджет (drag), что нужно для вращения камеры
+        m_ViewportHovered = ImGui::IsWindowHovered(
+            ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
         m_ViewportPos     = ImGui::GetWindowPos();
 
         ImVec2 panelSize = ImGui::GetContentRegionAvail();
