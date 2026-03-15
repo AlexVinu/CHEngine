@@ -23,7 +23,7 @@ namespace CHModules {
         : m_Width(width), m_Height(height)
     {
         if (!s_GLFWInitialized) {
-            int success = glfwInit();
+            [[maybe_unused]] int success = glfwInit();
             CHE_CORE_ASSERT(success, "Failed to initialize GLFW");
             s_GLFWInitialized = true;
             s_ErrorCallbackFn = errorCallbackFn;
@@ -85,7 +85,9 @@ namespace CHModules {
 
     bool WindowGLFW::IsKeyDown(int key) const
     {
-        return m_Window && glfwGetKey(m_Window, key) == GLFW_PRESS;
+        // GLFW key codes below GLFW_KEY_SPACE (32) are invalid and trigger errors
+        if (!m_Window || key < GLFW_KEY_SPACE) return false;
+        return glfwGetKey(m_Window, key) == GLFW_PRESS;
     }
 
     bool WindowGLFW::IsMouseButtonDown(int button) const
