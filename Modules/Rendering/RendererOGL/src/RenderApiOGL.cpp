@@ -1,7 +1,7 @@
 #include <chepch.h>
 #include "RenderApiOGL.h"
 
-#include<glad/glad.h>
+#include <glad/glad.h>
 
 namespace CHModules
 {
@@ -23,19 +23,25 @@ namespace CHModules
 
 	void RendererApiOGL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
 	{
+		if (!vertexArray) return;
 		vertexArray->Bind();
-		glDrawElements(GL_TRIANGLES, vertexArray->GetIndexBuffer()->GetCount(), GL_UNSIGNED_INT, nullptr);
+		const auto& ibo = vertexArray->GetIndexBuffer();
+		if (!ibo) return;
+		glDrawElements(GL_TRIANGLES, ibo->GetCount(), GL_UNSIGNED_INT, nullptr);
 	}
 
 	void RendererApiOGL::DrawLines(const CHEngine::IVertexArray* vertexArray)
 	{
+		if (!vertexArray) return;
 		vertexArray->Bind();
-		glDrawElements(GL_LINES, vertexArray->GetIndexBuffer()->GetCount(), GL_UNSIGNED_INT, nullptr);
+		const auto& ibo = vertexArray->GetIndexBuffer();
+		if (!ibo) return;
+		glDrawElements(GL_LINES, ibo->GetCount(), GL_UNSIGNED_INT, nullptr);
 	}
 
 	void RendererApiOGL::SetViewport(uint32_t width, uint32_t height)
 	{
-		glViewport(0, 0, width, height);
+		glViewport(0, 0, (GLsizei)width, (GLsizei)height);
 	}
 
 	void RendererApiOGL::SetBlend(bool enable)

@@ -3,6 +3,13 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+// ── Default scene lighting ──────────────────────────────────────────────────
+namespace LightCfg {
+    constexpr float DirX = -0.3f,  DirY = -1.0f,  DirZ = -0.5f;
+    constexpr float ColR =  1.0f,  ColG =  1.0f,  ColB =  0.95f;
+    constexpr float AmbR =  0.15f, AmbG =  0.15f, AmbB =  0.2f;
+}
+
 // ── Вспомогательная функция: Transform → float[16] matrix ───────────────────
 static void TransformToMatrix(const CHEngine::Transform& tr, float out[16])
 {
@@ -93,9 +100,12 @@ void SceneViewLayer::RenderScene()
 
     shader->Bind();
     shader->SetMat4  (CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
-    shader->SetFloat3(CHEngine::String("u_LightDir"),       -0.3f, -1.0f, -0.5f);
-    shader->SetFloat3(CHEngine::String("u_LightColor"),      1.0f,  1.0f,  0.95f);
-    shader->SetFloat3(CHEngine::String("u_AmbientColor"),    0.15f, 0.15f, 0.2f);
+    shader->SetFloat3(CHEngine::String("u_LightDir"),
+                      LightCfg::DirX, LightCfg::DirY, LightCfg::DirZ);
+    shader->SetFloat3(CHEngine::String("u_LightColor"),
+                      LightCfg::ColR, LightCfg::ColG, LightCfg::ColB);
+    shader->SetFloat3(CHEngine::String("u_AmbientColor"),
+                      LightCfg::AmbR, LightCfg::AmbG, LightCfg::AmbB);
 
     for (auto& obj : m_Scene.GetObjects())
     {

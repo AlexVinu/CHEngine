@@ -13,14 +13,22 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 )
 
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /utf-8 /W4
-        $<$<CONFIG:Debug>:/Od /Zi> $<$<CONFIG:Release>:/O2>)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        /utf-8 /W4
+        $<$<CONFIG:Debug>:/Od /Zi>
+        $<$<CONFIG:Release>:/O2>
+        $<$<CONFIG:Dist>:/O2>
+    )
     set_target_properties(${PROJECT_NAME} PROPERTIES
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        -Wall -Wextra -Wpedantic
         -fvisibility=hidden
-        $<$<CONFIG:Debug>:-g -O0> $<$<CONFIG:Release>:-O2>)
+        $<$<CONFIG:Debug>:-g -O0>
+        $<$<CONFIG:Release>:-O2>
+        $<$<CONFIG:Dist>:-O2>
+    )
 endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

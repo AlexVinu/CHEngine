@@ -2,6 +2,7 @@
 #include <imgui.h>
 #include <algorithm>
 #include <CHEngine/Utils/FileDialog.h>
+#include <Log/Log.h>
 
 ContentBrowserPanel::ContentBrowserPanel() {
     // Default to working directory / assets
@@ -50,7 +51,10 @@ void ContentBrowserPanel::DrawDirectoryTree(const fs::path& dir, int depth) {
     try {
         for (auto& e : fs::directory_iterator(dir))
             if (fs::is_directory(e)) entries.push_back(e);
-    } catch (...) { return; }
+    } catch (const std::exception& e) {
+        CHE_CORE_WARN("ContentBrowser: cannot read directory '{}': {}", dir.string(), e.what());
+        return;
+    }
 
     std::sort(entries.begin(), entries.end(),
         [](const fs::directory_entry& a, const fs::directory_entry& b) {
@@ -89,7 +93,10 @@ void ContentBrowserPanel::DrawFileGrid() {
             if (fs::is_directory(e)) dirs.push_back(e);
             else files.push_back(e);
         }
-    } catch (...) { return; }
+    } catch (const std::exception& e) {
+        CHE_CORE_WARN("ContentBrowser: cannot list directory '{}': {}", m_CurrentDir.string(), e.what());
+        return;
+    }
 
     // Sort both
     auto byName = [](const fs::directory_entry& a, const fs::directory_entry& b) {

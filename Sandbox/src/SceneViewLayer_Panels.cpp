@@ -322,7 +322,7 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     UIActive::SectionHeader("ORBIT");
 
     bool        orb = false;
-    const float lw  = 62.0f;
+    const float lw  = 64.0f;
 
     auto sliderRow = [&](const char* label, const char* id,
                           float* val, float mn, float mx, const char* fmt)
