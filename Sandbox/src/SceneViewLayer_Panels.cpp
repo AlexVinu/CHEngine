@@ -1,7 +1,6 @@
 #include "SceneViewLayer.h"
 
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <cstring>
 
 // ============================================================================
@@ -37,7 +36,7 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
             // Cmd+Z (macOS) или Alt+Z (Windows/Linux)
             const bool undoMod = ImGui::GetIO().KeySuper   // Cmd на Mac
                               || ImGui::GetIO().KeyAlt;    // Alt на Windows
-            if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false) && m_UndoStack.CanUndo())
                 m_UndoStack.Undo();
         }
 

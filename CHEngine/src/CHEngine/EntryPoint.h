@@ -2,7 +2,7 @@
 
 extern CHEngine::Application* CHEngine::CreateApplication();
 
-int main(int argc, char** argv)
+int main(int /*argc*/, char** /*argv*/)
 {
 	CHEngine::Log::init();
 	CHE_CORE_INFO("Init CHEngine");
