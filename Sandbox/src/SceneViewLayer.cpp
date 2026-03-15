@@ -7,29 +7,28 @@
 
 SceneViewLayer::SceneViewLayer()
     : Layer("SceneView")
+    , m_Resources(CHEngine::Application::Get().GetRenderResources())
     , m_Camera(45.0f, 0.1f, 500.0f)
-
 {
     UIActive::SetTheme(AppTheme::RetroOS);
     UIActive::SyncLayout();
 
     auto& app = CHEngine::Application::Get();
-    auto& res = app.GetRenderResources();
     m_RenderApi = app.GetRenderApiHandle();
 
-    m_MeshShader = res.CreateShaderFromFile(
+    m_MeshShader = m_Resources.CreateShaderFromFile(
         CHEngine::String("Mesh"),
         CHEngine::String("shaders/mesh.vert"),
         CHEngine::String("shaders/mesh.frag")
     );
-    m_GridShader = res.CreateShaderFromFile(
+    m_GridShader = m_Resources.CreateShaderFromFile(
         CHEngine::String("Grid"),
         CHEngine::String("shaders/grid.vert"),
         CHEngine::String("shaders/grid.frag")
     );
 
     BuildGrid();
-    m_Framebuffer = res.CreateFramebuffer(1280, 720);
+    m_Framebuffer = m_Resources.CreateFramebuffer(1280, 720);
     m_Camera.SetPitch(-30.0f);   // default: look slightly down so grid is visible
     ApplyOrbit();
 
@@ -130,15 +129,13 @@ void SceneViewLayer::OnImGuiRender()
             (panelSize.x != m_ViewportSize.x || panelSize.y != m_ViewportSize.y))
         {
             m_ViewportSize = panelSize;
-            auto& res2 = CHEngine::Application::Get().GetRenderResources();
-            auto* fbo2 = res2.Get(m_Framebuffer);
-            if (fbo2) fbo2->Resize((uint32_t)panelSize.x, (uint32_t)panelSize.y);
+            auto* fbo = m_Resources.Get(m_Framebuffer);
+            if (fbo) fbo->Resize((uint32_t)panelSize.x, (uint32_t)panelSize.y);
             m_AspectRatio = panelSize.x / panelSize.y;
         }
 
         // Display the rendered scene as a texture (flip Y: OpenGL bottom-left → ImGui top-left)
-        auto& res2 = CHEngine::Application::Get().GetRenderResources();
-        auto* fbo2 = res2.Get(m_Framebuffer);
+        auto* fbo2 = m_Resources.Get(m_Framebuffer);
         if (fbo2)
         {
             uint32_t texID = fbo2->GetColorAttachmentID();
