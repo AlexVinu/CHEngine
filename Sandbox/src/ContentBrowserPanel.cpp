@@ -1,6 +1,7 @@
 #include "ContentBrowserPanel.h"
 #include <imgui.h>
 #include <algorithm>
+#include <CHEngine/Utils/FileDialog.h>
 
 ContentBrowserPanel::ContentBrowserPanel() {
     // Default to working directory / assets
@@ -205,8 +206,27 @@ std::string ContentBrowserPanel::OnImGuiRender(ImVec2 pos, ImVec2 size) {
     ImGui::SameLine();
     ImGui::TextDisabled("|");
     ImGui::SameLine();
-    if (ImGui::SmallButton("assets"))
-        m_CurrentDir = m_AssetsRoot;
+    // Root folder shortcut
+    {
+        std::string rootName = m_AssetsRoot.filename().string();
+        if (rootName.empty()) rootName = m_AssetsRoot.string(); // path like "C:\" or "/"
+        if (rootName.empty()) rootName = "root";
+        if (ImGui::SmallButton(rootName.c_str()))
+            m_CurrentDir = m_AssetsRoot;
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("%s", m_AssetsRoot.string().c_str());
+    }
+    // Change root folder button
+    ImGui::SameLine();
+    if (ImGui::SmallButton("[...]")) {
+        std::string chosen = CHEngine::FileDialog::SelectFolder(
+            "Select Assets Folder",
+            m_AssetsRoot.string().c_str());
+        if (!chosen.empty())
+            SetAssetsDirectory(fs::path(chosen));
+    }
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("Change assets folder");
     ImGui::Separator();
 
     // Two columns: directory tree (left) + file grid (right)

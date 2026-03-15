@@ -55,4 +55,15 @@ namespace CHEngine {
 		return path;
 	}
 
+	std::string FileDialog::SelectFolder(const char* title, const char* defaultPath)
+	{
+		const char* result = tinyfd_selectFolderDialog(
+			title ? title : "Select Folder",
+			defaultPath ? defaultPath : ""
+		);
+		if (result)
+			return std::string(result);
+		return {};
+	}
+
 }
