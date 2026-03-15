@@ -59,6 +59,12 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         return false;
     }
 
+    // Validate top-level structure
+    if (!j.is_object() || !j.contains("objects") || !j["objects"].is_array()) {
+        CHE_CORE_ERROR("SceneSerializer: malformed scene file (missing 'objects' array)");
+        return false;
+    }
+
     // Clear existing scene GPU resources first
     for (auto& obj : m_Scene->GetObjects()) {
         for (auto& mesh : obj->Meshes) {
@@ -70,7 +76,22 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
     }
     m_Scene->Clear();
 
+    // Helper: safely read a JSON array of N floats
+    auto readFloats = [](const json& arr, size_t count, float* out) -> bool {
+        if (!arr.is_array() || arr.size() < count) return false;
+        for (size_t i = 0; i < count; ++i) {
+            if (!arr[i].is_number()) return false;
+            out[i] = arr[i].get<float>();
+        }
+        return true;
+    };
+
     for (auto& o : j["objects"]) {
+        if (!o.is_object()) {
+            CHE_CORE_WARN("SceneSerializer: skipping non-object entry in 'objects' array");
+            continue;
+        }
+
         std::string name     = o.value("name", "Object");
         std::string meshPath = o.value("meshPath", "");
 
@@ -87,23 +108,21 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
             obj = m_Scene->AddObject(name);
         if (!obj) continue;
 
-        // Restore transform
-        if (o.contains("position")) {
-            auto& p = o["position"];
-            obj->ObjectTransform.Position = { p[0].get<float>(), p[1].get<float>(), p[2].get<float>() };
-        }
-        if (o.contains("rotation")) {
-            auto& r = o["rotation"];
-            obj->ObjectTransform.Rotation = { r[0].get<float>(), r[1].get<float>(), r[2].get<float>() };
-        }
-        if (o.contains("scale")) {
-            auto& s = o["scale"];
-            obj->ObjectTransform.Scale = { s[0].get<float>(), s[1].get<float>(), s[2].get<float>() };
-        }
-        if (o.contains("color")) {
-            auto& c = o["color"];
-            obj->Color = { c[0].get<float>(), c[1].get<float>(), c[2].get<float>(), c[3].get<float>() };
-        }
+        // Restore transform (with validation)
+        float v3[3];
+        if (o.contains("position") && readFloats(o["position"], 3, v3))
+            obj->ObjectTransform.Position = { v3[0], v3[1], v3[2] };
+
+        if (o.contains("rotation") && readFloats(o["rotation"], 3, v3))
+            obj->ObjectTransform.Rotation = { v3[0], v3[1], v3[2] };
+
+        if (o.contains("scale") && readFloats(o["scale"], 3, v3))
+            obj->ObjectTransform.Scale = { v3[0], v3[1], v3[2] };
+
+        float v4[4];
+        if (o.contains("color") && readFloats(o["color"], 4, v4))
+            obj->Color = { v4[0], v4[1], v4[2], v4[3] };
+
         obj->Visible = o.value("visible", true);
     }
 

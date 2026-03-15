@@ -171,8 +171,15 @@ namespace CHEngine {
 
     void Application::Run()
     {
+        m_LastFrameTime = std::chrono::steady_clock::now();
+
         while (m_Running)
         {
+            // ── Delta time ──────────────────────────────────────────────────
+            auto now = std::chrono::steady_clock::now();
+            float dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
+            m_LastFrameTime = now;
+
             // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
             Input::BeginFrame(m_Window->GetPlatformWindow());
 
@@ -180,7 +187,7 @@ namespace CHEngine {
                 api->Clear();
 
             for (Layer* layer : m_LayerStack)
-                layer->OnUpdate();
+                layer->OnUpdate(dt);
 
             if (m_ImGuiLayer)
             {

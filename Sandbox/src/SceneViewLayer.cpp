@@ -39,7 +39,7 @@ SceneViewLayer::SceneViewLayer()
 //  Layer overrides
 // ============================================================================
 
-void SceneViewLayer::OnUpdate()
+void SceneViewLayer::OnUpdate(float /*dt*/)
 {
     RenderScene();
 }
