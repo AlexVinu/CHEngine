@@ -191,8 +191,8 @@ public:
 		auto pos = m_Camera.GetPosition();
 		switch(e.GetKeyCode())
 		{
-		case 87: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z + 1)); break;
-		case 83: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z - 1)); break;
+		case CHEngine::Key::W: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z + 1)); break;
+		case CHEngine::Key::S: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z - 1)); break;
 		}
 		return false;
 	}

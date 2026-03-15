@@ -35,7 +35,7 @@ public:
 
     void OnUpdate()      override;
     void OnImGuiRender() override;
-    void OnEvent(CHEngine::Event& e) override {}
+    void OnEvent(CHEngine::Event& /*e*/) override {}
 
 private:
     // ── Orbit camera ─────────────────────────────────────────────────────────
@@ -100,9 +100,6 @@ private:
     // Viewport flags
     bool m_ShowGrid    = true;
     bool m_ResetLayout = false;   // true → snap panel sizes back next frame
-
-    // Delta-time
-
 
     // Undo
     UndoStack               m_UndoStack;
