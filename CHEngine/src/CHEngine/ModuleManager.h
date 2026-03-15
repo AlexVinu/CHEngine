@@ -5,17 +5,21 @@
 
 #include "IModuleFactory.h"
 
+// Platform-specific dynamic library includes (must be outside namespace)
+#ifdef CHE_PLATFORM_WINDOWS
+    #include <Windows.h>
+#elif defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
+    #include <dlfcn.h>
+#endif
+
 namespace CHEngine
 {
 	using DestroyFn = void(*)(IModuleFactory*);
     using CreateFn = IModuleFactory* (*)();
-	
 
 	#ifdef CHE_PLATFORM_WINDOWS
-        #include<windows.h>
 		using ModuleHandle = HMODULE;
     #elif defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
-        #include <dlfcn.h>
         using ModuleHandle = void*;
     #else
         #error Unsupported platform
