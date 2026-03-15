@@ -7,7 +7,7 @@
 #include "ContentBrowserPanel.h"
 
 #include <glm/glm.hpp>
-#include <chrono>
+
 #include <string>
 
 // ============================================================================
@@ -102,7 +102,7 @@ private:
     bool m_ResetLayout = false;   // true → snap panel sizes back next frame
 
     // Delta-time
-    std::chrono::steady_clock::time_point m_LastTime;
+
 
     // Undo
     UndoStack               m_UndoStack;
