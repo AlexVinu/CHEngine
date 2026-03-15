@@ -30,7 +30,11 @@ namespace CHEngine {
         void PushLayer(Layer* layer);
         void PushOverlay(Layer* overlay);
 
-        static Application& Get() { return *s_Instance; }
+        static Application& Get()
+        {
+            CHE_CORE_ASSERT(s_Instance, "Application not created yet!");
+            return *s_Instance;
+        }
 
         RenderResourceManager& GetRenderResources() { return m_RenderResources; }
         RenderAPIHandle GetRenderApiHandle() const { return m_RenderApi; }

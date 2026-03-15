@@ -18,7 +18,7 @@ static void TransformToMatrix(const CHEngine::Transform& tr, float out[16])
 
 void SceneViewLayer::BuildGrid()
 {
-    auto& res = CHEngine::Application::Get().GetRenderResources();
+    auto& res = m_Resources;
 
     // Full-screen quad in NDC space.
     // The fragment shader unprojects each pixel to world space and
@@ -51,8 +51,7 @@ void SceneViewLayer::BuildGrid()
 
 void SceneViewLayer::RenderScene()
 {
-    auto& app = CHEngine::Application::Get();
-    auto& res = app.GetRenderResources();
+    auto& res = m_Resources;
     auto* api = res.Get(m_RenderApi);
     if (!api) return;
 
@@ -116,23 +115,20 @@ void SceneViewLayer::RenderScene()
 
         for (auto& mesh : obj->Meshes)
         {
-            bool hasTex = mesh.DiffuseTexture.IsValid();
-            shader->SetInt(CHEngine::String("u_UseTexture"), hasTex ? 1 : 0);
-            if (hasTex)
+            auto* tex = mesh.DiffuseTexture.IsValid()
+                      ? res.Get(mesh.DiffuseTexture) : nullptr;
+
+            shader->SetInt(CHEngine::String("u_UseTexture"), tex ? 1 : 0);
+            if (tex)
             {
-                auto* tex = res.Get(mesh.DiffuseTexture);
-                if (tex) tex->Bind(0);
+                tex->Bind(0);
                 shader->SetInt(CHEngine::String("u_DiffuseTexture"), 0);
             }
 
             auto* vao = res.Get(mesh.GetVertexArray());
             if (vao) api->DrawIndexed(vao);
 
-            if (hasTex)
-            {
-                auto* tex = res.Get(mesh.DiffuseTexture);
-                if (tex) tex->Unbind();
-            }
+            if (tex) tex->Unbind();
         }
     }
 

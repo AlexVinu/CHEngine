@@ -70,6 +70,7 @@ private:
     // =========================================================================
 
     // Scene & render resources
+    CHEngine::RenderResourceManager& m_Resources;
     CHEngine::Scene             m_Scene;
     CHEngine::Camera            m_Camera;
     CHEngine::ShaderHandle      m_MeshShader;
