@@ -3,6 +3,15 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+// ── Вспомогательная функция: Transform → float[16] matrix ───────────────────
+static void TransformToMatrix(const CHEngine::Transform& tr, float out[16])
+{
+    float t[3] = { tr.Position.x, tr.Position.y, tr.Position.z };
+    float r[3] = { tr.Rotation.x, tr.Rotation.y, tr.Rotation.z };
+    float s[3] = { tr.Scale.x,    tr.Scale.y,    tr.Scale.z    };
+    ImGuizmo::RecomposeMatrixFromComponents(t, r, s, out);
+}
+
 // ============================================================================
 //  Grid / axes geometry
 // ============================================================================
@@ -90,18 +99,8 @@ void SceneViewLayer::RenderScene()
     {
         if (!obj->Visible) continue;
 
-        float t[3] = { obj->ObjectTransform.Position.x,
-                        obj->ObjectTransform.Position.y,
-                        obj->ObjectTransform.Position.z };
-        float r[3] = { obj->ObjectTransform.Rotation.x,
-                        obj->ObjectTransform.Rotation.y,
-                        obj->ObjectTransform.Rotation.z };
-        float s[3] = { obj->ObjectTransform.Scale.x,
-                        obj->ObjectTransform.Scale.y,
-                        obj->ObjectTransform.Scale.z };
-
         float raw[16];
-        ImGuizmo::RecomposeMatrixFromComponents(t, r, s, raw);
+        TransformToMatrix(obj->ObjectTransform, raw);
         glm::mat4 model     = glm::make_mat4(raw);
         glm::mat4 normalMat = glm::transpose(glm::inverse(model));
 
@@ -156,18 +155,9 @@ void SceneViewLayer::DrawGizmo()
     glm::mat4 view = m_Camera.GetViewMatrix();
     glm::mat4 proj = m_Camera.GetProjectionMatrix(m_AspectRatio);
 
-    float t[3] = { selected->ObjectTransform.Position.x,
-                    selected->ObjectTransform.Position.y,
-                    selected->ObjectTransform.Position.z };
-    float r[3] = { selected->ObjectTransform.Rotation.x,
-                    selected->ObjectTransform.Rotation.y,
-                    selected->ObjectTransform.Rotation.z };
-    float s[3] = { selected->ObjectTransform.Scale.x,
-                    selected->ObjectTransform.Scale.y,
-                    selected->ObjectTransform.Scale.z };
-
+    float t[3], r[3], s[3];
     float mm[16];
-    ImGuizmo::RecomposeMatrixFromComponents(t, r, s, mm);
+    TransformToMatrix(selected->ObjectTransform, mm);
 
     float snapT[3] = { 1.0f,  1.0f,  1.0f  };
     float snapR[3] = { 45.0f, 45.0f, 45.0f };

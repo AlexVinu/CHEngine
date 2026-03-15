@@ -9,9 +9,6 @@
 
 void SceneViewLayer::SaveScene()
 {
-    auto& res = CHEngine::Application::Get().GetRenderResources();
-    (void)res;
-
     const char* filters[] = { "*.chscene" };
     std::string path = CHEngine::FileDialog::SaveFile(
         "Save Scene", "scene.chscene", filters, 1, ".chscene");

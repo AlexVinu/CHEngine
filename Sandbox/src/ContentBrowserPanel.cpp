@@ -25,7 +25,7 @@ void ContentBrowserPanel::SetAssetsDirectory(const fs::path& path) {
 
 bool ContentBrowserPanel::IsModelFile(const fs::path& path) const {
     auto ext = path.extension().string();
-    return ext == ".obj" || ext == ".glb" || ext == ".gltf" || ext == ".fbx";
+    return ext == ".obj" || ext == ".glb" || ext == ".gltf";
 }
 
 bool ContentBrowserPanel::IsSceneFile(const fs::path& path) const {

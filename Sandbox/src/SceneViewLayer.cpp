@@ -10,7 +10,7 @@
 SceneViewLayer::SceneViewLayer()
     : Layer("SceneView")
     , m_Camera(45.0f, 0.1f, 500.0f)
-    , m_LastTime(std::chrono::steady_clock::now())
+
 {
     UIActive::SetTheme(AppTheme::RetroOS);
     UIActive::SyncLayout();
@@ -44,10 +44,10 @@ SceneViewLayer::SceneViewLayer()
 
 void SceneViewLayer::OnUpdate()
 {
-    auto  now = std::chrono::steady_clock::now();
-    float dt  = std::chrono::duration<float>(now - m_LastTime).count();
-    m_LastTime = now;
-    (void)dt;
+
+
+
+
 
     RenderScene();
 }
