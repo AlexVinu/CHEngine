@@ -51,7 +51,7 @@ void SceneViewLayer::UpdateCameraInput()
     ImGuiIO& io = ImGui::GetIO();
 
     // Only when cursor is over the 3D viewport and not over gizmo
-    if (!m_ViewportHovered || ImGuizmo::IsOver() || io.WantCaptureMouse) return;
+    if (!m_ViewportHovered || ImGuizmo::IsOver()) return;
 
     // Two-finger swipe: zoom (Y) + orbit yaw (X)
     if (io.MouseWheel != 0.0f || io.MouseWheelH != 0.0f)
@@ -76,19 +76,20 @@ void SceneViewLayer::UpdateCameraInput()
         }
     }
 
-    // RMB drag → pan (grab mode)
-    if (ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f))
+    // Alt + LMB drag  OR  MMB drag → orbit (rotate around target)
+    bool orbitByAltLMB = io.KeyAlt && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f);
+    bool orbitByMMB    = !io.KeyShift && ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f);
+    if (orbitByAltLMB || orbitByMMB)
     {
-        float     panScale = m_OrbitDist * 0.0015f;
-        glm::vec3 right    = m_Camera.GetRight();
-        glm::vec3 up       = m_Camera.GetUp();
-        m_OrbitTarget -= right * io.MouseDelta.x * panScale;
-        m_OrbitTarget += up    * io.MouseDelta.y * panScale;
+        m_Camera.SetYaw  (m_Camera.GetYaw()   - io.MouseDelta.x * 0.4f);
+        m_Camera.SetPitch(m_Camera.GetPitch() + io.MouseDelta.y * 0.4f);
         ApplyOrbit();
     }
 
-    // MMB drag → pan (mouse with middle button)
-    if (ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f))
+    // RMB drag  OR  Shift + MMB drag → pan
+    bool panByRMB   = ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f);
+    bool panByShiftMMB = io.KeyShift && ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f);
+    if (panByRMB || panByShiftMMB)
     {
         float     panScale = m_OrbitDist * 0.0015f;
         glm::vec3 right    = m_Camera.GetRight();
