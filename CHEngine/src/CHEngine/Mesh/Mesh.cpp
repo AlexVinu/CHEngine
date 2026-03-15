@@ -30,6 +30,12 @@ namespace CHEngine {
 		}
 
 		m_VertexArray = resources.CreateVertexArray();
+		auto* vao = resources.Get(m_VertexArray);
+		if (!vao)
+		{
+			CHE_CORE_ERROR("Mesh::Build — failed to create vertex array");
+			return;
+		}
 
 		auto vb = resources.CreateVertexBuffer(flatData.data(),
 			static_cast<uint32_t>(flatData.size() * sizeof(float)));
@@ -41,12 +47,11 @@ namespace CHEngine {
 			{ ShaderDataType::Float3, "a_Color" },
 		};
 		vb->SetLayout(layout);
-		resources.Get(m_VertexArray)->AddVertexBuffer(vb);
+		vao->AddVertexBuffer(vb);
 
-		std::vector<uint32_t> idxCopy = indices;
-		auto ib = resources.CreateIndexBuffer(idxCopy.data(),
-			static_cast<uint32_t>(idxCopy.size()));
-		resources.Get(m_VertexArray)->SetIndexBuffer(ib);
+		auto ib = resources.CreateIndexBuffer(m_Indices.data(),
+			static_cast<uint32_t>(m_Indices.size()));
+		vao->SetIndexBuffer(ib);
 	}
 
 }

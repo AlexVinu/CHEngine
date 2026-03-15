@@ -45,8 +45,8 @@ namespace CHEngine {
         static float GetMouseDeltaY();
 
     private:
-        static constexpr int KEY_COUNT    = 349; // Key::Last + 1
-        static constexpr int MOUSE_COUNT  = 8;   // MouseButton::Last + 1
+        static constexpr int KEY_COUNT    = Key::Last + 1;
+        static constexpr int MOUSE_COUNT  = MouseButton::Last + 1;
 
         static bool s_CurKeys[KEY_COUNT];
         static bool s_PrevKeys[KEY_COUNT];
