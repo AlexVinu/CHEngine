@@ -33,7 +33,7 @@ class SceneViewLayer : public CHEngine::Layer
 public:
     SceneViewLayer();
 
-    void OnUpdate()      override;
+    void OnUpdate(float dt)      override;
     void OnImGuiRender() override;
     void OnEvent(CHEngine::Event& /*e*/) override {}
 

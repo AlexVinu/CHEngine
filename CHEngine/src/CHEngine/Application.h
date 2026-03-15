@@ -15,6 +15,8 @@
 
 #include "ModuleManager.h"
 
+#include <chrono>
+
 namespace CHEngine {
 
     class CHENGINE_API Application
@@ -65,6 +67,9 @@ namespace CHEngine {
         IRenderer*   m_OGLRenderer = nullptr;  // держит GLAD инициализированным
 
         std::unique_ptr<Window> m_Window;
+
+        // Delta time
+        std::chrono::steady_clock::time_point m_LastFrameTime;
     };
 
     // To be defined in client
