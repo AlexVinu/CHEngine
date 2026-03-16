@@ -1,3 +1,4 @@
+#include <chepch.h>
 #include "ImGuiFactoryOGL.h"
 
 CHEngine::IImGuiLayer* CHModules::ImGuiFactoryOGL::CreateImGuiLayer(CHEngine::IWindow* window)
@@ -7,6 +8,7 @@ CHEngine::IImGuiLayer* CHModules::ImGuiFactoryOGL::CreateImGuiLayer(CHEngine::IW
 
 void CHModules::ImGuiFactoryOGL::Delete(CHEngine::IImGuiLayer* ptr)
 {
+    if (!ptr) return;
     DestroyImpl(static_cast<ImGuiLayerOGL*>(ptr));
 }
 
