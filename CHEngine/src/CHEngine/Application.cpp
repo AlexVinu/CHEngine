@@ -172,7 +172,10 @@ namespace CHEngine {
 
     void Application::Run()
     {
-        m_LastFrameTime = std::chrono::steady_clock::now();
+        m_LastFrameTime     = std::chrono::steady_clock::now();
+        float shaderPollAcc = 0.0f;
+
+        constexpr float ShaderPollInterval = 0.5f; // опрос файлов раз в полсекунды
 
         while (m_Running)
         {
@@ -180,6 +183,13 @@ namespace CHEngine {
             auto now = std::chrono::steady_clock::now();
             float dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
             m_LastFrameTime = now;
+
+            // ── Shader hot reload ────────────────────────────────────────────
+            shaderPollAcc += dt;
+            if (shaderPollAcc >= ShaderPollInterval) {
+                shaderPollAcc = 0.0f;
+                m_RenderResources.PollShaders();
+            }
 
             // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
             Input::BeginFrame(m_Window->GetPlatformWindow());
