@@ -1040,10 +1040,11 @@ Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/src/WindowFactoryGLFW.cpp.o:
   /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/Vector.h \
   /Users/marat/Downloads/CHEngine-main-2/Modules/Window/WindowGLFW/src/WindowFactoryGLFW.cpp \
   /Users/marat/Downloads/CHEngine-main-2/Modules/Window/WindowGLFW/src/WindowFactoryGLFW.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/src/EventData.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h \
   /Users/marat/Downloads/CHEngine-main-2/Modules/Window/WindowGLFW/src/WindowGLFW.h \
   /Users/marat/Downloads/CHEngine-main-2/Modules/Rendering/RendererOGL/vendor/GLFW/include/GLFW/glfw3.h \

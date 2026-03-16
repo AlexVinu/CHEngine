@@ -185,16 +185,18 @@ namespace CHEngine {
 
 	TextureHandle RenderResourceManager::CreateTextureFromFile(const std::string& path)
 	{
-		int w, h, ch;
+		int w = 0, h = 0, ch = 0;
 		stbi_set_flip_vertically_on_load(1);
 		uint8_t* pixels = stbi_load(path.c_str(), &w, &h, &ch, 0);
-		if (!pixels)
+		if (!pixels || w <= 0 || h <= 0 || ch <= 0)
 		{
+			if (pixels) stbi_image_free(pixels);
 			CHE_CORE_ERROR("RenderResourceManager: не удалось загрузить текстуру '{}'", path);
 			return TextureHandle::Invalid();
 		}
 
-		TextureHandle handle = CreateTexture(pixels, (uint32_t)w, (uint32_t)h, (uint32_t)ch);
+		TextureHandle handle = CreateTexture(pixels, static_cast<uint32_t>(w),
+		                                     static_cast<uint32_t>(h), static_cast<uint32_t>(ch));
 		stbi_image_free(pixels);
 
 		if (handle.IsValid())

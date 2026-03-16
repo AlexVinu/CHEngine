@@ -1266,6 +1266,7 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Mesh/ModelLoader_GLTF.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/u8path.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/tinygltf/tiny_gltf.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/tinygltf/json.hpp \

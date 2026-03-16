@@ -505,6 +505,30 @@ src/CHEngine/Utils/FileDialog.cpp.s:
 	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.s
 .PHONY : src/CHEngine/Utils/FileDialog.cpp.s
 
+src/CHEngine/Utils/FileWatcher.o: src/CHEngine/Utils/FileWatcher.cpp.o
+.PHONY : src/CHEngine/Utils/FileWatcher.o
+
+# target to build an object file
+src/CHEngine/Utils/FileWatcher.cpp.o:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o
+.PHONY : src/CHEngine/Utils/FileWatcher.cpp.o
+
+src/CHEngine/Utils/FileWatcher.i: src/CHEngine/Utils/FileWatcher.cpp.i
+.PHONY : src/CHEngine/Utils/FileWatcher.i
+
+# target to preprocess a source file
+src/CHEngine/Utils/FileWatcher.cpp.i:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.i
+.PHONY : src/CHEngine/Utils/FileWatcher.cpp.i
+
+src/CHEngine/Utils/FileWatcher.s: src/CHEngine/Utils/FileWatcher.cpp.s
+.PHONY : src/CHEngine/Utils/FileWatcher.s
+
+# target to generate assembly for a file
+src/CHEngine/Utils/FileWatcher.cpp.s:
+	cd /Users/marat/Downloads/CHEngine-main-2/build && $(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.s
+.PHONY : src/CHEngine/Utils/FileWatcher.cpp.s
+
 src/Platform/Desktop/DesktopWindow.o: src/Platform/Desktop/DesktopWindow.cpp.o
 .PHONY : src/Platform/Desktop/DesktopWindow.o
 
@@ -610,6 +634,9 @@ help:
 	@echo "... src/CHEngine/Utils/FileDialog.o"
 	@echo "... src/CHEngine/Utils/FileDialog.i"
 	@echo "... src/CHEngine/Utils/FileDialog.s"
+	@echo "... src/CHEngine/Utils/FileWatcher.o"
+	@echo "... src/CHEngine/Utils/FileWatcher.i"
+	@echo "... src/CHEngine/Utils/FileWatcher.s"
 	@echo "... src/Platform/Desktop/DesktopWindow.o"
 	@echo "... src/Platform/Desktop/DesktopWindow.i"
 	@echo "... src/Platform/Desktop/DesktopWindow.s"

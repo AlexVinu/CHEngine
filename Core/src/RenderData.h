@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstring>
+
 namespace CHEngine
 {
 	enum class ERenderAPI
@@ -12,31 +14,46 @@ namespace CHEngine
 		DIRECTX12	= 5
 	};
 
+    // ─── Инициализационные данные для конкретного рендер-бэкенда ──────────────
+    // Передаётся из Window → Renderer при инициализации.
+    // Активен ровно один член union — выбирается по ERenderAPI.
+
+    struct OpenGLInitData
+    {
+        void* Loader;           // GLADloadproc (glfwGetProcAddress)
+    };
+
+    struct VulkanInitData
+    {
+        void* WindowHandle;
+        void* DisplayHandle;
+    };
+
+    struct DirectXInitData
+    {
+        void* WindowHandle;
+        void* DisplayHandle;
+    };
+
+    struct MetalInitData
+    {
+        void* NSView;
+        void* MetalLayer;
+        void* Device;
+    };
+
     struct RendererInitInfo
     {
         union
         {
-            struct {
-                void* Loader = nullptr;
-            } OpenGL;
-            struct
-            {
-                void* WindowHandle = nullptr;
-                void* DisplayHandle = nullptr;
-            } Vulkan;
-
-            struct
-            {
-                void* WindowHandle = nullptr;
-                void* DisplayHandle = nullptr;
-            } DirectX;
-            struct
-            {
-                void* NSView = nullptr;        
-                void* MetalLayer = nullptr;    
-                void* Device = nullptr;        
-            } Metal;
+            OpenGLInitData  OpenGL;
+            VulkanInitData  Vulkan;
+            DirectXInitData DirectX;
+            MetalInitData   Metal;
         };
+
+        // Конструктор по умолчанию — зануляет весь union
+        RendererInitInfo() { std::memset(this, 0, sizeof(*this)); }
     };
 
 }

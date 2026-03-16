@@ -1291,6 +1291,8 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Scene/Scene.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/u8path.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/entt/entt.hpp \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/list \

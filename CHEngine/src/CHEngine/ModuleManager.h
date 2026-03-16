@@ -47,11 +47,14 @@ namespace CHEngine
 
         bool LoadModule(const std::string& path)
         {
-            // ─── Shadow copy ──────────────────────────────────────────────
-            // ОС блокирует загруженную dylib/dll — нельзя перезаписать.
-            // Поэтому копируем файл во временный и загружаем копию.
+            std::string shadow;
+
+        #ifdef CHE_PLATFORM_WINDOWS
+            // ─── Shadow copy (только Windows) ─────────────────────────────
+            // Windows блокирует загруженную DLL — нельзя перезаписать.
+            // Копируем файл во временный и загружаем копию.
             // Оригинал остаётся свободным для перезаписи компилятором.
-            std::string shadow = MakeShadowPath(path);
+            shadow = MakeShadowPath(path);
             std::error_code ec;
             std::filesystem::copy_file(
                 path, shadow,
@@ -62,17 +65,25 @@ namespace CHEngine
                                path, shadow, ec.message());
                 return false;
             }
+        #endif
 
-            ModuleHandle handle = Load(shadow.c_str());
+            // На macOS/Linux загружаем оригинал напрямую — ОС не блокирует
+            // загруженные .so/.dylib, shadow copy не нужна.
+            const std::string& loadPath = shadow.empty() ? path : shadow;
+
+            ModuleHandle handle = Load(loadPath.c_str());
             if (!handle)
             {
             #if defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
-                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", shadow, dlerror());
+                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", loadPath, dlerror());
             #else
-                CHE_CORE_ERROR("LoadModule FAILED '{}'", shadow);
+                CHE_CORE_ERROR("LoadModule FAILED '{}'", loadPath);
             #endif
-                // Удаляем неудачную теневую копию
-                std::filesystem::remove(shadow, ec);
+                // Удаляем неудачную теневую копию (если она была создана)
+                if (!shadow.empty()) {
+                    std::error_code rmEc;
+                    std::filesystem::remove(shadow, rmEc);
+                }
                 return false;
             }
 
@@ -86,11 +97,23 @@ namespace CHEngine
             {
                 CHE_CORE_ERROR("LoadModule '{}': CreateFactory/DestroyFactory symbol not found", path);
                 Unload(handle);
-                std::filesystem::remove(shadow, ec);
+                if (!shadow.empty()) {
+                    std::error_code rmEc;
+                    std::filesystem::remove(shadow, rmEc);
+                }
                 return false;
             }
 
             IModuleFactory* module = create();
+            if (!module) {
+                CHE_CORE_ERROR("LoadModule '{}': CreateFactory() вернул null", path);
+                Unload(handle);
+                if (!shadow.empty()) {
+                    std::error_code rmEc;
+                    std::filesystem::remove(shadow, rmEc);
+                }
+                return false;
+            }
             ModuleType type = module->GetType();
 
             m_Modules[type] = { handle, module, destroy, path, shadow };

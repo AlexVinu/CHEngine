@@ -155,10 +155,10 @@ void SceneViewLayer::RenderScene()
         shader->SetFloat(CHEngine::String(nameBuf), light.Range);
 
         snprintf(nameBuf, sizeof(nameBuf), "u_LightInnerCone[%d]", i);
-        shader->SetFloat(CHEngine::String(nameBuf), cosf(glm::radians(light.InnerCone)));
+        shader->SetFloat(CHEngine::String(nameBuf), std::cos(glm::radians(light.InnerCone)));
 
         snprintf(nameBuf, sizeof(nameBuf), "u_LightOuterCone[%d]", i);
-        shader->SetFloat(CHEngine::String(nameBuf), cosf(glm::radians(light.OuterCone)));
+        shader->SetFloat(CHEngine::String(nameBuf), std::cos(glm::radians(light.OuterCone)));
     }
 
     // Если нет источников — добавляем дефолтный directional, чтобы сцена не была чёрной
