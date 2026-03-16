@@ -2,21 +2,36 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <cmath>
+#include <cstdio>
 
-// ── Default scene lighting ──────────────────────────────────────────────────
-namespace LightCfg {
-    constexpr float DirX = -0.3f,  DirY = -1.0f,  DirZ = -0.5f;
-    constexpr float ColR =  1.0f,  ColG =  1.0f,  ColB =  0.95f;
-    constexpr float AmbR =  0.15f, AmbG =  0.15f, AmbB =  0.2f;
+// ── Максимум источников, синхронизировано с mesh.frag ──────────────────────
+static constexpr int MaxLights = 8;
+
+// ── Дефолтный ambient (если нет источников — чтоб сцена не была чёрной) ───
+namespace DefaultLight {
+    constexpr float AmbR = 0.15f, AmbG = 0.15f, AmbB = 0.2f;
 }
 
-// ── Вспомогательная функция: Transform → float[16] matrix ───────────────────
+// ── Вспомогательная функция: Transform → float[16] matrix ─────────────────
 static void TransformToMatrix(const CHEngine::Transform& tr, float out[16])
 {
     float t[3] = { tr.Position.x, tr.Position.y, tr.Position.z };
     float r[3] = { tr.Rotation.x, tr.Rotation.y, tr.Rotation.z };
     float s[3] = { tr.Scale.x,    tr.Scale.y,    tr.Scale.z    };
     ImGuizmo::RecomposeMatrixFromComponents(t, r, s, out);
+}
+
+// ── Направление "вперёд" из эйлеровых углов (градусы) ─────────────────────
+static glm::vec3 ForwardFromRotation(const glm::vec3& eulerDeg)
+{
+    float pitch = glm::radians(eulerDeg.x);
+    float yaw   = glm::radians(eulerDeg.y);
+    return glm::normalize(glm::vec3(
+        std::cos(pitch) * std::sin(yaw),
+       -std::sin(pitch),
+        std::cos(pitch) * std::cos(yaw)
+    ));
 }
 
 // ============================================================================
@@ -27,9 +42,6 @@ void SceneViewLayer::BuildGrid()
 {
     auto& res = m_Resources;
 
-    // Full-screen quad in NDC space.
-    // The fragment shader unprojects each pixel to world space and
-    // renders an infinite analytical grid — no explicit grid geometry.
     float verts[] = {
         -1.0f, -1.0f,
          1.0f, -1.0f,
@@ -94,19 +106,74 @@ void SceneViewLayer::RenderScene()
         }
     }
 
-    // Meshes
+    // ── Meshes ────────────────────────────────────────────────────────────
     auto* shader = res.Get(m_MeshShader);
     if (!shader) return;
 
     shader->Bind();
-    shader->SetMat4  (CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
-    shader->SetFloat3(CHEngine::String("u_LightDir"),
-                      LightCfg::DirX, LightCfg::DirY, LightCfg::DirZ);
-    shader->SetFloat3(CHEngine::String("u_LightColor"),
-                      LightCfg::ColR, LightCfg::ColG, LightCfg::ColB);
-    shader->SetFloat3(CHEngine::String("u_AmbientColor"),
-                      LightCfg::AmbR, LightCfg::AmbG, LightCfg::AmbB);
+    shader->SetMat4(CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
 
+    // Позиция камеры (для specular)
+    glm::vec3 camPos = m_Camera.GetPosition();
+    shader->SetFloat3(CHEngine::String("u_CameraPos"), camPos.x, camPos.y, camPos.z);
+
+    // Ambient
+    shader->SetFloat3(CHEngine::String("u_AmbientColor"),
+                      DefaultLight::AmbR, DefaultLight::AmbG, DefaultLight::AmbB);
+
+    // ── Собираем источники света из сцены ─────────────────────────────────
+    int lightCount = 0;
+    char nameBuf[64];
+
+    for (auto& obj : m_Scene.GetObjects())
+    {
+        if (lightCount >= MaxLights) break;
+        if (!obj->Visible) continue;
+        if (obj->LightData.Type == CHEngine::LightType::None) continue;
+
+        int i = lightCount++;
+        const auto& light = obj->LightData;
+        const auto& tr    = obj->ObjectTransform;
+
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightType[%d]", i);
+        shader->SetInt(CHEngine::String(nameBuf), static_cast<int>(light.Type));
+
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightPosition[%d]", i);
+        shader->SetFloat3(CHEngine::String(nameBuf), tr.Position.x, tr.Position.y, tr.Position.z);
+
+        glm::vec3 dir = ForwardFromRotation(tr.Rotation);
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightDirection[%d]", i);
+        shader->SetFloat3(CHEngine::String(nameBuf), dir.x, dir.y, dir.z);
+
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightColor[%d]", i);
+        shader->SetFloat3(CHEngine::String(nameBuf), light.Color.r, light.Color.g, light.Color.b);
+
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightIntensity[%d]", i);
+        shader->SetFloat(CHEngine::String(nameBuf), light.Intensity);
+
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightRange[%d]", i);
+        shader->SetFloat(CHEngine::String(nameBuf), light.Range);
+
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightInnerCone[%d]", i);
+        shader->SetFloat(CHEngine::String(nameBuf), cosf(glm::radians(light.InnerCone)));
+
+        snprintf(nameBuf, sizeof(nameBuf), "u_LightOuterCone[%d]", i);
+        shader->SetFloat(CHEngine::String(nameBuf), cosf(glm::radians(light.OuterCone)));
+    }
+
+    // Если нет источников — добавляем дефолтный directional, чтобы сцена не была чёрной
+    if (lightCount == 0)
+    {
+        shader->SetInt   (CHEngine::String("u_LightType[0]"),      0);
+        shader->SetFloat3(CHEngine::String("u_LightDirection[0]"), -0.3f, -1.0f, -0.5f);
+        shader->SetFloat3(CHEngine::String("u_LightColor[0]"),     1.0f, 1.0f, 0.95f);
+        shader->SetFloat (CHEngine::String("u_LightIntensity[0]"), 1.0f);
+        lightCount = 1;
+    }
+
+    shader->SetInt(CHEngine::String("u_NumLights"), lightCount);
+
+    // ── Рисуем объекты ────────────────────────────────────────────────────
     for (auto& obj : m_Scene.GetObjects())
     {
         if (!obj->Visible) continue;
@@ -157,7 +224,7 @@ void SceneViewLayer::DrawGizmo()
     if (!selected) return;
 
     ImGuizmo::SetOrthographic(false);
-    ImGuizmo::SetDrawlist();   // render into current window's drawlist (viewport)
+    ImGuizmo::SetDrawlist();
     ImGuiIO& io = ImGui::GetIO();
     ImGuizmo::SetRect(m_ViewportPos.x, m_ViewportPos.y, m_ViewportSize.x, m_ViewportSize.y);
 
@@ -179,7 +246,6 @@ void SceneViewLayer::DrawGizmo()
         else if (m_GizmoOperation == ImGuizmo::SCALE)     snap = snapS;
     }
 
-    // Запомнить трансформ перед началом drag
     if (!m_GizmoWasUsing && ImGuizmo::IsUsing())
         m_TransformBeforeDrag = selected->ObjectTransform;
 
@@ -196,7 +262,6 @@ void SceneViewLayer::DrawGizmo()
         selected->ObjectTransform.Scale    = { s[0], s[1], s[2] };
     }
 
-    // Drag закончился — пушим команду
     if (m_GizmoWasUsing && !ImGuizmo::IsUsing())
         m_UndoStack.PushTransform(&m_Scene, selected->ID, m_TransformBeforeDrag);
 

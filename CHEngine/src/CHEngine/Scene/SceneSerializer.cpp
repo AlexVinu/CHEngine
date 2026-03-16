@@ -32,6 +32,18 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
         // Retrieve SourcePath via Scene's accessor (avoids exposing entt publicly)
         o["meshPath"] = m_Scene->GetMeshSourcePath(obj->ID);
 
+        // Сериализация источника света
+        if (obj->LightData.Type != LightType::None) {
+            json light;
+            light["type"]      = static_cast<int>(obj->LightData.Type);
+            light["color"]     = { obj->LightData.Color.r, obj->LightData.Color.g, obj->LightData.Color.b };
+            light["intensity"] = obj->LightData.Intensity;
+            light["range"]     = obj->LightData.Range;
+            light["innerCone"] = obj->LightData.InnerCone;
+            light["outerCone"] = obj->LightData.OuterCone;
+            o["light"] = light;
+        }
+
         j["objects"].push_back(o);
     }
 
@@ -124,6 +136,19 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
             obj->Color = { v4[0], v4[1], v4[2], v4[3] };
 
         obj->Visible = o.value("visible", true);
+
+        // Десериализация источника света
+        if (o.contains("light") && o["light"].is_object()) {
+            auto& lj = o["light"];
+            obj->LightData.Type = static_cast<LightType>(lj.value("type", -1));
+            float lc[3];
+            if (lj.contains("color") && readFloats(lj["color"], 3, lc))
+                obj->LightData.Color = { lc[0], lc[1], lc[2] };
+            obj->LightData.Intensity = lj.value("intensity", 1.0f);
+            obj->LightData.Range     = lj.value("range", 10.0f);
+            obj->LightData.InnerCone = lj.value("innerCone", 12.5f);
+            obj->LightData.OuterCone = lj.value("outerCone", 17.5f);
+        }
     }
 
     CHE_CORE_INFO("Scene loaded: {}", path);
