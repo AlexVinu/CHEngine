@@ -98,16 +98,11 @@ namespace CHModules {
 
     CHEngine::RendererInitInfo WindowGLFW::GetRenderInitInfo(CHEngine::ERenderAPI render_api) const
     {
-        // Надо думать как сделать универсальное заполнение для все видов апи
-        CHEngine::RendererInitInfo info;
-        info.Loader = nullptr;
-        info.Height = m_Height; info.Width = m_Width;
-
         switch (render_api)
         {
         case CHEngine::ERenderAPI::NONE: CHE_ASSERT(true, "Render was not set");
             break;
-        case CHEngine::ERenderAPI::OPENGL: info.Loader = (ProcLoader)glfwGetProcAddress;
+        case CHEngine::ERenderAPI::OPENGL: return {glfwGetProcAddress};
             break;
         case CHEngine::ERenderAPI::VULKAN:
             break;
@@ -120,8 +115,6 @@ namespace CHModules {
         default:
             break;
         }
-
-        return info;
     }
     bool WindowGLFW::IsKeyDown(int key) const
     {

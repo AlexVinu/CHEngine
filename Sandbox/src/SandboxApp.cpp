@@ -187,6 +187,8 @@ public:
 		{
 		case CHEngine::Key::W: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z + 1)); break;
 		case CHEngine::Key::S: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z - 1)); break;
+		case CHEngine::Key::A: m_Camera.SetPosition(glm::vec3(pos.x, pos.y - 1, pos.z)); break;
+		case CHEngine::Key::D: m_Camera.SetPosition(glm::vec3(pos.x, pos.y + 1, pos.z)); break;
 		}
 		return false;
 	}
