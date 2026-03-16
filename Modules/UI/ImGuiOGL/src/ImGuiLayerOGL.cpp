@@ -8,13 +8,19 @@
 
 namespace CHModules {
 
-    ImGuiLayerOGL::ImGuiLayerOGL(void* nativeWindow)
+    ImGuiLayerOGL::ImGuiLayerOGL(CHEngine::IWindow* window)
     {
-        if (!nativeWindow) {
-            CHE_CORE_ERROR("ImGuiLayerOGL: nativeWindow is null!");
+        if (!window) {
+            CHE_CORE_ERROR("ImGuiLayerOGL: window is null!");
             return;
         }
-        GLFWwindow* window = static_cast<GLFWwindow*>(nativeWindow);
+
+        // static_cast только здесь, внутри модуля — снаружи никто не знает о GLFW
+        GLFWwindow* glfwWin = static_cast<GLFWwindow*>(window->GetNativeWindow());
+        if (!glfwWin) {
+            CHE_CORE_ERROR("ImGuiLayerOGL: GetNativeWindow() вернул null!");
+            return;
+        }
 
         IMGUI_CHECKVERSION();
         ImGui::CreateContext();
@@ -25,10 +31,10 @@ namespace CHModules {
         ImGui::StyleColorsDark();
 
 #ifdef CHE_PLATFORM_APPLE
-        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        ImGui_ImplGlfw_InitForOpenGL(glfwWin, true);
         ImGui_ImplOpenGL3_Init("#version 410");
 #else
-        ImGui_ImplGlfw_InitForOpenGL(window, true);
+        ImGui_ImplGlfw_InitForOpenGL(glfwWin, true);
         ImGui_ImplOpenGL3_Init("#version 460");
 #endif
     }

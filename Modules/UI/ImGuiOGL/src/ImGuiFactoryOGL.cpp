@@ -1,8 +1,8 @@
 #include "ImGuiFactoryOGL.h"
 
-CHEngine::IImGuiLayer* CHModules::ImGuiFactoryOGL::CreateImGuiLayer(void* nativeWindow)
+CHEngine::IImGuiLayer* CHModules::ImGuiFactoryOGL::CreateImGuiLayer(CHEngine::IWindow* window)
 {
-    return CreateImpl<ImGuiLayerOGL>(nativeWindow);
+    return CreateImpl<ImGuiLayerOGL>(window);
 }
 
 void CHModules::ImGuiFactoryOGL::Delete(CHEngine::IImGuiLayer* ptr)

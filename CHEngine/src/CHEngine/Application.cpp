@@ -106,7 +106,7 @@ namespace CHEngine {
         // ─── 4. Создать ImGui layer ──────────────────────────────────────────
         // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
         if (m_ImGuiFactory)
-            m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()->GetNativeWindow());
+            m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow());
 
         // ─── 5. Создать рендер-объекты (нужен GLAD, поэтому после шага 3) ───
         m_RenderApi = m_RenderResources.CreateRenderAPI();
