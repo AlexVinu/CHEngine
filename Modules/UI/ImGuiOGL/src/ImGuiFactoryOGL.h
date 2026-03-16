@@ -7,7 +7,7 @@ namespace CHModules {
 
     struct ImGuiFactoryOGL : CHEngine::IImGuiFactory
     {
-        CHEngine::IImGuiLayer* CreateImGuiLayer(void* nativeWindow) override;
+        CHEngine::IImGuiLayer* CreateImGuiLayer(CHEngine::IWindow* window) override;
 
         void Delete(CHEngine::IImGuiLayer* ptr) override;
 
