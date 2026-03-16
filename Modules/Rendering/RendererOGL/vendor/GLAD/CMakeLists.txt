@@ -5,9 +5,12 @@ add_library(glad SHARED)
 target_sources(glad PRIVATE src/glad.c)
 target_include_directories(glad PUBLIC include)
 
+target_compile_definitions(glad PRIVATE
+GLAD_GLAPI_EXPORT 
+GLAD_GLAPI_EXPORT_BUILD)
+
 if(MSVC)
     set_target_properties(glad PROPERTIES
-        WINDOWS_EXPORT_ALL_SYMBOLS ON
         MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL"
     )
 endif()

@@ -62,16 +62,17 @@ namespace CHEngine {
         m_RenderResources.Init(m_RenderFactory);
 
         // ─── 2. Создать окно (GLFW window + context, glfwMakeContextCurrent) ─
-        m_Window = std::unique_ptr<Window>(Window::Create(m_WindowFactory));
+        ERenderAPI render_api = m_RenderFactory->GetRenderApi();
+        m_Window = std::unique_ptr<Window>(Window::Create(m_WindowFactory, m_RenderFactory->GetRenderApi()));
         m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
 
         // ─── 3. Инициализировать OpenGL (GLAD) с уже существующим контекстом ─
-        m_OGLRenderer = m_RenderFactory->CreateRenderer(m_Window->GetNativeWindow());
+        m_OGLRenderer = m_RenderFactory->CreateRenderer(m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api));
 
         // ─── 4. Создать ImGui layer ──────────────────────────────────────────
         // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
         if (m_ImGuiFactory)
-            m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetNativeWindow());
+            m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()->GetNativeWindow());
 
         // ─── 5. Создать рендер-объекты (нужен GLAD, поэтому после шага 3) ───
         m_RenderApi = m_RenderResources.CreateRenderAPI();

@@ -7,7 +7,7 @@ namespace CHEngine {
     class DesktopWindow : public Window
     {
     public:
-        DesktopWindow(const WindowProps& props, IWindowFactory* windowFactory);
+        DesktopWindow(const WindowProps& props, IWindowFactory* windowFactory, ERenderAPI renderApi);
         virtual ~DesktopWindow();
 
         void OnUpdate() override;
@@ -18,10 +18,9 @@ namespace CHEngine {
         inline void SetEventCallback(const EventCallbackFn& callback) override { m_Data.EventCallback = callback; }
         void SetVSync(bool enabled) override;
         bool IsVSync() const override;
-        void* GetNativeWindow() const override;
 
     private:
-        void Init(const WindowProps& props, IWindowFactory* windowFactory);
+        void Init(const WindowProps& props, IWindowFactory* windowFactory, ERenderAPI renderApi);
         void Shutdown();
 
         struct WindowData
@@ -34,7 +33,5 @@ namespace CHEngine {
         };
 
         WindowData      m_Data;
-        IWindow*        m_PlatformWindow = nullptr;
-        IWindowFactory* m_WindowFactory  = nullptr;
     };
 }

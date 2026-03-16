@@ -39,6 +39,8 @@ endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     CHE_BUILD_MODULE_DLL
+    GLAD_GLAPI_EXPORT
+    CHE_ENABLE_ASSERTS
     $<$<CONFIG:Debug>:CHE_DEBUG>
     $<$<CONFIG:Release>:CHE_RELEASE>
     $<$<CONFIG:Dist>:CHE_DIST>
@@ -53,9 +55,6 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
-        # glfw нужен для glfwGetProcAddress в RendererOGL::Init
-        # Это тот же shared libglfw.dylib что и в WindowGLFW — один инстанс
-        glfw
         glad
         glm
 )

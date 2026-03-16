@@ -10,6 +10,8 @@
 #include "IRenderApi.h"
 #include "IRenderer.h"
 
+#include "RenderData.h"
+
 #include "IModuleFactory.h"
 
 namespace CHEngine {
@@ -23,9 +25,7 @@ namespace CHEngine {
         virtual IShader*       CreateShader(const String& vertexSrc, const String& fragmentSrc) = 0;
         virtual RendererAPI*   CreateRenderAPI() = 0;
 
-        // Инициализировать OpenGL (GLAD) используя нативное окно уже созданного IWindow.
-        // IWindow создаётся модулем WindowGLFW, передаётся сюда как void*.
-        virtual IRenderer* CreateRenderer(void* nativeWindow) = 0;
+        virtual IRenderer* CreateRenderer(const RendererInitInfo& init_info) = 0;
 
         // data — raw RGBA/RGB/RG/R pixels (уже декодированные stb_image или tinygltf).
         // channels: 1=R, 2=RG, 3=RGB, 4=RGBA.
@@ -42,7 +42,7 @@ namespace CHEngine {
         virtual void Delete(IRenderer*     ptr) = 0;
         virtual void Delete(ITexture*      ptr) = 0;
         virtual void Delete(IFramebuffer*  ptr) = 0;
+
+        virtual ERenderAPI GetRenderApi() = 0;
     };
 }
-
-DECLARE_MODULE_FACTORY()

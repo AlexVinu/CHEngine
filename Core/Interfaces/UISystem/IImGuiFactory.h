@@ -1,21 +1,17 @@
 #pragma once
 
 #include <Core.h>
-
-#include "IImGuiLayer.h"
-//#include "IRenderApi.h"
 #include "IModuleFactory.h"
+#include "UISystem/IImGuiLayer.h"
 
 namespace CHEngine {
-
     struct IImGuiFactory : IModuleFactory
     {
         virtual ~IImGuiFactory() = default;
 
-        virtual IImGuiLayer* Create(void* nativeWindow) = 0;
-        virtual void Delete(IImGuiLayer* layer) = 0;
-
-        ModuleType GetType() const override { return ModuleType::ImGui; }
+        virtual IImGuiLayer* CreateImGuiLayer(void* nativeWindow) = 0;
+        virtual void Delete(IImGuiLayer* ptr) = 0;
     };
 }
 
+DECLARE_MODULE_FACTORY()

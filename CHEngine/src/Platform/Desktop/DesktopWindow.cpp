@@ -12,14 +12,14 @@ namespace CHEngine {
         CHE_CORE_ERROR("GLFW Error ({0}): {1}", error, description);
     }
 
-    Window* Window::Create(IWindowFactory* windowFactory, const WindowProps& props)
+    Window* Window::Create(IWindowFactory* windowFactory, ERenderAPI renderApi, const WindowProps& props)
     {
-        return new DesktopWindow(props, windowFactory);
+        return new DesktopWindow(props, windowFactory, renderApi);
     }
 
-    DesktopWindow::DesktopWindow(const WindowProps& props, IWindowFactory* windowFactory)
+    DesktopWindow::DesktopWindow(const WindowProps& props, IWindowFactory* windowFactory, ERenderAPI renderApi)
     {
-        Init(props, windowFactory);
+        Init(props, windowFactory, renderApi);
     }
 
     DesktopWindow::~DesktopWindow()
@@ -44,7 +44,7 @@ namespace CHEngine {
         return m_Data.VSync;
     }
 
-    void DesktopWindow::Init(const WindowProps& props, IWindowFactory* windowFactory)
+    void DesktopWindow::Init(const WindowProps& props, IWindowFactory* windowFactory, ERenderAPI renderApi)
     {
         m_Data.Title  = props.Title;
         m_Data.Width  = props.Width;
@@ -57,7 +57,7 @@ namespace CHEngine {
         m_PlatformWindow = windowFactory->CreateIWindow(
             props.Width, props.Height,
             props.Title.c_str(),
-            GLFWErrorCallback);
+            GLFWErrorCallback, renderApi);
 
         WindowContext ctx{};
         ctx.UserPointer = this;
@@ -128,11 +128,6 @@ namespace CHEngine {
         };
 
         m_PlatformWindow->SetWindowContext(ctx);
-    }
-
-    void* DesktopWindow::GetNativeWindow() const
-    {
-        return m_PlatformWindow->GetNativeWindow();
     }
 
     void DesktopWindow::Shutdown()

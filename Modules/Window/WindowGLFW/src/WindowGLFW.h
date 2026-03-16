@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Render/IWindow.h"
+#include "WindowSystem/IWindow.h"
 
 #include <GLFW/glfw3.h>
 
@@ -10,7 +10,7 @@ namespace CHModules {
     {
     public:
         WindowGLFW(uint32_t width, uint32_t height, const char* title,
-                   CHEngine::ErrorCallbackFn errorCallbackFn);
+                   CHEngine::ErrorCallbackFn errorCallbackFn, CHEngine::ERenderAPI renderApi);
         ~WindowGLFW() override;
 
         void Shutdown() override;
@@ -26,6 +26,8 @@ namespace CHModules {
 
         uint32_t GetWidth()  const override { return m_Width; }
         uint32_t GetHeight() const override { return m_Height; }
+
+        virtual CHEngine::RendererInitInfo GetRenderInitInfo(CHEngine::ERenderAPI render_api) const override;
 
         static CHEngine::EventType ConvertFromGLFW(int action);
 

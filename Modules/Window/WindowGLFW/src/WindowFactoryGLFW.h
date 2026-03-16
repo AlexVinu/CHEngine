@@ -1,6 +1,6 @@
 #pragma once
 
-#include "IWindowFactory.h"
+#include "WindowSystem/IWindowFactory.h"
 #include "WindowGLFW.h"
 
 namespace CHModules {
@@ -10,20 +10,11 @@ namespace CHModules {
         CHEngine::IWindow* CreateIWindow(
             uint32_t width, uint32_t height,
             const char* title,
-            CHEngine::ErrorCallbackFn errorCallbackFn) override
-        {
-            return CreateImpl<WindowGLFW>(width, height, title, errorCallbackFn);
-        }
+            CHEngine::ErrorCallbackFn errorCallbackFn, CHEngine::ERenderAPI renderApi) override;
 
-        void Delete(CHEngine::IWindow* ptr) override
-        {
-            DestroyImpl(static_cast<WindowGLFW*>(ptr));
-        }
+        void Delete(CHEngine::IWindow* ptr) override;
 
-        CHEngine::ModuleType GetType() const override
-        {
-            return CHEngine::ModuleType::Window;
-        }
+        CHEngine::ModuleType GetType() const override;
     };
 
 }
