@@ -32,6 +32,17 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
         // Retrieve SourcePath via Scene's accessor (avoids exposing entt publicly)
         o["meshPath"] = m_Scene->GetMeshSourcePath(obj->ID);
 
+        // Сериализация материалов по мешам (пути к текстурам + shininess)
+        json mats = json::array();
+        for (auto& mesh : obj->Meshes) {
+            json m;
+            m["diffusePath"]  = mesh.Mat.DiffuseMapPath;
+            m["specularPath"] = mesh.Mat.SpecularMapPath;
+            m["shininess"]    = mesh.Mat.Shininess;
+            mats.push_back(m);
+        }
+        o["materials"] = mats;
+
         // Сериализация источника света
         if (obj->LightData.Type != LightType::None) {
             json light;
@@ -82,8 +93,10 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         for (auto& mesh : obj->Meshes) {
             if (mesh.GetVertexArray().IsValid())
                 resources.DestroyVertexArray(mesh.GetVertexArray());
-            if (mesh.DiffuseTexture.IsValid())
-                resources.DestroyTexture(mesh.DiffuseTexture);
+            if (mesh.Mat.DiffuseMap.IsValid())
+                resources.DestroyTexture(mesh.Mat.DiffuseMap);
+            if (mesh.Mat.SpecularMap.IsValid())
+                resources.DestroyTexture(mesh.Mat.SpecularMap);
         }
     }
     m_Scene->Clear();
@@ -136,6 +149,33 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
             obj->Color = { v4[0], v4[1], v4[2], v4[3] };
 
         obj->Visible = o.value("visible", true);
+
+        // Десериализация материалов — перезаписываем поверх того, что загрузил ModelLoader
+        if (o.contains("materials") && o["materials"].is_array()) {
+            const auto& mats = o["materials"];
+            for (size_t mi = 0; mi < obj->Meshes.size() && mi < mats.size(); ++mi) {
+                const auto& mj = mats[mi];
+                auto& mat = obj->Meshes[mi].Mat;
+
+                mat.Shininess = mj.value("shininess", 32.0f);
+
+                std::string diffPath = mj.value("diffusePath", "");
+                if (!diffPath.empty() && diffPath != mat.DiffuseMapPath) {
+                    if (mat.DiffuseMap.IsValid())
+                        resources.DestroyTexture(mat.DiffuseMap);
+                    mat.DiffuseMapPath = diffPath;
+                    mat.DiffuseMap     = resources.CreateTextureFromFile(diffPath);
+                }
+
+                std::string specPath = mj.value("specularPath", "");
+                if (!specPath.empty()) {
+                    if (mat.SpecularMap.IsValid())
+                        resources.DestroyTexture(mat.SpecularMap);
+                    mat.SpecularMapPath = specPath;
+                    mat.SpecularMap     = resources.CreateTextureFromFile(specPath);
+                }
+            }
+        }
 
         // Десериализация источника света
         if (o.contains("light") && o["light"].is_object()) {

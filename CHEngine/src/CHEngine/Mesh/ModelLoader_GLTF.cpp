@@ -186,7 +186,7 @@ namespace CHEngine {
 								const auto& img = model.images[imgIdx];
 								if (!img.image.empty() && img.width > 0 && img.height > 0)
 								{
-									mesh.DiffuseTexture = resources.CreateTexture(
+									mesh.Mat.DiffuseMap = resources.CreateTexture(
 										img.image.data(),
 										(uint32_t)img.width,
 										(uint32_t)img.height,

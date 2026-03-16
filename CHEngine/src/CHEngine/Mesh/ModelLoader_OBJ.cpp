@@ -171,7 +171,7 @@ namespace CHEngine {
 						uint8_t* pixels = stbi_load(texPath.c_str(), &w, &h, &ch, 0);
 						if (pixels)
 						{
-							mesh.DiffuseTexture = resources.CreateTexture(
+							mesh.Mat.DiffuseMapPath = texPath; mesh.Mat.DiffuseMap = resources.CreateTexture(
 								pixels, (uint32_t)w, (uint32_t)h, (uint32_t)ch);
 							stbi_image_free(pixels);
 						}

@@ -22,6 +22,9 @@ namespace CHEngine {
 		// Диалог импорта 3D-моделей (OBJ / GLB / GLTF)
 		static std::string OpenModelFile();
 
+		// Диалог выбора текстуры (PNG / JPG / TGA / BMP)
+		static std::string OpenImageFile();
+
 		// Opens a native folder-select dialog. Returns chosen path or empty string if cancelled.
 		static std::string SelectFolder(const char* title, const char* defaultPath = nullptr);
 

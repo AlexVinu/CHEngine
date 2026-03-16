@@ -192,20 +192,31 @@ void SceneViewLayer::RenderScene()
 
         for (auto& mesh : obj->Meshes)
         {
-            auto* tex = mesh.DiffuseTexture.IsValid()
-                      ? res.Get(mesh.DiffuseTexture) : nullptr;
+            const auto& mat = mesh.Mat;
 
-            shader->SetInt(CHEngine::String("u_UseTexture"), tex ? 1 : 0);
-            if (tex)
-            {
-                tex->Bind(0);
+            // Diffuse текстура (слот 0)
+            auto* diffTex = mat.DiffuseMap.IsValid() ? res.Get(mat.DiffuseMap) : nullptr;
+            shader->SetInt(CHEngine::String("u_UseTexture"), diffTex ? 1 : 0);
+            if (diffTex) {
+                diffTex->Bind(0);
                 shader->SetInt(CHEngine::String("u_DiffuseTexture"), 0);
             }
+
+            // Specular текстура (слот 1)
+            auto* specTex = mat.SpecularMap.IsValid() ? res.Get(mat.SpecularMap) : nullptr;
+            shader->SetInt(CHEngine::String("u_UseSpecularMap"), specTex ? 1 : 0);
+            if (specTex) {
+                specTex->Bind(1);
+                shader->SetInt(CHEngine::String("u_SpecularMap"), 1);
+            }
+
+            shader->SetFloat(CHEngine::String("u_Shininess"), mat.Shininess);
 
             auto* vao = res.Get(mesh.GetVertexArray());
             if (vao) api->DrawIndexed(vao);
 
-            if (tex) tex->Unbind();
+            if (diffTex) diffTex->Unbind();
+            if (specTex) specTex->Unbind();
         }
     }
 

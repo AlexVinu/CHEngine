@@ -10,6 +10,7 @@
 #include "CHEngine/Utils/FileWatcher.h"
 
 #include <memory>
+#include <string>
 #include <vector>
 
 namespace CHEngine {
@@ -58,6 +59,10 @@ namespace CHEngine {
 		// channels: 1=R, 2=RG, 3=RGB, 4=RGBA.
 		TextureHandle CreateTexture(const uint8_t* data, uint32_t width,
 		                            uint32_t height, uint32_t channels);
+
+		// Загружает изображение с диска (PNG/JPG/TGA/BMP) через stb_image.
+		// Возвращает Invalid handle при ошибке.
+		TextureHandle CreateTextureFromFile(const std::string& path);
 
 		// Create an offscreen framebuffer (FBO) for rendering into a texture.
 		FramebufferHandle CreateFramebuffer(uint32_t width, uint32_t height);

@@ -304,6 +304,96 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
             m_UndoStack.PushVisibility(&m_Scene, sel->ID, before);
     }
 
+    // ── Текстуры меша ─────────────────────────────────────────────────────
+    for (size_t mi = 0; mi < sel->Meshes.size(); ++mi)
+    {
+        auto& mat = sel->Meshes[mi].Mat;
+
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+        if (sel->Meshes.size() > 1)
+            ImGui::Text("Mesh %zu", mi);
+        else
+            ImGui::TextUnformatted("Textures");
+        ImGui::PopStyleColor();
+
+        // Diffuse текстура
+        {
+            const char* dLabel = mat.DiffuseMapPath.empty() ? "(none)" : mat.DiffuseMapPath.c_str();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+            ImGui::TextUnformatted("Diffuse");
+            ImGui::PopStyleColor();
+            ImGui::SameLine(labelW);
+            float fieldW = ImGui::GetContentRegionAvail().x - 52.0f;
+            ImGui::SetNextItemWidth(fieldW);
+            ImGui::InputText("##diffPath", const_cast<char*>(dLabel), strlen(dLabel) + 1,
+                             ImGuiInputTextFlags_ReadOnly);
+            ImGui::SameLine(0, 4);
+            if (ImGui::Button("...##dif", ImVec2(24, 0)))
+            {
+                std::string path = CHEngine::FileDialog::OpenImageFile();
+                if (!path.empty())
+                {
+                    if (mat.DiffuseMap.IsValid())
+                        m_Resources.DestroyTexture(mat.DiffuseMap);
+                    mat.DiffuseMapPath = path;
+                    mat.DiffuseMap     = m_Resources.CreateTextureFromFile(path);
+                }
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Выбрать текстуру");
+            ImGui::SameLine(0, 4);
+            if (ImGui::Button("X##dif", ImVec2(20, 0)) && mat.DiffuseMap.IsValid())
+            {
+                m_Resources.DestroyTexture(mat.DiffuseMap);
+                mat.DiffuseMap     = CHEngine::TextureHandle::Invalid();
+                mat.DiffuseMapPath.clear();
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать текстуру");
+        }
+
+        // Specular текстура
+        {
+            const char* sLabel = mat.SpecularMapPath.empty() ? "(none)" : mat.SpecularMapPath.c_str();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+            ImGui::TextUnformatted("Specular");
+            ImGui::PopStyleColor();
+            ImGui::SameLine(labelW);
+            float fieldW = ImGui::GetContentRegionAvail().x - 52.0f;
+            ImGui::SetNextItemWidth(fieldW);
+            ImGui::InputText("##specPath", const_cast<char*>(sLabel), strlen(sLabel) + 1,
+                             ImGuiInputTextFlags_ReadOnly);
+            ImGui::SameLine(0, 4);
+            if (ImGui::Button("...##spec", ImVec2(24, 0)))
+            {
+                std::string path = CHEngine::FileDialog::OpenImageFile();
+                if (!path.empty())
+                {
+                    if (mat.SpecularMap.IsValid())
+                        m_Resources.DestroyTexture(mat.SpecularMap);
+                    mat.SpecularMapPath = path;
+                    mat.SpecularMap     = m_Resources.CreateTextureFromFile(path);
+                }
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Выбрать specular карту");
+            ImGui::SameLine(0, 4);
+            if (ImGui::Button("X##spec", ImVec2(20, 0)) && mat.SpecularMap.IsValid())
+            {
+                m_Resources.DestroyTexture(mat.SpecularMap);
+                mat.SpecularMap     = CHEngine::TextureHandle::Invalid();
+                mat.SpecularMapPath.clear();
+            }
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать specular карту");
+        }
+
+        // Shininess
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+        ImGui::TextUnformatted("Shininess");
+        ImGui::PopStyleColor();
+        ImGui::SameLine(labelW);
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::DragFloat("##shin", &mat.Shininess, 0.5f, 1.0f, 256.0f, "%.1f");
+    }
+
     // LIGHT (показывать только для источников света)
     if (sel->LightData.Type != CHEngine::LightType::None)
     {

@@ -4,6 +4,7 @@
 #include <fstream>
 #include <sstream>
 #include <filesystem>
+#include <stb_image.h>
 
 namespace CHEngine {
 
@@ -180,6 +181,26 @@ namespace CHEngine {
 			return TextureHandle::Invalid();
 		}
 		return m_Textures.Add(tex);
+	}
+
+	TextureHandle RenderResourceManager::CreateTextureFromFile(const std::string& path)
+	{
+		int w, h, ch;
+		stbi_set_flip_vertically_on_load(1);
+		uint8_t* pixels = stbi_load(path.c_str(), &w, &h, &ch, 0);
+		if (!pixels)
+		{
+			CHE_CORE_ERROR("RenderResourceManager: не удалось загрузить текстуру '{}'", path);
+			return TextureHandle::Invalid();
+		}
+
+		TextureHandle handle = CreateTexture(pixels, (uint32_t)w, (uint32_t)h, (uint32_t)ch);
+		stbi_image_free(pixels);
+
+		if (handle.IsValid())
+			CHE_CORE_INFO("RenderResourceManager: загружена текстура '{}'", path);
+
+		return handle;
 	}
 
 	FramebufferHandle RenderResourceManager::CreateFramebuffer(uint32_t width, uint32_t height)
