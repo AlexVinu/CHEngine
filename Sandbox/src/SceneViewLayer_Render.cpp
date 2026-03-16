@@ -3,13 +3,29 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 
+// ── Default scene lighting ──────────────────────────────────────────────────
+namespace LightCfg {
+    constexpr float DirX = -0.3f,  DirY = -1.0f,  DirZ = -0.5f;
+    constexpr float ColR =  1.0f,  ColG =  1.0f,  ColB =  0.95f;
+    constexpr float AmbR =  0.15f, AmbG =  0.15f, AmbB =  0.2f;
+}
+
+// ── Вспомогательная функция: Transform → float[16] matrix ───────────────────
+static void TransformToMatrix(const CHEngine::Transform& tr, float out[16])
+{
+    float t[3] = { tr.Position.x, tr.Position.y, tr.Position.z };
+    float r[3] = { tr.Rotation.x, tr.Rotation.y, tr.Rotation.z };
+    float s[3] = { tr.Scale.x,    tr.Scale.y,    tr.Scale.z    };
+    ImGuizmo::RecomposeMatrixFromComponents(t, r, s, out);
+}
+
 // ============================================================================
 //  Grid / axes geometry
 // ============================================================================
 
 void SceneViewLayer::BuildGrid()
 {
-    auto& res = CHEngine::Application::Get().GetRenderResources();
+    auto& res = m_Resources;
 
     // Full-screen quad in NDC space.
     // The fragment shader unprojects each pixel to world space and
@@ -23,14 +39,17 @@ void SceneViewLayer::BuildGrid()
     uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
 
     m_GridVAO = res.CreateVertexArray();
+    auto* vao = res.Get(m_GridVAO);
+    if (!vao) return;
+
     auto vb = res.CreateVertexBuffer(verts, static_cast<uint32_t>(sizeof(verts)));
     CHEngine::BufferLayout layout = {
         { CHEngine::ShaderDataType::Float2, "a_NDC" },
     };
     vb->SetLayout(layout);
-    res.Get(m_GridVAO)->AddVertexBuffer(vb);
+    vao->AddVertexBuffer(vb);
     auto ib = res.CreateIndexBuffer(indices, 6u);
-    res.Get(m_GridVAO)->SetIndexBuffer(ib);
+    vao->SetIndexBuffer(ib);
 }
 
 // ============================================================================
@@ -39,8 +58,7 @@ void SceneViewLayer::BuildGrid()
 
 void SceneViewLayer::RenderScene()
 {
-    auto& app = CHEngine::Application::Get();
-    auto& res = app.GetRenderResources();
+    auto& res = m_Resources;
     auto* api = res.Get(m_RenderApi);
     if (!api) return;
 
@@ -82,26 +100,19 @@ void SceneViewLayer::RenderScene()
 
     shader->Bind();
     shader->SetMat4  (CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
-    shader->SetFloat3(CHEngine::String("u_LightDir"),       -0.3f, -1.0f, -0.5f);
-    shader->SetFloat3(CHEngine::String("u_LightColor"),      1.0f,  1.0f,  0.95f);
-    shader->SetFloat3(CHEngine::String("u_AmbientColor"),    0.15f, 0.15f, 0.2f);
+    shader->SetFloat3(CHEngine::String("u_LightDir"),
+                      LightCfg::DirX, LightCfg::DirY, LightCfg::DirZ);
+    shader->SetFloat3(CHEngine::String("u_LightColor"),
+                      LightCfg::ColR, LightCfg::ColG, LightCfg::ColB);
+    shader->SetFloat3(CHEngine::String("u_AmbientColor"),
+                      LightCfg::AmbR, LightCfg::AmbG, LightCfg::AmbB);
 
     for (auto& obj : m_Scene.GetObjects())
     {
         if (!obj->Visible) continue;
 
-        float t[3] = { obj->ObjectTransform.Position.x,
-                        obj->ObjectTransform.Position.y,
-                        obj->ObjectTransform.Position.z };
-        float r[3] = { obj->ObjectTransform.Rotation.x,
-                        obj->ObjectTransform.Rotation.y,
-                        obj->ObjectTransform.Rotation.z };
-        float s[3] = { obj->ObjectTransform.Scale.x,
-                        obj->ObjectTransform.Scale.y,
-                        obj->ObjectTransform.Scale.z };
-
         float raw[16];
-        ImGuizmo::RecomposeMatrixFromComponents(t, r, s, raw);
+        TransformToMatrix(obj->ObjectTransform, raw);
         glm::mat4 model     = glm::make_mat4(raw);
         glm::mat4 normalMat = glm::transpose(glm::inverse(model));
 
@@ -114,23 +125,20 @@ void SceneViewLayer::RenderScene()
 
         for (auto& mesh : obj->Meshes)
         {
-            bool hasTex = mesh.DiffuseTexture.IsValid();
-            shader->SetInt(CHEngine::String("u_UseTexture"), hasTex ? 1 : 0);
-            if (hasTex)
+            auto* tex = mesh.DiffuseTexture.IsValid()
+                      ? res.Get(mesh.DiffuseTexture) : nullptr;
+
+            shader->SetInt(CHEngine::String("u_UseTexture"), tex ? 1 : 0);
+            if (tex)
             {
-                auto* tex = res.Get(mesh.DiffuseTexture);
-                if (tex) tex->Bind(0);
+                tex->Bind(0);
                 shader->SetInt(CHEngine::String("u_DiffuseTexture"), 0);
             }
 
             auto* vao = res.Get(mesh.GetVertexArray());
             if (vao) api->DrawIndexed(vao);
 
-            if (hasTex)
-            {
-                auto* tex = res.Get(mesh.DiffuseTexture);
-                if (tex) tex->Unbind();
-            }
+            if (tex) tex->Unbind();
         }
     }
 
@@ -156,18 +164,9 @@ void SceneViewLayer::DrawGizmo()
     glm::mat4 view = m_Camera.GetViewMatrix();
     glm::mat4 proj = m_Camera.GetProjectionMatrix(m_AspectRatio);
 
-    float t[3] = { selected->ObjectTransform.Position.x,
-                    selected->ObjectTransform.Position.y,
-                    selected->ObjectTransform.Position.z };
-    float r[3] = { selected->ObjectTransform.Rotation.x,
-                    selected->ObjectTransform.Rotation.y,
-                    selected->ObjectTransform.Rotation.z };
-    float s[3] = { selected->ObjectTransform.Scale.x,
-                    selected->ObjectTransform.Scale.y,
-                    selected->ObjectTransform.Scale.z };
-
+    float t[3], r[3], s[3];
     float mm[16];
-    ImGuizmo::RecomposeMatrixFromComponents(t, r, s, mm);
+    TransformToMatrix(selected->ObjectTransform, mm);
 
     float snapT[3] = { 1.0f,  1.0f,  1.0f  };
     float snapR[3] = { 45.0f, 45.0f, 45.0f };

@@ -41,8 +41,10 @@ void FramebufferOGL::CreateAttachments()
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
                               GL_RENDERBUFFER, m_DepthAttachment);
 
-    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
         CHE_CORE_ERROR("FramebufferOGL: framebuffer incomplete! ({0}x{1})", m_Width, m_Height);
+        CHE_CORE_ASSERT(false, "Failed to create valid framebuffer");
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
 }

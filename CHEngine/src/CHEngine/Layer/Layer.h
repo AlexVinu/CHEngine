@@ -1,6 +1,6 @@
 #pragma once
 
-#include<Core.h>
+#include <Core.h>
 #include "CHEngine/Events/Event.h"
 
 namespace CHEngine
@@ -13,8 +13,8 @@ namespace CHEngine
 
 		virtual void OnAttach() {}
 		virtual void OnDetach() {}
-		virtual void OnUpdate() {}
-		virtual void OnEvent(Event& event) {}
+		virtual void OnUpdate(float /*dt*/) {}
+		virtual void OnEvent(Event& /*event*/) {}
 		virtual void OnImGuiRender() {}
 
 		inline const std::string& GetName() const { return m_DebugName; }

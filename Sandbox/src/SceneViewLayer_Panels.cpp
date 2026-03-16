@@ -1,7 +1,6 @@
 #include "SceneViewLayer.h"
 
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 #include <cstring>
 
 // ============================================================================
@@ -37,7 +36,7 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
             // Cmd+Z (macOS) или Alt+Z (Windows/Linux)
             const bool undoMod = ImGui::GetIO().KeySuper   // Cmd на Mac
                               || ImGui::GetIO().KeyAlt;    // Alt на Windows
-            if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false) && m_UndoStack.CanUndo())
                 m_UndoStack.Undo();
         }
 
@@ -143,8 +142,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
     if (UIActive::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
     {
-        std::string path = CHEngine::FileDialog::OpenFile(
-            "3D Models (*.obj, *.glb, *.gltf)", "");
+        std::string path = CHEngine::FileDialog::OpenModelFile();
         if (!path.empty()) ImportModel(path);
     }
 
@@ -324,7 +322,7 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     UIActive::SectionHeader("ORBIT");
 
     bool        orb = false;
-    const float lw  = 62.0f;
+    const float lw  = 64.0f;
 
     auto sliderRow = [&](const char* label, const char* id,
                           float* val, float mn, float mx, const char* fmt)

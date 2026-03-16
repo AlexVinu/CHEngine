@@ -31,6 +31,7 @@ namespace CHEngine
 		case ShaderDataType::Int3:     return 4 * 3;
 		case ShaderDataType::Int4:     return 4 * 4;
 		case ShaderDataType::Bool:     return 1;
+		case ShaderDataType::None:     break;
 		}
 
 		CHE_CORE_ASSERT(false, "Unknown ShaderDataType!");
@@ -45,7 +46,7 @@ namespace CHEngine
 		ShaderDataType Type;
 
 		BufferElements(String name, ShaderDataType type)
-			: Name(name), Type(type), Size(0), Offset(0){ }
+			: Name(name), Size(0), Offset(0), Type(type) { }
 	};
 
 	struct BufferElement
@@ -78,6 +79,7 @@ namespace CHEngine
 			case ShaderDataType::Int3:    return 3;
 			case ShaderDataType::Int4:    return 4;
 			case ShaderDataType::Bool:    return 1;
+			case ShaderDataType::None:    break;
 			}
 
 			CHE_CORE_ASSERT(false, "Unknown ShaderDataType!");

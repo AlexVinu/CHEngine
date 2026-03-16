@@ -2,10 +2,16 @@
 #include "Application.h"
 
 #include "Log/Log.h"
+#include "CHEngine/Input/Input.h"
 
 #include <filesystem>
 #if defined(CHE_PLATFORM_APPLE)
 #include <mach-o/dyld.h>
+#elif defined(CHE_PLATFORM_WINDOWS)
+#include <Windows.h>
+#elif defined(CHE_PLATFORM_LINUX)
+#include <unistd.h>
+#include <climits>      // PATH_MAX
 #endif
 
 namespace CHEngine {
@@ -19,18 +25,34 @@ namespace CHEngine {
     {
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
-#if defined(CHE_PLATFORM_APPLE)
+        // Set working directory to executable location so relative paths
+        // (shaders/, assets/) resolve correctly on all platforms.
         {
+            std::filesystem::path exeDir;
+#if defined(CHE_PLATFORM_APPLE)
             char exePath[4096];
             uint32_t size = sizeof(exePath);
             if (_NSGetExecutablePath(exePath, &size) == 0)
+                exeDir = std::filesystem::path(exePath).parent_path();
+#elif defined(CHE_PLATFORM_WINDOWS)
+            char exePath[MAX_PATH];
+            if (GetModuleFileNameA(nullptr, exePath, MAX_PATH) > 0)
+                exeDir = std::filesystem::path(exePath).parent_path();
+#elif defined(CHE_PLATFORM_LINUX)
+            char exePath[PATH_MAX];
+            ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+            if (len > 0)
             {
-                auto exeDir = std::filesystem::path(exePath).parent_path();
+                exePath[len] = '\0';
+                exeDir = std::filesystem::path(exePath).parent_path();
+            }
+#endif
+            if (!exeDir.empty())
+            {
                 std::filesystem::current_path(exeDir);
                 CHE_CORE_INFO("Working directory set to: {0}", exeDir.string().c_str());
             }
         }
-#endif
         s_Instance = this;
 
         // ─── 1. Загрузить все 3 модуля ───────────────────────────────────────
@@ -56,6 +78,18 @@ namespace CHEngine {
         m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
         m_ImGuiFactory  = m_ModuleManager.GetModule<IImGuiFactory>(ModuleType::ImGui);
 
+        if (!m_WindowFactory)
+        {
+            CHE_CORE_CRITICAL("Failed to load Window module! Cannot continue.");
+            m_Running = false;
+            return;
+        }
+        if (!m_RenderFactory)
+        {
+            CHE_CORE_CRITICAL("Failed to load Renderer module! Cannot continue.");
+            m_Running = false;
+            return;
+        }
         if (!m_ImGuiFactory)
             CHE_CORE_ERROR("Failed to load ImGuiOGL module! ImGui will be unavailable.");
 
@@ -76,7 +110,8 @@ namespace CHEngine {
 
         // ─── 5. Создать рендер-объекты (нужен GLAD, поэтому после шага 3) ───
         m_RenderApi = m_RenderResources.CreateRenderAPI();
-        m_RenderResources.Get(m_RenderApi)->SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
+        if (auto* api = m_RenderResources.Get(m_RenderApi))
+            api->SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
 
         m_Shader = m_RenderResources.CreateShaderFromFile(
             String("Basic"),
@@ -103,7 +138,7 @@ namespace CHEngine {
 
     void Application::PushOverlay(Layer* overlay)
     {
-        m_LayerStack.PushLayer(overlay);
+        m_LayerStack.PushOverlay(overlay);
     }
 
     void Application::OnEvent(Event& e)
@@ -122,7 +157,7 @@ namespace CHEngine {
         }
     }
 
-    bool Application::OnWindowClosed(WindowCloseEvent& e)
+    bool Application::OnWindowClosed(WindowCloseEvent& /*e*/)
     {
         m_Running = false;
         return true;
@@ -130,18 +165,30 @@ namespace CHEngine {
 
     bool Application::OnWindowResized(WindowResizeEvent& e)
     {
-        m_RenderResources.Get(m_RenderApi)->SetViewport(e.GetWidth(), e.GetHeight());
+        if (auto* api = m_RenderResources.Get(m_RenderApi))
+            api->SetViewport(e.GetWidth(), e.GetHeight());
         return false;
     }
 
     void Application::Run()
     {
+        m_LastFrameTime = std::chrono::steady_clock::now();
+
         while (m_Running)
         {
-            m_RenderResources.Get(m_RenderApi)->Clear();
+            // ── Delta time ──────────────────────────────────────────────────
+            auto now = std::chrono::steady_clock::now();
+            float dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
+            m_LastFrameTime = now;
+
+            // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
+            Input::BeginFrame(m_Window->GetPlatformWindow());
+
+            if (auto* api = m_RenderResources.Get(m_RenderApi))
+                api->Clear();
 
             for (Layer* layer : m_LayerStack)
-                layer->OnUpdate();
+                layer->OnUpdate(dt);
 
             if (m_ImGuiLayer)
             {

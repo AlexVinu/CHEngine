@@ -5,7 +5,6 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <chrono>
 #include <string>
 
 class ExampleLayer : public CHEngine::Layer
@@ -15,16 +14,11 @@ public:
 		: Layer("Example")
 		, m_TintColor{ 1.0f, 1.0f, 1.0f, 1.0f }
 		, m_Camera(45.0f, 0.1f, 100.0f)
-		, m_LastTime(std::chrono::steady_clock::now())
 	{
 	}
 
-	void OnUpdate() override
+	void OnUpdate(float dt) override
 	{
-		// --- Delta time ---
-		auto now = std::chrono::steady_clock::now();
-		float dt = std::chrono::duration<float>(now - m_LastTime).count();
-		m_LastTime = now;
 
 		// --- Auto-rotate ---
 		if (m_AutoRotate)
@@ -191,8 +185,8 @@ public:
 		auto pos = m_Camera.GetPosition();
 		switch(e.GetKeyCode())
 		{
-		case 87: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z + 1)); break;
-		case 83: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z - 1)); break;
+		case CHEngine::Key::W: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z + 1)); break;
+		case CHEngine::Key::S: m_Camera.SetPosition(glm::vec3(pos.x, pos.y, pos.z - 1)); break;
 		}
 		return false;
 	}
@@ -210,7 +204,6 @@ private:
 	float m_SpeedY = 30.0f;
 	float m_SpeedZ = 0.0f;
 
-	std::chrono::steady_clock::time_point m_LastTime;
 };
 
 class Sandbox : public CHEngine::Application

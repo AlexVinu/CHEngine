@@ -4,7 +4,7 @@
 
 namespace CHModules {
 
-    static bool s_GLFWInitialized = false;
+    static int  s_GLFWRefCount     = 0;
     static CHEngine::ErrorCallbackFn s_ErrorCallbackFn = nullptr;
 
     CHEngine::EventType WindowGLFW::ConvertFromGLFW(int action)
@@ -24,23 +24,27 @@ namespace CHModules {
     {
         CHE_CORE_ASSERT(renderApi != CHEngine::ERenderAPI::NONE, "Render API was not set");
 
-        if (!s_GLFWInitialized) {
-            int success = glfwInit();
+        if (s_GLFWRefCount == 0) {
+            [[maybe_unused]] int success = glfwInit();
             CHE_CORE_ASSERT(success, "Failed to initialize GLFW");
-            s_GLFWInitialized = true;
             s_ErrorCallbackFn = errorCallbackFn;
             glfwSetErrorCallback([](int error, const char* description) {
                 if (s_ErrorCallbackFn)
                     s_ErrorCallbackFn(error, description);
             });
         }
+        ++s_GLFWRefCount;
 
+        // OpenGL version: macOS caps at 4.1 (Apple limitation),
+        // Windows/Linux request 4.5 for broad compatibility.
+        // Shaders use #version 330 core, so 3.3+ would suffice,
+        // but 4.x gives access to DSA, compute shaders, etc. if needed.
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 #ifdef CHE_PLATFORM_APPLE
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #else
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 #endif
         if(renderApi == CHEngine::ERenderAPI::OPENGL)
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -69,8 +73,12 @@ namespace CHModules {
             glfwDestroyWindow(m_Window);
             m_Window = nullptr;
         }
-        glfwTerminate();
-        s_GLFWInitialized = false;
+
+        --s_GLFWRefCount;
+        if (s_GLFWRefCount <= 0) {
+            glfwTerminate();
+            s_GLFWRefCount = 0;
+        }
     }
 
     void WindowGLFW::SwapBuffers()
@@ -114,6 +122,28 @@ namespace CHModules {
         }
 
         return info;
+    bool WindowGLFW::IsKeyDown(int key) const
+    {
+        // GLFW key codes below GLFW_KEY_SPACE (32) are invalid and trigger errors
+        if (!m_Window || key < GLFW_KEY_SPACE) return false;
+        return glfwGetKey(m_Window, key) == GLFW_PRESS;
+    }
+
+    bool WindowGLFW::IsMouseButtonDown(int button) const
+    {
+        return m_Window && glfwGetMouseButton(m_Window, button) == GLFW_PRESS;
+    }
+
+    void WindowGLFW::GetMousePosition(float& x, float& y) const
+    {
+        if (m_Window) {
+            double dx, dy;
+            glfwGetCursorPos(m_Window, &dx, &dy);
+            x = static_cast<float>(dx);
+            y = static_cast<float>(dy);
+        } else {
+            x = y = 0.0f;
+        }
     }
 
     void WindowGLFW::SetWindowContext(const CHEngine::WindowContext& context)
