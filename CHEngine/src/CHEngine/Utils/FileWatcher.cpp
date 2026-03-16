@@ -28,7 +28,8 @@ void FileWatcher::Poll()
         if (currentWrite != entry.LastWrite) {
             entry.LastWrite = currentWrite;
             CHE_CORE_INFO("FileWatcher: изменён '{0}' — перезагрузка...", entry.Path.filename().string().c_str());
-            entry.OnChanged(entry.Path);
+            if (entry.OnChanged)
+                entry.OnChanged(entry.Path);
         }
     }
 }
