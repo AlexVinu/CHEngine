@@ -1,6 +1,7 @@
 #pragma once
 #include <Core.h>
 
+#include <filesystem>
 #include <functional>
 #include <string>
 #include <unordered_map>
@@ -46,14 +47,32 @@ namespace CHEngine
 
         bool LoadModule(const std::string& path)
         {
-            ModuleHandle handle = Load(path.c_str());
+            // ─── Shadow copy ──────────────────────────────────────────────
+            // ОС блокирует загруженную dylib/dll — нельзя перезаписать.
+            // Поэтому копируем файл во временный и загружаем копию.
+            // Оригинал остаётся свободным для перезаписи компилятором.
+            std::string shadow = MakeShadowPath(path);
+            std::error_code ec;
+            std::filesystem::copy_file(
+                path, shadow,
+                std::filesystem::copy_options::overwrite_existing, ec);
+
+            if (ec) {
+                CHE_CORE_ERROR("LoadModule: не удалось создать shadow copy '{}' → '{}': {}",
+                               path, shadow, ec.message());
+                return false;
+            }
+
+            ModuleHandle handle = Load(shadow.c_str());
             if (!handle)
             {
             #if defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
-                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", path, dlerror());
+                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", shadow, dlerror());
             #else
-                CHE_CORE_ERROR("LoadModule FAILED '{}'", path);
+                CHE_CORE_ERROR("LoadModule FAILED '{}'", shadow);
             #endif
+                // Удаляем неудачную теневую копию
+                std::filesystem::remove(shadow, ec);
                 return false;
             }
 
@@ -66,13 +85,15 @@ namespace CHEngine
             if (!create || !destroy)
             {
                 CHE_CORE_ERROR("LoadModule '{}': CreateFactory/DestroyFactory symbol not found", path);
+                Unload(handle);
+                std::filesystem::remove(shadow, ec);
                 return false;
             }
 
             IModuleFactory* module = create();
             ModuleType type = module->GetType();
 
-            m_Modules[type] = { handle, module, destroy, path };
+            m_Modules[type] = { handle, module, destroy, path, shadow };
 
             return true;
         }
@@ -106,6 +127,11 @@ namespace CHEngine
             {
                 data.destroy(data.module);
                 Unload(data.handle);
+                // Удаляем теневую копию после выгрузки
+                if (!data.shadowPath.empty()) {
+                    std::error_code ec;
+                    std::filesystem::remove(data.shadowPath, ec);
+                }
             }
             m_Modules.clear();
         }
@@ -129,12 +155,14 @@ namespace CHEngine
             ModuleHandle    handle;
             IModuleFactory* module;
             DestroyFn       destroy;
-            std::string     path;   // путь к dylib для перезагрузки
+            std::string     path;       // путь к оригинальной dylib (для мониторинга)
+            std::string     shadowPath; // путь к теневой копии (реально загруженная)
         };
 
         std::unordered_map<ModuleType, ModuleData>           m_Modules;
         std::unordered_map<ModuleType, ModuleReloadCallbacks> m_Callbacks;
         FileWatcher                                           m_Watcher;
+        uint32_t                                              m_ShadowCounter = 0;
 
         // ─── Горячая перезагрузка одного модуля ──────────────────────────────
         void ReloadModule(ModuleType type)
@@ -142,7 +170,8 @@ namespace CHEngine
             auto it = m_Modules.find(type);
             if (it == m_Modules.end()) return;
 
-            std::string path = it->second.path; // сохраняем до удаления
+            std::string path       = it->second.path;       // оригинал
+            std::string oldShadow  = it->second.shadowPath; // старая копия
 
             CHE_CORE_INFO("ModuleManager: перезагрузка модуля типа {}...", (int)type);
 
@@ -151,23 +180,46 @@ namespace CHEngine
             if (cbIt != m_Callbacks.end() && cbIt->second.OnBeforeReload)
                 cbIt->second.OnBeforeReload();
 
-            // 2. Выгрузить старый модуль
+            // 2. Выгрузить старый модуль (освобождает теневую копию)
             it->second.destroy(it->second.module);
             Unload(it->second.handle);
             m_Modules.erase(it);
 
-            // 3. Загрузить новый
+            // 3. Удалить старую теневую копию (теперь файл свободен)
+            if (!oldShadow.empty()) {
+                std::error_code ec;
+                std::filesystem::remove(oldShadow, ec);
+            }
+
+            // 4. Загрузить новый (LoadModule сделает свежую shadow copy)
             if (!LoadModule(path))
             {
                 CHE_CORE_ERROR("ModuleManager: не удалось перезагрузить '{}' — модуль недоступен", path);
                 return;
             }
 
-            // 4. Уведомить Application о новой фабрике
+            // 5. Уведомить Application о новой фабрике
             if (cbIt != m_Callbacks.end() && cbIt->second.OnAfterReload)
                 cbIt->second.OnAfterReload(m_Modules[type].module);
 
             CHE_CORE_INFO("ModuleManager: модуль '{}' перезагружен успешно", path);
+        }
+
+        // Генерация пути для теневой копии: module.dylib → module_hot_0.dylib
+        // Счётчик гарантирует уникальность при повторных перезагрузках.
+        std::string MakeShadowPath(const std::string& originalPath)
+        {
+            std::filesystem::path p(originalPath);
+            std::string stem = p.stem().string();
+            std::string ext  = p.extension().string();
+            auto dir = p.parent_path();
+
+            std::string shadow;
+            do {
+                shadow = (dir / (stem + "_hot_" + std::to_string(m_ShadowCounter++) + ext)).string();
+            } while (std::filesystem::exists(shadow));
+
+            return shadow;
         }
 
         ModuleHandle Load(const char* path)
