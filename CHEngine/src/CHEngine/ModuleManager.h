@@ -18,16 +18,16 @@
 
 namespace CHEngine
 {
-	using DestroyFn = void(*)(IModuleFactory*);
-    using CreateFn = IModuleFactory* (*)();
+    using DestroyFn    = void(*)(IModuleFactory*);
+    using CreateFn     = IModuleFactory*(*)();
 
-	#ifdef CHE_PLATFORM_WINDOWS
-		using ModuleHandle = HMODULE;
+    #ifdef CHE_PLATFORM_WINDOWS
+        using ModuleHandle = HMODULE;
     #elif defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
         using ModuleHandle = void*;
     #else
         #error Unsupported platform
-	#endif
+    #endif
 
     // ─── Колбэки для горячей перезагрузки модуля ─────────────────────────────
     // OnBeforeReload — уничтожить все объекты, созданные старым модулем
@@ -46,7 +46,7 @@ namespace CHEngine
 
         bool LoadModule(const std::string& path)
         {
-            ModuleHandle handle = load(path.c_str());
+            ModuleHandle handle = Load(path.c_str());
             if (!handle)
             {
             #if defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
@@ -58,10 +58,10 @@ namespace CHEngine
             }
 
             auto create = reinterpret_cast<CreateFn>(
-                getSymbol(handle, "CreateFactory"));
+                GetSymbol(handle, "CreateFactory"));
 
             auto destroy = reinterpret_cast<DestroyFn>(
-                getSymbol(handle, "DestroyFactory"));
+                GetSymbol(handle, "DestroyFactory"));
 
             if (!create || !destroy)
             {
@@ -105,7 +105,7 @@ namespace CHEngine
             for (auto& [type, data] : m_Modules)
             {
                 data.destroy(data.module);
-                unload(data.handle);
+                Unload(data.handle);
             }
             m_Modules.clear();
         }
@@ -116,7 +116,7 @@ namespace CHEngine
             auto it = m_Modules.find(type);
             if (it == m_Modules.end())
             {
-                CHE_CORE_ERROR("Module Manager did not find type ({0} in  integer)", (int)type);
+                CHE_CORE_ERROR("ModuleManager: модуль типа {} не найден", (int)type);
                 return nullptr;
             }
 
@@ -153,7 +153,7 @@ namespace CHEngine
 
             // 2. Выгрузить старый модуль
             it->second.destroy(it->second.module);
-            unload(it->second.handle);
+            Unload(it->second.handle);
             m_Modules.erase(it);
 
             // 3. Загрузить новый
@@ -170,7 +170,7 @@ namespace CHEngine
             CHE_CORE_INFO("ModuleManager: модуль '{}' перезагружен успешно", path);
         }
 
-        ModuleHandle load(const char* path)
+        ModuleHandle Load(const char* path)
         {
         #if defined(CHE_PLATFORM_WINDOWS)
             return LoadLibraryA(path);
@@ -179,7 +179,7 @@ namespace CHEngine
         #endif
         }
 
-        void* getSymbol(ModuleHandle handle, const char* name)
+        void* GetSymbol(ModuleHandle handle, const char* name)
         {
         #if defined(CHE_PLATFORM_WINDOWS)
             return reinterpret_cast<void*>(
@@ -189,7 +189,7 @@ namespace CHEngine
         #endif
         }
 
-        void unload(ModuleHandle handle)
+        void Unload(ModuleHandle handle)
         {
         #if defined(CHE_PLATFORM_WINDOWS)
             FreeLibrary(handle);
