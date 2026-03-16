@@ -42,6 +42,10 @@ namespace CHEngine {
 
         IWindow* GetPlatformWindow() const { return m_PlatformWindow; }
 
+        // Возвращает низкоуровневый платформенный IWindow (GLFW и т.д.)
+        // Используется Input::BeginFrame для прямого опроса состояния.
+        virtual IWindow* GetPlatformWindow() const = 0;
+
         static Window* Create(IWindowFactory* windowFactory, ERenderAPI renderApi = ERenderAPI::NONE, const WindowProps& props = WindowProps());
 
     protected:

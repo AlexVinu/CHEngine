@@ -1,5 +1,6 @@
 #include "ImGuiLayerOGL.h"
 
+#include <Log/Log.h>
 #include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_opengl3.h>
@@ -9,6 +10,10 @@ namespace CHModules {
 
     ImGuiLayerOGL::ImGuiLayerOGL(void* nativeWindow)
     {
+        if (!nativeWindow) {
+            CHE_CORE_ERROR("ImGuiLayerOGL: nativeWindow is null!");
+            return;
+        }
         GLFWwindow* window = static_cast<GLFWwindow*>(nativeWindow);
 
         IMGUI_CHECKVERSION();

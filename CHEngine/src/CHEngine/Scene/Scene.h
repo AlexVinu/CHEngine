@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <memory>
+#include <unordered_map>
 #include "SceneObject.h"
 
 namespace CHEngine {
@@ -35,6 +36,7 @@ public:
 
 private:
 	std::vector<std::unique_ptr<SceneObject>> m_Objects;
+	std::unordered_map<uint32_t, SceneObject*> m_IDIndex; // O(1) lookup by ID
 
 	// ECS registry — hidden from public header to avoid cross-dylib entt ABI issues
 	struct SceneRegistry;

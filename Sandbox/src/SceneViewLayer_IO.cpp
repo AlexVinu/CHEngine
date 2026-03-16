@@ -1,7 +1,5 @@
 #include "SceneViewLayer.h"
 
-#include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/matrix_transform.hpp>
 
 // ============================================================================
 //  Scene serialization
@@ -9,9 +7,6 @@
 
 void SceneViewLayer::SaveScene()
 {
-    auto& res = CHEngine::Application::Get().GetRenderResources();
-    (void)res;
-
     const char* filters[] = { "*.chscene" };
     std::string path = CHEngine::FileDialog::SaveFile(
         "Save Scene", "scene.chscene", filters, 1, ".chscene");
@@ -26,11 +21,11 @@ void SceneViewLayer::SaveScene()
 
 void SceneViewLayer::LoadScene(const std::string& path)
 {
-    auto& res = CHEngine::Application::Get().GetRenderResources();
-
     std::string filePath = path;
     if (filePath.empty()) {
-        filePath = CHEngine::FileDialog::OpenFile("Scene Files (*.chscene)", "*.chscene");
+        const char* filters[] = { "*.chscene" };
+        filePath = CHEngine::FileDialog::OpenFile(
+            "Scene Files (*.chscene)", filters, 1, "Open Scene");
     }
     if (filePath.empty()) return;
 
@@ -39,7 +34,7 @@ void SceneViewLayer::LoadScene(const std::string& path)
     m_SelectedObjectID = 0;
 
     CHEngine::SceneSerializer serializer(&m_Scene);
-    if (serializer.LoadFromFile(filePath, res)) {
+    if (serializer.LoadFromFile(filePath, m_Resources)) {
         m_RecentFiles.AddPath(filePath);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
     }
@@ -51,8 +46,7 @@ void SceneViewLayer::LoadScene(const std::string& path)
 
 void SceneViewLayer::ImportModel(const std::string& filepath)
 {
-    auto& res    = CHEngine::Application::Get().GetRenderResources();
-    auto  result = CHEngine::ModelLoader::Load(filepath, res);
+    auto result = CHEngine::ModelLoader::Load(filepath, m_Resources);
     if (!result.success)
         return;
 
@@ -75,10 +69,10 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
     {
         for (auto& mesh : result.meshes)
         {
-            res.DestroyVertexArray(mesh.GetVertexArray());
+            m_Resources.DestroyVertexArray(mesh.GetVertexArray());
             auto verts = mesh.GetVertices();
             for (auto& v : verts) v.Position -= centroid;
-            mesh.Build(res, verts, mesh.GetIndices());
+            mesh.Build(m_Resources, verts, mesh.GetIndices());
         }
     }
 

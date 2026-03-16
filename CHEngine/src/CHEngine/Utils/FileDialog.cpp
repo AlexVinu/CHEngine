@@ -4,23 +4,35 @@
 
 namespace CHEngine {
 
-	std::string FileDialog::OpenFile(const char* filterName, const char* filterSpec)
+	// ── Универсальный OpenFile с массивом фильтров ────────────────────────────
+	std::string FileDialog::OpenFile(const char* filterName,
+	                                 const char* const* filterPatterns,
+	                                 int numFilters,
+	                                 const char* title)
 	{
-		const char* filters[] = { "*.obj", "*.glb", "*.gltf" };
-		(void)filterSpec;
-
 		const char* result = tinyfd_openFileDialog(
-			"Import 3D Model",
+			title ? title : "Open File",
 			"",
-			3,
-			filters,
+			numFilters,
+			filterPatterns,
 			filterName,
 			0
 		);
+		return result ? std::string(result) : std::string{};
+	}
 
-		if (result)
-			return std::string(result);
-		return {};
+	// ── Шорткат: один паттерн ─────────────────────────────────────────────────
+	std::string FileDialog::OpenFile(const char* filterName, const char* filterSpec)
+	{
+		const char* filters[] = { filterSpec };
+		return OpenFile(filterName, filters, 1, filterName);
+	}
+
+	// ── Специализация для 3D-моделей ──────────────────────────────────────────
+	std::string FileDialog::OpenModelFile()
+	{
+		const char* filters[] = { "*.obj", "*.glb", "*.gltf" };
+		return OpenFile("3D Models (*.obj *.glb *.gltf)", filters, 3, "Import 3D Model");
 	}
 
 	std::string FileDialog::SaveFile(const char* title,
@@ -42,7 +54,7 @@ namespace CHEngine {
 
 		std::string path(result);
 
-		// Append default extension if it's not already present
+		// Дописать расширение если его нет
 		if (defaultExt && !path.empty()) {
 			std::string ext(defaultExt);
 			if (path.size() < ext.size() ||
@@ -53,6 +65,15 @@ namespace CHEngine {
 		}
 
 		return path;
+	}
+
+	std::string FileDialog::SelectFolder(const char* title, const char* defaultPath)
+	{
+		const char* result = tinyfd_selectFolderDialog(
+			title ? title : "Select Folder",
+			defaultPath ? defaultPath : ""
+		);
+		return result ? std::string(result) : std::string{};
 	}
 
 }

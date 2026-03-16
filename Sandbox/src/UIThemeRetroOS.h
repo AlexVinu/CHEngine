@@ -473,7 +473,7 @@ namespace UIThemeRetro
     // ── TOAST / ERROR BANNER — matches TOAST component in kit ────────────────
     // Call inside any window. Pass a short error string.
     // Returns true while visible (call every frame while you want it shown).
-    static void Toast(const char* title, const char* message)
+    [[maybe_unused]] static void Toast(const char* title, const char* message)
     {
         ImGui::PushStyleColor(ImGuiCol_ChildBg,  COL_ALERT_RED);
         ImGui::PushStyleColor(ImGuiCol_Border,   ImVec4(0.706f,0.157f,0.216f,1.f));
@@ -498,7 +498,7 @@ namespace UIThemeRetro
 
     // ── MODAL — matches MODAL component in kit ────────────────────────────────
     // Usage: if (UIThemeRetro::BeginModal("MODAL")) { ... UIThemeRetro::EndModal(); }
-    static bool BeginModal(const char* title, bool* open = nullptr)
+    [[maybe_unused]] static bool BeginModal(const char* title, bool* open = nullptr)
     {
         ImGui::SetNextWindowSize(ImVec2(320, 0), ImGuiCond_Always);
         ImGui::PushStyleColor(ImGuiCol_TitleBg,       COL_ACCENT_BLUE);
@@ -515,7 +515,7 @@ namespace UIThemeRetro
         return result;
     }
 
-    static void EndModal()
+    [[maybe_unused]] static void EndModal()
     {
         ImGui::EndPopup();
     }

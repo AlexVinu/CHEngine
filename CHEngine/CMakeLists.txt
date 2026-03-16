@@ -21,22 +21,36 @@ set(CHE_VENDOR_SOURCES
 # Создание динамической библиотеки
 add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES})
 
-# Skip precompiled headers for vendor sources
+# Skip precompiled headers for vendor sources and ModelLoader files
+# (они включают tinyobjloader / tinygltf / stb_image с IMPLEMENTATION defines —
+#  несовместимо с PCH)
 set_source_files_properties(${CHE_VENDOR_SOURCES} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+set_source_files_properties(
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/CHEngine/Mesh/ModelLoader_OBJ.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/CHEngine/Mesh/ModelLoader_GLTF.cpp"
+    PROPERTIES SKIP_PRECOMPILE_HEADERS ON
+)
 
 # Disable strict warnings for vendor C file
-set_source_files_properties(
-    "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
-    PROPERTIES COMPILE_FLAGS "-w"
-)
+if(MSVC)
+    set_source_files_properties(
+        "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
+        PROPERTIES COMPILE_FLAGS "/W0"
+    )
+else()
+    set_source_files_properties(
+        "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
+        PROPERTIES COMPILE_FLAGS "-w"
+    )
+endif()
 # Директории включения
 target_include_directories(${PROJECT_NAME}
     PUBLIC
         "src"
         ${IMGUI_INCLUDE_DIR}
         "${CHE_VENDOR_DIR}"
+        ${CHE_INTERFACES_DIR}   # PUBLIC: Sandbox и другие клиенты видят <Input/KeyCodes.h> и т.д.
     PRIVATE
-        ${CHE_INTERFACES_DIR}
         ${CHE_CORE_DIR}
         "${CHE_VENDOR_DIR}/tinyobjloader"
         "${CHE_VENDOR_DIR}/tinygltf"

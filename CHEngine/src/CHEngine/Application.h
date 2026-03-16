@@ -15,6 +15,8 @@
 
 #include "ModuleManager.h"
 
+#include <chrono>
+
 namespace CHEngine {
 
     class CHENGINE_API Application
@@ -30,7 +32,11 @@ namespace CHEngine {
         void PushLayer(Layer* layer);
         void PushOverlay(Layer* overlay);
 
-        static Application& Get() { return *s_Instance; }
+        static Application& Get()
+        {
+            CHE_CORE_ASSERT(s_Instance, "Application not created yet!");
+            return *s_Instance;
+        }
 
         RenderResourceManager& GetRenderResources() { return m_RenderResources; }
         RenderAPIHandle GetRenderApiHandle() const { return m_RenderApi; }
@@ -61,6 +67,9 @@ namespace CHEngine {
         IRenderer*   m_OGLRenderer = nullptr;  // держит GLAD инициализированным
 
         std::unique_ptr<Window> m_Window;
+
+        // Delta time
+        std::chrono::steady_clock::time_point m_LastFrameTime;
     };
 
     // To be defined in client

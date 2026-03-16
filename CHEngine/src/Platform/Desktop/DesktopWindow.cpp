@@ -76,7 +76,7 @@ namespace CHEngine {
             window->m_Data.EventCallback(event);
         };
 
-        ctx.KeyCallback = [](void* user, int key, int scancode, int action, int mods) {
+        ctx.KeyCallback = [](void* user, int key, int /*scancode*/, int action, int /*mods*/) {
             auto* window = (DesktopWindow*)user;
             switch (action)
             {
@@ -98,7 +98,7 @@ namespace CHEngine {
             }
         };
 
-        ctx.MouseButtonCallback = [](void* user, int button, int action, int mods) {
+        ctx.MouseButtonCallback = [](void* user, int button, int action, int /*mods*/) {
             auto* window = (DesktopWindow*)user;
             switch (action)
             {
