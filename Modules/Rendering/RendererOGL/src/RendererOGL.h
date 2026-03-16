@@ -3,7 +3,6 @@
 #include "Render/IRenderer.h"
 
 #include <glad/glad.h>
-#include <GLFW/glfw3.h>
 
 namespace CHModules
 {
@@ -17,7 +16,7 @@ namespace CHModules
 
         // Инициализировать GLAD используя текущий GL-контекст (из WindowGLFW).
         // nativeWindow используется только для получения glfwGetProcAddress.
-        void Init(void* nativeWindow) override;
+        void Init(const CHEngine::RendererInitInfo& init_info) override;
         void Shutdown() override {}
 
         void SetViewport(uint32_t width, uint32_t height) override;

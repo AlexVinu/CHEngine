@@ -4,8 +4,8 @@
 
 #include "Core.h"
 #include "CHEngine/Events/Event.h"
-#include "Render/IWindow.h"
-#include "IWindowFactory.h"
+#include "WindowSystem/IWindow.h"
+#include "WindowSystem/IWindowFactory.h"
 
 namespace CHEngine {
 
@@ -40,8 +40,12 @@ namespace CHEngine {
         virtual void SetVSync(bool enabled) = 0;
         virtual bool IsVSync() const = 0;
 
-        virtual void* GetNativeWindow() const = 0;
+        IWindow* GetPlatformWindow() const { return m_PlatformWindow; }
 
-        static Window* Create(IWindowFactory* windowFactory, const WindowProps& props = WindowProps());
+        static Window* Create(IWindowFactory* windowFactory, ERenderAPI renderApi = ERenderAPI::NONE, const WindowProps& props = WindowProps());
+
+    protected:
+        IWindow* m_PlatformWindow = nullptr;
+        IWindowFactory* m_WindowFactory = nullptr;
     };
 }

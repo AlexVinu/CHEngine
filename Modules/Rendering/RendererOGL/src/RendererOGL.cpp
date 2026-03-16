@@ -6,14 +6,10 @@ namespace CHModules
 {
     static bool s_GLADInitialized = false;
 
-    void RendererOGL::Init(void* nativeWindow)
+    void RendererOGL::Init(const CHEngine::RendererInitInfo& init_info)
     {
         if (!s_GLADInitialized) {
-            // GLFW контекст уже сделан current в WindowGLFW::WindowGLFW().
-            // nativeWindow передаётся на случай если нужен cast, но
-            // glfwGetProcAddress работает с текущим контекстом.
-            (void)nativeWindow;
-            int success = gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+            int success = gladLoadGLLoader((GLADloadproc)init_info.Loader);
             CHE_CORE_ASSERT(success, "Failed to initialize GLAD");
             s_GLADInitialized = true;
 

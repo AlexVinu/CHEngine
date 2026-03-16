@@ -8,10 +8,10 @@
 #include "Window.h"
 
 #include "Render/RenderResourceManager.h"
-#include "Render/IImGuiLayer.h"
+#include "UISystem/IImGuiLayer.h"
 
-#include "IWindowFactory.h"
-#include "IImGuiFactory.h"
+#include "WindowSystem/IWindowFactory.h"
+#include "UISystem/IImGuiFactory.h"
 
 #include "ModuleManager.h"
 

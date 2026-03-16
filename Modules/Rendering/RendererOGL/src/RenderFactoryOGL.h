@@ -14,7 +14,7 @@ namespace CHModules
         CHEngine::RendererAPI*   CreateRenderAPI() override;
 
         // Принимает нативное окно (GLFWwindow* из WindowGLFW) и инициализирует GLAD
-        CHEngine::IRenderer* CreateRenderer(void* nativeWindow) override;
+        CHEngine::IRenderer* CreateRenderer(const CHEngine::RendererInitInfo& init_info) override;
 
         CHEngine::ITexture* CreateTexture(const uint8_t* data, uint32_t width,
                                           uint32_t height, uint32_t channels) override;
@@ -31,5 +31,7 @@ namespace CHModules
         void Delete(CHEngine::IFramebuffer*  ptr) override;
 
         CHEngine::ModuleType GetType() const override;
+
+        virtual CHEngine::ERenderAPI GetRenderApi() override;
     };
 }

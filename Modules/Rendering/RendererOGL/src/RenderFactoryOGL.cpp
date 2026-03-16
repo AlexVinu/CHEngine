@@ -34,16 +34,21 @@ namespace CHModules
         return CreateImpl<RendererApiOGL>();
     }
 
-    CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(void* nativeWindow)
+    CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(const CHEngine::RendererInitInfo& init_info)
     {
         auto* renderer = CreateImpl<RendererOGL>();
-        renderer->Init(nativeWindow);
+        renderer->Init(init_info);
         return renderer;
     }
 
     CHEngine::ModuleType RenderFactoryOGL::GetType() const
     {
         return CHEngine::ModuleType::Render;
+    }
+
+    CHEngine::ERenderAPI RenderFactoryOGL::GetRenderApi()
+    {
+        return CHEngine::ERenderAPI::OPENGL;
     }
 
     void RenderFactoryOGL::Delete(CHEngine::IVertexBuffer* ptr)

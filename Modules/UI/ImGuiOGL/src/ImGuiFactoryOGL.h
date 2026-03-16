@@ -1,26 +1,17 @@
 #pragma once
 
-#include "IImGuiFactory.h"
+#include "UISystem/IImGuiFactory.h"
 #include "ImGuiLayerOGL.h"
 
 namespace CHModules {
 
     struct ImGuiFactoryOGL : CHEngine::IImGuiFactory
     {
-        CHEngine::IImGuiLayer* CreateImGuiLayer(void* nativeWindow) override
-        {
-            return CreateImpl<ImGuiLayerOGL>(nativeWindow);
-        }
+        CHEngine::IImGuiLayer* CreateImGuiLayer(void* nativeWindow) override;
 
-        void Delete(CHEngine::IImGuiLayer* ptr) override
-        {
-            DestroyImpl(static_cast<ImGuiLayerOGL*>(ptr));
-        }
+        void Delete(CHEngine::IImGuiLayer* ptr) override;
 
-        CHEngine::ModuleType GetType() const override
-        {
-            return CHEngine::ModuleType::ImGui;
-        }
+        CHEngine::ModuleType GetType() const override;
     };
 
 }

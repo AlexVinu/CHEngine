@@ -19,9 +19,11 @@ namespace CHModules {
     }
 
     WindowGLFW::WindowGLFW(uint32_t width, uint32_t height, const char* title,
-                           CHEngine::ErrorCallbackFn errorCallbackFn)
+                           CHEngine::ErrorCallbackFn errorCallbackFn, CHEngine::ERenderAPI renderApi)
         : m_Width(width), m_Height(height)
     {
+        CHE_CORE_ASSERT(renderApi != CHEngine::ERenderAPI::NONE, "Render API was not set");
+
         if (!s_GLFWInitialized) {
             int success = glfwInit();
             CHE_CORE_ASSERT(success, "Failed to initialize GLFW");
@@ -40,7 +42,10 @@ namespace CHModules {
 #else
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 6);
 #endif
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        if(renderApi == CHEngine::ERenderAPI::OPENGL)
+            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        else
+            glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
 
         m_Window = glfwCreateWindow((int)width, (int)height, title, nullptr, nullptr);
         if (!m_Window) {
@@ -81,6 +86,34 @@ namespace CHModules {
     void WindowGLFW::SetVSync(bool enabled)
     {
         glfwSwapInterval(enabled ? 1 : 0);
+    }
+
+    CHEngine::RendererInitInfo WindowGLFW::GetRenderInitInfo(CHEngine::ERenderAPI render_api) const
+    {
+        // Надо думать как сделать универсальное заполнение для все видов апи
+        CHEngine::RendererInitInfo info;
+        info.Loader = nullptr;
+        info.Height = m_Height; info.Width = m_Width;
+
+        switch (render_api)
+        {
+        case CHEngine::ERenderAPI::NONE: CHE_ASSERT(true, "Render was not set");
+            break;
+        case CHEngine::ERenderAPI::OPENGL: info.Loader = (ProcLoader)glfwGetProcAddress;
+            break;
+        case CHEngine::ERenderAPI::VULKAN: 
+            break;
+        case CHEngine::ERenderAPI::METALL:
+            break;
+        case CHEngine::ERenderAPI::DIRECTX11:
+            break;
+        case CHEngine::ERenderAPI::DIRECTX12:
+            break;
+        default:
+            break;
+        }
+
+        return info;
     }
 
     void WindowGLFW::SetWindowContext(const CHEngine::WindowContext& context)

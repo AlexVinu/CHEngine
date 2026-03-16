@@ -23,6 +23,9 @@ Scene::Scene()
 
 Scene::~Scene() = default;
 
+Scene::Scene(Scene&&) = default;
+Scene& Scene::operator=(Scene&&) = default;
+
 // ---------------------------------------------------------------------------
 // Helper (local to this TU): mirror SceneObject into ECS
 // Returns the entt handle so AddModel can patch MeshComponent.SourcePath

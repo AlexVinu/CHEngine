@@ -10,7 +10,10 @@ target_sources(${PROJECT_NAME} PRIVATE
     ${IMGUI_INCLUDE_DIR}/backends/imgui_impl_glfw.cpp
     ${IMGUI_INCLUDE_DIR}/backends/imgui_impl_opengl3.cpp
 )
-target_compile_definitions(${PROJECT_NAME} PRIVATE IMGUI_IMPL_OPENGL_LOADER_GLAD)
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+    IMGUI_IMPL_OPENGL_LOADER_GLAD
+    CHE_ENABLE_ASSERTS
+    )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 20

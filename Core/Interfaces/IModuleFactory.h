@@ -57,3 +57,5 @@ namespace CHEngine {
         virtual ModuleType GetType() const = 0;
     };
 }
+
+DECLARE_MODULE_FACTORY()
