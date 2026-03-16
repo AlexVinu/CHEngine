@@ -197,5 +197,5 @@ namespace CHEngine
             dlclose(handle);
         #endif
         }
-	};
+    };
 }
