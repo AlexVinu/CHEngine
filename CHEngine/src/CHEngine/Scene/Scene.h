@@ -23,6 +23,7 @@ public:
 	SceneObject* AddObject(const std::string& name = "Object");
 	SceneObject* AddModel(const std::string& name, std::vector<Mesh>&& meshes,
 	                      const std::string& sourcePath = "");
+	SceneObject* AddLight(const std::string& name, LightType type);
 	void RemoveObject(uint32_t id);
 	SceneObject* FindByID(uint32_t id);
 	void Clear();

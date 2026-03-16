@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "CHEngine/Mesh/Mesh.h"
+#include "CHEngine/Scene/Light.h"
 
 namespace CHEngine {
 
@@ -33,6 +34,9 @@ namespace CHEngine {
 		std::vector<Mesh> Meshes;
 		glm::vec4 Color = { 0.8f, 0.8f, 0.8f, 1.0f };
 		bool Visible = true;
+
+		// Источник света (Type == None → объект не является светом)
+		Light LightData;
 
 	private:
 		static uint32_t s_NextID;

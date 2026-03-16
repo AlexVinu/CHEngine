@@ -58,6 +58,19 @@ SceneObject* Scene::AddObject(const std::string& name)
 	return ptr;
 }
 
+SceneObject* Scene::AddLight(const std::string& name, LightType type)
+{
+	auto obj = std::make_unique<SceneObject>(name);
+	obj->LightData.Type = type;
+	SceneObject* ptr = obj.get();
+	m_IDIndex[ptr->ID] = ptr;
+	m_Objects.push_back(std::move(obj));
+
+	CreateECSEntity(m_pRegistry->registry, ptr->Name, ptr->ID);
+
+	return ptr;
+}
+
 SceneObject* Scene::AddModel(const std::string& name, std::vector<Mesh>&& meshes,
                              const std::string& sourcePath)
 {

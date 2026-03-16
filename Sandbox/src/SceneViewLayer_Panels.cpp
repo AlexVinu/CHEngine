@@ -147,6 +147,37 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     }
 
     ImGui::Spacing();
+
+    // ── Кнопки добавления источников света ────────────────────────────────
+    float halfW = (ImGui::GetContentRegionAvail().x - 4.0f) * 0.5f;
+    if (ImGui::Button("+ Dir Light", ImVec2(halfW, 0.0f)))
+    {
+        auto* light = m_Scene.AddLight("Directional Light", CHEngine::LightType::Directional);
+        if (light) {
+            light->ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+            m_SelectedObjectID = light->ID;
+        }
+    }
+    ImGui::SameLine(0, 4);
+    if (ImGui::Button("+ Point Light", ImVec2(halfW, 0.0f)))
+    {
+        auto* light = m_Scene.AddLight("Point Light", CHEngine::LightType::Point);
+        if (light) {
+            light->ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+            m_SelectedObjectID = light->ID;
+        }
+    }
+    if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
+    {
+        auto* light = m_Scene.AddLight("Spot Light", CHEngine::LightType::Spot);
+        if (light) {
+            light->ObjectTransform.Position = { 0.0f, 5.0f, 0.0f };
+            light->ObjectTransform.Rotation = { -90.0f, 0.0f, 0.0f };
+            m_SelectedObjectID = light->ID;
+        }
+    }
+
+    ImGui::Spacing();
     ImGui::PushStyleColor(ImGuiCol_Separator,
         ImVec4(0.282f, 0.282f, 0.290f, 0.45f));
     ImGui::Separator();
@@ -163,8 +194,14 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
             ImGuiTreeNodeFlags_FramePadding;
         if (isSelected) flags |= ImGuiTreeNodeFlags_Selected;
 
+        // Метка типа объекта в иерархии
+        const char* icon = "";
+        if (obj->LightData.Type == CHEngine::LightType::Directional) icon = "[D] ";
+        else if (obj->LightData.Type == CHEngine::LightType::Point)  icon = "[P] ";
+        else if (obj->LightData.Type == CHEngine::LightType::Spot)   icon = "[S] ";
+
         bool opened = ImGui::TreeNodeEx(
-            (void*)(intptr_t)obj->ID, flags, "  %s", obj->Name.c_str());
+            (void*)(intptr_t)obj->ID, flags, "  %s%s", icon, obj->Name.c_str());
 
         if (ImGui::IsItemClicked())
             m_SelectedObjectID = obj->ID;
@@ -265,6 +302,62 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         bool before = sel->Visible;
         if (UIActive::Toggle("Visible", &sel->Visible) && sel->Visible != before)
             m_UndoStack.PushVisibility(&m_Scene, sel->ID, before);
+    }
+
+    // LIGHT (показывать только для источников света)
+    if (sel->LightData.Type != CHEngine::LightType::None)
+    {
+        UIActive::SectionHeader("LIGHT");
+
+        const char* lightTypes[] = { "Directional", "Point", "Spot" };
+        int ltIdx = static_cast<int>(sel->LightData.Type);
+        ImGui::SetNextItemWidth(-1.0f);
+        if (ImGui::Combo("##lightType", &ltIdx, lightTypes, 3))
+            sel->LightData.Type = static_cast<CHEngine::LightType>(ltIdx);
+
+        ImGui::Spacing();
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+        ImGui::TextUnformatted("Color");
+        ImGui::PopStyleColor();
+        ImGui::SameLine(labelW);
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::ColorEdit3("##lightColor", glm::value_ptr(sel->LightData.Color));
+
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+        ImGui::TextUnformatted("Intensity");
+        ImGui::PopStyleColor();
+        ImGui::SameLine(labelW);
+        ImGui::SetNextItemWidth(-1.0f);
+        ImGui::DragFloat("##lightIntensity", &sel->LightData.Intensity, 0.05f, 0.0f, 100.0f, "%.2f");
+
+        if (sel->LightData.Type != CHEngine::LightType::Directional)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+            ImGui::TextUnformatted("Range");
+            ImGui::PopStyleColor();
+            ImGui::SameLine(labelW);
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::DragFloat("##lightRange", &sel->LightData.Range, 0.1f, 0.1f, 1000.0f, "%.1f");
+        }
+
+        if (sel->LightData.Type == CHEngine::LightType::Spot)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+            ImGui::TextUnformatted("Inner");
+            ImGui::PopStyleColor();
+            ImGui::SameLine(labelW);
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::DragFloat("##lightInner", &sel->LightData.InnerCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
+
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+            ImGui::TextUnformatted("Outer");
+            ImGui::PopStyleColor();
+            ImGui::SameLine(labelW);
+            ImGui::SetNextItemWidth(-1.0f);
+            ImGui::DragFloat("##lightOuter", &sel->LightData.OuterCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
+        }
+
+        ImGui::Spacing();
     }
 
     // INFO

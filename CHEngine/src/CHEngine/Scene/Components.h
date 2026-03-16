@@ -28,4 +28,8 @@ namespace CHEngine {
     struct VisibilityComponent {
         bool Visible = true;
     };
+
+    struct LightComponent {
+        Light LightData;
+    };
 }
