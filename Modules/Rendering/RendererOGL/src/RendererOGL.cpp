@@ -9,7 +9,7 @@ namespace CHModules
     void RendererOGL::Init(const CHEngine::RendererInitInfo& init_info)
     {
         if (!s_GLADInitialized) {
-            int success = gladLoadGLLoader((GLADloadproc)init_info.Loader);
+            int success = gladLoadGLLoader((GLADloadproc)init_info.OpenGL.Loader);
             CHE_CORE_ASSERT(success, "Failed to initialize GLAD");
             s_GLADInitialized = true;
 

@@ -1,7 +1,5 @@
 #pragma once
 
-using ProcLoader = void* (*)(const char*);
-
 namespace CHEngine
 {
 	enum class ERenderAPI
@@ -14,20 +12,31 @@ namespace CHEngine
 		DIRECTX12	= 5
 	};
 
-    // По большей части это костыли
-    // Если учитывать все особенности рендер апи, то много всего хранить придется + это не красиво
-    struct NativeWindowData
-    {
-        void* WindowHandle = nullptr;
-        void* DisplayHandle = nullptr;
-    };
-
     struct RendererInitInfo
     {
-        NativeWindowData NativeWindow;
-        uint32_t Width = 0;
-        uint32_t Height = 0;
-        ProcLoader Loader = nullptr;
+        union
+        {
+            struct {
+                void* Loader = nullptr;
+            } OpenGL;
+            struct
+            {
+                void* WindowHandle = nullptr;
+                void* DisplayHandle = nullptr;
+            } Vulkan;
+
+            struct
+            {
+                void* WindowHandle = nullptr;
+                void* DisplayHandle = nullptr;
+            } DirectX;
+            struct
+            {
+                void* NSView = nullptr;        
+                void* MetalLayer = nullptr;    
+                void* Device = nullptr;        
+            } Metal;
+        };
     };
 
 }
