@@ -40,17 +40,4 @@
 	#error Unsupported platform
 #endif
 
-#ifdef CHE_ENABLE_ASSERTS
-	#ifdef _MSC_VER
-		#define CHE_DEBUGBREAK() __debugbreak()
-	#else
-		#define CHE_DEBUGBREAK() __builtin_trap()
-	#endif
-	#define CHE_ASSERT(x, ...) {if(!(x)) {CHE_ERROR("Assertion Failed: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); } }
-	#define CHE_CORE_ASSERT(x, ...) {if(!(x)) {CHE_CORE_ERROR("Assertion Failed: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); } }
-#else
-	#define CHE_ASSERT(x, ...)
-	#define CHE_CORE_ASSERT(x, ...)
-#endif
-
 #define BIT(x) (1 << x)

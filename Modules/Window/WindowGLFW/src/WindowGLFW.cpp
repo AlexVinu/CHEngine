@@ -109,7 +109,7 @@ namespace CHModules {
             break;
         case CHEngine::ERenderAPI::OPENGL: info.Loader = (ProcLoader)glfwGetProcAddress;
             break;
-        case CHEngine::ERenderAPI::VULKAN: 
+        case CHEngine::ERenderAPI::VULKAN:
             break;
         case CHEngine::ERenderAPI::METALL:
             break;
@@ -122,6 +122,7 @@ namespace CHModules {
         }
 
         return info;
+    }
     bool WindowGLFW::IsKeyDown(int key) const
     {
         // GLFW key codes below GLFW_KEY_SPACE (32) are invalid and trigger errors
