@@ -1,7 +1,7 @@
 #include "chepch.h"
 #include "Input.h"
 
-#include <Render/IWindow.h>
+#include <WindowSystem/IWindow.h>
 
 namespace CHEngine {
 
