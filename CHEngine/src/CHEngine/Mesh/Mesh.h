@@ -6,6 +6,7 @@
 #include <cstdint>
 
 #include "CHEngine/Render/RenderResourceManager.h"
+#include "CHEngine/Mesh/Material.h"
 
 namespace CHEngine {
 
@@ -32,8 +33,8 @@ namespace CHEngine {
 		const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
 		const std::vector<uint32_t>& GetIndices() const { return m_Indices; }
 
-		// Diffuse/albedo texture. Invalid handle = no texture (use vertex color).
-		TextureHandle DiffuseTexture;
+		// Материал меша — диффузная/specular текстуры и параметры освещения.
+		Material Mat;
 
 	private:
 		VertexArrayHandle m_VertexArray;

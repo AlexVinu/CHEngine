@@ -35,6 +35,13 @@ namespace CHEngine {
 		return OpenFile("3D Models (*.obj *.glb *.gltf)", filters, 3, "Import 3D Model");
 	}
 
+	// ── Специализация для текстур ─────────────────────────────────────────────
+	std::string FileDialog::OpenImageFile()
+	{
+		const char* filters[] = { "*.png", "*.jpg", "*.jpeg", "*.tga", "*.bmp" };
+		return OpenFile("Images (*.png *.jpg *.tga *.bmp)", filters, 5, "Select Texture");
+	}
+
 	std::string FileDialog::SaveFile(const char* title,
 	                                 const char* defaultPath,
 	                                 const char* const* filterPatterns,
