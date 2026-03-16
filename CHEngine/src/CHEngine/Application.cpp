@@ -108,6 +108,26 @@ namespace CHEngine {
         if (m_ImGuiFactory)
             m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow());
 
+        // ─── 4а. Зарегистрировать hot reload для ImGuiOGL ────────────────────
+        // WindowGLFW и RendererOGL не перезагружаем — они держат GL-контекст
+        if (m_ImGuiFactory) {
+            m_ModuleManager.Watch(ModuleType::ImGui, {
+                // Уничтожить ImGui-слой до выгрузки dylib
+                [this]() {
+                    if (m_ImGuiLayer && m_ImGuiFactory)
+                        m_ImGuiFactory->Delete(m_ImGuiLayer);
+                    m_ImGuiLayer   = nullptr;
+                    m_ImGuiFactory = nullptr;
+                },
+                // Пересоздать после загрузки нового dylib
+                [this](IModuleFactory* factory) {
+                    m_ImGuiFactory = static_cast<IImGuiFactory*>(factory);
+                    if (m_Window)
+                        m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow());
+                }
+            });
+        }
+
         // ─── 5. Создать рендер-объекты (нужен GLAD, поэтому после шага 3) ───
         m_RenderApi = m_RenderResources.CreateRenderAPI();
         if (auto* api = m_RenderResources.Get(m_RenderApi))
@@ -172,10 +192,12 @@ namespace CHEngine {
 
     void Application::Run()
     {
-        m_LastFrameTime     = std::chrono::steady_clock::now();
-        float shaderPollAcc = 0.0f;
+        m_LastFrameTime      = std::chrono::steady_clock::now();
+        float shaderPollAcc  = 0.0f;
+        float modulePollAcc  = 0.0f;
 
-        constexpr float ShaderPollInterval = 0.5f; // опрос файлов раз в полсекунды
+        constexpr float ShaderPollInterval = 0.5f; // шейдеры — раз в полсекунды
+        constexpr float ModulePollInterval = 1.0f; // модули  — раз в секунду
 
         while (m_Running)
         {
@@ -189,6 +211,13 @@ namespace CHEngine {
             if (shaderPollAcc >= ShaderPollInterval) {
                 shaderPollAcc = 0.0f;
                 m_RenderResources.PollShaders();
+            }
+
+            // ── Module hot reload ────────────────────────────────────────────
+            modulePollAcc += dt;
+            if (modulePollAcc >= ModulePollInterval) {
+                modulePollAcc = 0.0f;
+                m_ModuleManager.Poll();
             }
 
             // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
