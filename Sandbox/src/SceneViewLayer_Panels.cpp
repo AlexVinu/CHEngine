@@ -309,6 +309,9 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     {
         auto& mat = sel->Meshes[mi].Mat;
 
+        // Уникальный ImGui ID для каждого меша (избегает коллизии виджетов)
+        ImGui::PushID(static_cast<int>(mi));
+
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
         if (sel->Meshes.size() > 1)
@@ -319,14 +322,18 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
         // Diffuse текстура
         {
-            const char* dLabel = mat.DiffuseMapPath.empty() ? "(none)" : mat.DiffuseMapPath.c_str();
+            char diffBuf[512];
+            const char* dSrc = mat.DiffuseMapPath.empty() ? "(none)" : mat.DiffuseMapPath.c_str();
+            std::strncpy(diffBuf, dSrc, sizeof(diffBuf));
+            diffBuf[sizeof(diffBuf) - 1] = '\0';
+
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
             ImGui::TextUnformatted("Diffuse");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             float fieldW = ImGui::GetContentRegionAvail().x - 52.0f;
             ImGui::SetNextItemWidth(fieldW);
-            ImGui::InputText("##diffPath", const_cast<char*>(dLabel), strlen(dLabel) + 1,
+            ImGui::InputText("##diffPath", diffBuf, sizeof(diffBuf),
                              ImGuiInputTextFlags_ReadOnly);
             ImGui::SameLine(0, 4);
             if (ImGui::Button("...##dif", ImVec2(24, 0)))
@@ -336,8 +343,8 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                 {
                     if (mat.DiffuseMap.IsValid())
                         m_Resources.DestroyTexture(mat.DiffuseMap);
-                    mat.DiffuseMapPath = path;
-                    mat.DiffuseMap     = m_Resources.CreateTextureFromFile(path);
+                    mat.DiffuseMap = m_Resources.CreateTextureFromFile(path);
+                    mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? path : "";
                 }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Выбрать текстуру");
@@ -345,7 +352,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
             if (ImGui::Button("X##dif", ImVec2(20, 0)) && mat.DiffuseMap.IsValid())
             {
                 m_Resources.DestroyTexture(mat.DiffuseMap);
-                mat.DiffuseMap     = CHEngine::TextureHandle::Invalid();
+                mat.DiffuseMap = CHEngine::TextureHandle::Invalid();
                 mat.DiffuseMapPath.clear();
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать текстуру");
@@ -353,14 +360,18 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
         // Specular текстура
         {
-            const char* sLabel = mat.SpecularMapPath.empty() ? "(none)" : mat.SpecularMapPath.c_str();
+            char specBuf[512];
+            const char* sSrc = mat.SpecularMapPath.empty() ? "(none)" : mat.SpecularMapPath.c_str();
+            std::strncpy(specBuf, sSrc, sizeof(specBuf));
+            specBuf[sizeof(specBuf) - 1] = '\0';
+
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
             ImGui::TextUnformatted("Specular");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             float fieldW = ImGui::GetContentRegionAvail().x - 52.0f;
             ImGui::SetNextItemWidth(fieldW);
-            ImGui::InputText("##specPath", const_cast<char*>(sLabel), strlen(sLabel) + 1,
+            ImGui::InputText("##specPath", specBuf, sizeof(specBuf),
                              ImGuiInputTextFlags_ReadOnly);
             ImGui::SameLine(0, 4);
             if (ImGui::Button("...##spec", ImVec2(24, 0)))
@@ -370,8 +381,8 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                 {
                     if (mat.SpecularMap.IsValid())
                         m_Resources.DestroyTexture(mat.SpecularMap);
-                    mat.SpecularMapPath = path;
-                    mat.SpecularMap     = m_Resources.CreateTextureFromFile(path);
+                    mat.SpecularMap = m_Resources.CreateTextureFromFile(path);
+                    mat.SpecularMapPath = mat.SpecularMap.IsValid() ? path : "";
                 }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Выбрать specular карту");
@@ -379,7 +390,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
             if (ImGui::Button("X##spec", ImVec2(20, 0)) && mat.SpecularMap.IsValid())
             {
                 m_Resources.DestroyTexture(mat.SpecularMap);
-                mat.SpecularMap     = CHEngine::TextureHandle::Invalid();
+                mat.SpecularMap = CHEngine::TextureHandle::Invalid();
                 mat.SpecularMapPath.clear();
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать specular карту");
@@ -392,6 +403,8 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         ImGui::SameLine(labelW);
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::DragFloat("##shin", &mat.Shininess, 0.5f, 1.0f, 256.0f, "%.1f");
+
+        ImGui::PopID();
     }
 
     // LIGHT (показывать только для источников света)

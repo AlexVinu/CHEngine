@@ -1266,6 +1266,7 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Mesh/ModelLoader_OBJ.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/u8path.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/tinyobjloader/tiny_obj_loader.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/fstream \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/set \

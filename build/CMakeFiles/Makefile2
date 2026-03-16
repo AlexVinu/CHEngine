@@ -372,7 +372,7 @@ vendors/GLFW/src/clean: vendors/GLFW/src/CMakeFiles/update_mappings.dir/clean
 CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/all:
 	$(MAKE) $(MAKESILENT) -f CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/build.make CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/depend
 	$(MAKE) $(MAKESILENT) -f CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/build.make CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=78,79 "Built target glm"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=79,80 "Built target glm"
 .PHONY : CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/all
 
 # Build rule for subdir invocation for target.
@@ -389,7 +389,7 @@ glm: CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/rule
 # codegen rule for target.
 CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/build.make CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=78,79 "Finished codegen for target glm"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=79,80 "Finished codegen for target glm"
 .PHONY : CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/codegen
 
 # clean rule for target.
@@ -404,7 +404,7 @@ CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/clean:
 vendors/GLFW/src/CMakeFiles/glfw.dir/all:
 	$(MAKE) $(MAKESILENT) -f vendors/GLFW/src/CMakeFiles/glfw.dir/build.make vendors/GLFW/src/CMakeFiles/glfw.dir/depend
 	$(MAKE) $(MAKESILENT) -f vendors/GLFW/src/CMakeFiles/glfw.dir/build.make vendors/GLFW/src/CMakeFiles/glfw.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77 "Built target glfw"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78 "Built target glfw"
 .PHONY : vendors/GLFW/src/CMakeFiles/glfw.dir/all
 
 # Build rule for subdir invocation for target.
@@ -421,7 +421,7 @@ glfw: vendors/GLFW/src/CMakeFiles/glfw.dir/rule
 # codegen rule for target.
 vendors/GLFW/src/CMakeFiles/glfw.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f vendors/GLFW/src/CMakeFiles/glfw.dir/build.make vendors/GLFW/src/CMakeFiles/glfw.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77 "Finished codegen for target glfw"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76,77,78 "Finished codegen for target glfw"
 .PHONY : vendors/GLFW/src/CMakeFiles/glfw.dir/codegen
 
 # clean rule for target.
@@ -436,7 +436,7 @@ vendors/GLFW/src/CMakeFiles/glfw.dir/clean:
 vendors/GLFW/src/CMakeFiles/update_mappings.dir/all:
 	$(MAKE) $(MAKESILENT) -f vendors/GLFW/src/CMakeFiles/update_mappings.dir/build.make vendors/GLFW/src/CMakeFiles/update_mappings.dir/depend
 	$(MAKE) $(MAKESILENT) -f vendors/GLFW/src/CMakeFiles/update_mappings.dir/build.make vendors/GLFW/src/CMakeFiles/update_mappings.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=94 "Built target update_mappings"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=95 "Built target update_mappings"
 .PHONY : vendors/GLFW/src/CMakeFiles/update_mappings.dir/all
 
 # Build rule for subdir invocation for target.
@@ -453,7 +453,7 @@ update_mappings: vendors/GLFW/src/CMakeFiles/update_mappings.dir/rule
 # codegen rule for target.
 vendors/GLFW/src/CMakeFiles/update_mappings.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f vendors/GLFW/src/CMakeFiles/update_mappings.dir/build.make vendors/GLFW/src/CMakeFiles/update_mappings.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=94 "Finished codegen for target update_mappings"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=95 "Finished codegen for target update_mappings"
 .PHONY : vendors/GLFW/src/CMakeFiles/update_mappings.dir/codegen
 
 # clean rule for target.
@@ -468,7 +468,7 @@ vendors/GLFW/src/CMakeFiles/update_mappings.dir/clean:
 Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/all:
 	$(MAKE) $(MAKESILENT) -f Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/build.make Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/depend
 	$(MAKE) $(MAKESILENT) -f Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/build.make Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=54,55 "Built target glad"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=55,56 "Built target glad"
 .PHONY : Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/all
 
 # Build rule for subdir invocation for target.
@@ -485,7 +485,7 @@ glad: Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/rule
 # codegen rule for target.
 Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/build.make Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=54,55 "Finished codegen for target glad"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=55,56 "Finished codegen for target glad"
 .PHONY : Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/codegen
 
 # clean rule for target.
@@ -500,7 +500,7 @@ Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/clean:
 Core/CMakeFiles/CHEngine_CORE.dir/all: Core/vendor/imgui-docking/CMakeFiles/imgui.dir/all
 	$(MAKE) $(MAKESILENT) -f Core/CMakeFiles/CHEngine_CORE.dir/build.make Core/CMakeFiles/CHEngine_CORE.dir/depend
 	$(MAKE) $(MAKESILENT) -f Core/CMakeFiles/CHEngine_CORE.dir/build.make Core/CMakeFiles/CHEngine_CORE.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=20,21,22,23 "Built target CHEngine_CORE"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=21,22,23,24 "Built target CHEngine_CORE"
 .PHONY : Core/CMakeFiles/CHEngine_CORE.dir/all
 
 # Build rule for subdir invocation for target.
@@ -517,7 +517,7 @@ CHEngine_CORE: Core/CMakeFiles/CHEngine_CORE.dir/rule
 # codegen rule for target.
 Core/CMakeFiles/CHEngine_CORE.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Core/CMakeFiles/CHEngine_CORE.dir/build.make Core/CMakeFiles/CHEngine_CORE.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=20,21,22,23 "Finished codegen for target CHEngine_CORE"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=21,22,23,24 "Finished codegen for target CHEngine_CORE"
 .PHONY : Core/CMakeFiles/CHEngine_CORE.dir/codegen
 
 # clean rule for target.
@@ -532,7 +532,7 @@ Core/CMakeFiles/CHEngine_CORE.dir/clean:
 Core/vendor/spdlog/CMakeFiles/spdlog.dir/all:
 	$(MAKE) $(MAKESILENT) -f Core/vendor/spdlog/CMakeFiles/spdlog.dir/build.make Core/vendor/spdlog/CMakeFiles/spdlog.dir/depend
 	$(MAKE) $(MAKESILENT) -f Core/vendor/spdlog/CMakeFiles/spdlog.dir/build.make Core/vendor/spdlog/CMakeFiles/spdlog.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=86,87,88,89,90,91,92,93 "Built target spdlog"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=87,88,89,90,91,92,93,94 "Built target spdlog"
 .PHONY : Core/vendor/spdlog/CMakeFiles/spdlog.dir/all
 
 # Build rule for subdir invocation for target.
@@ -549,7 +549,7 @@ spdlog: Core/vendor/spdlog/CMakeFiles/spdlog.dir/rule
 # codegen rule for target.
 Core/vendor/spdlog/CMakeFiles/spdlog.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Core/vendor/spdlog/CMakeFiles/spdlog.dir/build.make Core/vendor/spdlog/CMakeFiles/spdlog.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=86,87,88,89,90,91,92,93 "Finished codegen for target spdlog"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=87,88,89,90,91,92,93,94 "Finished codegen for target spdlog"
 .PHONY : Core/vendor/spdlog/CMakeFiles/spdlog.dir/codegen
 
 # clean rule for target.
@@ -564,7 +564,7 @@ Core/vendor/spdlog/CMakeFiles/spdlog.dir/clean:
 Core/vendor/imgui-docking/CMakeFiles/imgui.dir/all:
 	$(MAKE) $(MAKESILENT) -f Core/vendor/imgui-docking/CMakeFiles/imgui.dir/build.make Core/vendor/imgui-docking/CMakeFiles/imgui.dir/depend
 	$(MAKE) $(MAKESILENT) -f Core/vendor/imgui-docking/CMakeFiles/imgui.dir/build.make Core/vendor/imgui-docking/CMakeFiles/imgui.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=80,81,82,83,84,85 "Built target imgui"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=81,82,83,84,85,86 "Built target imgui"
 .PHONY : Core/vendor/imgui-docking/CMakeFiles/imgui.dir/all
 
 # Build rule for subdir invocation for target.
@@ -581,7 +581,7 @@ imgui: Core/vendor/imgui-docking/CMakeFiles/imgui.dir/rule
 # codegen rule for target.
 Core/vendor/imgui-docking/CMakeFiles/imgui.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Core/vendor/imgui-docking/CMakeFiles/imgui.dir/build.make Core/vendor/imgui-docking/CMakeFiles/imgui.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=80,81,82,83,84,85 "Finished codegen for target imgui"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=81,82,83,84,85,86 "Finished codegen for target imgui"
 .PHONY : Core/vendor/imgui-docking/CMakeFiles/imgui.dir/codegen
 
 # clean rule for target.
@@ -598,12 +598,12 @@ CHEngine/CMakeFiles/CHEngine.dir/all: Core/CMakeFiles/CHEngine_CORE.dir/all
 CHEngine/CMakeFiles/CHEngine.dir/all: Core/vendor/imgui-docking/CMakeFiles/imgui.dir/all
 	$(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/depend
 	$(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 "Built target CHEngine"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20 "Built target CHEngine"
 .PHONY : CHEngine/CMakeFiles/CHEngine.dir/all
 
 # Build rule for subdir invocation for target.
 CHEngine/CMakeFiles/CHEngine.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 31
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 32
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CHEngine/CMakeFiles/CHEngine.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 0
 .PHONY : CHEngine/CMakeFiles/CHEngine.dir/rule
@@ -615,7 +615,7 @@ CHEngine: CHEngine/CMakeFiles/CHEngine.dir/rule
 # codegen rule for target.
 CHEngine/CMakeFiles/CHEngine.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CHEngine/CMakeFiles/CHEngine.dir/build.make CHEngine/CMakeFiles/CHEngine.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19 "Finished codegen for target CHEngine"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20 "Finished codegen for target CHEngine"
 .PHONY : CHEngine/CMakeFiles/CHEngine.dir/codegen
 
 # clean rule for target.
@@ -628,18 +628,17 @@ CHEngine/CMakeFiles/CHEngine.dir/clean:
 
 # All Build rule for target.
 Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/all: CHEngine/vendor/GLM/glm/CMakeFiles/glm.dir/all
-Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/all: vendors/GLFW/src/CMakeFiles/glfw.dir/all
 Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/all: Modules/Rendering/RendererOGL/vendor/GLAD/CMakeFiles/glad.dir/all
 Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/all: Core/CMakeFiles/CHEngine_CORE.dir/all
 Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/all: Core/vendor/imgui-docking/CMakeFiles/imgui.dir/all
 	$(MAKE) $(MAKESILENT) -f Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/build.make Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/depend
 	$(MAKE) $(MAKESILENT) -f Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/build.make Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=30,31,32,33,34,35,36,37,38,39 "Built target RendererOGL"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=31,32,33,34,35,36,37,38,39,40 "Built target RendererOGL"
 .PHONY : Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/all
 
 # Build rule for subdir invocation for target.
 Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 46
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 24
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 0
 .PHONY : Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/rule
@@ -651,7 +650,7 @@ RendererOGL: Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/rule
 # codegen rule for target.
 Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/build.make Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=30,31,32,33,34,35,36,37,38,39 "Finished codegen for target RendererOGL"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=31,32,33,34,35,36,37,38,39,40 "Finished codegen for target RendererOGL"
 .PHONY : Modules/Rendering/RendererOGL/CMakeFiles/RendererOGL.dir/codegen
 
 # clean rule for target.
@@ -668,7 +667,7 @@ Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/all: Core/CMakeFiles/CHEngin
 Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/all: Core/vendor/imgui-docking/CMakeFiles/imgui.dir/all
 	$(MAKE) $(MAKESILENT) -f Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/build.make Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/depend
 	$(MAKE) $(MAKESILENT) -f Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/build.make Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=50,51,52,53 "Built target WindowGLFW"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=51,52,53,54 "Built target WindowGLFW"
 .PHONY : Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/all
 
 # Build rule for subdir invocation for target.
@@ -685,7 +684,7 @@ WindowGLFW: Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/rule
 # codegen rule for target.
 Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/build.make Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=50,51,52,53 "Finished codegen for target WindowGLFW"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=51,52,53,54 "Finished codegen for target WindowGLFW"
 .PHONY : Modules/Window/WindowGLFW/CMakeFiles/WindowGLFW.dir/codegen
 
 # clean rule for target.
@@ -703,7 +702,7 @@ Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/all: Core/CMakeFiles/CHEngine_CORE.d
 Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/all: Core/vendor/imgui-docking/CMakeFiles/imgui.dir/all
 	$(MAKE) $(MAKESILENT) -f Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/build.make Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/depend
 	$(MAKE) $(MAKESILENT) -f Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/build.make Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=24,25,26,27,28,29 "Built target ImGuiOGL"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=25,26,27,28,29,30 "Built target ImGuiOGL"
 .PHONY : Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/all
 
 # Build rule for subdir invocation for target.
@@ -720,7 +719,7 @@ ImGuiOGL: Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/rule
 # codegen rule for target.
 Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/build.make Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=24,25,26,27,28,29 "Finished codegen for target ImGuiOGL"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=25,26,27,28,29,30 "Finished codegen for target ImGuiOGL"
 .PHONY : Modules/UI/ImGuiOGL/CMakeFiles/ImGuiOGL.dir/codegen
 
 # clean rule for target.
@@ -738,12 +737,12 @@ Sandbox/CMakeFiles/Sandbox.dir/all: Core/vendor/imgui-docking/CMakeFiles/imgui.d
 Sandbox/CMakeFiles/Sandbox.dir/all: CHEngine/CMakeFiles/CHEngine.dir/all
 	$(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/depend
 	$(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=40,41,42,43,44,45,46,47,48,49 "Built target Sandbox"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=41,42,43,44,45,46,47,48,49,50 "Built target Sandbox"
 .PHONY : Sandbox/CMakeFiles/Sandbox.dir/all
 
 # Build rule for subdir invocation for target.
 Sandbox/CMakeFiles/Sandbox.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 41
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 42
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 Sandbox/CMakeFiles/Sandbox.dir/all
 	$(CMAKE_COMMAND) -E cmake_progress_start /Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles 0
 .PHONY : Sandbox/CMakeFiles/Sandbox.dir/rule
@@ -755,7 +754,7 @@ Sandbox: Sandbox/CMakeFiles/Sandbox.dir/rule
 # codegen rule for target.
 Sandbox/CMakeFiles/Sandbox.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f Sandbox/CMakeFiles/Sandbox.dir/build.make Sandbox/CMakeFiles/Sandbox.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=40,41,42,43,44,45,46,47,48,49 "Finished codegen for target Sandbox"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/marat/Downloads/CHEngine-main-2/build/CMakeFiles --progress-num=41,42,43,44,45,46,47,48,49,50 "Finished codegen for target Sandbox"
 .PHONY : Sandbox/CMakeFiles/Sandbox.dir/codegen
 
 # clean rule for target.

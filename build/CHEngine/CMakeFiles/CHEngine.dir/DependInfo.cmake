@@ -39,6 +39,8 @@ set(CMAKE_DEPENDS_DEPENDENCY_FILES
   "/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Scene/SceneSerializer.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Scene/SceneSerializer.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.cpp" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.cpp" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o.d"
+  "/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/CHEngine/src/Platform/Desktop/DesktopWindow.cpp" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o.d"
   "/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o" "gcc" "CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o.d"
   )

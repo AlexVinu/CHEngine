@@ -1046,9 +1046,10 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Application.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/Handle.h \
@@ -1061,14 +1062,7 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Application.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/../UISystem/IImGuiLayer.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/dlfcn.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/stdbool.h \
-  /Library/Developer/CommandLineTools/usr/lib/clang/17/include/stdbool.h \
-  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/filesystem \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/copy_options.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_entry.h \
@@ -1087,6 +1081,13 @@ CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Application.cpp.o: \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/u8path.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/dlfcn.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/stdbool.h \
+  /Library/Developer/CommandLineTools/usr/lib/clang/17/include/stdbool.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach-o/dyld.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/stddef.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/mach-o/loader.h \

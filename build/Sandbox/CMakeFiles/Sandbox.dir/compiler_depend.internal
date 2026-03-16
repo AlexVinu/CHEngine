@@ -3143,17 +3143,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Mesh.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/RecentFiles.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Scene.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneObject.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
@@ -3456,21 +3459,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec3.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec4.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vector_relational.hpp
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IBuffer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IShader.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/ITexture.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IVertexArray.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/String.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/Vector.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Core.h
@@ -3481,6 +3483,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SandboxApp.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/HandlePool.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/IAllocator.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/MemorySystem.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/chepch.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imconfig.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui.h
@@ -4562,17 +4565,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Mesh.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/RecentFiles.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Scene.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneObject.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
@@ -4787,21 +4793,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec3.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec4.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vector_relational.hpp
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IBuffer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IShader.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/ITexture.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IVertexArray.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/String.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/Vector.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Core.h
@@ -4812,6 +4817,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/HandlePool.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/IAllocator.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/MemorySystem.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/chepch.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imconfig.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui.h
@@ -5893,17 +5899,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Mesh.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/RecentFiles.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Scene.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneObject.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
@@ -6118,21 +6127,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec3.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec4.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vector_relational.hpp
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IBuffer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IShader.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/ITexture.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IVertexArray.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/String.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/Vector.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Core.h
@@ -6143,6 +6151,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/HandlePool.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/IAllocator.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/MemorySystem.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/chepch.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imconfig.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui.h
@@ -7224,17 +7233,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Mesh.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/RecentFiles.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Scene.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneObject.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
@@ -7449,21 +7461,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec3.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec4.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vector_relational.hpp
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IBuffer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IShader.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/ITexture.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IVertexArray.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/String.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/Vector.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Core.h
@@ -7474,6 +7485,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_IO.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/HandlePool.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/IAllocator.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/MemorySystem.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/chepch.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imconfig.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui.h
@@ -8555,17 +8567,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Mesh.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/RecentFiles.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Scene.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneObject.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
@@ -8868,21 +8883,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec3.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec4.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vector_relational.hpp
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IBuffer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IShader.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/ITexture.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IVertexArray.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/String.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/Vector.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Core.h
@@ -8893,6 +8907,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Panels.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/HandlePool.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/IAllocator.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/MemorySystem.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/chepch.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imconfig.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui.h
@@ -9974,17 +9989,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Input/Input.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Mesh.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/RecentFiles.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Scene.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneObject.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileDialog.h
+ /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/common.hpp
@@ -10287,21 +10305,20 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec3.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vec4.hpp
  /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/vector_relational.hpp
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IBuffer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IShader.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/ITexture.h
  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IVertexArray.h
- /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/String.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Containers/Vector.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Core.h
@@ -10312,6 +10329,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Render.cpp.o
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/HandlePool.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/IAllocator.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/MemorySystem.h
+ /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h
  /Users/marat/Downloads/CHEngine-main-2/Core/src/chepch.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imconfig.h
  /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui.h

@@ -83,7 +83,7 @@ namespace CHModules {
 
     void WindowGLFW::SwapBuffers()
     {
-        glfwSwapBuffers(m_Window);
+        if (m_Window) glfwSwapBuffers(m_Window);
     }
 
     void WindowGLFW::PollEvents()
@@ -98,23 +98,27 @@ namespace CHModules {
 
     CHEngine::RendererInitInfo WindowGLFW::GetRenderInitInfo(CHEngine::ERenderAPI render_api) const
     {
+        CHEngine::RendererInitInfo info{};
+
         switch (render_api)
         {
-        case CHEngine::ERenderAPI::NONE: CHE_ASSERT(true, "Render was not set");
-            break;
-        case CHEngine::ERenderAPI::OPENGL: return {glfwGetProcAddress};
+        case CHEngine::ERenderAPI::OPENGL:
+            // reinterpret_cast: function pointer → void* (POSIX гарантирует совместимость)
+            info.OpenGL.Loader = reinterpret_cast<void*>(glfwGetProcAddress);
             break;
         case CHEngine::ERenderAPI::VULKAN:
-            break;
         case CHEngine::ERenderAPI::METALL:
-            break;
         case CHEngine::ERenderAPI::DIRECTX11:
-            break;
         case CHEngine::ERenderAPI::DIRECTX12:
+            CHE_CORE_ERROR("GetRenderInitInfo: API {} не поддерживается WindowGLFW", (int)render_api);
             break;
+        case CHEngine::ERenderAPI::NONE:
         default:
+            CHE_CORE_ERROR("GetRenderInitInfo: Render API не установлен");
             break;
         }
+
+        return info;
     }
     bool WindowGLFW::IsKeyDown(int key) const
     {

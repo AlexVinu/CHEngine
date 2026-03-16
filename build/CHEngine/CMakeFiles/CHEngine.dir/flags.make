@@ -47,6 +47,8 @@ CXX_FLAGS = -g -std=c++20 -arch arm64 -fPIC -Wall -Wextra -Wpedantic -fvisibilit
 
 # PCH options: CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o_OPTIONS = -Winvalid-pch;-Xclang;-include-pch;-Xclang;/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx.pch;-Xclang;-include;-Xclang;/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx
 
+# PCH options: CHEngine/CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o_OPTIONS = -Winvalid-pch;-Xclang;-include-pch;-Xclang;/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx.pch;-Xclang;-include;-Xclang;/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx
+
 # PCH options: CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o_OPTIONS = -Winvalid-pch;-Xclang;-include-pch;-Xclang;/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx.pch;-Xclang;-include;-Xclang;/Users/marat/Downloads/CHEngine-main-2/build/CHEngine/CMakeFiles/CHEngine.dir/cmake_pch.hxx
 
 # Custom flags: CHEngine/CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o_FLAGS = -w

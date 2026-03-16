@@ -33,6 +33,8 @@ file(REMOVE_RECURSE
   "CMakeFiles/CHEngine.dir/src/CHEngine/Scene/SceneSerializer.cpp.o.d"
   "CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o"
   "CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileDialog.cpp.o.d"
+  "CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o"
+  "CMakeFiles/CHEngine.dir/src/CHEngine/Utils/FileWatcher.cpp.o.d"
   "CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o"
   "CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o.d"
   "CMakeFiles/CHEngine.dir/vendor/tinyfiledialogs/tinyfiledialogs.c.o"

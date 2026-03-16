@@ -163,24 +163,29 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
                 if (!diffPath.empty() && diffPath != mat.DiffuseMapPath) {
                     if (mat.DiffuseMap.IsValid())
                         resources.DestroyTexture(mat.DiffuseMap);
-                    mat.DiffuseMapPath = diffPath;
-                    mat.DiffuseMap     = resources.CreateTextureFromFile(diffPath);
+                    mat.DiffuseMap = resources.CreateTextureFromFile(diffPath);
+                    mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
                 }
 
                 std::string specPath = mj.value("specularPath", "");
-                if (!specPath.empty()) {
+                if (!specPath.empty() && specPath != mat.SpecularMapPath) {
                     if (mat.SpecularMap.IsValid())
                         resources.DestroyTexture(mat.SpecularMap);
-                    mat.SpecularMapPath = specPath;
-                    mat.SpecularMap     = resources.CreateTextureFromFile(specPath);
+                    mat.SpecularMap = resources.CreateTextureFromFile(specPath);
+                    mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
                 }
             }
         }
 
         // Десериализация источника света
         if (o.contains("light") && o["light"].is_object()) {
-            auto& lj = o["light"];
-            obj->LightData.Type = static_cast<LightType>(lj.value("type", -1));
+            const auto& lj = o["light"];
+            int typeVal = lj.value("type", -1);
+            if (typeVal < 0 || typeVal > 2) {
+                CHE_CORE_WARN("SceneSerializer: некорректный тип света {} у '{}', сброс", typeVal, name);
+                typeVal = -1;
+            }
+            obj->LightData.Type = static_cast<LightType>(typeVal);
             float lc[3];
             if (lj.contains("color") && readFloats(lj["color"], 3, lc))
                 obj->LightData.Color = { lc[0], lc[1], lc[2] };

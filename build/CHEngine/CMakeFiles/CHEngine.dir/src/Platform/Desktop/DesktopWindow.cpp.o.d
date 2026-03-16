@@ -1043,9 +1043,10 @@ CHEngine/CMakeFiles/CHEngine.dir/src/Platform/Desktop/DesktopWindow.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Events/Event.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/src/EventData.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Events/ApplicationEvent.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Events/MouseEvent.h \

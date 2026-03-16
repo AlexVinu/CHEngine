@@ -1048,9 +1048,10 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/LayerStack.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Layer/Layer.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Window.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IWindow.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindow.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/src/RenderData.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Input/KeyCodes.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IWindowFactory.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/WindowSystem/IWindowFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IModuleFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Render/RenderResourceManager.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/src/Memory/Handle.h \
@@ -1063,9 +1064,27 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IFramebuffer.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderApi.h \
   /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IRenderer.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/IImGuiLayer.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/Render/../UISystem/IImGuiLayer.h \
-  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/IImGuiFactory.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Utils/FileWatcher.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/filesystem \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/copy_options.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_entry.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/file_status.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/file_type.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/perms.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/file_time_type.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/filesystem_error.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/iomanip \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/operations.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/perm_options.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/space_info.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_iterator.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_options.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path_iterator.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
+  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/u8path.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiLayer.h \
+  /Users/marat/Downloads/CHEngine-main-2/Core/Interfaces/UISystem/IImGuiFactory.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/ModuleManager.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/dlfcn.h \
   /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/stdbool.h \
@@ -1267,6 +1286,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/integer.hpp \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/detail/func_integer.inl \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Mesh.h \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/Material.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Mesh/ModelLoader.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Scene.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneObject.h \
@@ -1294,6 +1314,7 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/gtc/../geometric.hpp \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/gtc/../trigonometric.hpp \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/vendor/GLM/glm/gtc/../matrix.hpp \
+  /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Light.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Components.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/Entity.h \
   /Users/marat/Downloads/CHEngine-main-2/CHEngine/src/CHEngine/Scene/SceneSerializer.h \
@@ -1309,22 +1330,4 @@ Sandbox/CMakeFiles/Sandbox.dir/src/SceneViewLayer_Camera.cpp.o: \
   /Users/marat/Downloads/CHEngine-main-2/Core/vendor/imgui-docking/imgui/imgui_internal.h \
   /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/UIThemeRetroOS.h \
   /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/UndoStack.h \
-  /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/ContentBrowserPanel.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/filesystem \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/copy_options.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_entry.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/file_status.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/file_type.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/perms.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/file_time_type.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/filesystem_error.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/iomanip \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/operations.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/perm_options.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/space_info.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_iterator.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/directory_options.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/path_iterator.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/recursive_directory_iterator.h \
-  /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/include/c++/v1/__filesystem/u8path.h
+  /Users/marat/Downloads/CHEngine-main-2/Sandbox/src/ContentBrowserPanel.h
