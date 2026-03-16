@@ -7,6 +7,7 @@
 
 #include "Render/IRenderFactory.h"
 #include "Render/IFramebuffer.h"
+#include "CHEngine/Utils/FileWatcher.h"
 
 #include <memory>
 #include <vector>
@@ -74,6 +75,10 @@ namespace CHEngine {
 		// Returns true on success; the old GPU program remains on failure.
 		bool ReloadShader(ShaderHandle h);
 
+		// Опросить FileWatcher и перезагрузить изменившиеся шейдеры.
+		// Вызывать раз в 0.5–1 сек (не каждый кадр).
+		void PollShaders();
+
 		const std::vector<ShaderEntry>& GetShaderEntries() const;
 
 		void DestroyShader(ShaderHandle h);
@@ -88,6 +93,8 @@ namespace CHEngine {
 		static String ReadTextFile(const String& path);
 
 		IRenderFactory* m_Factory = nullptr;
+
+		FileWatcher m_ShaderWatcher;
 
 		HandlePool<IShader,      ShaderTag>       m_Shaders;
 		HandlePool<IVertexArray, VertexArrayTag>  m_VertexArrays;

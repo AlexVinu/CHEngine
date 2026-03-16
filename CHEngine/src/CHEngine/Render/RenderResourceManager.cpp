@@ -3,6 +3,7 @@
 
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 
 namespace CHEngine {
 
@@ -74,6 +75,13 @@ namespace CHEngine {
 		entry.valid    = valid;
 		m_ShaderEntries.push_back(std::move(entry));
 
+		// Автоматически регистрируем шейдер для hot reload
+		if (valid) {
+			auto reloadFn = [this, handle](const std::filesystem::path&) { ReloadShader(handle); };
+			m_ShaderWatcher.Watch(std::filesystem::path(vertexPath.c_str()),   reloadFn);
+			m_ShaderWatcher.Watch(std::filesystem::path(fragmentPath.c_str()), reloadFn);
+		}
+
 		return handle;
 	}
 
@@ -133,6 +141,11 @@ namespace CHEngine {
 			CHE_CORE_ERROR("ReloadShader: compilation failed for '{0}' — keeping old program", entry->name.c_str());
 
 		return success;
+	}
+
+	void RenderResourceManager::PollShaders()
+	{
+		m_ShaderWatcher.Poll();
 	}
 
 	VertexArrayHandle RenderResourceManager::CreateVertexArray()
@@ -263,6 +276,7 @@ namespace CHEngine {
 
 	void RenderResourceManager::Shutdown()
 	{
+		m_ShaderWatcher.Clear();
 		m_Shaders.Clear();
 		m_VertexArrays.Clear();
 		m_RenderApis.Clear();

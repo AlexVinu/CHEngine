@@ -1,0 +1,1 @@
+/usr/bin/cc -g -arch arm64 -dynamiclib -Wl,-headerpad_max_install_names -o /Users/marat/Downloads/CHEngine-main-2/bin/Debug-macos-x64/lib/libglad.dylib -install_name @rpath/libglad.dylib CMakeFiles/glad.dir/src/glad.c.o
