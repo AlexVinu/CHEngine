@@ -51,6 +51,13 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     glfw
 )
 
+# macOS: нужен Cocoa для glfwGetCocoaWindow (Metal рендерер)
+if(APPLE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        "-framework Cocoa"
+    )
+endif()
+
 set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/bin"
     LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"

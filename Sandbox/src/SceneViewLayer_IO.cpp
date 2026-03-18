@@ -1,5 +1,8 @@
 #include "SceneViewLayer.h"
 
+#include <filesystem>
+#include <fstream>
+
 
 // ============================================================================
 //  Scene serialization
@@ -38,6 +41,116 @@ void SceneViewLayer::LoadScene(const std::string& path)
         m_RecentFiles.AddPath(filePath);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
     }
+}
+
+// ============================================================================
+//  API switch session save/restore
+// ============================================================================
+
+void SceneViewLayer::AutoSaveForRestart()
+{
+    // 1. Сцена (объекты, источники света)
+    CHEngine::SceneSerializer serializer(&m_Scene);
+    if (serializer.SaveToFile(k_SessionFile))
+        CHE_CORE_INFO("SceneViewLayer: scene autosaved to {}", k_SessionFile);
+    else
+        CHE_CORE_WARN("SceneViewLayer: failed to autosave scene");
+
+    // 2. Состояние редактора: камера, orbit, выделение
+    std::ofstream f(k_SessionStateFile);
+    if (!f) {
+        CHE_CORE_WARN("SceneViewLayer: cannot write session state");
+        return;
+    }
+
+    // Camera
+    glm::vec3 pos = m_Camera.GetPosition();
+    f << pos.x        << " " << pos.y         << " " << pos.z << "\n";
+    f << m_Camera.GetYaw()   << "\n";
+    f << m_Camera.GetPitch() << "\n";
+    f << m_Camera.GetFOV()   << "\n";
+
+    // Orbit
+    f << m_OrbitTarget.x << " " << m_OrbitTarget.y << " " << m_OrbitTarget.z << "\n";
+    f << m_OrbitDist     << "\n";
+    f << (m_FollowObject ? 1 : 0) << "\n";
+
+    // Selected object
+    f << m_SelectedObjectID << "\n";
+
+    // Window position and size — чтобы новое окно открылось на том же месте
+    {
+        auto* win = CHEngine::Application::Get().GetWindow();
+        if (win && win->GetPlatformWindow()) {
+            auto* pw = win->GetPlatformWindow();
+            int wx = 0, wy = 0;
+            pw->GetWindowPos(wx, wy);
+            f << wx << " " << wy << " "
+              << pw->GetWidth() << " " << pw->GetHeight() << "\n";
+        }
+    }
+
+    CHE_CORE_INFO("SceneViewLayer: editor state saved");
+}
+
+void SceneViewLayer::TryRestoreSession()
+{
+    // 1. Восстанавливаем сцену
+    if (std::filesystem::exists(k_SessionFile)) {
+        CHEngine::SceneSerializer serializer(&m_Scene);
+        if (serializer.LoadFromFile(k_SessionFile, m_Resources))
+            CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
+        else
+            CHE_CORE_WARN("SceneViewLayer: failed to restore scene");
+        std::filesystem::remove(k_SessionFile);
+    }
+
+    // 2. Восстанавливаем состояние редактора
+    if (!std::filesystem::exists(k_SessionStateFile)) return;
+
+    std::ifstream f(k_SessionStateFile);
+    if (!f) {
+        CHE_CORE_WARN("SceneViewLayer: cannot read session state");
+        return;
+    }
+
+    // Camera
+    glm::vec3 pos{};
+    f >> pos.x >> pos.y >> pos.z;
+    m_Camera.SetPosition(pos);
+
+    float yaw, pitch, fov;
+    f >> yaw >> pitch >> fov;
+    m_Camera.SetYaw(yaw);
+    m_Camera.SetPitch(pitch);
+    m_Camera.SetFOV(fov);
+
+    // Orbit
+    f >> m_OrbitTarget.x >> m_OrbitTarget.y >> m_OrbitTarget.z;
+    f >> m_OrbitDist;
+    int follow;
+    f >> follow;
+    m_FollowObject = (follow != 0);
+
+    // Selected object
+    f >> m_SelectedObjectID;
+
+    // Восстанавливаем позицию и размер окна
+    {
+        int wx = -1, wy = -1;
+        uint32_t ww = 0, wh = 0;
+        if (f >> wx >> wy >> ww >> wh && wx >= 0 && ww > 0 && wh > 0) {
+            auto* win = CHEngine::Application::Get().GetWindow();
+            if (win && win->GetPlatformWindow()) {
+                auto* pw = win->GetPlatformWindow();
+                pw->SetWindowPos(wx, wy);
+                pw->SetWindowSize(ww, wh);
+            }
+        }
+    }
+
+    std::filesystem::remove(k_SessionStateFile);
+    CHE_CORE_INFO("SceneViewLayer: editor state restored");
 }
 
 // ============================================================================

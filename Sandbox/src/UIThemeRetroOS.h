@@ -127,7 +127,7 @@ namespace UIThemeRetro
                     break; }
         }
 
-        io.Fonts->Build();
+        // НЕ вызываем io.Fonts->Build() — см. UITheme.h
         if (!g_FontMono)    g_FontMono    = io.FontDefault;
         if (!g_FontMonoBig) g_FontMonoBig = io.FontDefault;
     }

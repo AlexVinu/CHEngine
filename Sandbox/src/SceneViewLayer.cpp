@@ -33,6 +33,9 @@ SceneViewLayer::SceneViewLayer()
     ApplyOrbit();
 
     m_RecentFiles.LoadFromFile("recent_scenes.txt");
+
+    // Восстанавливаем сцену если был рестарт при смене API
+    TryRestoreSession();
 }
 
 // ============================================================================
@@ -124,13 +127,19 @@ void SceneViewLayer::OnImGuiRender()
 
         ImVec2 panelSize = ImGui::GetContentRegionAvail();
 
-        // Resize FBO if panel size changed
+        // Resize FBO if panel size changed.
+        // FBO создаётся в пикселях (с учётом Retina): panelSize × fbScale.
+        // ImGui::Image вызывается с panelSize в screen points — ImGui сам
+        // масштабирует UV при рендере, поэтому картинка не пикселится.
         if (panelSize.x > 1.0f && panelSize.y > 1.0f &&
             (panelSize.x != m_ViewportSize.x || panelSize.y != m_ViewportSize.y))
         {
             m_ViewportSize = panelSize;
+            ImVec2 fbScale = ImGui::GetIO().DisplayFramebufferScale;
             auto* fbo = m_Resources.Get(m_Framebuffer);
-            if (fbo) fbo->Resize((uint32_t)panelSize.x, (uint32_t)panelSize.y);
+            if (fbo) fbo->Resize(
+                static_cast<uint32_t>(panelSize.x * fbScale.x),
+                static_cast<uint32_t>(panelSize.y * fbScale.y));
             m_AspectRatio = panelSize.x / panelSize.y;
         }
 
@@ -138,8 +147,13 @@ void SceneViewLayer::OnImGuiRender()
         auto* fbo2 = m_Resources.Get(m_Framebuffer);
         if (fbo2)
         {
-            uint32_t texID = fbo2->GetColorAttachmentID();
-            ImGui::Image((ImTextureID)(uintptr_t)texID, panelSize, ImVec2(0, 1), ImVec2(1, 0));
+            void* nativeTex = fbo2->GetNativeColorAttachment();
+            // OpenGL: flip Y (bottom-left origin). Metal: no flip (top-left origin).
+            const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType()
+                                  == CHEngine::ERenderAPI::METALL);
+            ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
+            ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
+            ImGui::Image((ImTextureID)nativeTex, panelSize, uv0, uv1);
         }
 
         // Gizmo MUST be inside the viewport window and use its drawlist

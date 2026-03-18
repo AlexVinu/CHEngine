@@ -58,5 +58,10 @@ namespace CHEngine
         virtual bool IsKeyDown(int key) const = 0;
         virtual bool IsMouseButtonDown(int button) const = 0;
         virtual void GetMousePosition(float& x, float& y) const = 0;
+
+        // ── Window geometry (позиция и размер для сохранения/восстановления) ─
+        virtual void GetWindowPos(int& x, int& y) const { x = 0; y = 0; }
+        virtual void SetWindowPos(int x, int y) { (void)x; (void)y; }
+        virtual void SetWindowSize(uint32_t w, uint32_t h) { (void)w; (void)h; }
     };
 }

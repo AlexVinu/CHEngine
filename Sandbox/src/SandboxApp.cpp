@@ -211,7 +211,8 @@ private:
 class Sandbox : public CHEngine::Application
 {
 public:
-	Sandbox()
+	Sandbox(const CHEngine::ApplicationConfig& config)
+		: CHEngine::Application(config)
 	{
 		GetRenderResources().CreateShaderFromFile(
 			CHEngine::String("Flat"),
@@ -234,7 +235,7 @@ public:
 	~Sandbox() {}
 };
 
-CHEngine::Application* CHEngine::CreateApplication()
+CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config)
 {
-	return new Sandbox();
+	return new Sandbox(config);
 }

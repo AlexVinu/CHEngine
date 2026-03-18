@@ -23,6 +23,14 @@ namespace CHEngine {
         // Used by ImGui::Image — cast to (ImTextureID)(uintptr_t)id.
         virtual uint32_t GetColorAttachmentID() const = 0;
 
+        // Returns native color attachment as void* for ImGui::Image.
+        // OpenGL: (void*)(uintptr_t)glTextureID.
+        // Metal: id<MTLTexture> cast to void*.
+        virtual void* GetNativeColorAttachment() const
+        {
+            return (void*)(uintptr_t)GetColorAttachmentID();
+        }
+
         virtual uint32_t GetWidth()  const = 0;
         virtual uint32_t GetHeight() const = 0;
     };

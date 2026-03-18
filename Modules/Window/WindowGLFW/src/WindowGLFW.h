@@ -32,11 +32,16 @@ namespace CHModules {
         bool IsMouseButtonDown(int button) const override;
         void GetMousePosition(float& x, float& y) const override;
 
+        void GetWindowPos(int& x, int& y) const override;
+        void SetWindowPos(int x, int y) override;
+        void SetWindowSize(uint32_t w, uint32_t h) override;
+
         static CHEngine::EventType ConvertFromGLFW(int action);
 
     private:
         GLFWwindow* m_Window = nullptr;
         CHEngine::WindowContext m_Context;
+        CHEngine::ERenderAPI m_RenderAPI = CHEngine::ERenderAPI::NONE;
         uint32_t m_Width  = 0;
         uint32_t m_Height = 0;
     };

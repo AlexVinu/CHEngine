@@ -6,19 +6,35 @@
 
 namespace CHEngine
 {
-    // Интерфейс OpenGL-рендерера.
-    // Отвечает только за инициализацию GLAD и управление viewport.
-    // Создание окна и управление контекстом вынесено в IWindow (WindowGLFW модуль).
+    /// Непрозрачный контекст для передачи нативных объектов рендерера
+    /// в ImGui-бэкенд (Metal: MTLDevice, CommandBuffer, Encoder и т.д.).
+    struct RenderContextInfo
+    {
+        void* Device               = nullptr;
+        void* CommandBuffer        = nullptr;
+        void* RenderEncoder        = nullptr;
+        void* RenderPassDescriptor = nullptr;
+    };
 
     class IRenderer
     {
     public:
         virtual ~IRenderer() = default;
 
-        // Инициализировать GLAD используя GL-контекст из существующего нативного окна
         virtual void Init(const RendererInitInfo& init_info) = 0;
         virtual void Shutdown() = 0;
 
         virtual void SetViewport(uint32_t width, uint32_t height) = 0;
+
+        /// Начать кадр (Metal: получить drawable, создать command buffer/encoder).
+        /// OpenGL — no-op (контекст всегда готов).
+        virtual bool BeginFrame() { return true; }
+
+        /// Завершить кадр (Metal: end encoding, present, commit).
+        /// OpenGL — no-op (SwapBuffers в Window).
+        virtual void EndFrame() {}
+
+        /// Нативные объекты текущего кадра для ImGui-бэкенда.
+        virtual RenderContextInfo GetRenderContext() const { return {}; }
     };
 }

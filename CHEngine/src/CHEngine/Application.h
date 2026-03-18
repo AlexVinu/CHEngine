@@ -15,14 +15,21 @@
 
 #include "ModuleManager.h"
 
+#include "RenderData.h"
+
 #include <chrono>
 
 namespace CHEngine {
 
+    struct CHENGINE_API ApplicationConfig
+    {
+        ERenderAPI RenderAPI = ERenderAPI::OPENGL;
+    };
+
     class CHENGINE_API Application
     {
     public:
-        Application();
+        Application(const ApplicationConfig& config = {});
         virtual ~Application();
 
         void Run();
@@ -40,6 +47,12 @@ namespace CHEngine {
 
         RenderResourceManager& GetRenderResources() { return m_RenderResources; }
         RenderAPIHandle GetRenderApiHandle() const { return m_RenderApi; }
+        Window* GetWindow() const { return m_Window.get(); }
+
+        ERenderAPI GetRenderAPIType() const { return m_RenderAPIType; }
+
+        void RequestRestart();
+        bool IsRestartRequested() const { return m_RestartRequested; }
 
         ShaderHandle GetActiveShader() const         { return m_Shader; }
         void         SetActiveShader(ShaderHandle h)  { m_Shader = h; }
@@ -63,8 +76,11 @@ namespace CHEngine {
         ShaderHandle    m_Shader;
         RenderAPIHandle m_RenderApi;
 
+        ERenderAPI      m_RenderAPIType = ERenderAPI::OPENGL;
+        bool            m_RestartRequested = false;
+
         IImGuiLayer* m_ImGuiLayer  = nullptr;
-        IRenderer*   m_OGLRenderer = nullptr;  // держит GLAD инициализированным
+        IRenderer*   m_Renderer    = nullptr;
 
         std::unique_ptr<Window> m_Window;
 
@@ -73,6 +89,6 @@ namespace CHEngine {
     };
 
     // To be defined in client
-    Application* CreateApplication();
+    Application* CreateApplication(const ApplicationConfig& config);
 
 }

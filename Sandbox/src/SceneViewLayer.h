@@ -19,12 +19,14 @@
 //    Properties  — transform, material, mesh info
 //    Camera      — view presets, orbit controls
 //
-//  Camera controls (macOS trackpad)
-//    Two-finger swipe up/down   → zoom
-//    Two-finger swipe left/right→ orbit yaw
-//    Ctrl + swipe up/down       → orbit pitch
-//    RMB drag                   → pan (grab mode)
-//    MMB drag                   → pan
+//  Camera controls (Blender-style, macOS trackpad)
+//    RMB drag / two-finger drag → orbit (вращение вокруг цели)
+//    Alt+LMB drag               → orbit
+//    MMB drag                   → orbit
+//    Alt+Shift+LMB drag         → pan (рука)
+//    Shift+MMB drag             → pan
+//    Scroll up/down             → zoom
+//    Ctrl+Scroll                → orbit pitch
 //    F                          → frame selected
 //    Shift + gizmo drag         → snap (1 unit / 45° / 0.1)
 // ============================================================================
@@ -65,6 +67,13 @@ private:
     void SaveScene();
     void LoadScene(const std::string& path = "");
 
+    // Сохраняет/восстанавливает сцену при переключении render API
+    void AutoSaveForRestart();
+    void TryRestoreSession();
+
+    static constexpr const char* k_SessionFile      = ".che_session.chscene";
+    static constexpr const char* k_SessionStateFile = ".che_session_state";
+
     // =========================================================================
     // State
     // =========================================================================
@@ -101,6 +110,7 @@ private:
     // Viewport flags
     bool m_ShowGrid    = true;
     bool m_ResetLayout = false;   // true → snap panel sizes back next frame
+
 
     // Undo
     UndoStack               m_UndoStack;
