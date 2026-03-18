@@ -2,6 +2,11 @@
 
 #include <Log/Log.h>
 
+#if defined(CHE_PLATFORM_APPLE)
+#define GLFW_EXPOSE_NATIVE_COCOA
+#include <GLFW/glfw3native.h>
+#endif
+
 namespace CHModules {
 
     static int  s_GLFWRefCount     = 0;
@@ -20,7 +25,7 @@ namespace CHModules {
 
     WindowGLFW::WindowGLFW(uint32_t width, uint32_t height, const char* title,
                            CHEngine::ErrorCallbackFn errorCallbackFn, CHEngine::ERenderAPI renderApi)
-        : m_Width(width), m_Height(height)
+        : m_RenderAPI(renderApi), m_Width(width), m_Height(height)
     {
         CHE_CORE_ASSERT(renderApi != CHEngine::ERenderAPI::NONE, "Render API was not set");
 
@@ -35,21 +40,24 @@ namespace CHModules {
         }
         ++s_GLFWRefCount;
 
-        // OpenGL version: macOS caps at 4.1 (Apple limitation),
-        // Windows/Linux request 4.5 for broad compatibility.
-        // Shaders use #version 330 core, so 3.3+ would suffice,
-        // but 4.x gives access to DSA, compute shaders, etc. if needed.
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
+        if (renderApi == CHEngine::ERenderAPI::OPENGL)
+        {
+            // OpenGL version: macOS caps at 4.1 (Apple limitation),
+            // Windows/Linux request 4.5 for broad compatibility.
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
 #ifdef CHE_PLATFORM_APPLE
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 1);
+            glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GLFW_TRUE);
 #else
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 5);
 #endif
-        if(renderApi == CHEngine::ERenderAPI::OPENGL)
             glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        }
         else
+        {
+            // Vulkan / Metal / DirectX — GLFW не создаёт графический контекст
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+        }
 
         m_Window = glfwCreateWindow((int)width, (int)height, title, nullptr, nullptr);
         if (!m_Window) {
@@ -58,8 +66,11 @@ namespace CHModules {
             return;
         }
 
-        glfwMakeContextCurrent(m_Window);
-        glfwSwapInterval(1);  // VSync включён по умолчанию
+        // GL context и VSync — только для OpenGL
+        if (renderApi == CHEngine::ERenderAPI::OPENGL) {
+            glfwMakeContextCurrent(m_Window);
+            glfwSwapInterval(1);
+        }
     }
 
     WindowGLFW::~WindowGLFW()
@@ -83,7 +94,9 @@ namespace CHModules {
 
     void WindowGLFW::SwapBuffers()
     {
-        if (m_Window) glfwSwapBuffers(m_Window);
+        // SwapBuffers только для OpenGL — Vulkan/Metal делают present сами
+        if (m_Window && m_RenderAPI == CHEngine::ERenderAPI::OPENGL)
+            glfwSwapBuffers(m_Window);
     }
 
     void WindowGLFW::PollEvents()
@@ -93,7 +106,9 @@ namespace CHModules {
 
     void WindowGLFW::SetVSync(bool enabled)
     {
-        glfwSwapInterval(enabled ? 1 : 0);
+        // glfwSwapInterval работает только с GL контекстом
+        if (m_RenderAPI == CHEngine::ERenderAPI::OPENGL)
+            glfwSwapInterval(enabled ? 1 : 0);
     }
 
     CHEngine::RendererInitInfo WindowGLFW::GetRenderInitInfo(CHEngine::ERenderAPI render_api) const
@@ -106,11 +121,25 @@ namespace CHModules {
             // reinterpret_cast: function pointer → void* (POSIX гарантирует совместимость)
             info.OpenGL.Loader = reinterpret_cast<void*>(glfwGetProcAddress);
             break;
+
         case CHEngine::ERenderAPI::VULKAN:
+            // Передаём GLFWwindow* — RendererVK создаст VkSurfaceKHR через glfwCreateWindowSurface
+            info.Vulkan.WindowHandle = m_Window;
+            break;
+
         case CHEngine::ERenderAPI::METALL:
+#if defined(CHE_PLATFORM_APPLE)
+            // glfwGetCocoaWindow возвращает NSWindow*, из которого Metal-рендерер
+            // получит contentView и создаст CAMetalLayer
+            info.Metal.NSView = glfwGetCocoaWindow(m_Window);
+#else
+            CHE_CORE_ERROR("GetRenderInitInfo: Metal не поддерживается на этой платформе");
+#endif
+            break;
+
         case CHEngine::ERenderAPI::DIRECTX11:
         case CHEngine::ERenderAPI::DIRECTX12:
-            CHE_CORE_ERROR("GetRenderInitInfo: API {} не поддерживается WindowGLFW", (int)render_api);
+            CHE_CORE_ERROR("GetRenderInitInfo: API {} пока не реализован", (int)render_api);
             break;
         case CHEngine::ERenderAPI::NONE:
         default:
@@ -142,6 +171,26 @@ namespace CHModules {
         } else {
             x = y = 0.0f;
         }
+    }
+
+    void WindowGLFW::GetWindowPos(int& x, int& y) const
+    {
+        if (m_Window)
+            glfwGetWindowPos(m_Window, &x, &y);
+        else
+            x = y = 0;
+    }
+
+    void WindowGLFW::SetWindowPos(int x, int y)
+    {
+        if (m_Window)
+            glfwSetWindowPos(m_Window, x, y);
+    }
+
+    void WindowGLFW::SetWindowSize(uint32_t w, uint32_t h)
+    {
+        if (m_Window && w > 0 && h > 0)
+            glfwSetWindowSize(m_Window, static_cast<int>(w), static_cast<int>(h));
     }
 
     void WindowGLFW::SetWindowContext(const CHEngine::WindowContext& context)

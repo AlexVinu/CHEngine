@@ -6,6 +6,7 @@
 #include <CHEngine/Render/RenderResourceManager.h>
 #include <CHEngine/Scene/Components.h>
 #include <Log/Log.h>
+#include <glm/glm.hpp>
 
 using json = nlohmann::json;
 
@@ -125,8 +126,30 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         if (!meshPath.empty()) {
             // Re-import model from disk
             auto result = ModelLoader::Load(meshPath, resources);
-            if (result.success)
+            if (result.success) {
+                // Центрируем вершины вокруг геометрического центра — точно как ImportModel.
+                // Без этого позиция модели смещается на величину centroid при каждой загрузке.
+                glm::vec3 centroid(0.0f);
+                size_t totalVerts = 0;
+                for (auto& mesh : result.meshes) {
+                    for (const auto& v : mesh.GetVertices()) {
+                        centroid += v.Position;
+                        ++totalVerts;
+                    }
+                }
+                if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
+
+                if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
+                    for (auto& mesh : result.meshes) {
+                        resources.DestroyVertexArray(mesh.GetVertexArray());
+                        auto verts = mesh.GetVertices();
+                        for (auto& v : verts) v.Position -= centroid;
+                        mesh.Build(resources, verts, mesh.GetIndices());
+                    }
+                }
+
                 obj = m_Scene->AddModel(name, std::move(result.meshes), meshPath);
+            }
         }
 
         if (!obj)

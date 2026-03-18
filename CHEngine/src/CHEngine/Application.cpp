@@ -4,6 +4,8 @@
 #include "Log/Log.h"
 #include "CHEngine/Input/Input.h"
 
+#include <imgui.h>
+
 #include <filesystem>
 #if defined(CHE_PLATFORM_APPLE)
 #include <mach-o/dyld.h>
@@ -20,8 +22,50 @@ namespace CHEngine {
 
     Application* Application::s_Instance = nullptr;
 
-    Application::Application()
+    // ─── Маппинг ERenderAPI → имена модулей ─────────────────────────────────
+    struct ModuleNames
+    {
+        const char* Renderer;
+        const char* ImGui;
+    };
+
+    static ModuleNames GetModuleNames(ERenderAPI api)
+    {
+        switch (api)
+        {
+        case ERenderAPI::OPENGL:
+#if defined(CHE_PLATFORM_WINDOWS)
+            return { "RendererOGL.dll", "ImGuiOGL.dll" };
+#elif defined(CHE_PLATFORM_APPLE)
+            return { "libRendererOGL.dylib", "libImGuiOGL.dylib" };
+#else
+            return { "libRendererOGL.so", "libImGuiOGL.so" };
+#endif
+
+        case ERenderAPI::VULKAN:
+#if defined(CHE_PLATFORM_WINDOWS)
+            return { "RendererVK.dll", "ImGuiVK.dll" };
+#elif defined(CHE_PLATFORM_APPLE)
+            return { "libRendererVK.dylib", "libImGuiVK.dylib" };
+#else
+            return { "libRendererVK.so", "libImGuiVK.so" };
+#endif
+
+        case ERenderAPI::METALL:
+#if defined(CHE_PLATFORM_APPLE)
+            return { "libRendererMTL.dylib", "libImGuiMTL.dylib" };
+#else
+            return { nullptr, nullptr };
+#endif
+
+        default:
+            return { nullptr, nullptr };
+        }
+    }
+
+    Application::Application(const ApplicationConfig& config)
         : m_ModuleManager()
+        , m_RenderAPIType(config.RenderAPI)
     {
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
@@ -57,22 +101,24 @@ namespace CHEngine {
 
         // ─── 1. Загрузить все 3 модуля ───────────────────────────────────────
         // Порядок важен: Window → Renderer → ImGui
-        // libglfw.dylib и libglad.dylib — shared, загружаются ОС один раз
-        // и видны всем трём модулям (это решает проблему с контекстом GLFW/ImGui)
+        // Имена модулей определяются выбранным ERenderAPI
+
+        auto moduleNames = GetModuleNames(m_RenderAPIType);
+        if (!moduleNames.Renderer) {
+            CHE_CORE_CRITICAL("ERenderAPI {} не поддерживается на этой платформе!", (int)m_RenderAPIType);
+            m_Running = false;
+            return;
+        }
 
 #if defined(CHE_PLATFORM_WINDOWS)
         m_ModuleManager.LoadModule("WindowGLFW.dll");
-        m_ModuleManager.LoadModule("RendererOGL.dll");
-        m_ModuleManager.LoadModule("ImGuiOGL.dll");
 #elif defined(CHE_PLATFORM_APPLE)
         m_ModuleManager.LoadModule("libWindowGLFW.dylib");
-        m_ModuleManager.LoadModule("libRendererOGL.dylib");
-        m_ModuleManager.LoadModule("libImGuiOGL.dylib");
 #else
         m_ModuleManager.LoadModule("libWindowGLFW.so");
-        m_ModuleManager.LoadModule("libRendererOGL.so");
-        m_ModuleManager.LoadModule("libImGuiOGL.so");
 #endif
+        m_ModuleManager.LoadModule(moduleNames.Renderer);
+        m_ModuleManager.LoadModule(moduleNames.ImGui);
 
         m_WindowFactory = m_ModuleManager.GetModule<IWindowFactory>(ModuleType::Window);
         m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
@@ -95,13 +141,13 @@ namespace CHEngine {
 
         m_RenderResources.Init(m_RenderFactory);
 
-        // ─── 2. Создать окно (GLFW window + context, glfwMakeContextCurrent) ─
+        // ─── 2. Создать окно ────────────────────────────────────────────────
         ERenderAPI render_api = m_RenderFactory->GetRenderApi();
-        m_Window = std::unique_ptr<Window>(Window::Create(m_WindowFactory, m_RenderFactory->GetRenderApi()));
+        m_Window = std::unique_ptr<Window>(Window::Create(m_WindowFactory, render_api));
         m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
 
-        // ─── 3. Инициализировать OpenGL (GLAD) с уже существующим контекстом ─
-        m_OGLRenderer = m_RenderFactory->CreateRenderer(m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api));
+        // ─── 3. Инициализировать рендерер ─────────────────────────────────────
+        m_Renderer = m_RenderFactory->CreateRenderer(m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api));
 
         // ─── 4. Создать ImGui layer ──────────────────────────────────────────
         // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
@@ -145,8 +191,8 @@ namespace CHEngine {
         if (m_ImGuiLayer && m_ImGuiFactory)
             m_ImGuiFactory->Delete(m_ImGuiLayer);
 
-        if (m_OGLRenderer && m_RenderFactory)
-            m_RenderFactory->Delete(m_OGLRenderer);
+        if (m_Renderer && m_RenderFactory)
+            m_RenderFactory->Delete(m_Renderer);
 
         m_RenderResources.Shutdown();
     }
@@ -190,6 +236,12 @@ namespace CHEngine {
         return false;
     }
 
+    void Application::RequestRestart()
+    {
+        m_RestartRequested = true;
+        m_Running = false;
+    }
+
     void Application::Run()
     {
         m_LastFrameTime      = std::chrono::steady_clock::now();
@@ -223,6 +275,10 @@ namespace CHEngine {
             // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
             Input::BeginFrame(m_Window->GetPlatformWindow());
 
+            // ── BeginFrame (Metal: drawable + command buffer + encoder) ──
+            if (m_Renderer)
+                m_Renderer->BeginFrame();
+
             if (auto* api = m_RenderResources.Get(m_RenderApi))
                 api->Clear();
 
@@ -231,11 +287,57 @@ namespace CHEngine {
 
             if (m_ImGuiLayer)
             {
+                // Передать нативный контекст (Metal нужны Device/CmdBuf/Encoder)
+                if (m_Renderer)
+                    m_ImGuiLayer->SetRenderContext(m_Renderer->GetRenderContext());
+
                 m_ImGuiLayer->Begin();
                 for (Layer* layer : m_LayerStack)
                     layer->OnImGuiRender();
                 m_ImGuiLayer->End();
             }
+
+            // ── EndFrame (Metal: end encoding, present, commit) ──
+            if (m_Renderer)
+                m_Renderer->EndFrame();
+
+            m_Window->OnUpdate();
+        }
+
+        // ── Overlay «Restarting...» — один финальный кадр ────────────────────
+        if (m_RestartRequested && m_ImGuiLayer)
+        {
+            if (m_Renderer)
+                m_Renderer->BeginFrame();
+
+            if (auto* api = m_RenderResources.Get(m_RenderApi))
+                api->Clear();
+
+            if (m_Renderer)
+                m_ImGuiLayer->SetRenderContext(m_Renderer->GetRenderContext());
+
+            m_ImGuiLayer->Begin();
+
+            ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+            ImGui::GetBackgroundDrawList()->AddRectFilled(
+                ImVec2(0, 0), displaySize, IM_COL32(0, 0, 0, 180));
+
+            const char* text = "Restarting with new renderer...";
+            ImVec2 center(displaySize.x * 0.5f, displaySize.y * 0.5f);
+
+            ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGui::SetNextWindowSize(ImVec2(0, 0));
+            ImGui::Begin("##restart_overlay", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav |
+                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground |
+                ImGuiWindowFlags_AlwaysAutoResize);
+            ImGui::TextUnformatted(text);
+            ImGui::End();
+
+            m_ImGuiLayer->End();
+
+            if (m_Renderer)
+                m_Renderer->EndFrame();
 
             m_Window->OnUpdate();
         }

@@ -1,5 +1,9 @@
 cmake_minimum_required(VERSION 3.20)
-project(CHEngine)
+if(APPLE)
+    project(CHEngine LANGUAGES CXX OBJCXX)
+else()
+    project(CHEngine LANGUAGES CXX)
+endif()
 
 # Установка политик
 cmake_policy(SET CMP0091 NEW) # Для MSVC_RUNTIME_LIBRARY
@@ -7,6 +11,10 @@ cmake_policy(SET CMP0091 NEW) # Для MSVC_RUNTIME_LIBRARY
 # Опции сборки
 option(CHE_BUILD_SANDBOX "Build Sandbox project" ON)
 option(CHE_BUILD_OPENGL "Build OpengGL render" ON)
+option(CHE_BUILD_VULKAN "Build Vulkan render" OFF)
+if(APPLE)
+    option(CHE_BUILD_METAL "Build Metal render" ON)
+endif()
 
 # Директории исходников/интерфейсов/зависимостей
 set(CHE_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}/src")
@@ -72,6 +80,24 @@ if(CHE_BUILD_OPENGL)
     add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
     add_subdirectory(${MODULES_DIR}/Window/WindowGLFW)
     add_subdirectory(${MODULES_DIR}/UI/ImGuiOGL)
+endif()
+
+if(CHE_BUILD_VULKAN)
+    find_package(Vulkan REQUIRED)
+    if(NOT CHE_BUILD_OPENGL)
+        # WindowGLFW нужен и для Vulkan — GLFW поддерживает GLFW_NO_API
+        add_subdirectory(${MODULES_DIR}/Window/WindowGLFW)
+    endif()
+    add_subdirectory(${MODULES_DIR}/Rendering/RendererVulkan)
+    add_subdirectory(${MODULES_DIR}/UI/ImGuiVK)
+endif()
+
+if(CHE_BUILD_METAL AND APPLE)
+    if(NOT CHE_BUILD_OPENGL AND NOT CHE_BUILD_VULKAN)
+        add_subdirectory(${MODULES_DIR}/Window/WindowGLFW)
+    endif()
+    add_subdirectory(${MODULES_DIR}/Rendering/RendererMetal)
+    add_subdirectory(${MODULES_DIR}/UI/ImGuiMTL)
 endif()
 
 if(CHE_BUILD_SANDBOX)

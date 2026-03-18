@@ -1,7 +1,9 @@
 #include "SceneViewLayer.h"
 
+#include <CHEngine/EngineConfig.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <cstring>
+#include <cmath>
 
 // ============================================================================
 //  UI — Toolbar
@@ -96,13 +98,25 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
                                   "  Scale      0.1 unit");
         }
 
-        // Right side: Theme toggle + FPS
+        // Right side: Renderer selector + Theme toggle + FPS
         float       fps    = ImGui::GetIO().Framerate;
         char        fpsBuf[32];
         snprintf(fpsBuf, sizeof(fpsBuf), "%.0f fps", fps);
         const char* themeLabel = (UIActive::g_Theme == AppTheme::RetroOS) ? "Theme: Retro" : "Theme: Dark";
         const float pad = ImGui::GetStyle().FramePadding.x;
-        float rightBlockW = ImGui::CalcTextSize(themeLabel).x + pad * 2.0f
+
+        // Renderer combo label
+        const char* apiNames[] = { "OpenGL", "Vulkan", "Metal" };
+        CHEngine::ERenderAPI curApi = CHEngine::Application::Get().GetRenderAPIType();
+        int apiIdx = (curApi == CHEngine::ERenderAPI::OPENGL) ? 0
+                   : (curApi == CHEngine::ERenderAPI::VULKAN) ? 1 : 2;
+        char rendererLabel[32];
+        snprintf(rendererLabel, sizeof(rendererLabel), "API: %s", apiNames[apiIdx]);
+        float rendererComboW = ImGui::CalcTextSize(rendererLabel).x + pad * 2.0f + 8.0f;
+
+        float rightBlockW = rendererComboW
+                          + 8.0f
+                          + ImGui::CalcTextSize(themeLabel).x + pad * 2.0f
                           + 8.0f
                           + ImGui::CalcTextSize(fpsBuf).x
                           + ImGui::GetStyle().WindowPadding.x;
@@ -111,6 +125,32 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         if (startX > ImGui::GetCursorPosX() + 10.0f)
         {
             ImGui::SetCursorPosX(startX);
+
+            // Renderer dropdown
+            vcenter(ImGui::GetFrameHeight());
+            ImGui::SetNextItemWidth(rendererComboW);
+            if (ImGui::BeginCombo("##renderer", rendererLabel, ImGuiComboFlags_NoArrowButton))
+            {
+                for (int i = 0; i < 3; ++i) {
+                    bool selected = (i == apiIdx);
+                    if (ImGui::Selectable(apiNames[i], selected)) {
+                        if (i != apiIdx) {
+                            CHEngine::ERenderAPI newApi =
+                                (i == 0) ? CHEngine::ERenderAPI::OPENGL
+                              : (i == 1) ? CHEngine::ERenderAPI::VULKAN
+                                         : CHEngine::ERenderAPI::METALL;
+                            CHEngine::EngineConfig::SaveRendererPreference(newApi);
+                            AutoSaveForRestart();
+                            CHEngine::Application::Get().RequestRestart();
+                        }
+                    }
+                }
+                ImGui::EndCombo();
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Switch render API (restarts engine)");
+
+            ImGui::SameLine(0, 8);
             vcenter(ImGui::GetFrameHeight());
             if (ImGui::Button(themeLabel))
             {
@@ -586,3 +626,4 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
     UIActive::EndPanel();
 }
+

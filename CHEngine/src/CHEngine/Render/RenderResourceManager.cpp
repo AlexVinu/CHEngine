@@ -51,8 +51,25 @@ namespace CHEngine {
 	                                                         const String& vertexPath,
 	                                                         const String& fragmentPath)
 	{
-		String vertexSrc   = ReadTextFile(vertexPath);
-		String fragmentSrc = ReadTextFile(fragmentPath);
+		String vertexSrc, fragmentSrc;
+
+		if (m_Factory && m_Factory->GetRenderApi() == ERenderAPI::METALL)
+		{
+			// Metal: derive .metal path from vertex shader path
+			// e.g. "shaders/basic.vert" → "shaders/basic.metal"
+			std::string path(vertexPath.c_str());
+			auto dot = path.rfind('.');
+			if (dot != std::string::npos)
+				path = path.substr(0, dot) + ".metal";
+			String metalSrc = ReadTextFile(String(path.c_str()));
+			vertexSrc   = metalSrc;
+			fragmentSrc = metalSrc; // ShaderMTL uses first arg only
+		}
+		else
+		{
+			vertexSrc   = ReadTextFile(vertexPath);
+			fragmentSrc = ReadTextFile(fragmentPath);
+		}
 
 		bool valid = (vertexSrc.size() > 0 && fragmentSrc.size() > 0);
 

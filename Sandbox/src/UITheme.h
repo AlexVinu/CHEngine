@@ -99,7 +99,9 @@ namespace UITheme
                     break; }
         }
 
-        io.Fonts->Build();
+        // НЕ вызываем io.Fonts->Build() — современные бэкенды (Metal)
+        // с ImGuiBackendFlags_RendererHasTextures строят атлас автоматически.
+        // Legacy бэкенды (OpenGL) тоже строят при первом GetTexDataAsRGBA32().
         if (!g_FontBody)    g_FontBody    = io.FontDefault;
         if (!g_FontHeading) g_FontHeading = io.FontDefault;
     }
