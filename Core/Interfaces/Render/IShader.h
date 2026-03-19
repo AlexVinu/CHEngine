@@ -2,6 +2,7 @@
 
 #include <Core.h>
 #include <Containers/String.h>
+#include <Render/UniformBlocks.h>
 
 namespace CHEngine {
 
@@ -17,14 +18,14 @@ namespace CHEngine {
 		// Returns true on success; on failure the old program remains active.
 		virtual bool Reload(const String& vertexSrc, const String& fragmentSrc) = 0;
 
-		// --- Uniform setters ---
-		// Shader must be bound (Bind()) before calling these.
-		virtual void SetInt   (const String& name, int value) = 0;
-		virtual void SetFloat (const String& name, float value) = 0;
-		virtual void SetFloat3(const String& name, float x, float y, float z) = 0;
-		virtual void SetFloat4(const String& name, float x, float y, float z, float w) = 0;
-		// matrix: pointer to 16 floats in column-major order (GLM default)
-		virtual void SetMat4  (const String& name, const float* matrix) = 0;
+		// --- Uniform Buffer Objects ---
+		// Заполняем структуру (UBOCamera / UBOObject / UBOLighting),
+		// отправляем одним вызовом. Shader должен быть Bind().
+		virtual void SetUniformBlock(EUniformBlock block, const void* data, uint32_t size) = 0;
+
+		// --- Одиночные uniform'ы (для текстурных sampler'ов) ---
+		// Sampler'ы нельзя поместить в UBO, поэтому SetInt остаётся.
+		virtual void SetInt(const String& name, int value) = 0;
 
 	protected:
 		uint32_t m_RendererID = 0;

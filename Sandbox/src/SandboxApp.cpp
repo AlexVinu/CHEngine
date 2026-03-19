@@ -3,9 +3,12 @@
 #include <CHEngine.h>
 #include "SceneViewLayer.h"
 
+#include <Render/UniformBlocks.h>
+
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <string>
+#include <cstring>
 
 class ExampleLayer : public CHEngine::Layer
 {
@@ -32,20 +35,27 @@ public:
 		auto* shader = app.GetRenderResources().Get(app.GetActiveShader());
 		if (!shader) return;
 
-		// --- u_Color tint ---
-		shader->SetFloat4(CHEngine::String("u_Color"),
-			m_TintColor[0], m_TintColor[1], m_TintColor[2], m_TintColor[3]);
-
-		// --- u_ViewProjection ---
+		// --- CameraUBO ---
 		glm::mat4 vp = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
-		shader->SetMat4(CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
+		CHEngine::UBOCamera cameraUBO;
+		std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp), 64);
+		shader->SetUniformBlock(CHEngine::EUniformBlock::Camera,
+		                        &cameraUBO, sizeof(cameraUBO));
 
-		// --- u_Transform (model matrix) ---
+		// --- ObjectUBO ---
 		glm::mat4 transform = glm::mat4(1.0f);
 		transform = glm::rotate(transform, glm::radians(m_RotX), glm::vec3(1.0f, 0.0f, 0.0f));
 		transform = glm::rotate(transform, glm::radians(m_RotY), glm::vec3(0.0f, 1.0f, 0.0f));
 		transform = glm::rotate(transform, glm::radians(m_RotZ), glm::vec3(0.0f, 0.0f, 1.0f));
-		shader->SetMat4(CHEngine::String("u_Transform"), glm::value_ptr(transform));
+
+		CHEngine::UBOObject objectUBO;
+		std::memcpy(objectUBO.Transform, glm::value_ptr(transform), 64);
+		objectUBO.Color[0] = m_TintColor[0];
+		objectUBO.Color[1] = m_TintColor[1];
+		objectUBO.Color[2] = m_TintColor[2];
+		objectUBO.Color[3] = m_TintColor[3];
+		shader->SetUniformBlock(CHEngine::EUniformBlock::Object,
+		                        &objectUBO, sizeof(objectUBO));
 	}
 
 	void OnImGuiRender() override

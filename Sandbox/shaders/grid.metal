@@ -10,25 +10,10 @@ struct VertexOut {
     float2 ndc;
 };
 
-struct VertexUniforms {
-    float4x4 u_ViewProjection;
-    float4x4 u_Transform;
-    float4x4 u_NormalMatrix;
-    float4x4 u_InvViewProj;
-};
-
-struct FragmentUniforms {
-    float4 u_Color;
-    float4 u_CameraPos;
-    float4 u_AmbientColor;
-    int    u_NumLights;
-    int    u_UseTexture;
-    int    u_UseSpecularMap;
-    float  u_Shininess;
-    float  u_Selected;
-    int    _pad0;
-    int    _pad1;
-    int    _pad2;
+struct CameraUBO {
+    float4x4 ViewProjection;
+    float4x4 InvViewProj;
+    float4   CameraPos;
 };
 
 vertex VertexOut vertexMain(VertexIn in [[stage_in]])
@@ -51,12 +36,11 @@ float gridLine(float2 xz, float cellSize)
 }
 
 fragment float4 fragmentMain(VertexOut in [[stage_in]],
-                             constant VertexUniforms& vu [[buffer(1)]],
-                             constant FragmentUniforms& fu [[buffer(0)]])
+                             constant CameraUBO& camera [[buffer(1)]])
 {
     // Unproject NDC → world space
-    float4 nearH = vu.u_InvViewProj * float4(in.ndc, -1.0, 1.0);
-    float4 farH  = vu.u_InvViewProj * float4(in.ndc,  1.0, 1.0);
+    float4 nearH = camera.InvViewProj * float4(in.ndc, -1.0, 1.0);
+    float4 farH  = camera.InvViewProj * float4(in.ndc,  1.0, 1.0);
     float3 nearP = nearH.xyz / nearH.w;
     float3 farP  = farH.xyz  / farH.w;
 
@@ -70,11 +54,11 @@ fragment float4 fragmentMain(VertexOut in [[stage_in]],
     float2 xz    = world.xz;
 
     // Adaptive horizon fade
-    float camH    = max(abs(fu.u_CameraPos.y), 1.0);
+    float camH    = max(abs(camera.CameraPos.y), 1.0);
     float fadeNear = camH * 40.0;
     float fadeFar  = camH * 80.0;
 
-    float dist = length(world.xz - fu.u_CameraPos.xz);
+    float dist = length(world.xz - camera.CameraPos.xz);
     float fade = 1.0 - smoothstep(fadeNear, fadeFar, dist);
     if (fade < 0.001) discard_fragment();
 

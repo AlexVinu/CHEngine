@@ -24,14 +24,21 @@ namespace CHModules
 		virtual void Unbind() const override;
 		virtual bool Reload(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
 
-		virtual void SetInt   (const CHEngine::String& name, int value) override;
-		virtual void SetFloat (const CHEngine::String& name, float value) override;
-		virtual void SetFloat3(const CHEngine::String& name, float x, float y, float z) override;
-		virtual void SetFloat4(const CHEngine::String& name, float x, float y, float z, float w) override;
-		virtual void SetMat4  (const CHEngine::String& name, const float* matrix) override;
+		// --- UBO ---
+		virtual void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
+
+		// --- Sampler binding ---
+		virtual void SetInt(const CHEngine::String& name, int value) override;
 
 	private:
 		// Compiles and links a program; returns program ID on success, 0 on failure.
 		static GLuint CompileProgram(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc);
+
+		// Привязка UBO block indices к binding points после компиляции/перекомпиляции
+		void BindUBOBlocks();
+
+		// OpenGL Uniform Buffer Objects (по одному на каждый binding point)
+		static constexpr uint32_t UBO_COUNT = 3;
+		GLuint m_UBOs[UBO_COUNT] = {0, 0, 0};
 	};
 }
