@@ -6,12 +6,21 @@ namespace CHEngine {
 
     struct CHENGINE_API EngineConfig
     {
-        /// Читает renderer preference из engine.json (рядом с executable).
-        /// Если файл не найден или невалиден — возвращает ERenderAPI::OPENGL.
+        /// Читает renderer из engine.json.
+        /// Если есть renderer_pending — очищает его из файла и возвращает.
+        /// Иначе возвращает renderer (последний подтверждённый), дефолт OPENGL.
         static ERenderAPI LoadRendererPreference();
 
-        /// Сохраняет renderer preference в engine.json.
+        /// Записывает renderer_pending в engine.json (не renderer!).
+        /// Фактически применяется только если следующий запуск успешен.
         static void SaveRendererPreference(ERenderAPI api);
+
+        /// Записывает renderer в engine.json как подтверждённый.
+        /// Вызывать после успешной инициализации всех модулей.
+        static void CommitRendererPreference(ERenderAPI api);
+
+        /// Возвращает true, если данный API поддерживается на текущей платформе.
+        static bool IsPlatformSupported(ERenderAPI api);
     };
 
 }

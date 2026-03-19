@@ -3,6 +3,7 @@
 
 #include "Log/Log.h"
 #include "CHEngine/Input/Input.h"
+#include "CHEngine/EngineConfig.h"
 
 #include <imgui.h>
 
@@ -138,6 +139,11 @@ namespace CHEngine {
         }
         if (!m_ImGuiFactory)
             CHE_CORE_ERROR("Failed to load ImGuiOGL module! ImGui will be unavailable.");
+
+        // Все модули загружены успешно — фиксируем рендерер как рабочий.
+        // Если движок до этой точки крашнулся, renderer_pending уже очищен
+        // в LoadRendererPreference, и следующий запуск вернётся к прежнему renderer.
+        EngineConfig::CommitRendererPreference(m_RenderAPIType);
 
         m_RenderResources.Init(m_RenderFactory);
 
