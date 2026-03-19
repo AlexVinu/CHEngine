@@ -9,7 +9,7 @@ namespace CHEngine
 		NONE		= 0,
 		OPENGL		= 1,
 		VULKAN		= 2,
-		METALL		= 3,
+		METAL		= 3,
 		DIRECTX11	= 4,
 		DIRECTX12	= 5
 	};
@@ -37,7 +37,7 @@ namespace CHEngine
 
     struct MetalInitData
     {
-        void* NSView;
+        void* NSWindow;     // NSWindow* (от glfwGetCocoaWindow), НЕ NSView
         void* MetalLayer;
         void* Device;
     };

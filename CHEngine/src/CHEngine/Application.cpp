@@ -52,7 +52,7 @@ namespace CHEngine {
             return { "libRendererVK.so", "libImGuiVK.so" };
 #endif
 
-        case ERenderAPI::METALL:
+        case ERenderAPI::METAL:
 #if defined(CHE_PLATFORM_APPLE)
             return { "libRendererMTL.dylib", "libImGuiMTL.dylib" };
 #else

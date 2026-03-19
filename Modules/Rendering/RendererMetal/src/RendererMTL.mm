@@ -15,8 +15,7 @@ namespace CHModules
 {
     void RendererMTL::Init(const CHEngine::RendererInitInfo& init_info)
     {
-        // Metal.NSView содержит NSWindow* (от glfwGetCocoaWindow)
-        void* nsWindow = init_info.Metal.NSView;
+        void* nsWindow = init_info.Metal.NSWindow;
         if (!nsWindow) {
             CHE_CORE_CRITICAL("RendererMTL::Init — NSWindow is NULL!");
             return;

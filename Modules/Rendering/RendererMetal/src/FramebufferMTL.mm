@@ -161,6 +161,9 @@ void FramebufferMTL::Resize(uint32_t w, uint32_t h)
 
     DestroyAttachments();
     CreateAttachments();
+    // Не очищаем текстуры здесь — Resize вызывается из OnImGuiRender,
+    // когда ImGui уже кеширует encoder. Очистка происходит автоматически
+    // при следующем Bind() через MTLLoadActionClear в rpDesc.
 }
 
 uint32_t FramebufferMTL::GetColorAttachmentID() const

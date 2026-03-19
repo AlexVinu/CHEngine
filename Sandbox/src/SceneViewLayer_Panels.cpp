@@ -110,7 +110,7 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         static const ApiEntry allApis[] = {
             { "OpenGL", CHEngine::ERenderAPI::OPENGL },
             { "Vulkan",  CHEngine::ERenderAPI::VULKAN  },
-            { "Metal",   CHEngine::ERenderAPI::METALL  },
+            { "Metal",   CHEngine::ERenderAPI::METAL  },
         };
 
         // Фильтруем: оставляем только поддерживаемые на этой платформе
