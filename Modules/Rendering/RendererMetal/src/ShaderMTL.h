@@ -2,8 +2,8 @@
 
 #include <Render/IShader.h>
 #include <Render/IBuffer.h>
+#include <Render/UniformBlocks.h>
 #include <Containers/String.h>
-#include "MTLUniforms.h"
 
 #include <unordered_map>
 #include <cstdint>
@@ -20,11 +20,11 @@ namespace CHModules
         void Unbind() const override;
         bool Reload(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
 
-        void SetInt   (const CHEngine::String& name, int value) override;
-        void SetFloat (const CHEngine::String& name, float value) override;
-        void SetFloat3(const CHEngine::String& name, float x, float y, float z) override;
-        void SetFloat4(const CHEngine::String& name, float x, float y, float z, float w) override;
-        void SetMat4  (const CHEngine::String& name, const float* matrix) override;
+        // --- UBO ---
+        void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
+
+        // --- Sampler binding (no-op для Metal, текстуры через [[texture(N)]]) ---
+        void SetInt(const CHEngine::String& name, int value) override;
 
         // Получить/создать pipeline state для данного vertex layout
         void* GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
@@ -32,15 +32,11 @@ namespace CHModules
                                        uint32_t depthPixelFormat,
                                        bool blendEnabled);
 
-        // Загрузить uniforms в encoder
+        // Загрузить UBO данные в encoder
         void FlushUniforms(void* encoder) const;
-
-        MTLVertexUniforms&   GetVertexUniforms()   { return m_VertexUniforms; }
-        MTLFragmentUniforms& GetFragmentUniforms() { return m_FragmentUniforms; }
 
     private:
         bool CompileSource(const CHEngine::String& source);
-        int ParseArrayIndex(const char* name, const char* prefix) const;
 
         void* m_Library      = nullptr;  // id<MTLLibrary>
         void* m_VertexFunc   = nullptr;  // id<MTLFunction>
@@ -71,7 +67,9 @@ namespace CHModules
         };
         std::unordered_map<PipelineCacheKey, void*, PipelineHash> m_PipelineCache;
 
-        MTLVertexUniforms   m_VertexUniforms;
-        MTLFragmentUniforms m_FragmentUniforms;
+        // UBO данные (std140-совместимые структуры)
+        CHEngine::UBOCamera   m_Camera;
+        CHEngine::UBOObject   m_Object;
+        CHEngine::UBOLighting m_Lighting;
     };
 }

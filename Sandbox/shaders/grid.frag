@@ -3,8 +3,12 @@
 in  vec2 v_NDC;
 out vec4 FragColor;
 
-uniform mat4 u_InvViewProj;   // inverse(projection * view)
-uniform vec3 u_CameraPos;
+layout(std140) uniform CameraUBO
+{
+    mat4 ViewProjection;
+    mat4 InvViewProj;
+    vec4 CameraPos;
+} camera;
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Grid line coverage for a given cell size.
@@ -21,8 +25,8 @@ float gridLine(vec2 xz, float cellSize)
 void main()
 {
     // ── Unproject NDC pixel → world space ────────────────────────────────────
-    vec4 nearH = u_InvViewProj * vec4(v_NDC, -1.0, 1.0);
-    vec4 farH  = u_InvViewProj * vec4(v_NDC,  1.0, 1.0);
+    vec4 nearH = camera.InvViewProj * vec4(v_NDC, -1.0, 1.0);
+    vec4 farH  = camera.InvViewProj * vec4(v_NDC,  1.0, 1.0);
     vec3 near  = nearH.xyz / nearH.w;
     vec3 far   = farH.xyz  / farH.w;
 
@@ -37,11 +41,11 @@ void main()
 
     // ── Adaptive horizon fade ─────────────────────────────────────────────────
     // Scales with camera height so the grid always fades at the visible horizon.
-    float camH    = max(abs(u_CameraPos.y), 1.0);
+    float camH    = max(abs(camera.CameraPos.y), 1.0);
     float fadeNear = camH * 40.0;
     float fadeFar  = camH * 80.0;
 
-    float dist = length(world.xz - u_CameraPos.xz);
+    float dist = length(world.xz - camera.CameraPos.xz);
     float fade = 1.0 - smoothstep(fadeNear, fadeFar, dist);
     if (fade < 0.001) discard;
 

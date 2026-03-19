@@ -1,12 +1,11 @@
 #include "SceneViewLayer.h"
 
+#include <Render/UniformBlocks.h>
+
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
-#include <cstdio>
-
-// ── Максимум источников, синхронизировано с mesh.frag ──────────────────────
-static constexpr int MaxLights = 8;
+#include <cstring>
 
 // ── Дефолтный ambient (если нет источников — чтоб сцена не была чёрной) ───
 namespace DefaultLight {
@@ -80,7 +79,18 @@ void SceneViewLayer::RenderScene()
     api->Clear();
     // ─────────────────────────────────────────────────────────────────────
 
-    glm::mat4 vp = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
+    glm::mat4 vp    = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
+    glm::mat4 invVP = glm::inverse(vp);
+    glm::vec3 camPos = m_Camera.GetPosition();
+
+    // ── Заполняем CameraUBO (раз в кадр, для всех шейдеров) ──────────────
+    CHEngine::UBOCamera cameraUBO;
+    std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp),    64);
+    std::memcpy(cameraUBO.InvViewProj,    glm::value_ptr(invVP), 64);
+    cameraUBO.CameraPos[0] = camPos.x;
+    cameraUBO.CameraPos[1] = camPos.y;
+    cameraUBO.CameraPos[2] = camPos.z;
+    cameraUBO.CameraPos[3] = 0.0f;
 
     // Infinite grid (full-screen quad + analytical fragment shader)
     if (m_ShowGrid)
@@ -89,16 +99,12 @@ void SceneViewLayer::RenderScene()
         auto* gva = res.Get(m_GridVAO);
         if (gs && gva)
         {
-            glm::mat4 invVP = glm::inverse(vp);
-            glm::vec3 camPos = m_Camera.GetPosition();
-
             api->SetBlend(true);
             api->SetDepthWrite(false);
 
             gs->Bind();
-            gs->SetMat4  (CHEngine::String("u_InvViewProj"), glm::value_ptr(invVP));
-            gs->SetFloat3(CHEngine::String("u_CameraPos"),
-                          camPos.x, camPos.y, camPos.z);
+            gs->SetUniformBlock(CHEngine::EUniformBlock::Camera,
+                                &cameraUBO, sizeof(cameraUBO));
             api->DrawIndexed(gva);
 
             api->SetDepthWrite(true);
@@ -111,67 +117,73 @@ void SceneViewLayer::RenderScene()
     if (!shader) return;
 
     shader->Bind();
-    shader->SetMat4(CHEngine::String("u_ViewProjection"), glm::value_ptr(vp));
+    shader->SetUniformBlock(CHEngine::EUniformBlock::Camera,
+                            &cameraUBO, sizeof(cameraUBO));
 
-    // Позиция камеры (для specular)
-    glm::vec3 camPos = m_Camera.GetPosition();
-    shader->SetFloat3(CHEngine::String("u_CameraPos"), camPos.x, camPos.y, camPos.z);
+    // ── Заполняем LightingUBO ─────────────────────────────────────────────
+    CHEngine::UBOLighting lightingUBO;
+    lightingUBO.AmbientColor[0] = DefaultLight::AmbR;
+    lightingUBO.AmbientColor[1] = DefaultLight::AmbG;
+    lightingUBO.AmbientColor[2] = DefaultLight::AmbB;
+    lightingUBO.AmbientColor[3] = 0.0f;
 
-    // Ambient
-    shader->SetFloat3(CHEngine::String("u_AmbientColor"),
-                      DefaultLight::AmbR, DefaultLight::AmbG, DefaultLight::AmbB);
-
-    // ── Собираем источники света из сцены ─────────────────────────────────
     int lightCount = 0;
-    char nameBuf[64];
 
     for (auto& obj : m_Scene.GetObjects())
     {
-        if (lightCount >= MaxLights) break;
+        if (lightCount >= CHEngine::MaxUBOLights) break;
         if (!obj->Visible) continue;
         if (obj->LightData.Type == CHEngine::LightType::None) continue;
 
-        int i = lightCount++;
-        const auto& light = obj->LightData;
-        const auto& tr    = obj->ObjectTransform;
+        auto& light = obj->LightData;
+        auto& tr    = obj->ObjectTransform;
+        auto& L     = lightingUBO.Lights[lightCount];
 
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightType[%d]", i);
-        shader->SetInt(CHEngine::String(nameBuf), static_cast<int>(light.Type));
+        L.Type = static_cast<int32_t>(light.Type);
 
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightPosition[%d]", i);
-        shader->SetFloat3(CHEngine::String(nameBuf), tr.Position.x, tr.Position.y, tr.Position.z);
+        L.Position[0] = tr.Position.x;
+        L.Position[1] = tr.Position.y;
+        L.Position[2] = tr.Position.z;
+        L.Position[3] = 0.0f;
 
         glm::vec3 dir = ForwardFromRotation(tr.Rotation);
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightDirection[%d]", i);
-        shader->SetFloat3(CHEngine::String(nameBuf), dir.x, dir.y, dir.z);
+        L.Direction[0] = dir.x;
+        L.Direction[1] = dir.y;
+        L.Direction[2] = dir.z;
+        L.Direction[3] = 0.0f;
 
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightColor[%d]", i);
-        shader->SetFloat3(CHEngine::String(nameBuf), light.Color.r, light.Color.g, light.Color.b);
+        L.ColorIntensity[0] = light.Color.r;
+        L.ColorIntensity[1] = light.Color.g;
+        L.ColorIntensity[2] = light.Color.b;
+        L.ColorIntensity[3] = light.Intensity;
 
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightIntensity[%d]", i);
-        shader->SetFloat(CHEngine::String(nameBuf), light.Intensity);
+        L.Range     = light.Range;
+        L.InnerCone = std::cos(glm::radians(light.InnerCone));
+        L.OuterCone = std::cos(glm::radians(light.OuterCone));
 
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightRange[%d]", i);
-        shader->SetFloat(CHEngine::String(nameBuf), light.Range);
-
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightInnerCone[%d]", i);
-        shader->SetFloat(CHEngine::String(nameBuf), std::cos(glm::radians(light.InnerCone)));
-
-        snprintf(nameBuf, sizeof(nameBuf), "u_LightOuterCone[%d]", i);
-        shader->SetFloat(CHEngine::String(nameBuf), std::cos(glm::radians(light.OuterCone)));
+        ++lightCount;
     }
 
-    // Если нет источников — добавляем дефолтный directional, чтобы сцена не была чёрной
+    // Если нет источников — добавляем дефолтный directional
     if (lightCount == 0)
     {
-        shader->SetInt   (CHEngine::String("u_LightType[0]"),      0);
-        shader->SetFloat3(CHEngine::String("u_LightDirection[0]"), -0.3f, -1.0f, -0.5f);
-        shader->SetFloat3(CHEngine::String("u_LightColor[0]"),     1.0f, 1.0f, 0.95f);
-        shader->SetFloat (CHEngine::String("u_LightIntensity[0]"), 1.0f);
+        auto& L = lightingUBO.Lights[0];
+        L.Type = 0;
+        L.Direction[0] = -0.3f;
+        L.Direction[1] = -1.0f;
+        L.Direction[2] = -0.5f;
+        L.Direction[3] = 0.0f;
+        L.ColorIntensity[0] = 1.0f;
+        L.ColorIntensity[1] = 1.0f;
+        L.ColorIntensity[2] = 0.95f;
+        L.ColorIntensity[3] = 1.0f;
         lightCount = 1;
     }
 
-    shader->SetInt(CHEngine::String("u_NumLights"), lightCount);
+    lightingUBO.NumLights = lightCount;
+
+    shader->SetUniformBlock(CHEngine::EUniformBlock::Lighting,
+                            &lightingUBO, sizeof(lightingUBO));
 
     // ── Рисуем объекты ────────────────────────────────────────────────────
     for (auto& obj : m_Scene.GetObjects())
@@ -183,12 +195,15 @@ void SceneViewLayer::RenderScene()
         glm::mat4 model     = glm::make_mat4(raw);
         glm::mat4 normalMat = glm::transpose(glm::inverse(model));
 
-        shader->SetMat4  (CHEngine::String("u_Transform"),    glm::value_ptr(model));
-        shader->SetMat4  (CHEngine::String("u_NormalMatrix"), glm::value_ptr(normalMat));
-        shader->SetFloat4(CHEngine::String("u_Color"),
-            obj->Color.r, obj->Color.g, obj->Color.b, obj->Color.a);
-        shader->SetFloat (CHEngine::String("u_Selected"),
-            (obj->ID == m_SelectedObjectID) ? 1.0f : 0.0f);
+        // Заполняем ObjectUBO
+        CHEngine::UBOObject objectUBO;
+        std::memcpy(objectUBO.Transform,    glm::value_ptr(model),     64);
+        std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), 64);
+        objectUBO.Color[0] = obj->Color.r;
+        objectUBO.Color[1] = obj->Color.g;
+        objectUBO.Color[2] = obj->Color.b;
+        objectUBO.Color[3] = obj->Color.a;
+        objectUBO.Selected = (obj->ID == m_SelectedObjectID) ? 1.0f : 0.0f;
 
         for (auto& mesh : obj->Meshes)
         {
@@ -196,7 +211,7 @@ void SceneViewLayer::RenderScene()
 
             // Diffuse текстура (слот 0)
             auto* diffTex = mat.DiffuseMap.IsValid() ? res.Get(mat.DiffuseMap) : nullptr;
-            shader->SetInt(CHEngine::String("u_UseTexture"), diffTex ? 1 : 0);
+            objectUBO.UseTexture = diffTex ? 1 : 0;
             if (diffTex) {
                 diffTex->Bind(0);
                 shader->SetInt(CHEngine::String("u_DiffuseTexture"), 0);
@@ -204,13 +219,17 @@ void SceneViewLayer::RenderScene()
 
             // Specular текстура (слот 1)
             auto* specTex = mat.SpecularMap.IsValid() ? res.Get(mat.SpecularMap) : nullptr;
-            shader->SetInt(CHEngine::String("u_UseSpecularMap"), specTex ? 1 : 0);
+            objectUBO.UseSpecularMap = specTex ? 1 : 0;
             if (specTex) {
                 specTex->Bind(1);
                 shader->SetInt(CHEngine::String("u_SpecularMap"), 1);
             }
 
-            shader->SetFloat(CHEngine::String("u_Shininess"), mat.Shininess);
+            objectUBO.Shininess = mat.Shininess;
+
+            // Отправляем ObjectUBO
+            shader->SetUniformBlock(CHEngine::EUniformBlock::Object,
+                                    &objectUBO, sizeof(objectUBO));
 
             auto* vao = res.Get(mesh.GetVertexArray());
             if (vao) api->DrawIndexed(vao);
