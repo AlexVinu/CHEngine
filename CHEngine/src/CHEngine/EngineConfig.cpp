@@ -14,7 +14,7 @@ namespace CHEngine {
         switch (api) {
         case ERenderAPI::OPENGL:  return "opengl";
         case ERenderAPI::VULKAN:  return "vulkan";
-        case ERenderAPI::METALL:  return "metal";
+        case ERenderAPI::METAL:  return "metal";
         default:                  return "opengl";
         }
     }
@@ -22,7 +22,7 @@ namespace CHEngine {
     static ERenderAPI StringToApi(const std::string& s)
     {
         if (s == "vulkan") return ERenderAPI::VULKAN;
-        if (s == "metal")  return ERenderAPI::METALL;
+        if (s == "metal")  return ERenderAPI::METAL;
         return ERenderAPI::OPENGL;
     }
 
@@ -68,11 +68,21 @@ namespace CHEngine {
             catch (const std::exception& e) {
                 CHE_CORE_WARN("EngineConfig: failed to clear pending: {}", e.what());
             }
-            return pending;
+            // Проверяем платформу: если в конфиге Metal а мы на Windows — fallback
+            if (IsPlatformSupported(pending))
+                return pending;
+            CHE_CORE_WARN("EngineConfig: pending renderer={} not supported on this platform, ignoring",
+                          ApiToString(pending));
         }
 
         if (j.contains("renderer") && j["renderer"].is_string())
-            return StringToApi(j["renderer"].get<std::string>());
+        {
+            auto api = StringToApi(j["renderer"].get<std::string>());
+            if (IsPlatformSupported(api))
+                return api;
+            CHE_CORE_WARN("EngineConfig: saved renderer={} not supported on this platform, falling back to OpenGL",
+                          ApiToString(api));
+        }
 
         return ERenderAPI::OPENGL;
     }
@@ -120,7 +130,7 @@ namespace CHEngine {
 #else
             return true;
 #endif
-        case ERenderAPI::METALL:
+        case ERenderAPI::METAL:
 #if defined(CHE_PLATFORM_APPLE)
             return true;
 #else

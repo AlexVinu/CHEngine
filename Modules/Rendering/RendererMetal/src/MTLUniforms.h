@@ -30,17 +30,17 @@ namespace CHModules {
 
     struct alignas(16) MTLLightData
     {
-        int32_t type      = 0;
-        int32_t _pad0     = 0;
-        int32_t _pad1     = 0;
-        int32_t _pad2     = 0;   // offset 16
-        float   pos[4]    = {};  // float4, offset 16  (.xyz used)
-        float   dir[4]    = {};  // float4, offset 32  (.xyz used)
-        float   colorIntensity[4] = {}; // .rgb = color, .a = intensity
-        float   range     = 0;
-        float   innerCone = 0;
-        float   outerCone = 0;
-        float   _pad3     = 0;  // offset 80
+        int32_t type      = 0;    // offset 0
+        int32_t _pad0     = 0;    // offset 4
+        int32_t _pad1     = 0;    // offset 8
+        int32_t _pad2     = 0;    // offset 12
+        float   pos[4]    = {};   // float4, offset 16 (.xyz used)
+        float   dir[4]    = {};   // float4, offset 32 (.xyz used)
+        float   colorIntensity[4] = {}; // float4, offset 48 (.rgb = color, .a = intensity)
+        float   range     = 0;    // offset 64
+        float   innerCone = 0;    // offset 68
+        float   outerCone = 0;    // offset 72
+        float   _pad3     = 0;    // offset 76
     };
     // sizeof = 80
 
