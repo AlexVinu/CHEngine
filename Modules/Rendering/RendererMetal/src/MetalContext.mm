@@ -41,7 +41,8 @@ namespace CHModules {
             CHE_CORE_CRITICAL("MetalContext: MTLCreateSystemDefaultDevice() returned nil");
             return false;
         }
-        [device retain];
+        // MTLCreateSystemDefaultDevice следует Create Rule → возвращает +1 объект.
+        // Дополнительный retain не нужен.
         m_Device = (void*)device;
         m_NSWindow = nsWindow;
         MTLGlobals::g_Device = m_Device;

@@ -105,13 +105,30 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         const char* themeLabel = (UIActive::g_Theme == AppTheme::RetroOS) ? "Theme: Retro" : "Theme: Dark";
         const float pad = ImGui::GetStyle().FramePadding.x;
 
-        // Renderer combo label
-        const char* apiNames[] = { "OpenGL", "Vulkan", "Metal" };
+        // Renderer combo — только платформно-совместимые API
+        struct ApiEntry { const char* name; CHEngine::ERenderAPI api; };
+        static const ApiEntry allApis[] = {
+            { "OpenGL", CHEngine::ERenderAPI::OPENGL },
+            { "Vulkan",  CHEngine::ERenderAPI::VULKAN  },
+            { "Metal",   CHEngine::ERenderAPI::METAL  },
+        };
+
+        // Фильтруем: оставляем только поддерживаемые на этой платформе
+        ApiEntry availApis[3];
+        int availCount = 0;
+        for (auto& e : allApis) {
+            if (CHEngine::EngineConfig::IsPlatformSupported(e.api))
+                availApis[availCount++] = e;
+        }
+
         CHEngine::ERenderAPI curApi = CHEngine::Application::Get().GetRenderAPIType();
-        int apiIdx = (curApi == CHEngine::ERenderAPI::OPENGL) ? 0
-                   : (curApi == CHEngine::ERenderAPI::VULKAN) ? 1 : 2;
+        int apiIdx = 0;
+        for (int i = 0; i < availCount; ++i) {
+            if (availApis[i].api == curApi) { apiIdx = i; break; }
+        }
+
         char rendererLabel[32];
-        snprintf(rendererLabel, sizeof(rendererLabel), "API: %s", apiNames[apiIdx]);
+        snprintf(rendererLabel, sizeof(rendererLabel), "API: %s", availApis[apiIdx].name);
         float rendererComboW = ImGui::CalcTextSize(rendererLabel).x + pad * 2.0f + 8.0f;
 
         float rightBlockW = rendererComboW
@@ -131,15 +148,11 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
             ImGui::SetNextItemWidth(rendererComboW);
             if (ImGui::BeginCombo("##renderer", rendererLabel, ImGuiComboFlags_NoArrowButton))
             {
-                for (int i = 0; i < 3; ++i) {
+                for (int i = 0; i < availCount; ++i) {
                     bool selected = (i == apiIdx);
-                    if (ImGui::Selectable(apiNames[i], selected)) {
+                    if (ImGui::Selectable(availApis[i].name, selected)) {
                         if (i != apiIdx) {
-                            CHEngine::ERenderAPI newApi =
-                                (i == 0) ? CHEngine::ERenderAPI::OPENGL
-                              : (i == 1) ? CHEngine::ERenderAPI::VULKAN
-                                         : CHEngine::ERenderAPI::METALL;
-                            CHEngine::EngineConfig::SaveRendererPreference(newApi);
+                            CHEngine::EngineConfig::SaveRendererPreference(availApis[i].api);
                             AutoSaveForRestart();
                             CHEngine::Application::Get().RequestRestart();
                         }

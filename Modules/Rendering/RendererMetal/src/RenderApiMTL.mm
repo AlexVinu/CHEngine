@@ -19,15 +19,48 @@ RenderApiMTL::RenderApiMTL()
     MTLGlobals::g_BlendEnabled = false;
 }
 
-void RenderApiMTL::SetClearColor(float /*r*/, float /*g*/, float /*b*/, float /*a*/)
+RenderApiMTL::~RenderApiMTL()
 {
-    // Clear color is set via MetalContext's render pass descriptor
+    if (m_DepthStencilState)
+        [(id<MTLDepthStencilState>)m_DepthStencilState release];
+}
+
+void RenderApiMTL::SetClearColor(float r, float g, float b, float a)
+{
+    // Передаём в MetalContext — он хранит clear color и применяет его
+    // в BeginFrame при создании render pass descriptor
+    if (MTLGlobals::g_ContextPtr)
+        static_cast<MetalContext*>(MTLGlobals::g_ContextPtr)->SetClearColor(r, g, b, a);
 }
 
 void RenderApiMTL::Clear()
 {
-    // Clear is handled by MTLLoadActionClear in the render pass descriptor
+    // Clear выполняется через MTLLoadActionClear в render pass descriptor
 }
+
+// ─── Кеширование depth stencil state ──────────────────────────────────────
+
+void RenderApiMTL::UpdateDepthStencilState()
+{
+    if (!m_DepthStateDirty) return;
+    m_DepthStateDirty = false;
+
+    id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
+    if (!device || MTLGlobals::g_DepthPixelFormat == 0) return;
+
+    if (m_DepthStencilState)
+        [(id<MTLDepthStencilState>)m_DepthStencilState release];
+
+    MTLDepthStencilDescriptor* depthDesc = [[MTLDepthStencilDescriptor alloc] init];
+    depthDesc.depthCompareFunction = MTLCompareFunctionLess;
+    depthDesc.depthWriteEnabled = MTLGlobals::g_DepthWriteEnabled;
+    id<MTLDepthStencilState> state = [device newDepthStencilStateWithDescriptor:depthDesc];
+    [depthDesc release];
+
+    m_DepthStencilState = (void*)state;
+}
+
+// ─── Draw ────────────────────────────────────────────────────────────────
 
 void RenderApiMTL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
 {
@@ -60,17 +93,10 @@ void RenderApiMTL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
 
     [encoder setRenderPipelineState:(id<MTLRenderPipelineState>)pso];
 
-    // Set depth stencil state
-    id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
-    if (device && MTLGlobals::g_DepthPixelFormat != 0) {
-        MTLDepthStencilDescriptor* depthDesc = [[MTLDepthStencilDescriptor alloc] init];
-        depthDesc.depthCompareFunction = MTLCompareFunctionLess;
-        depthDesc.depthWriteEnabled = MTLGlobals::g_DepthWriteEnabled;
-        id<MTLDepthStencilState> depthState = [device newDepthStencilStateWithDescriptor:depthDesc];
-        [encoder setDepthStencilState:depthState];
-        [depthDesc release];
-        [depthState release];
-    }
+    // Depth stencil (кешируется, пересоздаётся только при изменении)
+    UpdateDepthStencilState();
+    if (m_DepthStencilState)
+        [encoder setDepthStencilState:(id<MTLDepthStencilState>)m_DepthStencilState];
 
     // Flush uniforms
     shader->FlushUniforms((void*)encoder);
@@ -124,6 +150,12 @@ void RenderApiMTL::DrawLines(const CHEngine::IVertexArray* vertexArray)
     if (!pso) return;
 
     [encoder setRenderPipelineState:(id<MTLRenderPipelineState>)pso];
+
+    // Depth stencil — используем тот же кеш
+    UpdateDepthStencilState();
+    if (m_DepthStencilState)
+        [encoder setDepthStencilState:(id<MTLDepthStencilState>)m_DepthStencilState];
+
     shader->FlushUniforms((void*)encoder);
 
     for (const auto& vb : vertexBuffers) {
@@ -162,7 +194,10 @@ void RenderApiMTL::SetBlend(bool enable)
 
 void RenderApiMTL::SetDepthWrite(bool enable)
 {
-    MTLGlobals::g_DepthWriteEnabled = enable;
+    if (MTLGlobals::g_DepthWriteEnabled != enable) {
+        MTLGlobals::g_DepthWriteEnabled = enable;
+        m_DepthStateDirty = true; // пересоздать depth stencil state
+    }
 }
 
 } // namespace CHModules

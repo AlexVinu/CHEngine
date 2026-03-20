@@ -10,32 +10,48 @@ in vec2 v_TexCoords;
 
 out vec4 FragColor;
 
-// ─── Материал объекта ─────────────────────────────────────────────────────
-uniform vec4      u_Color;
-uniform float     u_Selected;
+// Texture sampler'ы — нельзя поместить в UBO, остаются plain uniform
 uniform sampler2D u_DiffuseTexture;
-uniform int       u_UseTexture;
 uniform sampler2D u_SpecularMap;
-uniform int       u_UseSpecularMap;
-uniform float     u_Shininess;       // Blinn-Phong глянцевость (степень)
 
-// ─── Камера ───────────────────────────────────────────────────────────────
-uniform vec3 u_CameraPos;
+// ─── UBO: камера ─────────────────────────────────────────────────────────
+layout(std140) uniform CameraUBO
+{
+    mat4 ViewProjection;
+    mat4 InvViewProj;
+    vec4 CameraPos;
+} camera;
 
-// ─── Глобальный ambient ───────────────────────────────────────────────────
-uniform vec3 u_AmbientColor;
+// ─── UBO: объект ─────────────────────────────────────────────────────────
+layout(std140) uniform ObjectUBO
+{
+    mat4  Transform;
+    mat4  NormalMatrix;
+    vec4  Color;
+    float Selected;
+    int   UseTexture;
+    int   UseSpecularMap;
+    float Shininess;
+} object;
 
-// ─── Массив источников света ──────────────────────────────────────────────
-// type: 0 = Directional, 1 = Point, 2 = Spot
-uniform int   u_NumLights;
-uniform int   u_LightType      [MAX_LIGHTS];
-uniform vec3  u_LightPosition  [MAX_LIGHTS];
-uniform vec3  u_LightDirection [MAX_LIGHTS];
-uniform vec3  u_LightColor     [MAX_LIGHTS];
-uniform float u_LightIntensity [MAX_LIGHTS];
-uniform float u_LightRange     [MAX_LIGHTS];
-uniform float u_LightInnerCone [MAX_LIGHTS]; // cos(angle)
-uniform float u_LightOuterCone [MAX_LIGHTS]; // cos(angle)
+// ─── UBO: освещение ──────────────────────────────────────────────────────
+struct LightData
+{
+    int  Type;
+    vec4 Position;
+    vec4 Direction;
+    vec4 ColorIntensity;
+    float Range;
+    float InnerCone;
+    float OuterCone;
+};
+
+layout(std140) uniform LightingUBO
+{
+    vec4      AmbientColor;
+    int       NumLights;
+    LightData Lights[MAX_LIGHTS];
+} lighting;
 
 // ─── Расчёт затухания для Point/Spot ──────────────────────────────────────
 float CalcAttenuation(float distance, float range)
@@ -48,27 +64,28 @@ float CalcAttenuation(float distance, float range)
 // ─── Вычисление вклада одного источника ───────────────────────────────────
 vec3 CalcLight(int index, vec3 normal, vec3 viewDir, float specularMask)
 {
-    int   type     = u_LightType[index];
-    vec3  lightCol = u_LightColor[index] * u_LightIntensity[index];
+    int   type     = lighting.Lights[index].Type;
+    vec3  lightCol = lighting.Lights[index].ColorIntensity.rgb
+                   * lighting.Lights[index].ColorIntensity.a;
     float atten    = 1.0;
 
     vec3 lightDir;
 
     if (type == 0) {
         // Directional — направление фиксировано, без затухания
-        lightDir = normalize(-u_LightDirection[index]);
+        lightDir = normalize(-lighting.Lights[index].Direction.xyz);
     } else {
         // Point / Spot — от фрагмента к источнику
-        vec3  toLight = u_LightPosition[index] - v_FragPos;
+        vec3  toLight = lighting.Lights[index].Position.xyz - v_FragPos;
         float dist    = length(toLight);
         lightDir      = toLight / max(dist, 0.001);
-        atten         = CalcAttenuation(dist, u_LightRange[index]);
+        atten         = CalcAttenuation(dist, lighting.Lights[index].Range);
 
         if (type == 2) {
             // Spot — конус
-            float theta      = dot(lightDir, normalize(-u_LightDirection[index]));
-            float epsilon    = u_LightInnerCone[index] - u_LightOuterCone[index];
-            float spotFactor = clamp((theta - u_LightOuterCone[index]) / max(epsilon, 0.001), 0.0, 1.0);
+            float theta      = dot(lightDir, normalize(-lighting.Lights[index].Direction.xyz));
+            float epsilon    = lighting.Lights[index].InnerCone - lighting.Lights[index].OuterCone;
+            float spotFactor = clamp((theta - lighting.Lights[index].OuterCone) / max(epsilon, 0.001), 0.0, 1.0);
             atten *= spotFactor;
         }
     }
@@ -79,7 +96,7 @@ vec3 CalcLight(int index, vec3 normal, vec3 viewDir, float specularMask)
 
     // Specular (Blinn-Phong) — модулируется specular map если есть
     vec3  halfDir = normalize(lightDir + viewDir);
-    float spec    = pow(max(dot(normal, halfDir), 0.0), max(u_Shininess, 1.0));
+    float spec    = pow(max(dot(normal, halfDir), 0.0), max(object.Shininess, 1.0));
     vec3  specular = 0.5 * spec * specularMask * lightCol;
 
     return (diffuse + specular) * atten;
@@ -88,29 +105,29 @@ vec3 CalcLight(int index, vec3 normal, vec3 viewDir, float specularMask)
 void main()
 {
     vec3 norm    = normalize(v_Normal);
-    vec3 viewDir = normalize(u_CameraPos - v_FragPos);
+    vec3 viewDir = normalize(camera.CameraPos.xyz - v_FragPos);
 
     // Базовый цвет (диффузная текстура или vertex color)
-    vec3 baseColor = (u_UseTexture > 0)
-        ? texture(u_DiffuseTexture, v_TexCoords).rgb * u_Color.rgb
-        : v_Color * u_Color.rgb;
+    vec3 baseColor = (object.UseTexture > 0)
+        ? texture(u_DiffuseTexture, v_TexCoords).rgb * object.Color.rgb
+        : v_Color * object.Color.rgb;
 
     // Specular маска из текстуры (R-канал) или константа
-    float specMask = (u_UseSpecularMap > 0)
+    float specMask = (object.UseSpecularMap > 0)
         ? texture(u_SpecularMap, v_TexCoords).r
         : 1.0;
 
     // Суммируем вклад всех источников
-    vec3 lighting = u_AmbientColor;
-    int  count    = min(u_NumLights, MAX_LIGHTS);
+    vec3 lighting_result = lighting.AmbientColor.rgb;
+    int  count           = min(lighting.NumLights, MAX_LIGHTS);
     for (int i = 0; i < count; ++i)
-        lighting += CalcLight(i, norm, viewDir, specMask);
+        lighting_result += CalcLight(i, norm, viewDir, specMask);
 
-    vec3 result = lighting * baseColor;
+    vec3 result = lighting_result * baseColor;
 
     // Подсветка выделения
-    if (u_Selected > 0.5)
+    if (object.Selected > 0.5)
         result = mix(result, vec3(1.0, 0.6, 0.0), 0.15);
 
-    FragColor = vec4(result, u_Color.a);
+    FragColor = vec4(result, object.Color.a);
 }

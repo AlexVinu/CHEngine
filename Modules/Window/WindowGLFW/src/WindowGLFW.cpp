@@ -127,11 +127,11 @@ namespace CHModules {
             info.Vulkan.WindowHandle = m_Window;
             break;
 
-        case CHEngine::ERenderAPI::METALL:
+        case CHEngine::ERenderAPI::METAL:
 #if defined(CHE_PLATFORM_APPLE)
             // glfwGetCocoaWindow возвращает NSWindow*, из которого Metal-рендерер
             // получит contentView и создаст CAMetalLayer
-            info.Metal.NSView = glfwGetCocoaWindow(m_Window);
+            info.Metal.NSWindow = glfwGetCocoaWindow(m_Window);
 #else
             CHE_CORE_ERROR("GetRenderInitInfo: Metal не поддерживается на этой платформе");
 #endif

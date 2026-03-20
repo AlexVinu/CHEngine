@@ -92,7 +92,7 @@ void TextureMTL::Bind(uint32_t slot) const
     if (m_Texture)
         [encoder setFragmentTexture:(id<MTLTexture>)m_Texture atIndex:slot];
     if (m_Sampler)
-        [encoder setFragmentSamplerState:(id<MTLSamplerState>)m_Sampler atIndex:0];
+        [encoder setFragmentSamplerState:(id<MTLSamplerState>)m_Sampler atIndex:slot];
 }
 
 void TextureMTL::Unbind() const

@@ -10,6 +10,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <string>
+#include <algorithm>
 
 namespace CHModules
 {
@@ -197,138 +198,43 @@ void* ShaderMTL::GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
 void ShaderMTL::FlushUniforms(void* encoderPtr) const
 {
     id<MTLRenderCommandEncoder> encoder = (id<MTLRenderCommandEncoder>)encoderPtr;
-    // Vertex stage: uniforms at buffer(1)
-    [encoder setVertexBytes:&m_VertexUniforms   length:sizeof(MTLVertexUniforms)   atIndex:1];
-    // Fragment stage: fragment uniforms at buffer(0), vertex uniforms at buffer(1)
-    // (grid.metal reads u_InvViewProj from fragment [[buffer(1)]])
-    [encoder setFragmentBytes:&m_FragmentUniforms length:sizeof(MTLFragmentUniforms) atIndex:0];
-    [encoder setFragmentBytes:&m_VertexUniforms   length:sizeof(MTLVertexUniforms)   atIndex:1];
+
+    // buffer(1) = CameraUBO — vertex + fragment
+    [encoder setVertexBytes:&m_Camera   length:sizeof(CHEngine::UBOCamera)   atIndex:1];
+    [encoder setFragmentBytes:&m_Camera length:sizeof(CHEngine::UBOCamera)   atIndex:1];
+
+    // buffer(2) = ObjectUBO — vertex + fragment
+    [encoder setVertexBytes:&m_Object   length:sizeof(CHEngine::UBOObject)   atIndex:2];
+    [encoder setFragmentBytes:&m_Object length:sizeof(CHEngine::UBOObject)   atIndex:2];
+
+    // buffer(3) = LightingUBO — fragment only
+    [encoder setFragmentBytes:&m_Lighting length:sizeof(CHEngine::UBOLighting) atIndex:3];
 }
 
-// ─── Uniform setters ────────────────────────────────────────────────────────
+// ─── Uniform Block setter ───────────────────────────────────────────────────
 
-int ShaderMTL::ParseArrayIndex(const char* name, const char* prefix) const
+void ShaderMTL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size)
 {
-    size_t prefixLen = strlen(prefix);
-    if (strncmp(name, prefix, prefixLen) != 0) return -1;
-    if (name[prefixLen] != '[') return -1;
-    int idx = atoi(name + prefixLen + 1);
-    if (idx < 0 || idx >= 8) return -1;
-    return idx;
-}
-
-void ShaderMTL::SetInt(const CHEngine::String& name, int value)
-{
-    const char* n = name.c_str();
-
-    if (strcmp(n, "u_NumLights") == 0)      { m_FragmentUniforms.NumLights = value; return; }
-    if (strcmp(n, "u_UseTexture") == 0)      { m_FragmentUniforms.UseTexture = value; return; }
-    if (strcmp(n, "u_UseSpecularMap") == 0)  { m_FragmentUniforms.UseSpecularMap = value; return; }
-    if (strcmp(n, "u_DiffuseTexture") == 0)  { return; } // texture binding, handled by TextureMTL::Bind
-    if (strcmp(n, "u_SpecularMap") == 0)     { return; } // texture binding
-
-    // Light array
-    int idx = ParseArrayIndex(n, "u_LightType");
-    if (idx >= 0) { m_FragmentUniforms.Lights[idx].type = value; return; }
-}
-
-void ShaderMTL::SetFloat(const CHEngine::String& name, float value)
-{
-    const char* n = name.c_str();
-
-    if (strcmp(n, "u_Shininess") == 0) { m_FragmentUniforms.Shininess = value; return; }
-    if (strcmp(n, "u_Selected") == 0)  { m_FragmentUniforms.Selected = value; return; }
-
-    // Light array
-    int idx;
-    idx = ParseArrayIndex(n, "u_LightIntensity");
-    if (idx >= 0) { m_FragmentUniforms.Lights[idx].colorIntensity[3] = value; return; }
-
-    idx = ParseArrayIndex(n, "u_LightRange");
-    if (idx >= 0) { m_FragmentUniforms.Lights[idx].range = value; return; }
-
-    idx = ParseArrayIndex(n, "u_LightInnerCone");
-    if (idx >= 0) { m_FragmentUniforms.Lights[idx].innerCone = value; return; }
-
-    idx = ParseArrayIndex(n, "u_LightOuterCone");
-    if (idx >= 0) { m_FragmentUniforms.Lights[idx].outerCone = value; return; }
-}
-
-void ShaderMTL::SetFloat3(const CHEngine::String& name, float x, float y, float z)
-{
-    const char* n = name.c_str();
-
-    if (strcmp(n, "u_CameraPos") == 0) {
-        m_FragmentUniforms.CameraPos[0] = x;
-        m_FragmentUniforms.CameraPos[1] = y;
-        m_FragmentUniforms.CameraPos[2] = z;
-        return;
-    }
-    if (strcmp(n, "u_AmbientColor") == 0) {
-        m_FragmentUniforms.AmbientColor[0] = x;
-        m_FragmentUniforms.AmbientColor[1] = y;
-        m_FragmentUniforms.AmbientColor[2] = z;
-        return;
-    }
-
-    // Light arrays
-    int idx;
-    idx = ParseArrayIndex(n, "u_LightPosition");
-    if (idx >= 0) {
-        m_FragmentUniforms.Lights[idx].pos[0] = x;
-        m_FragmentUniforms.Lights[idx].pos[1] = y;
-        m_FragmentUniforms.Lights[idx].pos[2] = z;
-        return;
-    }
-    idx = ParseArrayIndex(n, "u_LightDirection");
-    if (idx >= 0) {
-        m_FragmentUniforms.Lights[idx].dir[0] = x;
-        m_FragmentUniforms.Lights[idx].dir[1] = y;
-        m_FragmentUniforms.Lights[idx].dir[2] = z;
-        return;
-    }
-    idx = ParseArrayIndex(n, "u_LightColor");
-    if (idx >= 0) {
-        m_FragmentUniforms.Lights[idx].colorIntensity[0] = x;
-        m_FragmentUniforms.Lights[idx].colorIntensity[1] = y;
-        m_FragmentUniforms.Lights[idx].colorIntensity[2] = z;
-        return;
+    switch (block)
+    {
+    case CHEngine::EUniformBlock::Camera:
+        std::memcpy(&m_Camera, data, std::min(size, static_cast<uint32_t>(sizeof(m_Camera))));
+        break;
+    case CHEngine::EUniformBlock::Object:
+        std::memcpy(&m_Object, data, std::min(size, static_cast<uint32_t>(sizeof(m_Object))));
+        break;
+    case CHEngine::EUniformBlock::Lighting:
+        std::memcpy(&m_Lighting, data, std::min(size, static_cast<uint32_t>(sizeof(m_Lighting))));
+        break;
     }
 }
 
-void ShaderMTL::SetFloat4(const CHEngine::String& name, float x, float y, float z, float w)
+// ─── SetInt — no-op для Metal (текстуры через [[texture(N)]]) ──────────────
+
+void ShaderMTL::SetInt(const CHEngine::String& /*name*/, int /*value*/)
 {
-    const char* n = name.c_str();
-
-    if (strcmp(n, "u_Color") == 0) {
-        m_FragmentUniforms.Color[0] = x;
-        m_FragmentUniforms.Color[1] = y;
-        m_FragmentUniforms.Color[2] = z;
-        m_FragmentUniforms.Color[3] = w;
-        return;
-    }
-}
-
-void ShaderMTL::SetMat4(const CHEngine::String& name, const float* matrix)
-{
-    const char* n = name.c_str();
-
-    if (strcmp(n, "u_ViewProjection") == 0) {
-        memcpy(m_VertexUniforms.ViewProjection, matrix, 64);
-        return;
-    }
-    if (strcmp(n, "u_Transform") == 0) {
-        memcpy(m_VertexUniforms.Transform, matrix, 64);
-        return;
-    }
-    if (strcmp(n, "u_NormalMatrix") == 0) {
-        memcpy(m_VertexUniforms.NormalMatrix, matrix, 64);
-        return;
-    }
-    if (strcmp(n, "u_InvViewProj") == 0) {
-        memcpy(m_VertexUniforms.InvViewProj, matrix, 64);
-        return;
-    }
+    // Metal привязывает текстуры напрямую через [[texture(N)]],
+    // sampler slot не нужен.
 }
 
 } // namespace CHModules

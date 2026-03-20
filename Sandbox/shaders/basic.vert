@@ -5,11 +5,26 @@ layout(location = 1) in vec3 a_Color;
 
 out vec3 v_Color;
 
-uniform mat4 u_ViewProjection;
-uniform mat4 u_Transform;
+layout(std140) uniform CameraUBO
+{
+    mat4 ViewProjection;
+    mat4 InvViewProj;
+    vec4 CameraPos;
+} camera;
+
+layout(std140) uniform ObjectUBO
+{
+    mat4  Transform;
+    mat4  NormalMatrix;
+    vec4  Color;
+    float Selected;
+    int   UseTexture;
+    int   UseSpecularMap;
+    float Shininess;
+} object;
 
 void main()
 {
     v_Color     = a_Color;
-    gl_Position = u_ViewProjection * u_Transform * vec4(a_Position, 1.0);
+    gl_Position = camera.ViewProjection * object.Transform * vec4(a_Position, 1.0);
 }

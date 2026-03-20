@@ -1,3 +1,4 @@
+#include "chepch.h"
 #include "RenderFactoryMTL.h"
 
 #include "BufferMTL.h"
@@ -49,7 +50,7 @@ namespace CHModules
     void RenderFactoryMTL::Delete(CHEngine::IFramebuffer*  ptr) { delete static_cast<FramebufferMTL*>(ptr); }
 
     CHEngine::ModuleType RenderFactoryMTL::GetType() const { return CHEngine::ModuleType::Render; }
-    CHEngine::ERenderAPI RenderFactoryMTL::GetRenderApi() { return CHEngine::ERenderAPI::METALL; }
+    CHEngine::ERenderAPI RenderFactoryMTL::GetRenderApi() { return CHEngine::ERenderAPI::METAL; }
 }
 
 IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryMTL)
