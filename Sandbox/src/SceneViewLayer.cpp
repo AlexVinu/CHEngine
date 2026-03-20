@@ -131,6 +131,7 @@ void SceneViewLayer::OnImGuiRender()
         // FBO создаётся в пикселях (с учётом Retina): panelSize × fbScale.
         // ImGui::Image вызывается с panelSize в screen points — ImGui сам
         // масштабирует UV при рендере, поэтому картинка не пикселится.
+        bool resizedThisFrame = false;
         if (panelSize.x > 1.0f && panelSize.y > 1.0f &&
             (panelSize.x != m_ViewportSize.x || panelSize.y != m_ViewportSize.y))
         {
@@ -141,16 +142,19 @@ void SceneViewLayer::OnImGuiRender()
                 static_cast<uint32_t>(panelSize.x * fbScale.x),
                 static_cast<uint32_t>(panelSize.y * fbScale.y));
             m_AspectRatio = panelSize.x / panelSize.y;
+            resizedThisFrame = true;
         }
 
-        // Display the rendered scene as a texture (flip Y: OpenGL bottom-left → ImGui top-left)
+        // Display the rendered scene as a texture (flip Y: OpenGL bottom-left → ImGui top-left).
+        // Skip display on resize frame: Metal FBO has uninitialized Private texture,
+        // cleared on next Bind() via MTLLoadActionClear. Prevents pink garbage flash.
         auto* fbo2 = m_Resources.Get(m_Framebuffer);
-        if (fbo2)
+        if (fbo2 && !resizedThisFrame)
         {
             void* nativeTex = fbo2->GetNativeColorAttachment();
             // OpenGL: flip Y (bottom-left origin). Metal: no flip (top-left origin).
             const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType()
-                                  == CHEngine::ERenderAPI::METALL);
+                                  == CHEngine::ERenderAPI::METAL);
             ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
             ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
             ImGui::Image((ImTextureID)nativeTex, panelSize, uv0, uv1);

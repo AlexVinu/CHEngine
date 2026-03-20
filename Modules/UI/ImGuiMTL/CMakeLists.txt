@@ -31,6 +31,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
     -fvisibility=hidden
     $<$<CONFIG:Debug>:-g -O0>
     $<$<CONFIG:Release>:-O2>
+    $<$<CONFIG:Dist>:-O2>
 )
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE

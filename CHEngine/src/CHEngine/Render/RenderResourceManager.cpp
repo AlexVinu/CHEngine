@@ -53,7 +53,7 @@ namespace CHEngine {
 	{
 		String vertexSrc, fragmentSrc;
 
-		if (m_Factory && m_Factory->GetRenderApi() == ERenderAPI::METALL)
+		if (m_Factory && m_Factory->GetRenderApi() == ERenderAPI::METAL)
 		{
 			// Metal: derive .metal path from vertex shader path
 			// e.g. "shaders/basic.vert" → "shaders/basic.metal"

@@ -25,9 +25,6 @@ namespace CHModules
         return false;
     }
 
+    void ShaderVK::SetUniformBlock(CHEngine::EUniformBlock /*block*/, const void* /*data*/, uint32_t /*size*/) {}
     void ShaderVK::SetInt(const CHEngine::String& /*name*/, int /*value*/) {}
-    void ShaderVK::SetFloat(const CHEngine::String& /*name*/, float /*value*/) {}
-    void ShaderVK::SetFloat3(const CHEngine::String& /*name*/, float /*x*/, float /*y*/, float /*z*/) {}
-    void ShaderVK::SetFloat4(const CHEngine::String& /*name*/, float /*x*/, float /*y*/, float /*z*/, float /*w*/) {}
-    void ShaderVK::SetMat4(const CHEngine::String& /*name*/, const float* /*matrix*/) {}
 }

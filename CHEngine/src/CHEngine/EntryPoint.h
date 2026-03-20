@@ -34,7 +34,7 @@ static CHEngine::ERenderAPI ParseRendererArg(int argc, char** argv)
         {
             const char* val = argv[i] + 11;
             if (std::strcmp(val, "vulkan") == 0)  return CHEngine::ERenderAPI::VULKAN;
-            if (std::strcmp(val, "metal") == 0)   return CHEngine::ERenderAPI::METALL;
+            if (std::strcmp(val, "metal") == 0)   return CHEngine::ERenderAPI::METAL;
             if (std::strcmp(val, "opengl") == 0)  return CHEngine::ERenderAPI::OPENGL;
         }
     }
@@ -53,7 +53,14 @@ int main(int argc, char** argv)
     // Приоритет: CLI аргумент > engine.json > дефолт (OpenGL)
     CHEngine::ApplicationConfig config;
     if (HasRendererArg(argc, argv)) {
-        config.RenderAPI = ParseRendererArg(argc, argv);
+        auto requested = ParseRendererArg(argc, argv);
+        if (CHEngine::EngineConfig::IsPlatformSupported(requested)) {
+            config.RenderAPI = requested;
+        } else {
+            CHE_CORE_WARN("--renderer={}: not supported on this platform, using OpenGL",
+                          (int)requested);
+            config.RenderAPI = CHEngine::ERenderAPI::OPENGL;
+        }
     } else {
         config.RenderAPI = CHEngine::EngineConfig::LoadRendererPreference();
     }
@@ -86,10 +93,13 @@ int main(int argc, char** argv)
             char* resolved = realpath(exePath, nullptr);
             if (resolved) {
                 execv(resolved, argv);
+                // execv возвращается только при ошибке — процесс не заменён
+                perror("execv failed");
                 free(resolved);
+                return 1;
             }
         }
-        perror("execv failed");
+        perror("restart failed: cannot resolve exe path");
         return 1;
 #elif defined(CHE_PLATFORM_LINUX)
         char exePath[PATH_MAX];

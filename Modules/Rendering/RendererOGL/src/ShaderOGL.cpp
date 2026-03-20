@@ -1,7 +1,11 @@
 #include <chepch.h>
 #include "ShaderOGL.h"
 
+#include <Render/UniformBlocks.h>
+
 #include <glad/glad.h>
+
+#include <algorithm>
 
 namespace CHModules
 {
@@ -80,15 +84,53 @@ namespace CHModules
 	}
 
 	// ---------------------------------------------------------------------------
+	// Привязка UBO uniform block → binding point
+	// ---------------------------------------------------------------------------
+	void ShaderOGL::BindUBOBlocks()
+	{
+		struct BlockBinding { const char* name; GLuint binding; };
+		static const BlockBinding blocks[] = {
+			{ "CameraUBO",   0 },
+			{ "ObjectUBO",   1 },
+			{ "LightingUBO", 2 },
+		};
+
+		for (const auto& b : blocks) {
+			GLuint idx = glGetUniformBlockIndex(m_RendererID, b.name);
+			if (idx != GL_INVALID_INDEX)
+				glUniformBlockBinding(m_RendererID, idx, b.binding);
+		}
+	}
+
+	// ---------------------------------------------------------------------------
 
 	ShaderOGL::ShaderOGL(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
 	{
 		m_RendererID = CompileProgram(vertexSrc, fragmentSrc);
 		CHE_CORE_ASSERT(m_RendererID, "ShaderOGL: failed to compile/link shader");
+
+		// Создаём UBO-буферы
+		glGenBuffers(UBO_COUNT, m_UBOs);
+
+		const uint32_t uboSizes[UBO_COUNT] = {
+			static_cast<uint32_t>(sizeof(CHEngine::UBOCamera)),
+			static_cast<uint32_t>(sizeof(CHEngine::UBOObject)),
+			static_cast<uint32_t>(sizeof(CHEngine::UBOLighting)),
+		};
+
+		for (uint32_t i = 0; i < UBO_COUNT; ++i) {
+			glBindBuffer(GL_UNIFORM_BUFFER, m_UBOs[i]);
+			glBufferData(GL_UNIFORM_BUFFER, uboSizes[i], nullptr, GL_DYNAMIC_DRAW);
+		}
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+		// Связываем uniform blocks с binding points
+		BindUBOBlocks();
 	}
 
 	ShaderOGL::~ShaderOGL()
 	{
+		glDeleteBuffers(UBO_COUNT, m_UBOs);
 		glDeleteProgram(m_RendererID);
 	}
 
@@ -110,11 +152,29 @@ namespace CHModules
 
 		glDeleteProgram(m_RendererID);
 		m_RendererID = newProgram;
+
+		// Повторно связываем UBO blocks для нового program
+		BindUBOBlocks();
 		return true;
 	}
 
 	// ---------------------------------------------------------------------------
-	// Uniform setters — shader must be bound before calling these
+	// UBO — обновление данных и привязка к binding point
+	// ---------------------------------------------------------------------------
+
+	void ShaderOGL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size)
+	{
+		uint32_t binding = static_cast<uint32_t>(block);
+		if (binding >= UBO_COUNT) return;
+
+		glBindBuffer(GL_UNIFORM_BUFFER, m_UBOs[binding]);
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, size, data);
+		glBindBufferBase(GL_UNIFORM_BUFFER, binding, m_UBOs[binding]);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	}
+
+	// ---------------------------------------------------------------------------
+	// SetInt — для привязки текстурных sampler'ов (sampler нельзя в UBO)
 	// ---------------------------------------------------------------------------
 
 	void ShaderOGL::SetInt(const CHEngine::String& name, int value)
@@ -122,35 +182,6 @@ namespace CHModules
 		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
 		if (location == -1) return;
 		glUniform1i(location, value);
-	}
-
-	void ShaderOGL::SetFloat(const CHEngine::String& name, float value)
-	{
-		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
-		if (location == -1) return;
-		glUniform1f(location, value);
-	}
-
-	void ShaderOGL::SetFloat3(const CHEngine::String& name, float x, float y, float z)
-	{
-		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
-		if (location == -1) return;
-		glUniform3f(location, x, y, z);
-	}
-
-	void ShaderOGL::SetFloat4(const CHEngine::String& name, float x, float y, float z, float w)
-	{
-		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
-		if (location == -1) return;
-		glUniform4f(location, x, y, z, w);
-	}
-
-	void ShaderOGL::SetMat4(const CHEngine::String& name, const float* matrix)
-	{
-		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
-		if (location == -1) return;
-		// GL_FALSE = matrix is already column-major (GLM default)
-		glUniformMatrix4fv(location, 1, GL_FALSE, matrix);
 	}
 
 }

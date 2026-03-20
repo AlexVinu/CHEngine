@@ -1,3 +1,4 @@
+#include "chepch.h"
 #include "VertexArrayMTL.h"
 
 namespace CHModules
