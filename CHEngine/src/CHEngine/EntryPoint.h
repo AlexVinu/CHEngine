@@ -54,7 +54,7 @@ int main(int argc, char** argv)
     CHEngine::ApplicationConfig config;
     if (HasRendererArg(argc, argv)) {
         auto requested = ParseRendererArg(argc, argv);
-        if (CHEngine::EngineConfig::IsPlatformSupported(requested)) {
+        if (CHEngine::RenderAPICaps::IsAvailable(requested)) {
             config.RenderAPI = requested;
         } else {
             CHE_CORE_WARN("--renderer={}: not supported on this platform, using OpenGL",

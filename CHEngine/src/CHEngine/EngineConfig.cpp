@@ -68,7 +68,7 @@ namespace CHEngine {
                 CHE_CORE_WARN("EngineConfig: failed to clear pending: {}", e.what());
             }
             // Проверяем платформу: если в конфиге Metal а мы на Windows — fallback
-            if (IsPlatformSupported(pending))
+            if (RenderAPICaps::IsAvailable(pending))
                 return pending;
             CHE_CORE_WARN("EngineConfig: pending renderer={} not supported on this platform, ignoring",
                           ApiToString(pending));
@@ -77,7 +77,7 @@ namespace CHEngine {
         if (j.contains("renderer") && j["renderer"].is_string())
         {
             auto api = StringToApi(j["renderer"].get<std::string>());
-            if (IsPlatformSupported(api))
+            if (RenderAPICaps::IsAvailable(api))
                 return api;
             CHE_CORE_WARN("EngineConfig: saved renderer={} not supported on this platform, falling back to OpenGL",
                           ApiToString(api));
@@ -117,34 +117,4 @@ namespace CHEngine {
             CHE_CORE_ERROR("EngineConfig: failed to commit renderer: {}", e.what());
         }
     }
-
-    bool EngineConfig::IsPlatformSupported(ERenderAPI api)
-    {
-        switch (api) {
-        case ERenderAPI::OPENGL:
-            return true;
-        case ERenderAPI::VULKAN:
-#if defined(CHE_PLATFORM_APPLE)
-            return false; // MoltenVK не поддерживается в текущей конфигурации
-#else
-            return true;
-#endif
-        case ERenderAPI::METAL:
-#if defined(CHE_PLATFORM_APPLE)
-            return true;
-#else
-            return false;
-#endif
-        case ERenderAPI::DIRECTX11:
-        case ERenderAPI::DIRECTX12:
-#if defined(CHE_PLATFORM_WINDOWS)
-            return true;
-#else
-            return false;
-#endif
-        default:
-            return false;
-        }
-    }
-
 }
