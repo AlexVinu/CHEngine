@@ -2,13 +2,12 @@
 
 #include <Core.h>
 
-#include "EngineContext.h"
+#include "IAllocator.h"
 
 namespace CHEngine
 {
-    class CHE_CORE_API MemorySystem
+    struct CHE_CORE_API MemorySystem
     {
-    public:
         // Инициализация memory system
         static void Initialize();
 

@@ -4,11 +4,12 @@
 
 // Core ---------------
 #include "Memory/MemorySystem.h"
+#include "Log/Log.h"
+#include "PlatformAPICapabilities.h"
 // Core ===============
 
 #include "CHEngine/Application.h"
 #include "CHEngine/Layer/Layer.h"
-#include "Log/Log.h"
 
 // Events -------------------------
 #include "CHEngine/Events/Event.h"

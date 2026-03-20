@@ -1,5 +1,6 @@
 #include "MemorySystem.h"
 #include "MallocAllocator.h"
+#include "EngineContext.h"
 
 namespace CHEngine
 {

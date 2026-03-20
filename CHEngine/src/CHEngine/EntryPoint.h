@@ -48,6 +48,7 @@ int main(int argc, char** argv)
     CHE_CORE_CRITICAL("WELCOME TO HELL!");
 
     CHEngine::MemorySystem::Initialize();
+    CHEngine::RenderAPICaps::Initialize();
 
     // Приоритет: CLI аргумент > engine.json > дефолт (OpenGL)
     CHEngine::ApplicationConfig config;
@@ -55,6 +56,18 @@ int main(int argc, char** argv)
         config.RenderAPI = ParseRendererArg(argc, argv);
     } else {
         config.RenderAPI = CHEngine::EngineConfig::LoadRendererPreference();
+    }
+
+    if (!CHEngine::RenderAPICaps::HasAnyAPI())
+    {
+        CHE_CORE_CRITICAL("Where are no available render api");
+        return 1;
+    }
+
+    if (!CHEngine::RenderAPICaps::IsAvailable(config.RenderAPI))
+    {
+        CHE_CORE_CRITICAL("Render API with code {0} not available; Render set to OpenGL", (int)config.RenderAPI);
+        config.RenderAPI = CHEngine::ERenderAPI::OPENGL;
     }
 
     auto app = CHEngine::CreateApplication(config);
