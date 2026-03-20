@@ -1,6 +1,6 @@
 #pragma once
 
-#include <RenderData.h>
+#include <PlatformAPICapabilities.h>
 
 namespace CHEngine {
 
@@ -18,9 +18,6 @@ namespace CHEngine {
         /// Записывает renderer в engine.json как подтверждённый.
         /// Вызывать после успешной инициализации всех модулей.
         static void CommitRendererPreference(ERenderAPI api);
-
-        /// Возвращает true, если данный API поддерживается на текущей платформе.
-        static bool IsPlatformSupported(ERenderAPI api);
     };
 
 }
