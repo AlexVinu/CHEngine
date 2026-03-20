@@ -12,7 +12,6 @@ namespace CHEngine {
     static const char* ApiToString(ERenderAPI api)
     {
         switch (api) {
-        case ERenderAPI::OPENGL:  return "opengl";
         case ERenderAPI::VULKAN:  return "vulkan";
         case ERenderAPI::METALL:  return "metal";
         default:                  return "opengl";
