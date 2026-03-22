@@ -1,4 +1,5 @@
 #include "RenderFactoryOGL.h"
+#include "IsRenderAvailable.h"
 
 #include "BufferOGL.h"
 #include "VertexArrayOGL.h"
@@ -6,6 +7,8 @@
 #include "TextureOGL.h"
 #include "RendererOGL.h"
 #include "RenderApiOGL.h"
+
+#include <glad/glad.h>
 
 namespace CHModules
 {
@@ -49,6 +52,11 @@ namespace CHModules
     CHEngine::ERenderAPI RenderFactoryOGL::GetRenderApi()
     {
         return CHEngine::ERenderAPI::OPENGL;
+    }
+
+    bool RenderFactoryOGL::CheckIsWorking()
+    {
+        return CHModules::CheckIsWorking();
     }
 
     void RenderFactoryOGL::Delete(CHEngine::IVertexBuffer* ptr)
