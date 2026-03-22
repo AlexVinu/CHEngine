@@ -2,6 +2,7 @@
 #include "Application.h"
 
 #include "Log/Log.h"
+#include "PlatformAPICapabilities.h"
 #include "CHEngine/Input/Input.h"
 #include "CHEngine/EngineConfig.h"
 
@@ -22,47 +23,6 @@ namespace CHEngine {
 #define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
 
     Application* Application::s_Instance = nullptr;
-
-    // ─── Маппинг ERenderAPI → имена модулей ─────────────────────────────────
-    struct ModuleNames
-    {
-        const char* Renderer;
-        const char* ImGui;
-    };
-
-    static ModuleNames GetModuleNames(ERenderAPI api)
-    {
-        switch (api)
-        {
-        case ERenderAPI::OPENGL:
-#if defined(CHE_PLATFORM_WINDOWS)
-            return { "RendererOGL.dll", "ImGuiOGL.dll" };
-#elif defined(CHE_PLATFORM_APPLE)
-            return { "libRendererOGL.dylib", "libImGuiOGL.dylib" };
-#else
-            return { "libRendererOGL.so", "libImGuiOGL.so" };
-#endif
-
-        case ERenderAPI::VULKAN:
-#if defined(CHE_PLATFORM_WINDOWS)
-            return { "RendererVK.dll", "ImGuiVK.dll" };
-#elif defined(CHE_PLATFORM_APPLE)
-            return { "libRendererVK.dylib", "libImGuiVK.dylib" };
-#else
-            return { "libRendererVK.so", "libImGuiVK.so" };
-#endif
-
-        case ERenderAPI::METAL:
-#if defined(CHE_PLATFORM_APPLE)
-            return { "libRendererMTL.dylib", "libImGuiMTL.dylib" };
-#else
-            return { nullptr, nullptr };
-#endif
-
-        default:
-            return { nullptr, nullptr };
-        }
-    }
 
     Application::Application(const ApplicationConfig& config)
         : m_ModuleManager()
@@ -100,11 +60,29 @@ namespace CHEngine {
         }
         s_Instance = this;
 
+        // TODO:Проверка работоспособности всех доступных системе рендеров
+        for (auto api : RenderAPICaps::AllAvailableAPI())
+        {
+            auto module_name = RenderAPICaps::GetModuleNames(api);
+            bool flag = module_name.Renderer && (m_ModuleManager.LoadModule(module_name.Renderer) &&
+                m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render)->CheckIsWorking());
+            
+            RenderAPICaps::SetFlag(api, flag);
+        }
+
+        m_ModuleManager.UnloadAll();
+
+        CHE_CORE_INFO("ALL AVAILABLE RENDER API ------------------");
+        for (auto api : RenderAPICaps::AllAvailableAPI())
+        {
+            CHE_CORE_INFO("RENDER API {}", (int)api);
+        }
+
         // ─── 1. Загрузить все 3 модуля ───────────────────────────────────────
         // Порядок важен: Window → Renderer → ImGui
         // Имена модулей определяются выбранным ERenderAPI
 
-        auto moduleNames = GetModuleNames(m_RenderAPIType);
+        auto moduleNames = RenderAPICaps::GetModuleNames(m_RenderAPIType);
         if (!moduleNames.Renderer) {
             CHE_CORE_CRITICAL("ERenderAPI {} не поддерживается на этой платформе!", (int)m_RenderAPIType);
             m_Running = false;
@@ -218,8 +196,6 @@ namespace CHEngine {
         EventDispatcher dispatcher(e);
         dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(OnWindowClosed));
         dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FN(OnWindowResized));
-
-        CHE_CORE_TRACE("{0}", e);
 
         for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
         {

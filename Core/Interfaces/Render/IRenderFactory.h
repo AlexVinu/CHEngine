@@ -44,5 +44,7 @@ namespace CHEngine {
         virtual void Delete(IFramebuffer*  ptr) = 0;
 
         virtual ERenderAPI GetRenderApi() = 0;
+
+        virtual bool CheckIsWorking() = 0;
     };
 }

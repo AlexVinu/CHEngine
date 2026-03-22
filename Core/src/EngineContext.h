@@ -11,11 +11,13 @@ namespace CHEngine
         // Memory -------------------
         IAllocator* Allocator;
         // Memory ===================
+
         // Logging ------------------
         std::shared_ptr<spdlog::logger> CoreLogger;
         std::shared_ptr<spdlog::logger> ModuleLogger;
         std::shared_ptr<spdlog::logger> ClientLogger;
         // Logging ==================
+
         // System dependencies ------
         RenderAPIStore* RenderApiStore;
         // System dependencies ======

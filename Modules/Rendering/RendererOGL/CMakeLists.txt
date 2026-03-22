@@ -8,7 +8,7 @@ file(GLOB CHE_HEADERS "src/*.h" "src/*.hpp" "src/*.inl")
 # GLFW и GLAD — теперь shared libs из root CMakeLists, НЕ добавляем add_subdirectory
 # imgui backends — переехали в ImGuiOGL модуль
 
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS})
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} "src/IsRenderAvailable.cpp" "src/IsRenderAvailable.h")
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     CXX_STANDARD 20
@@ -52,10 +52,13 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     ARCHIVE_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib"
 )
 
+find_package(OpenGL REQUIRED)
+
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
         glad
+        OpenGL::GL
         glm
 )
 

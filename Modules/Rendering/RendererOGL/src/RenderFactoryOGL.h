@@ -33,5 +33,7 @@ namespace CHModules
         CHEngine::ModuleType GetType() const override;
 
         virtual CHEngine::ERenderAPI GetRenderApi() override;
+
+        virtual bool CheckIsWorking() override;
     };
 }
