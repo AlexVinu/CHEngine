@@ -20,7 +20,7 @@ public:
 	{
 	}
 
-	void OnUpdate(float dt) override
+	void OnUpdate(CHEngine::Timestep dt) override
 	{
 
 		// --- Auto-rotate ---

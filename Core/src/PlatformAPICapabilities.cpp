@@ -2,37 +2,45 @@
 #include "EngineContext.h"
 
 namespace CHEngine {
-	void RenderAPICaps::Initialize()
+	constexpr RenderAPIStore GetDefaultRenderAPIStore()
 	{
-		static RenderAPIStore store = 0;
-		// API available if it exists on this system
+		RenderAPIStore store = 0;
+
 		store |= BIT((int)ERenderAPI::OPENGL);
 		store |= BIT((int)ERenderAPI::VULKAN);
+
 #ifdef CHE_PLATFORM_WINDOWS
 		store |= BIT((int)ERenderAPI::DIRECTX11);
 		store |= BIT((int)ERenderAPI::DIRECTX12);
-#endif 
+#endif
+
 #ifdef CHE_PLATFORM_APPLE
 		store |= BIT((int)ERenderAPI::METALL);
 #endif
 
+		return store;
+	}
+
+	void RenderAPICaps::Initialize()
+	{
+		static RenderAPIStore store = GetDefaultRenderAPIStore();
 		g_EngineContext.RenderApiStore = &store;
 	}
 
-	void RenderAPICaps::SetFlag(ERenderAPI api, bool flag)
+	void RenderAPICaps::SetFlag(WRenderAPI api, bool flag)
 	{
 		flag ? *(g_EngineContext.RenderApiStore) |= (BIT((int)api))
 			: *(g_EngineContext.RenderApiStore) &= (~(BIT((int)api)));
 	}
 
-	bool RenderAPICaps::IsAvailable(ERenderAPI api)
+	bool RenderAPICaps::IsAvailable(WRenderAPI api)
 	{
 		return *(g_EngineContext.RenderApiStore) & (BIT((int)api));
 	}
 
-	BitwiseRange<ERenderAPI, RenderAPIStore> RenderAPICaps::AllAvailableAPI()
+	BitwiseRange<WRenderAPI, RenderAPIStore> RenderAPICaps::AllAvailableAPI()
 	{
-		return BitwiseRange<ERenderAPI, RenderAPIStore>(*(g_EngineContext.RenderApiStore));
+		return BitwiseRange<WRenderAPI, RenderAPIStore>(*(g_EngineContext.RenderApiStore));
 	}
 
 	bool RenderAPICaps::HasAnyAPI()
@@ -40,9 +48,9 @@ namespace CHEngine {
 		return (RenderAPIStore)0 | *(g_EngineContext.RenderApiStore);
 	}
 
-	ModuleNames RenderAPICaps::GetModuleNames(ERenderAPI api)
+	ModuleNames RenderAPICaps::GetModuleNames(WRenderAPI api)
 	{
-		switch (api)
+		switch (api.GetEnum())
 		{
 		case ERenderAPI::OPENGL:
 #if defined(CHE_PLATFORM_WINDOWS)

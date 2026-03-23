@@ -60,7 +60,7 @@ namespace CHEngine {
         }
         s_Instance = this;
 
-        // TODO:Проверка работоспособности всех доступных системе рендеров
+        // Проверка работоспособности всех доступных системе рендеров
         for (auto api : RenderAPICaps::AllAvailableAPI())
         {
             auto module_name = RenderAPICaps::GetModuleNames(api);
@@ -75,7 +75,7 @@ namespace CHEngine {
         CHE_CORE_INFO("ALL AVAILABLE RENDER API ------------------");
         for (auto api : RenderAPICaps::AllAvailableAPI())
         {
-            CHE_CORE_INFO("RENDER API {}", (int)api);
+            CHE_CORE_INFO("RENDER API {}", api.c_str());
         }
 
         // ─── 1. Загрузить все 3 модуля ───────────────────────────────────────
@@ -237,7 +237,7 @@ namespace CHEngine {
         {
             // ── Delta time ──────────────────────────────────────────────────
             auto now = std::chrono::steady_clock::now();
-            float dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
+            Timestep dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
             m_LastFrameTime = now;
 
             // ── Shader hot reload ────────────────────────────────────────────

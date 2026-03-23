@@ -5,15 +5,15 @@
 #include <cstdint>
 #include <type_traits>
 
-
 namespace CHEngine
 {
-    template<typename TEnum, typename TStore = std::underlying_type_t<TEnum>>
-        requires std::is_enum_v<TEnum>&& std::unsigned_integral<TStore>
+    template<class TEnumWrapper, typename TStore>
+        requires std::is_convertible_v<TEnumWrapper, int> && std::unsigned_integral<TStore>
     class BitwiseRange
     {
     public:
-        using EnumType = TEnum;
+        using WrapperType = TEnumWrapper;
+        using EnumType = TEnumWrapper::EnumType;
         using StoreType = TStore;
 
         class Iterator
@@ -24,9 +24,9 @@ namespace CHEngine
             {
             }
 
-            constexpr EnumType operator*() const
+            constexpr WrapperType operator*() const
             {
-                return static_cast<EnumType>(std::countr_zero(m_Remaining));
+                return static_cast<WrapperType>(static_cast<EnumType>(std::countr_zero(m_Remaining)));
             }
 
             constexpr Iterator& operator++()

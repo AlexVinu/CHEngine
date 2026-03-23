@@ -42,7 +42,7 @@ SceneViewLayer::SceneViewLayer()
 //  Layer overrides
 // ============================================================================
 
-void SceneViewLayer::OnUpdate(float /*dt*/)
+void SceneViewLayer::OnUpdate(CHEngine::Timestep)
 {
     RenderScene();
 }
