@@ -17,6 +17,7 @@
 
 #include "RenderData.h"
 
+#include "Timestep.h"
 #include <chrono>
 
 namespace CHEngine {
@@ -86,6 +87,7 @@ namespace CHEngine {
 
         // Delta time
         std::chrono::steady_clock::time_point m_LastFrameTime;
+        
     };
 
     // To be defined in client

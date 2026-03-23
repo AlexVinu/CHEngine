@@ -2,6 +2,7 @@
 
 #include <Core.h>
 #include "CHEngine/Events/Event.h"
+#include "Timestep.h"
 
 namespace CHEngine
 {
@@ -13,7 +14,7 @@ namespace CHEngine
 
 		virtual void OnAttach() {}
 		virtual void OnDetach() {}
-		virtual void OnUpdate(float /*dt*/) {}
+		virtual void OnUpdate(Timestep /*dt*/) {}
 		virtual void OnEvent(Event& /*event*/) {}
 		virtual void OnImGuiRender() {}
 
