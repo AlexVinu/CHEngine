@@ -1,26 +1,22 @@
 #pragma once
 
+#include "Core.h"
 #include "Memory/IAllocator.h"
 #include "PlatformAPICapabilities.h"
 #include "Log/Log.h"
 
 namespace CHEngine
 {
-    inline struct
+    struct EngineContext
     {
-        // Memory -------------------
-        IAllocator* Allocator;
-        // Memory ===================
+        IAllocator* Allocator = nullptr;
 
-        // Logging ------------------
         std::shared_ptr<spdlog::logger> CoreLogger;
         std::shared_ptr<spdlog::logger> ModuleLogger;
         std::shared_ptr<spdlog::logger> ClientLogger;
-        // Logging ==================
 
-        // System dependencies ------
-        RenderAPIStore* RenderApiStore;
-        // System dependencies ======
-    } g_EngineContext;
+        RenderAPIStore* RenderApiStore = nullptr;
+    };
 
+    CHE_CORE_API EngineContext& GetEngineContext();
 }

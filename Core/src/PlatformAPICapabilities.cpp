@@ -1,4 +1,4 @@
-﻿#include "Core.h"
+#include "Core.h"
 #include "EngineContext.h"
 
 namespace CHEngine {
@@ -24,28 +24,28 @@ namespace CHEngine {
 	void RenderAPICaps::Initialize()
 	{
 		static RenderAPIStore store = GetDefaultRenderAPIStore();
-		g_EngineContext.RenderApiStore = &store;
+		GetEngineContext().RenderApiStore = &store;
 	}
 
 	void RenderAPICaps::SetFlag(WRenderAPI api, bool flag)
 	{
-		flag ? *(g_EngineContext.RenderApiStore) |= (BIT((int)api))
-			: *(g_EngineContext.RenderApiStore) &= (~(BIT((int)api)));
+		flag ? *(GetEngineContext().RenderApiStore) |= (BIT((int)api))
+			: *(GetEngineContext().RenderApiStore) &= (~(BIT((int)api)));
 	}
 
 	bool RenderAPICaps::IsAvailable(WRenderAPI api)
 	{
-		return *(g_EngineContext.RenderApiStore) & (BIT((int)api));
+		return *(GetEngineContext().RenderApiStore) & (BIT((int)api));
 	}
 
 	BitwiseRange<WRenderAPI, RenderAPIStore> RenderAPICaps::AllAvailableAPI()
 	{
-		return BitwiseRange<WRenderAPI, RenderAPIStore>(*(g_EngineContext.RenderApiStore));
+		return BitwiseRange<WRenderAPI, RenderAPIStore>(*(GetEngineContext().RenderApiStore));
 	}
 
 	bool RenderAPICaps::HasAnyAPI()
 	{
-		return (RenderAPIStore)0 | *(g_EngineContext.RenderApiStore);
+		return (RenderAPIStore)0 | *(GetEngineContext().RenderApiStore);
 	}
 
 	ModuleNames RenderAPICaps::GetModuleNames(WRenderAPI api)

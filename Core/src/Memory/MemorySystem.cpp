@@ -7,22 +7,22 @@ namespace CHEngine
     void MemorySystem::Initialize()
     {
         static MallocAllocator defaultAllocator;
-        g_EngineContext.Allocator = &defaultAllocator;
+        GetEngineContext().Allocator = &defaultAllocator;
     }
 
     void MemorySystem::Shutdown()
     {
-        g_EngineContext.Allocator = nullptr;
+        GetEngineContext().Allocator = nullptr;
     }
 
     IAllocator* MemorySystem::GetAllocator()
     {
-        CHE_ASSERT(g_EngineContext.Allocator, "MemorySystem not initialized!");
-        return g_EngineContext.Allocator;
+        CHE_ASSERT(GetEngineContext().Allocator, "MemorySystem not initialized!");
+        return GetEngineContext().Allocator;
     }
 
     void MemorySystem::SetAllocator(IAllocator* allocator)
     {
-        g_EngineContext.Allocator = allocator;
+        GetEngineContext().Allocator = allocator;
     }
 }
