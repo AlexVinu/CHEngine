@@ -6,6 +6,7 @@
 #include "Memory/MemorySystem.h"
 #include "Log/Log.h"
 #include "PlatformAPICapabilities.h"
+#include "Profiler.h"
 // Core ===============
 
 #include "CHEngine/Application.h"

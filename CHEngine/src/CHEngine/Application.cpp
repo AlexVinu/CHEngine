@@ -3,6 +3,7 @@
 
 #include "Log/Log.h"
 #include "PlatformAPICapabilities.h"
+#include "Profiler.h"
 #include "CHEngine/Input/Input.h"
 #include "CHEngine/EngineConfig.h"
 
@@ -239,6 +240,8 @@ namespace CHEngine {
             auto now = std::chrono::steady_clock::now();
             Timestep dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
             m_LastFrameTime = now;
+
+            Profiler::Flush();
 
             // ── Shader hot reload ────────────────────────────────────────────
             shaderPollAcc += dt;

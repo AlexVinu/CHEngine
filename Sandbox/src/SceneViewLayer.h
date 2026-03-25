@@ -57,6 +57,7 @@ private:
     void DrawScenePanel   (ImVec2 pos, ImVec2 size, bool resetSize);
     void DrawPropsPanel   (ImVec2 pos, ImVec2 size, bool resetSize);
     void DrawCameraPanel  (ImVec2 pos, ImVec2 size, bool resetSize);
+    void DrawProfilerPanel();
     void DrawOrbitIndicator();
     void DrawGizmo();
 
@@ -108,8 +109,9 @@ private:
     bool                m_LocalMode      = false;
 
     // Viewport flags
-    bool m_ShowGrid    = true;
-    bool m_ResetLayout = false;   // true → snap panel sizes back next frame
+    bool m_ShowGrid      = true;
+    bool m_ShowProfiler  = false;
+    bool m_ResetLayout   = false;   // true → snap panel sizes back next frame
 
 
     // Undo

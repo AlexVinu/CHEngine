@@ -69,6 +69,7 @@ void SceneViewLayer::BuildGrid()
 
 void SceneViewLayer::RenderScene()
 {
+    CHE_PROFILE_FUNCTION();
     auto& res = m_Resources;
     auto* api = res.Get(m_RenderApi);
     if (!api) return;

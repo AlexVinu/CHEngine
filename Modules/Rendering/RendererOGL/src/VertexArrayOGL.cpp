@@ -1,6 +1,7 @@
 #include <chepch.h>
 #include "VertexArrayOGL.h"
 
+#include <Profiler.h>
 #include <glad/glad.h>
 
 namespace CHModules
@@ -28,35 +29,30 @@ namespace CHModules
 
 	VertexArrayOGL::VertexArrayOGL()
 	{
-		//CHE_PROFILE_FUNCTION();
 
 		glGenVertexArrays(1, &m_RendererID);
 	}
 
 	VertexArrayOGL::~VertexArrayOGL()
 	{
-		//CHE_PROFILE_FUNCTION();
 
 		glDeleteVertexArrays(1, &m_RendererID);
 	}
 
 	void VertexArrayOGL::Bind() const
 	{
-		//CHE_PROFILE_FUNCTION();
 
 		glBindVertexArray(m_RendererID);
 	}
 
 	void VertexArrayOGL::Unbind() const
 	{
-		//CHE_PROFILE_FUNCTION();
 
 		glBindVertexArray(0);
 	}
 
 	void VertexArrayOGL::AddVertexBuffer(const std::shared_ptr<CHEngine::IVertexBuffer>& vertexBuffer)
 	{
-		//CHE_PROFILE_FUNCTION();
 
 		CHE_CORE_ASSERT(vertexBuffer->GetLayout().GetElements().size(), "Vertex Buffer has no layout!");
 
@@ -126,7 +122,6 @@ namespace CHModules
 
 	void VertexArrayOGL::SetIndexBuffer(const std::shared_ptr<CHEngine::IIndexBuffer>& indexBuffer)
 	{
-		//CHE_PROFILE_FUNCTION();
 
 		glBindVertexArray(m_RendererID);
 		indexBuffer->Bind();
