@@ -44,11 +44,13 @@ SceneViewLayer::SceneViewLayer()
 
 void SceneViewLayer::OnUpdate(CHEngine::Timestep)
 {
+    CHE_PROFILE_FUNCTION();
     RenderScene();
 }
 
 void SceneViewLayer::OnImGuiRender()
 {
+    CHE_PROFILE_FUNCTION();
     // ── Screen dimensions ──────────────────────────────────────────────────
     const ImVec2 disp = ImGui::GetIO().DisplaySize;
     const float  W    = disp.x;
@@ -182,5 +184,6 @@ void SceneViewLayer::OnImGuiRender()
     }
     // ─────────────────────────────────────────────────────────────────────
 
+    DrawProfilerPanel();
     DrawOrbitIndicator();
 }

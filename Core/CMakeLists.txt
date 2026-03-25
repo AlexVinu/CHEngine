@@ -18,7 +18,7 @@ file(GLOB_RECURSE CHE_HEADERS
 )
 
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} "src/Timestep.h" "src/EnumWrapper.h")
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} "src/Timestep.h" "src/EnumWrapper.h" "src/Profiler.h" "src/Profiler.cpp")
 
 # Директории включения
 target_include_directories(${PROJECT_NAME}
