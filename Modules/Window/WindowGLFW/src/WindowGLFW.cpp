@@ -133,17 +133,17 @@ namespace CHModules {
             // получит contentView и создаст CAMetalLayer
             info.Metal.NSWindow = glfwGetCocoaWindow(m_Window);
 #else
-            CHE_CORE_ERROR("GetRenderInitInfo: Metal не поддерживается на этой платформе");
+            CHE_CORE_ERROR("GetRenderInitInfo: Metal is not supported on this platform");
 #endif
             break;
 
         case CHEngine::ERenderAPI::DIRECTX11:
         case CHEngine::ERenderAPI::DIRECTX12:
-            CHE_CORE_ERROR("GetRenderInitInfo: API {} пока не реализован", (int)render_api);
+            CHE_CORE_ERROR("GetRenderInitInfo: API {} is not implemented yet", (int)render_api);
             break;
         case CHEngine::ERenderAPI::NONE:
         default:
-            CHE_CORE_ERROR("GetRenderInitInfo: Render API не установлен");
+            CHE_CORE_ERROR("GetRenderInitInfo: Render API is not set");
             break;
         }
 

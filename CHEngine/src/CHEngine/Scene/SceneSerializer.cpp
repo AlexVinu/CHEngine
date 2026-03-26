@@ -205,7 +205,7 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
             const auto& lj = o["light"];
             int typeVal = lj.value("type", -1);
             if (typeVal < 0 || typeVal > 2) {
-                CHE_CORE_WARN("SceneSerializer: некорректный тип света {} у '{}', сброс", typeVal, name);
+                CHE_CORE_WARN("SceneSerializer: invalid light type {} for '{}', resetting", typeVal, name);
                 typeVal = -1;
             }
             obj->LightData.Type = static_cast<LightType>(typeVal);

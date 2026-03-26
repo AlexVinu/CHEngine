@@ -16,7 +16,7 @@ namespace CHModules
 
             int success = gladLoadGLLoader((GLADloadproc)init_info.OpenGL.Loader);
             if (!success) {
-                CHE_CORE_CRITICAL("RendererOGL::Init — GLAD не инициализирован (gladLoadGLLoader вернул 0)!");
+                CHE_CORE_CRITICAL("RendererOGL::Init - GLAD initialization failed (gladLoadGLLoader returned 0)!");
                 return;
             }
             s_GLADInitialized = true;

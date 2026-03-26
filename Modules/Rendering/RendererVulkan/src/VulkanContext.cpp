@@ -287,7 +287,7 @@ namespace CHModules {
 
         VkResult result = vkCreateInstance(&createInfo, nullptr, &m_Instance);
         if (result != VK_SUCCESS) {
-            CHE_CORE_CRITICAL("VulkanContext: не удалось создать VkInstance ({})", (int)result);
+            CHE_CORE_CRITICAL("VulkanContext: failed to create VkInstance ({})", (int)result);
             return false;
         }
         return true;
@@ -297,7 +297,7 @@ namespace CHModules {
     {
         VkResult result = glfwCreateWindowSurface(m_Instance, window, nullptr, &m_Surface);
         if (result != VK_SUCCESS) {
-            CHE_CORE_CRITICAL("VulkanContext: не удалось создать VkSurfaceKHR");
+            CHE_CORE_CRITICAL("VulkanContext: failed to create VkSurfaceKHR");
             return false;
         }
         return true;
@@ -308,7 +308,7 @@ namespace CHModules {
         uint32_t deviceCount = 0;
         vkEnumeratePhysicalDevices(m_Instance, &deviceCount, nullptr);
         if (deviceCount == 0) {
-            CHE_CORE_CRITICAL("VulkanContext: нет GPU с поддержкой Vulkan");
+            CHE_CORE_CRITICAL("VulkanContext: no Vulkan-capable GPU found");
             return false;
         }
 
@@ -347,7 +347,7 @@ namespace CHModules {
             }
         }
 
-        CHE_CORE_CRITICAL("VulkanContext: не найден подходящий GPU");
+        CHE_CORE_CRITICAL("VulkanContext: suitable GPU not found");
         return false;
     }
 
@@ -383,7 +383,7 @@ namespace CHModules {
         createInfo.ppEnabledExtensionNames = deviceExtensions.data();
 
         if (vkCreateDevice(m_PhysicalDevice, &createInfo, nullptr, &m_Device) != VK_SUCCESS) {
-            CHE_CORE_CRITICAL("VulkanContext: не удалось создать logical device");
+            CHE_CORE_CRITICAL("VulkanContext: failed to create logical device");
             return false;
         }
 
@@ -453,7 +453,7 @@ namespace CHModules {
         swapchainInfo.clipped = VK_TRUE;
 
         if (vkCreateSwapchainKHR(m_Device, &swapchainInfo, nullptr, &m_Swapchain) != VK_SUCCESS) {
-            CHE_CORE_CRITICAL("VulkanContext: не удалось создать swapchain");
+            CHE_CORE_CRITICAL("VulkanContext: failed to create swapchain");
             return false;
         }
 
@@ -476,7 +476,7 @@ namespace CHModules {
             viewInfo.subresourceRange.layerCount = 1;
 
             if (vkCreateImageView(m_Device, &viewInfo, nullptr, &m_SwapchainImageViews[i]) != VK_SUCCESS) {
-                CHE_CORE_CRITICAL("VulkanContext: не удалось создать image view");
+                CHE_CORE_CRITICAL("VulkanContext: failed to create image view");
                 return false;
             }
         }
@@ -540,7 +540,7 @@ namespace CHModules {
         renderPassInfo.pDependencies = &dependency;
 
         if (vkCreateRenderPass(m_Device, &renderPassInfo, nullptr, &m_RenderPass) != VK_SUCCESS) {
-            CHE_CORE_CRITICAL("VulkanContext: не удалось создать render pass");
+            CHE_CORE_CRITICAL("VulkanContext: failed to create render pass");
             return false;
         }
         return true;
@@ -615,7 +615,7 @@ namespace CHModules {
             fbInfo.layers = 1;
 
             if (vkCreateFramebuffer(m_Device, &fbInfo, nullptr, &m_Framebuffers[i]) != VK_SUCCESS) {
-                CHE_CORE_CRITICAL("VulkanContext: не удалось создать framebuffer");
+                CHE_CORE_CRITICAL("VulkanContext: failed to create framebuffer");
                 return false;
             }
         }
@@ -630,7 +630,7 @@ namespace CHModules {
         poolInfo.queueFamilyIndex = m_GraphicsQueueFamily;
 
         if (vkCreateCommandPool(m_Device, &poolInfo, nullptr, &m_CommandPool) != VK_SUCCESS) {
-            CHE_CORE_CRITICAL("VulkanContext: не удалось создать command pool");
+            CHE_CORE_CRITICAL("VulkanContext: failed to create command pool");
             return false;
         }
         return true;
@@ -647,7 +647,7 @@ namespace CHModules {
         allocInfo.commandBufferCount = MAX_FRAMES_IN_FLIGHT;
 
         if (vkAllocateCommandBuffers(m_Device, &allocInfo, m_CommandBuffers.data()) != VK_SUCCESS) {
-            CHE_CORE_CRITICAL("VulkanContext: не удалось создать command buffers");
+            CHE_CORE_CRITICAL("VulkanContext: failed to create command buffers");
             return false;
         }
         return true;
@@ -670,7 +670,7 @@ namespace CHModules {
             if (vkCreateSemaphore(m_Device, &semInfo, nullptr, &m_ImageAvailableSemaphores[i]) != VK_SUCCESS ||
                 vkCreateSemaphore(m_Device, &semInfo, nullptr, &m_RenderFinishedSemaphores[i]) != VK_SUCCESS ||
                 vkCreateFence(m_Device, &fenceInfo, nullptr, &m_InFlightFences[i]) != VK_SUCCESS) {
-                CHE_CORE_CRITICAL("VulkanContext: не удалось создать sync objects");
+                CHE_CORE_CRITICAL("VulkanContext: failed to create sync objects");
                 return false;
             }
         }

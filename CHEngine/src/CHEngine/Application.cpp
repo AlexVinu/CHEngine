@@ -85,7 +85,7 @@ namespace CHEngine {
 
         auto moduleNames = RenderAPICaps::GetModuleNames(m_RenderAPIType);
         if (!moduleNames.Renderer) {
-            CHE_CORE_CRITICAL("ERenderAPI {} не поддерживается на этой платформе!", (int)m_RenderAPIType);
+            CHE_CORE_CRITICAL("ERenderAPI {} is not supported on this platform!", (int)m_RenderAPIType);
             m_Running = false;
             return;
         }

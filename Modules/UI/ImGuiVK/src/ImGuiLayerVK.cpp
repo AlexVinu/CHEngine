@@ -24,7 +24,7 @@ namespace CHModules {
 
         GLFWwindow* glfwWin = static_cast<GLFWwindow*>(window->GetNativeWindow());
         if (!glfwWin) {
-            CHE_CORE_ERROR("ImGuiLayerVK: GetNativeWindow() вернул null!");
+            CHE_CORE_ERROR("ImGuiLayerVK: GetNativeWindow() returned null!");
             return;
         }
 
@@ -43,8 +43,8 @@ namespace CHModules {
         // Для полной инициализации нужен доступ к VulkanContext.
         // Сейчас это скелетная реализация — рендеринг ImGui не будет виден,
         // но GLFW-ввод (клавиатура, мышь) будет работать.
-        CHE_CORE_WARN("ImGuiLayerVK: Vulkan ImGui backend — скелетная реализация. "
-                      "ImGui рендеринг будет недоступен до полной интеграции с VulkanContext.");
+        CHE_CORE_WARN("ImGuiLayerVK: Vulkan ImGui backend is a skeleton implementation. "
+                      "ImGui rendering will be unavailable until full VulkanContext integration.");
 
         m_Initialized = true;
     }

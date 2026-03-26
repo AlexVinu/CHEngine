@@ -19,7 +19,7 @@ namespace CHModules {
         // static_cast только здесь, внутри модуля — снаружи никто не знает о GLFW
         GLFWwindow* glfwWin = static_cast<GLFWwindow*>(window->GetNativeWindow());
         if (!glfwWin) {
-            CHE_CORE_ERROR("ImGuiLayerOGL: GetNativeWindow() вернул null!");
+            CHE_CORE_ERROR("ImGuiLayerOGL: GetNativeWindow() returned null!");
             return;
         }
 

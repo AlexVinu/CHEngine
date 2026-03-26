@@ -8,7 +8,7 @@ namespace CHModules
     {
         // TODO: загрузить SPIR-V модули, создать VkShaderModule
         m_RendererID = 0;
-        CHE_CORE_WARN("ShaderVK: скелетная реализация — SPIR-V загрузка пока не реализована");
+        CHE_CORE_WARN("ShaderVK: skeleton implementation - SPIR-V loading is not implemented yet");
     }
 
     ShaderVK::~ShaderVK()
@@ -21,7 +21,7 @@ namespace CHModules
 
     bool ShaderVK::Reload(const CHEngine::String& /*vertexSrc*/, const CHEngine::String& /*fragmentSrc*/)
     {
-        CHE_CORE_WARN("ShaderVK::Reload — не реализовано");
+        CHE_CORE_WARN("ShaderVK::Reload - not implemented");
         return false;
     }
 
