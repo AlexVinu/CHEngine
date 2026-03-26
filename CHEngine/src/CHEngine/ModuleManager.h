@@ -61,7 +61,7 @@ namespace CHEngine
                 std::filesystem::copy_options::overwrite_existing, ec);
 
             if (ec) {
-                CHE_CORE_ERROR("LoadModule: не удалось создать shadow copy '{}' → '{}': {}",
+                CHE_CORE_ERROR("LoadModule: failed to create shadow copy '{}' -> '{}': {}",
                                path, shadow, ec.message());
                 return false;
             }
@@ -106,7 +106,7 @@ namespace CHEngine
 
             IModuleFactory* module = create();
             if (!module) {
-                CHE_CORE_ERROR("LoadModule '{}': CreateFactory() вернул null", path);
+                CHE_CORE_ERROR("LoadModule '{}': CreateFactory() returned null", path);
                 Unload(handle);
                 if (!shadow.empty()) {
                     std::error_code rmEc;
@@ -128,7 +128,7 @@ namespace CHEngine
             auto it = m_Modules.find(type);
             if (it == m_Modules.end())
             {
-                CHE_CORE_WARN("ModuleManager::Watch — модуль типа {} не загружен", (int)type);
+                CHE_CORE_WARN("ModuleManager::Watch - module type {} is not loaded", (int)type);
                 return;
             }
 
@@ -165,7 +165,7 @@ namespace CHEngine
             auto it = m_Modules.find(type);
             if (it == m_Modules.end())
             {
-                CHE_CORE_ERROR("ModuleManager: модуль типа {} не найден", (int)type);
+                CHE_CORE_ERROR("ModuleManager: module type {} not found", (int)type);
                 return nullptr;
             }
 
@@ -185,7 +185,6 @@ namespace CHEngine
         std::unordered_map<ModuleType, ModuleData>           m_Modules;
         std::unordered_map<ModuleType, ModuleReloadCallbacks> m_Callbacks;
         FileWatcher                                           m_Watcher;
-        uint32_t                                              m_ShadowCounter = 0;
 
         // ─── Горячая перезагрузка одного модуля ──────────────────────────────
         void ReloadModule(ModuleType type)
@@ -196,7 +195,7 @@ namespace CHEngine
             std::string path       = it->second.path;       // оригинал
             std::string oldShadow  = it->second.shadowPath; // старая копия
 
-            CHE_CORE_INFO("ModuleManager: перезагрузка модуля типа {}...", (int)type);
+            CHE_CORE_INFO("ModuleManager: reloading module type {}...", (int)type);
 
             // 1. Дать возможность Application уничтожить зависимые объекты
             auto cbIt = m_Callbacks.find(type);
@@ -208,41 +207,93 @@ namespace CHEngine
             Unload(it->second.handle);
             m_Modules.erase(it);
 
-            // 3. Удалить старую теневую копию (теперь файл свободен)
-            if (!oldShadow.empty()) {
+            // 3. Сохранить старую теневую копию до подтверждённо успешного hot-reload
+            std::string backupShadow;
+            if (!oldShadow.empty())
+            {
+                backupShadow = MakeBackupPath(path);
                 std::error_code ec;
-                std::filesystem::remove(oldShadow, ec);
+                std::filesystem::remove(backupShadow, ec);
+                ec.clear();
+                std::filesystem::rename(oldShadow, backupShadow, ec);
+                if (ec)
+                {
+                    CHE_CORE_WARN("ModuleManager: failed to save backup '{}' -> '{}': {}",
+                                  oldShadow, backupShadow, ec.message());
+                    backupShadow.clear();
+                }
+                else
+                {
+                    CHE_CORE_INFO("ModuleManager: old DLL backup saved '{}'", backupShadow);
+                }
             }
 
             // 4. Загрузить новый (LoadModule сделает свежую shadow copy)
             if (!LoadModule(path))
             {
-                CHE_CORE_ERROR("ModuleManager: не удалось перезагрузить '{}' — модуль недоступен", path);
+                CHE_CORE_ERROR("ModuleManager: failed to reload '{}' - module unavailable", path);
                 return;
             }
 
-            // 5. Уведомить Application о новой фабрике
+            // 5. Уведомить Application о новой фабрике (критерий успеха — успешный OnAfterReload)
+            bool afterReloadOk = true;
             if (cbIt != m_Callbacks.end() && cbIt->second.OnAfterReload)
-                cbIt->second.OnAfterReload(m_Modules[type].module);
+            {
+                try
+                {
+                    cbIt->second.OnAfterReload(m_Modules[type].module);
+                }
+                catch (const std::exception& e)
+                {
+                    afterReloadOk = false;
+                    CHE_CORE_ERROR("ModuleManager: OnAfterReload threw exception: {}", e.what());
+                }
+                catch (...)
+                {
+                    afterReloadOk = false;
+                    CHE_CORE_ERROR("ModuleManager: OnAfterReload threw unknown exception");
+                }
+            }
 
-            CHE_CORE_INFO("ModuleManager: модуль '{}' перезагружен успешно", path);
+            if (afterReloadOk)
+            {
+                // 6. Удалить backup (старую копию) только после успешного запуска
+                if (!backupShadow.empty())
+                {
+                    std::error_code ec;
+                    std::filesystem::remove(backupShadow, ec);
+                    if (ec)
+                    {
+                        CHE_CORE_WARN("ModuleManager: failed to delete backup '{}': {}", backupShadow, ec.message());
+                    }
+                }
+
+                CHE_CORE_INFO("ModuleManager: module '{}' reloaded successfully", path);
+            }
+            else
+            {
+                CHE_CORE_ERROR("ModuleManager: module '{}' reloaded, but OnAfterReload failed (backup retained)", path);
+            }
         }
 
-        // Генерация пути для теневой копии: module.dylib → module_hot_0.dylib
-        // Счётчик гарантирует уникальность при повторных перезагрузках.
+        // Generate fixed shadow-copy path: module.dll -> module_temp.dll
         std::string MakeShadowPath(const std::string& originalPath)
         {
             std::filesystem::path p(originalPath);
             std::string stem = p.stem().string();
             std::string ext  = p.extension().string();
             auto dir = p.parent_path();
+            return (dir / (stem + "_temp" + ext)).string();
+        }
 
-            std::string shadow;
-            do {
-                shadow = (dir / (stem + "_hot_" + std::to_string(m_ShadowCounter++) + ext)).string();
-            } while (std::filesystem::exists(shadow));
+        std::string MakeBackupPath(const std::string& originalPath)
+        {
+            std::filesystem::path p(originalPath);
+            std::string stem = p.stem().string();
+            std::string ext  = p.extension().string();
+            auto dir = p.parent_path();
 
-            return shadow;
+            return (dir / (stem + "_prev" + ext)).string();
         }
 
         ModuleHandle Load(const char* path)

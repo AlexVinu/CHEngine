@@ -208,7 +208,7 @@ namespace CHEngine {
 		if (!pixels || w <= 0 || h <= 0 || ch <= 0)
 		{
 			if (pixels) stbi_image_free(pixels);
-			CHE_CORE_ERROR("RenderResourceManager: не удалось загрузить текстуру '{}'", path);
+			CHE_CORE_ERROR("RenderResourceManager: failed to load texture '{}'", path);
 			return TextureHandle::Invalid();
 		}
 
@@ -217,7 +217,7 @@ namespace CHEngine {
 		stbi_image_free(pixels);
 
 		if (handle.IsValid())
-			CHE_CORE_INFO("RenderResourceManager: загружена текстура '{}'", path);
+			CHE_CORE_INFO("RenderResourceManager: texture loaded '{}'", path);
 
 		return handle;
 	}
