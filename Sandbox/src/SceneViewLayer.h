@@ -94,7 +94,7 @@ private:
     bool      m_FollowObject = false;
 
     // Selection & viewport
-    uint32_t  m_SelectedObjectID = 0;
+    CHEngine::TagComponentIDType m_SelectedObjectID = 0;
     float     m_AspectRatio      = 16.0f / 9.0f;
 
     // Framebuffer (offscreen render target)

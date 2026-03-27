@@ -30,13 +30,14 @@ struct UndoCommand
 struct TransformCommand : UndoCommand
 {
     CHEngine::Scene*     scene;
-    uint32_t             objectID;
+    CHEngine::TagComponentIDType objectID;
     CHEngine::Transform  before;
 
     void Undo() override
     {
-        CHEngine::SceneObject* obj = scene->FindByID(objectID);
-        if (obj) obj->ObjectTransform = before;
+        auto handle = scene->TryGetEntityHandleByID(objectID);
+        if (auto* transform = scene->TryGetComponent<CHEngine::TransformComponent>(handle))
+            transform->ObjectTransform = before;
     }
 };
 
@@ -46,13 +47,14 @@ struct TransformCommand : UndoCommand
 struct VisibilityCommand : UndoCommand
 {
     CHEngine::Scene* scene;
-    uint32_t         objectID;
+    CHEngine::TagComponentIDType objectID;
     bool             before;
 
     void Undo() override
     {
-        CHEngine::SceneObject* obj = scene->FindByID(objectID);
-        if (obj) obj->Visible = before;
+        auto handle = scene->TryGetEntityHandleByID(objectID);
+        if (auto* visibility = scene->TryGetComponent<CHEngine::VisibilityComponent>(handle))
+            visibility->Visible = before;
     }
 };
 
@@ -62,8 +64,8 @@ struct VisibilityCommand : UndoCommand
 struct ImportCommand : UndoCommand
 {
     CHEngine::Scene* scene;
-    uint32_t         objectID;
-    uint32_t*        selectedID;   // указатель на m_SelectedObjectID
+    CHEngine::TagComponentIDType objectID;
+    CHEngine::TagComponentIDType* selectedID;   // указатель на m_SelectedObjectID
 
     void Undo() override
     {
@@ -89,7 +91,7 @@ public:
     }
 
     // Хелперы — чтобы не писать make_unique каждый раз
-    void PushTransform(CHEngine::Scene* scene, uint32_t id,
+    void PushTransform(CHEngine::Scene* scene, CHEngine::TagComponentIDType id,
                        const CHEngine::Transform& before)
     {
         auto cmd    = std::make_unique<TransformCommand>();
@@ -99,7 +101,7 @@ public:
         Push(std::move(cmd));
     }
 
-    void PushVisibility(CHEngine::Scene* scene, uint32_t id, bool before)
+    void PushVisibility(CHEngine::Scene* scene, CHEngine::TagComponentIDType id, bool before)
     {
         auto cmd      = std::make_unique<VisibilityCommand>();
         cmd->scene    = scene;
@@ -108,7 +110,7 @@ public:
         Push(std::move(cmd));
     }
 
-    void PushImport(CHEngine::Scene* scene, uint32_t id, uint32_t* selectedID)
+    void PushImport(CHEngine::Scene* scene, CHEngine::TagComponentIDType id, CHEngine::TagComponentIDType* selectedID)
     {
         auto cmd           = std::make_unique<ImportCommand>();
         cmd->scene         = scene;

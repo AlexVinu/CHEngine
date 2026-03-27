@@ -7,9 +7,11 @@
 
 namespace CHEngine {
 
+    using TagComponentIDType = uint32_t;
+
     struct TagComponent {
-        std::string Name;
-        uint32_t    ID = 0;
+        std::string         Name;
+        TagComponentIDType  ID = 0;
     };
 
     struct TransformComponent {
