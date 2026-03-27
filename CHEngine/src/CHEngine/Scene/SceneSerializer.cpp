@@ -5,6 +5,7 @@
 #include <CHEngine/Mesh/ModelLoader.h>
 #include <CHEngine/Render/RenderResourceManager.h>
 #include <CHEngine/Scene/Components.h>
+#include "Entity.h"
 #include <Log/Log.h>
 #include <glm/glm.hpp>
 
@@ -19,45 +20,55 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
     j["version"] = 1;
     j["objects"]  = json::array();
 
-    for (auto& obj : m_Scene->GetObjects()) {
+    m_Scene->ForEach<TagComponent>([&](EntityHandle handle, TagComponentIDType, TagComponent& tag) {
+        auto* transformComp = m_Scene->TryGetComponent<TransformComponent>(handle);
+        auto* meshPtr = m_Scene->TryGetComponent<MeshComponent>(handle);
+        auto* colorPtr = m_Scene->TryGetComponent<ColorComponent>(handle);
+        auto* visibilityPtr = m_Scene->TryGetComponent<VisibilityComponent>(handle);
+        if (!transformComp || !meshPtr || !colorPtr || !visibilityPtr)
+            return;
+        auto& mesh = *meshPtr;
+        auto& color = *colorPtr;
+        auto& visibility = *visibilityPtr;
+        auto& transform = transformComp->ObjectTransform;
         json o;
-        o["name"]    = obj->Name;
-        o["visible"] = obj->Visible;
-        o["color"]   = { obj->Color.r, obj->Color.g, obj->Color.b, obj->Color.a };
+        o["name"]    = tag.Name;
+        o["visible"] = visibility.Visible;
+        o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
 
-        auto& t = obj->ObjectTransform;
-        o["position"] = { t.Position.x, t.Position.y, t.Position.z };
-        o["rotation"] = { t.Rotation.x, t.Rotation.y, t.Rotation.z };
-        o["scale"]    = { t.Scale.x,    t.Scale.y,    t.Scale.z    };
+        o["position"] = { transform.Position.x, transform.Position.y, transform.Position.z };
+        o["rotation"] = { transform.Rotation.x, transform.Rotation.y, transform.Rotation.z };
+        o["scale"]    = { transform.Scale.x,    transform.Scale.y,    transform.Scale.z    };
 
         // Retrieve SourcePath via Scene's accessor (avoids exposing entt publicly)
-        o["meshPath"] = m_Scene->GetMeshSourcePath(obj->ID);
+        o["meshPath"] = mesh.SourcePath;
 
         // Сериализация материалов по мешам (пути к текстурам + shininess)
         json mats = json::array();
-        for (auto& mesh : obj->Meshes) {
+        for (auto& meshItem : mesh.Meshes) {
             json m;
-            m["diffusePath"]  = mesh.Mat.DiffuseMapPath;
-            m["specularPath"] = mesh.Mat.SpecularMapPath;
-            m["shininess"]    = mesh.Mat.Shininess;
+            m["diffusePath"]  = meshItem.Mat.DiffuseMapPath;
+            m["specularPath"] = meshItem.Mat.SpecularMapPath;
+            m["shininess"]    = meshItem.Mat.Shininess;
             mats.push_back(m);
         }
         o["materials"] = mats;
 
         // Сериализация источника света
-        if (obj->LightData.Type != LightType::None) {
+        if (const auto* lightComp = m_Scene->TryGetComponent<LightComponent>(handle)) {
+            const auto& lightData = lightComp->LightData;
             json light;
-            light["type"]      = static_cast<int>(obj->LightData.Type);
-            light["color"]     = { obj->LightData.Color.r, obj->LightData.Color.g, obj->LightData.Color.b };
-            light["intensity"] = obj->LightData.Intensity;
-            light["range"]     = obj->LightData.Range;
-            light["innerCone"] = obj->LightData.InnerCone;
-            light["outerCone"] = obj->LightData.OuterCone;
+            light["type"]      = static_cast<int>(lightData.Type);
+            light["color"]     = { lightData.Color.r, lightData.Color.g, lightData.Color.b };
+            light["intensity"] = lightData.Intensity;
+            light["range"]     = lightData.Range;
+            light["innerCone"] = lightData.InnerCone;
+            light["outerCone"] = lightData.OuterCone;
             o["light"] = light;
         }
 
         j["objects"].push_back(o);
-    }
+    });
 
     std::ofstream file(path);
     if (!file.is_open()) {
@@ -90,8 +101,8 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
     }
 
     // Clear existing scene GPU resources first
-    for (auto& obj : m_Scene->GetObjects()) {
-        for (auto& mesh : obj->Meshes) {
+    m_Scene->ForEach<MeshComponent>([&](EntityHandle, TagComponentIDType, MeshComponent& meshComp) {
+        for (auto& mesh : meshComp.Meshes) {
             if (mesh.GetVertexArray().IsValid())
                 resources.DestroyVertexArray(mesh.GetVertexArray());
             if (mesh.Mat.DiffuseMap.IsValid())
@@ -99,7 +110,7 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
             if (mesh.Mat.SpecularMap.IsValid())
                 resources.DestroyTexture(mesh.Mat.SpecularMap);
         }
-    }
+    });
     m_Scene->Clear();
 
     // Helper: safely read a JSON array of N floats
@@ -121,7 +132,7 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         std::string name     = o.value("name", "Object");
         std::string meshPath = o.value("meshPath", "");
 
-        SceneObject* obj = nullptr;
+        EntityHandle handle{};
 
         if (!meshPath.empty()) {
             // Re-import model from disk
@@ -148,37 +159,43 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
                     }
                 }
 
-                obj = m_Scene->AddModel(name, std::move(result.meshes), meshPath);
+                handle = m_Scene->CreateModelEntity(name, std::move(result.meshes), meshPath);
             }
         }
 
-        if (!obj)
-            obj = m_Scene->AddObject(name);
+        if (!m_Scene->IsEntityHandleValid(handle))
+            handle = m_Scene->CreateEntity(name);
+        auto* obj = m_Scene->TryGetEntity(handle);
         if (!obj) continue;
+
+        auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
+        auto& color = obj->GetComponent<ColorComponent>().Color;
+        auto& visible = obj->GetComponent<VisibilityComponent>().Visible;
+        auto& meshes = obj->GetComponent<MeshComponent>().Meshes;
 
         // Restore transform (with validation)
         float v3[3];
         if (o.contains("position") && readFloats(o["position"], 3, v3))
-            obj->ObjectTransform.Position = { v3[0], v3[1], v3[2] };
+            transform.Position = { v3[0], v3[1], v3[2] };
 
         if (o.contains("rotation") && readFloats(o["rotation"], 3, v3))
-            obj->ObjectTransform.Rotation = { v3[0], v3[1], v3[2] };
+            transform.Rotation = { v3[0], v3[1], v3[2] };
 
         if (o.contains("scale") && readFloats(o["scale"], 3, v3))
-            obj->ObjectTransform.Scale = { v3[0], v3[1], v3[2] };
+            transform.Scale = { v3[0], v3[1], v3[2] };
 
         float v4[4];
         if (o.contains("color") && readFloats(o["color"], 4, v4))
-            obj->Color = { v4[0], v4[1], v4[2], v4[3] };
+            color = { v4[0], v4[1], v4[2], v4[3] };
 
-        obj->Visible = o.value("visible", true);
+        visible = o.value("visible", true);
 
         // Десериализация материалов — перезаписываем поверх того, что загрузил ModelLoader
         if (o.contains("materials") && o["materials"].is_array()) {
             const auto& mats = o["materials"];
-            for (size_t mi = 0; mi < obj->Meshes.size() && mi < mats.size(); ++mi) {
+            for (size_t mi = 0; mi < meshes.size() && mi < mats.size(); ++mi) {
                 const auto& mj = mats[mi];
-                auto& mat = obj->Meshes[mi].Mat;
+                auto& mat = meshes[mi].Mat;
 
                 mat.Shininess = mj.value("shininess", 32.0f);
 
@@ -208,14 +225,20 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
                 CHE_CORE_WARN("SceneSerializer: invalid light type {} for '{}', resetting", typeVal, name);
                 typeVal = -1;
             }
-            obj->LightData.Type = static_cast<LightType>(typeVal);
+            Light lightData;
+            lightData.Type = static_cast<LightType>(typeVal);
             float lc[3];
             if (lj.contains("color") && readFloats(lj["color"], 3, lc))
-                obj->LightData.Color = { lc[0], lc[1], lc[2] };
-            obj->LightData.Intensity = lj.value("intensity", 1.0f);
-            obj->LightData.Range     = lj.value("range", 10.0f);
-            obj->LightData.InnerCone = lj.value("innerCone", 12.5f);
-            obj->LightData.OuterCone = lj.value("outerCone", 17.5f);
+                lightData.Color = { lc[0], lc[1], lc[2] };
+            lightData.Intensity = lj.value("intensity", 1.0f);
+            lightData.Range     = lj.value("range", 10.0f);
+            lightData.InnerCone = lj.value("innerCone", 12.5f);
+            lightData.OuterCone = lj.value("outerCone", 17.5f);
+            if (obj->HasComponent<LightComponent>())
+                obj->RemoveComponent<LightComponent>();
+            obj->AddComponent<LightComponent>(LightComponent{ lightData });
+        } else if (obj->HasComponent<LightComponent>()) {
+            obj->RemoveComponent<LightComponent>();
         }
     }
 

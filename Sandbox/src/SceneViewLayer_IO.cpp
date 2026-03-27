@@ -189,9 +189,13 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
         }
     }
 
-    auto* obj = m_Scene.AddModel(result.name, std::move(result.meshes), filepath);
-    obj->ObjectTransform.Position = centroid;
-    m_SelectedObjectID = obj->ID;
-    m_UndoStack.PushImport(&m_Scene, obj->ID, &m_SelectedObjectID);
+    auto handle = m_Scene.CreateModelEntity(result.name, std::move(result.meshes), filepath);
+    auto* transform = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
+    if (!transform)
+        return;
+    transform->ObjectTransform.Position = centroid;
+    const auto objectID = m_Scene.GetID(handle);
+    m_SelectedObjectID = objectID;
+    m_UndoStack.PushImport(&m_Scene, objectID, &m_SelectedObjectID);
     FocusOnSelected();
 }
