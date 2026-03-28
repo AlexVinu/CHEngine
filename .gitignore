@@ -1,6 +1,10 @@
 .vs/
 bin/
 build/
+build-x64/
 out/
 .cursor/
 .vscode/
+
+# Local logs and debug artifacts
+*.log
