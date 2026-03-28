@@ -211,28 +211,29 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     float halfW = (ImGui::GetContentRegionAvail().x - 4.0f) * 0.5f;
     if (ImGui::Button("+ Dir Light", ImVec2(halfW, 0.0f)))
     {
-        auto* light = m_Scene.AddLight("Directional Light", CHEngine::LightType::Directional);
-        if (light) {
-            light->ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
-            m_SelectedObjectID = light->ID;
+        auto handle = m_Scene.CreateLightEntity("Directional Light", CHEngine::LightType::Directional);
+        if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
+            tr->ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+            m_SelectedObjectID = m_Scene.GetID(handle);
         }
     }
     ImGui::SameLine(0, 4);
     if (ImGui::Button("+ Point Light", ImVec2(halfW, 0.0f)))
     {
-        auto* light = m_Scene.AddLight("Point Light", CHEngine::LightType::Point);
-        if (light) {
-            light->ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
-            m_SelectedObjectID = light->ID;
+        auto handle = m_Scene.CreateLightEntity("Point Light", CHEngine::LightType::Point);
+        if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
+            tr->ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+            m_SelectedObjectID = m_Scene.GetID(handle);
         }
     }
     if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
     {
-        auto* light = m_Scene.AddLight("Spot Light", CHEngine::LightType::Spot);
-        if (light) {
-            light->ObjectTransform.Position = { 0.0f, 5.0f, 0.0f };
-            light->ObjectTransform.Rotation = { -90.0f, 0.0f, 0.0f };
-            m_SelectedObjectID = light->ID;
+        auto handle = m_Scene.CreateLightEntity("Spot Light", CHEngine::LightType::Spot);
+        if (auto* tcomp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
+            auto& tr = tcomp->ObjectTransform;
+            tr.Position = { 0.0f, 5.0f, 0.0f };
+            tr.Rotation = { -90.0f, 0.0f, 0.0f };
+            m_SelectedObjectID = m_Scene.GetID(handle);
         }
     }
 
@@ -243,10 +244,13 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     ImGui::PopStyleColor();
     ImGui::Spacing();
 
-    uint32_t deleteID = 0;
-    for (auto& obj : m_Scene.GetObjects())
-    {
-        bool isSelected = (obj->ID == m_SelectedObjectID);
+    CHEngine::TagComponentIDType deleteID = 0;
+    size_t objectCount = 0;
+    m_Scene.ForEach<CHEngine::TagComponent>([&](CHEngine::EntityHandle handle,
+                                                CHEngine::TagComponentIDType objectID,
+                                                CHEngine::TagComponent& tag) {
+        ++objectCount;
+        bool isSelected = (objectID == m_SelectedObjectID);
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_Leaf         |
             ImGuiTreeNodeFlags_SpanAvailWidth|
@@ -255,15 +259,18 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
         // Метка типа объекта в иерархии
         const char* icon = "";
-        if (obj->LightData.Type == CHEngine::LightType::Directional) icon = "[D] ";
-        else if (obj->LightData.Type == CHEngine::LightType::Point)  icon = "[P] ";
-        else if (obj->LightData.Type == CHEngine::LightType::Spot)   icon = "[S] ";
+        if (const auto* light = m_Scene.TryGetComponent<CHEngine::LightComponent>(handle)) {
+            const auto type = light->LightData.Type;
+            if (type == CHEngine::LightType::Directional) icon = "[D] ";
+            else if (type == CHEngine::LightType::Point)  icon = "[P] ";
+            else if (type == CHEngine::LightType::Spot)   icon = "[S] ";
+        }
 
         bool opened = ImGui::TreeNodeEx(
-            (void*)(intptr_t)obj->ID, flags, "  %s%s", icon, obj->Name.c_str());
+            (void*)(intptr_t)objectID, flags, "  %s%s", icon, tag.Name.c_str());
 
         if (ImGui::IsItemClicked())
-            m_SelectedObjectID = obj->ID;
+            m_SelectedObjectID = objectID;
 
         if (ImGui::BeginPopupContextItem())
         {
@@ -271,14 +278,14 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
             ImGui::Separator();
             ImGui::PushStyleColor(ImGuiCol_Text,
                 ImVec4(1.0f, 0.231f, 0.188f, 1.0f));
-            if (ImGui::MenuItem("Delete")) deleteID = obj->ID;
+            if (ImGui::MenuItem("Delete")) deleteID = objectID;
             ImGui::PopStyleColor();
             ImGui::EndPopup();
         }
         if (opened) ImGui::TreePop();
-    }
+    });
 
-    if (m_Scene.GetObjects().empty())
+    if (objectCount == 0)
     {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f,0.686f,0.706f,1.0f));
@@ -303,8 +310,8 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
     UIActive::BeginPanel("Properties", pos, size, 0, resetSize);
 
-    CHEngine::SceneObject* sel = m_Scene.FindByID(m_SelectedObjectID);
-    if (!sel)
+    auto selectedHandle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+    if (!m_Scene.IsEntityHandleValid(selectedHandle))
     {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f,0.686f,0.706f,1.0f));
@@ -314,13 +321,24 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         return;
     }
 
+    auto* tag = m_Scene.TryGetComponent<CHEngine::TagComponent>(selectedHandle);
+    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(selectedHandle);
+    auto* meshComp = m_Scene.TryGetComponent<CHEngine::MeshComponent>(selectedHandle);
+    auto* colorComp = m_Scene.TryGetComponent<CHEngine::ColorComponent>(selectedHandle);
+    auto* visibility = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(selectedHandle);
+    if (!tag || !transformComp || !meshComp || !colorComp || !visibility) {
+        UIActive::EndPanel();
+        return;
+    }
+    auto& transform = transformComp->ObjectTransform;
+
     // Name field
     char nameBuf[256];
-    std::strncpy(nameBuf, sel->Name.c_str(), sizeof(nameBuf));
+    std::strncpy(nameBuf, tag->Name.c_str(), sizeof(nameBuf));
     nameBuf[sizeof(nameBuf) - 1] = '\0';
     ImGui::SetNextItemWidth(-1.0f);
     if (ImGui::InputText("##name", nameBuf, sizeof(nameBuf)))
-        sel->Name = nameBuf;
+        tag->Name = nameBuf;
 
     // TRANSFORM
     UIActive::SectionHeader("TRANSFORM");
@@ -337,43 +355,43 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         ImGui::SetNextItemWidth(-1.0f);
         ImGui::DragFloat3(id, glm::value_ptr(vec), speed, mn, mx);
         if (ImGui::IsItemActivated())
-            m_TransformBeforeDrag = sel->ObjectTransform;
+            m_TransformBeforeDrag = transform;
         if (ImGui::IsItemDeactivatedAfterEdit())
-            m_UndoStack.PushTransform(&m_Scene, sel->ID, m_TransformBeforeDrag);
+            m_UndoStack.PushTransform(&m_Scene, m_SelectedObjectID, m_TransformBeforeDrag);
     };
-    row("Position", "##pos", sel->ObjectTransform.Position, 0.05f);
-    row("Rotation", "##rot", sel->ObjectTransform.Rotation, 0.5f);
-    row("Scale",    "##scl", sel->ObjectTransform.Scale,    0.01f, 0.001f, 1000.0f);
+    row("Position", "##pos", transform.Position, 0.05f);
+    row("Rotation", "##rot", transform.Rotation, 0.5f);
+    row("Scale",    "##scl", transform.Scale,    0.01f, 0.001f, 1000.0f);
 
     ImGui::Spacing();
     if (ImGui::Button("Reset Transform", ImVec2(-1.0f, 0.0f)))
     {
-        m_UndoStack.PushTransform(&m_Scene, sel->ID, sel->ObjectTransform);
-        sel->ObjectTransform = {};
+        m_UndoStack.PushTransform(&m_Scene, m_SelectedObjectID, transform);
+        transform = {};
     }
 
     // MATERIAL
     UIActive::SectionHeader("MATERIAL");
     ImGui::SetNextItemWidth(-1.0f);
-    ImGui::ColorEdit4("##color", glm::value_ptr(sel->Color));
+    ImGui::ColorEdit4("##color", glm::value_ptr(colorComp->Color));
     ImGui::Spacing();
     {
-        bool before = sel->Visible;
-        if (UIActive::Toggle("Visible", &sel->Visible) && sel->Visible != before)
-            m_UndoStack.PushVisibility(&m_Scene, sel->ID, before);
+        bool before = visibility->Visible;
+        if (UIActive::Toggle("Visible", &visibility->Visible) && visibility->Visible != before)
+            m_UndoStack.PushVisibility(&m_Scene, m_SelectedObjectID, before);
     }
 
     // ── Текстуры меша ─────────────────────────────────────────────────────
-    for (size_t mi = 0; mi < sel->Meshes.size(); ++mi)
+    for (size_t mi = 0; mi < meshComp->Meshes.size(); ++mi)
     {
-        auto& mat = sel->Meshes[mi].Mat;
+        auto& mat = meshComp->Meshes[mi].Mat;
 
         // Уникальный ImGui ID для каждого меша (избегает коллизии виджетов)
         ImGui::PushID(static_cast<int>(mi));
 
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
-        if (sel->Meshes.size() > 1)
+        if (meshComp->Meshes.size() > 1)
             ImGui::Text("Mesh %zu", mi);
         else
             ImGui::TextUnformatted("Textures");
@@ -467,15 +485,16 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     }
 
     // LIGHT (показывать только для источников света)
-    if (sel->LightData.Type != CHEngine::LightType::None)
+    if (auto* lightComp = m_Scene.TryGetComponent<CHEngine::LightComponent>(selectedHandle))
     {
+        auto& lightData = lightComp->LightData;
         UIActive::SectionHeader("LIGHT");
 
         const char* lightTypes[] = { "Directional", "Point", "Spot" };
-        int ltIdx = static_cast<int>(sel->LightData.Type);
+        int ltIdx = static_cast<int>(lightData.Type);
         ImGui::SetNextItemWidth(-1.0f);
         if (ImGui::Combo("##lightType", &ltIdx, lightTypes, 3))
-            sel->LightData.Type = static_cast<CHEngine::LightType>(ltIdx);
+            lightData.Type = static_cast<CHEngine::LightType>(ltIdx);
 
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
@@ -483,40 +502,40 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         ImGui::PopStyleColor();
         ImGui::SameLine(labelW);
         ImGui::SetNextItemWidth(-1.0f);
-        ImGui::ColorEdit3("##lightColor", glm::value_ptr(sel->LightData.Color));
+        ImGui::ColorEdit3("##lightColor", glm::value_ptr(lightData.Color));
 
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
         ImGui::TextUnformatted("Intensity");
         ImGui::PopStyleColor();
         ImGui::SameLine(labelW);
         ImGui::SetNextItemWidth(-1.0f);
-        ImGui::DragFloat("##lightIntensity", &sel->LightData.Intensity, 0.05f, 0.0f, 100.0f, "%.2f");
+        ImGui::DragFloat("##lightIntensity", &lightData.Intensity, 0.05f, 0.0f, 100.0f, "%.2f");
 
-        if (sel->LightData.Type != CHEngine::LightType::Directional)
+        if (lightData.Type != CHEngine::LightType::Directional)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
             ImGui::TextUnformatted("Range");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##lightRange", &sel->LightData.Range, 0.1f, 0.1f, 1000.0f, "%.1f");
+            ImGui::DragFloat("##lightRange", &lightData.Range, 0.1f, 0.1f, 1000.0f, "%.1f");
         }
 
-        if (sel->LightData.Type == CHEngine::LightType::Spot)
+        if (lightData.Type == CHEngine::LightType::Spot)
         {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
             ImGui::TextUnformatted("Inner");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##lightInner", &sel->LightData.InnerCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
+            ImGui::DragFloat("##lightInner", &lightData.InnerCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
             ImGui::TextUnformatted("Outer");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##lightOuter", &sel->LightData.OuterCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
+            ImGui::DragFloat("##lightOuter", &lightData.OuterCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
         }
 
         ImGui::Spacing();
@@ -525,13 +544,13 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     // INFO
     UIActive::SectionHeader("INFO");
     uint32_t tv = 0, ti = 0;
-    for (auto& m : sel->Meshes)
+    for (auto& m : meshComp->Meshes)
     {
         tv += static_cast<uint32_t>(m.GetVertices().size());
         ti += static_cast<uint32_t>(m.GetIndices().size());
     }
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
-    ImGui::Text("Meshes      %zu",  sel->Meshes.size());
+    ImGui::Text("Meshes      %zu",  meshComp->Meshes.size());
     ImGui::Text("Vertices    %u",   tv);
     ImGui::Text("Triangles   %u",   ti / 3);
     ImGui::PopStyleColor();

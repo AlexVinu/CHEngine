@@ -130,24 +130,27 @@ void SceneViewLayer::RenderScene()
 
     int lightCount = 0;
 
-    for (auto& obj : m_Scene.GetObjects())
-    {
-        if (lightCount >= CHEngine::MaxUBOLights) break;
-        if (!obj->Visible) continue;
-        if (obj->LightData.Type == CHEngine::LightType::None) continue;
-
-        auto& light = obj->LightData;
-        auto& tr    = obj->ObjectTransform;
+    m_Scene.ForEach<CHEngine::LightComponent>(
+        [&](CHEngine::EntityHandle handle, CHEngine::TagComponentIDType,
+            CHEngine::LightComponent& lightComp) {
+        const auto* visible = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(handle);
+        if (!visible || !visible->Visible) return;
+        auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
+        if (!transformComp) return;
+        auto& transform = transformComp->ObjectTransform;
+        auto& light = lightComp.LightData;
+        if (lightCount >= CHEngine::MaxUBOLights) return;
+        if (light.Type == CHEngine::LightType::None) return;
         auto& L     = lightingUBO.Lights[lightCount];
 
         L.Type = static_cast<int32_t>(light.Type);
 
-        L.Position[0] = tr.Position.x;
-        L.Position[1] = tr.Position.y;
-        L.Position[2] = tr.Position.z;
+        L.Position[0] = transform.Position.x;
+        L.Position[1] = transform.Position.y;
+        L.Position[2] = transform.Position.z;
         L.Position[3] = 0.0f;
 
-        glm::vec3 dir = ForwardFromRotation(tr.Rotation);
+        glm::vec3 dir = ForwardFromRotation(transform.Rotation);
         L.Direction[0] = dir.x;
         L.Direction[1] = dir.y;
         L.Direction[2] = dir.z;
@@ -163,7 +166,7 @@ void SceneViewLayer::RenderScene()
         L.OuterCone = std::cos(glm::radians(light.OuterCone));
 
         ++lightCount;
-    }
+    });
 
     // Если нет источников — добавляем дефолтный directional
     if (lightCount == 0)
@@ -187,12 +190,19 @@ void SceneViewLayer::RenderScene()
                             &lightingUBO, sizeof(lightingUBO));
 
     // ── Рисуем объекты ────────────────────────────────────────────────────
-    for (auto& obj : m_Scene.GetObjects())
-    {
-        if (!obj->Visible) continue;
+    m_Scene.ForEach<CHEngine::MeshComponent>(
+        [&](CHEngine::EntityHandle handle, CHEngine::TagComponentIDType objectID,
+            CHEngine::MeshComponent& meshComp) {
+        const auto* visible = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(handle);
+        if (!visible || !visible->Visible) return;
+        auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
+        auto* colorComp = m_Scene.TryGetComponent<CHEngine::ColorComponent>(handle);
+        if (!transformComp || !colorComp) return;
+        auto& transform = transformComp->ObjectTransform;
+        auto& color = colorComp->Color;
 
         float raw[16];
-        TransformToMatrix(obj->ObjectTransform, raw);
+        TransformToMatrix(transform, raw);
         glm::mat4 model     = glm::make_mat4(raw);
         glm::mat4 normalMat = glm::transpose(glm::inverse(model));
 
@@ -200,13 +210,13 @@ void SceneViewLayer::RenderScene()
         CHEngine::UBOObject objectUBO;
         std::memcpy(objectUBO.Transform,    glm::value_ptr(model),     64);
         std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), 64);
-        objectUBO.Color[0] = obj->Color.r;
-        objectUBO.Color[1] = obj->Color.g;
-        objectUBO.Color[2] = obj->Color.b;
-        objectUBO.Color[3] = obj->Color.a;
-        objectUBO.Selected = (obj->ID == m_SelectedObjectID) ? 1.0f : 0.0f;
+        objectUBO.Color[0] = color.r;
+        objectUBO.Color[1] = color.g;
+        objectUBO.Color[2] = color.b;
+        objectUBO.Color[3] = color.a;
+        objectUBO.Selected = (objectID == m_SelectedObjectID) ? 1.0f : 0.0f;
 
-        for (auto& mesh : obj->Meshes)
+        for (auto& mesh : meshComp.Meshes)
         {
             const auto& mat = mesh.Mat;
 
@@ -238,7 +248,7 @@ void SceneViewLayer::RenderScene()
             if (diffTex) diffTex->Unbind();
             if (specTex) specTex->Unbind();
         }
-    }
+    });
 
     // ── Unbind FBO — restore default framebuffer ─────────────────────────
     if (fbo) fbo->Unbind();
@@ -251,8 +261,10 @@ void SceneViewLayer::RenderScene()
 
 void SceneViewLayer::DrawGizmo()
 {
-    CHEngine::SceneObject* selected = m_Scene.FindByID(m_SelectedObjectID);
-    if (!selected) return;
+    auto handle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
+    if (!transformComp) return;
+    auto& selectedTransform = transformComp->ObjectTransform;
 
     ImGuizmo::SetOrthographic(false);
     ImGuizmo::SetDrawlist();
@@ -264,7 +276,7 @@ void SceneViewLayer::DrawGizmo()
 
     float t[3], r[3], s[3];
     float mm[16];
-    TransformToMatrix(selected->ObjectTransform, mm);
+    TransformToMatrix(selectedTransform, mm);
 
     float snapT[3] = { 1.0f,  1.0f,  1.0f  };
     float snapR[3] = { 45.0f, 45.0f, 45.0f };
@@ -278,7 +290,7 @@ void SceneViewLayer::DrawGizmo()
     }
 
     if (!m_GizmoWasUsing && ImGuizmo::IsUsing())
-        m_TransformBeforeDrag = selected->ObjectTransform;
+        m_TransformBeforeDrag = selectedTransform;
 
     ImGuizmo::Manipulate(
         glm::value_ptr(view), glm::value_ptr(proj),
@@ -288,13 +300,13 @@ void SceneViewLayer::DrawGizmo()
     if (ImGuizmo::IsUsing())
     {
         ImGuizmo::DecomposeMatrixToComponents(mm, t, r, s);
-        selected->ObjectTransform.Position = { t[0], t[1], t[2] };
-        selected->ObjectTransform.Rotation = { r[0], r[1], r[2] };
-        selected->ObjectTransform.Scale    = { s[0], s[1], s[2] };
+        selectedTransform.Position = { t[0], t[1], t[2] };
+        selectedTransform.Rotation = { r[0], r[1], r[2] };
+        selectedTransform.Scale    = { s[0], s[1], s[2] };
     }
 
     if (m_GizmoWasUsing && !ImGuizmo::IsUsing())
-        m_UndoStack.PushTransform(&m_Scene, selected->ID, m_TransformBeforeDrag);
+        m_UndoStack.PushTransform(&m_Scene, m_SelectedObjectID, m_TransformBeforeDrag);
 
     m_GizmoWasUsing = ImGuizmo::IsUsing();
 }

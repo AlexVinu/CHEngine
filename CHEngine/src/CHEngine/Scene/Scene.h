@@ -6,10 +6,17 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
-#include "SceneObject.h"
-#include "Entity.h"
+#include "Components.h"
+#include "Memory/HandlePool.h"
+
+#include <entt/entt.hpp>
 
 namespace CHEngine {
+
+	class Entity;
+
+	struct EntityTag {};
+	using EntityHandle = Handle<EntityTag>;
 
 class CHENGINE_API Scene
 {
@@ -22,78 +29,113 @@ public:
 	Scene(Scene&&);
 	Scene& operator=(Scene&&);
 
-	Entity CreateEntity(const std::string& name = "Object");
-	void DestroyEntity(Entity entity);
-	Entity GetEntityByObjectID(uint32_t id);
-	Entity GetEntityByObjectID(uint32_t id) const;
+	EntityHandle CreateEntity(const std::string& name = "Object");
+	EntityHandle CreateEntity(const std::string& name, TagComponentIDType id);
+	EntityHandle CreateModelEntity(const std::string& name, std::vector<Mesh>&& meshes,
+	                               const std::string& sourcePath = "");
+	EntityHandle CreateLightEntity(const std::string& name, LightType type);
+	void DestroyEntity(EntityHandle entityHandle);
+	EntityHandle TryGetEntityHandleByID(TagComponentIDType id) const;
+	TagComponentIDType GetID(EntityHandle entityHandle) const;
+	Entity* TryGetEntity(EntityHandle entityHandle);
+	const Entity* TryGetEntity(EntityHandle entityHandle) const;
+	bool IsEntityHandleValid(EntityHandle entityHandle) const;
 
-	template<typename T, typename... Args>
-	T& AddComponent(Entity entity, Args&&... args);
+	/// Iterates entities that have \p Component. Invokes \p fn(handle, id, comp).
+	/// Stable \p id / \p handle come from TagComponent and EntityHandlersStore (skipped if inconsistent).
+	template<typename Component, typename Fn>
+	void ForEach(Fn&& fn);
+
+	template<typename Component, typename Fn>
+	void ForEach(Fn&& fn) const;
 
 	template<typename T>
-	T& GetComponent(Entity entity);
+	T* TryGetComponent(EntityHandle entityHandle);
 
 	template<typename T>
-	const T& GetComponent(Entity entity) const;
+	const T* TryGetComponent(EntityHandle entityHandle) const;
 
-	template<typename T>
-	bool HasComponent(Entity entity) const;
+	void SetLightComponent(EntityHandle entityHandle, const Light& light);
+	void RemoveLightComponent(EntityHandle entityHandle);
 
-	template<typename T>
-	void RemoveComponent(Entity entity);
-
-	SceneObject* AddObject(const std::string& name = "Object");
-	SceneObject* AddModel(const std::string& name, std::vector<Mesh>&& meshes,
-	                      const std::string& sourcePath = "");
-	SceneObject* AddLight(const std::string& name, LightType type);
-	void RemoveObject(uint32_t id);
-	SceneObject* FindByID(uint32_t id);
+	void RemoveObject(TagComponentIDType id);
 	void Clear();
-
-	std::vector<std::unique_ptr<SceneObject>>& GetObjects() { return m_Objects; }
-	const std::vector<std::unique_ptr<SceneObject>>& GetObjects() const { return m_Objects; }
 
 	// Returns the source file path (mesh import path) stored in ECS for the given object ID.
 	// Returns empty string if not found. Avoids exposing entt registry publicly.
-	std::string GetMeshSourcePath(uint32_t objectID) const;
+	std::string GetMeshSourcePath(TagComponentIDType objectID) const;
 
 private:
-	struct SceneRegistry;
+	friend Entity;
 
-	Entity CreateEntityWithID(const std::string& name, uint32_t id);
-	void OnEntityDestroyed(Entity entity);
+	struct SceneRegistry {
+		entt::registry Registry;
+		std::unordered_map<TagComponentIDType, EntityHandle> EntityHandlersStore;
+		HandlePool<Entity, EntityTag> EntityPool;
+		TagComponentIDType NextID = 1;
+	};
 
-	std::vector<std::unique_ptr<SceneObject>> m_Objects;
-	std::unordered_map<uint32_t, SceneObject*> m_IDIndex; // O(1) lookup by ID
+	void OnEntityDestroyed(EntityHandle entityHandle);
+	bool IsEnttEntityValid(entt::entity entity) const;
+
 	std::unique_ptr<SceneRegistry> m_SceneRegistry;
+
+	template<typename T, typename... Args>
+	T& AddComponent(entt::entity entity, Args&&... args);
+
+	template<typename T>
+	T& GetComponent(entt::entity entity);
+
+	template<typename T>
+	const T& GetComponent(entt::entity entity) const;
+
+	template<typename T>
+	bool HasComponent(entt::entity entity) const;
+
+	template<typename T>
+	void RemoveComponent(entt::entity entity);
 };
 
-template<typename T, typename... Args>
-T& Entity::AddComponent(Args&&... args)
+template<typename Component, typename Fn>
+void Scene::ForEach(Fn&& fn)
 {
-	CHE_CORE_ASSERT(m_Scene, "Entity has no owning scene");
-	return m_Scene->AddComponent<T>(*this, std::forward<Args>(args)...);
+	auto& reg = m_SceneRegistry->Registry;
+	for (const auto entity : reg.view<Component>()) {
+		if (!reg.all_of<TagComponent>(entity))
+			continue;
+
+		const TagComponentIDType id = reg.template get<TagComponent>(entity).ID;
+		const auto it = m_SceneRegistry->EntityHandlersStore.find(id);
+		if (it == m_SceneRegistry->EntityHandlersStore.end())
+			continue;
+
+		const EntityHandle handle = it->second;
+		if (!TryGetEntity(handle))
+			continue;
+
+		fn(handle, id, reg.template get<Component>(entity));
+	}
 }
 
-template<typename T>
-T& Entity::GetComponent()
+template<typename Component, typename Fn>
+void Scene::ForEach(Fn&& fn) const
 {
-	CHE_CORE_ASSERT(m_Scene, "Entity has no owning scene");
-	return m_Scene->GetComponent<T>(*this);
-}
+	const auto& reg = m_SceneRegistry->Registry;
+	for (const auto entity : reg.view<Component>()) {
+		if (!reg.all_of<TagComponent>(entity))
+			continue;
 
-template<typename T>
-bool Entity::HasComponent() const
-{
-	CHE_CORE_ASSERT(m_Scene, "Entity has no owning scene");
-	return m_Scene->HasComponent<T>(*this);
-}
+		const TagComponentIDType id = reg.template get<TagComponent>(entity).ID;
+		const auto it = m_SceneRegistry->EntityHandlersStore.find(id);
+		if (it == m_SceneRegistry->EntityHandlersStore.end())
+			continue;
 
-template<typename T>
-void Entity::RemoveComponent()
-{
-	CHE_CORE_ASSERT(m_Scene, "Entity has no owning scene");
-	m_Scene->RemoveComponent<T>(*this);
+		const EntityHandle handle = it->second;
+		if (!TryGetEntity(handle))
+			continue;
+
+		fn(handle, id, reg.template get<Component>(entity));
+	}
 }
 
 } // namespace CHEngine
