@@ -1,15 +1,10 @@
 #include "chepch.h"
-#include "SceneObject.h"
+#include "Transform.h"
 
-namespace CHEngine {
+#include <glm/gtc/matrix_transform.hpp>
 
-	uint32_t SceneObject::s_NextID = 1;
-
-	SceneObject::SceneObject(const std::string& name)
-		: Name(name), ID(s_NextID++)
-	{
-	}
-
+namespace CHEngine
+{
 	glm::mat4 Transform::GetMatrix() const
 	{
 		glm::mat4 m = glm::mat4(1.0f);
@@ -25,5 +20,4 @@ namespace CHEngine {
 	{
 		return glm::transpose(glm::inverse(GetMatrix()));
 	}
-
 }

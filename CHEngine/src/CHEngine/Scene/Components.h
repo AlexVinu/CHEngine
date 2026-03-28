@@ -1,9 +1,9 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <glm/glm.hpp>
 #include "CHEngine/Mesh/Mesh.h"
-#include "CHEngine/Scene/SceneObject.h"  // for Transform
+#include "Light.h"
+#include "Transform.h"
 
 namespace CHEngine {
 
