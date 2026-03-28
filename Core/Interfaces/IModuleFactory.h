@@ -25,14 +25,14 @@ extern "C" { \
 template<typename T, typename... Args>
 T* CreateImpl(Args&&... args)
 {
-    CHE_MODULE_INFO("Object {0} CREATED", typeid(T).name());
+    CHE_MODULE_INFO("{0} CREATED", typeid(T).name());
     return new T(std::forward<Args>(args)...);
 }
 
 template<typename T>
 void DestroyImpl(T* ptr)
 {
-    CHE_MODULE_INFO("Object {0} DELETED", typeid(T).name());
+    CHE_MODULE_INFO("{0} DELETED", typeid(T).name());
     delete ptr;
 }
 

@@ -35,22 +35,25 @@ void SceneViewLayer::SetViewPreset(float yaw, float pitch)
 
 void SceneViewLayer::FocusOnSelected()
 {
-    CHEngine::SceneObject* obj = m_Scene.FindByID(m_SelectedObjectID);
-    if (!obj) return;
-
-    m_OrbitTarget = obj->ObjectTransform.Position;
+    auto handle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
+    auto* meshComp = m_Scene.TryGetComponent<CHEngine::MeshComponent>(handle);
+    if (!transformComp || !meshComp) return;
+    auto& transform = transformComp->ObjectTransform;
+    auto& meshes = meshComp->Meshes;
+    m_OrbitTarget = transform.Position;
 
     float maxR = 0.5f;
-    for (auto& mesh : obj->Meshes)
+    for (auto& mesh : meshes)
         for (auto& v : mesh.GetVertices())
         {
             float d = glm::length(v.Position);
             if (d > maxR) maxR = d;
         }
 
-    float scaleMax = std::max({ obj->ObjectTransform.Scale.x,
-                                 obj->ObjectTransform.Scale.y,
-                                 obj->ObjectTransform.Scale.z });
+    float scaleMax = std::max({ transform.Scale.x,
+                                 transform.Scale.y,
+                                 transform.Scale.z });
     m_OrbitDist = glm::clamp(maxR * scaleMax * CamCfg::FocusDistScale,
                              CamCfg::FocusDistMin, CamCfg::FocusDistMax);
     ApplyOrbit();
@@ -128,7 +131,10 @@ void SceneViewLayer::UpdateCameraInput()
     // ── Follow mode ──────────────────────────────────────────────────────────
     if (m_FollowObject && m_SelectedObjectID != 0)
     {
-        auto* obj = m_Scene.FindByID(m_SelectedObjectID);
-        if (obj) { m_OrbitTarget = obj->ObjectTransform.Position; ApplyOrbit(); }
+        auto handle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+        if (auto* transform = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
+            m_OrbitTarget = transform->ObjectTransform.Position;
+            ApplyOrbit();
+        }
     }
 }

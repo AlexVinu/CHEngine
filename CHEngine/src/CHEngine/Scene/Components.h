@@ -1,15 +1,17 @@
 #pragma once
 #include <string>
 #include <vector>
-#include <glm/glm.hpp>
 #include "CHEngine/Mesh/Mesh.h"
-#include "CHEngine/Scene/SceneObject.h"  // for Transform
+#include "Light.h"
+#include "Transform.h"
 
 namespace CHEngine {
 
+    using TagComponentIDType = uint32_t;
+
     struct TagComponent {
-        std::string Name;
-        uint32_t    ID = 0;
+        std::string         Name;
+        TagComponentIDType  ID = 0;
     };
 
     struct TransformComponent {
