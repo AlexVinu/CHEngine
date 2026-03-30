@@ -5,8 +5,8 @@
 #include <vector>
 #include <cstdint>
 
-#include "CHEngine/Render/RenderResourceManager.h"
 #include "CHEngine/Mesh/Material.h"
+#include "CHEngine/Render/RenderFacade.h"
 
 namespace CHEngine {
 
@@ -22,8 +22,7 @@ namespace CHEngine {
 	public:
 		Mesh() = default;
 
-		void Build(RenderResourceManager& resources,
-		           const std::vector<Vertex>& vertices,
+		void Build(const std::vector<Vertex>& vertices,
 		           const std::vector<uint32_t>& indices);
 
 		VertexArrayHandle GetVertexArray() const { return m_VertexArray; }

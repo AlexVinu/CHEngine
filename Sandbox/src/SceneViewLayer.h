@@ -79,14 +79,12 @@ private:
     // State
     // =========================================================================
 
-    // Scene & render resources
-    CHEngine::RenderResourceManager& m_Resources;
+    // Scene
     CHEngine::Scene             m_Scene;
     CHEngine::Camera            m_Camera;
     CHEngine::ShaderHandle      m_MeshShader;
     CHEngine::ShaderHandle      m_GridShader;
     CHEngine::VertexArrayHandle m_GridVAO;
-    CHEngine::RenderAPIHandle   m_RenderApi;
 
     // Orbit camera
     glm::vec3 m_OrbitTarget  = { 0.0f, 0.0f, 0.0f };

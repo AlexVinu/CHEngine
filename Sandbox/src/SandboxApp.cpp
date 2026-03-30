@@ -3,6 +3,7 @@
 #include <CHEngine.h>
 #include "SceneViewLayer.h"
 
+#include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
 
 #include <glm/gtc/type_ptr.hpp>
@@ -32,7 +33,7 @@ public:
 		}
 
 		auto& app = CHEngine::Application::Get();
-		auto* shader = app.GetRenderResources().Get(app.GetActiveShader());
+		auto* shader = CHEngine::RenderFacade::GetShader(app.GetActiveShader());
 		if (!shader) return;
 
 		// --- CameraUBO ---
@@ -141,8 +142,8 @@ public:
 		ImGui::Begin("Shader Manager");
 
 		auto& app = CHEngine::Application::Get();
-		auto& res = app.GetRenderResources();
-		const auto& entries = res.GetShaderEntries();
+		auto* res = app.GetRenderResources();
+		const auto& entries = res->GetShaderEntries();
 		CHEngine::ShaderHandle activeShader = app.GetActiveShader();
 
 		const char* activeName = "(unknown)";
@@ -180,7 +181,7 @@ public:
 
 			ImGui::SameLine();
 			if (ImGui::Button(("Reload##reload" + std::to_string(i)).c_str(), ImVec2(60, 0)))
-				res.ReloadShader(e.handle);
+				res->ReloadShader(e.handle);
 		}
 
 		ImGui::End();
@@ -224,12 +225,12 @@ public:
 	Sandbox(const CHEngine::ApplicationConfig& config)
 		: CHEngine::Application(config)
 	{
-		GetRenderResources().CreateShaderFromFile(
+		CHEngine::RenderFacade::CreateShaderFromFile(
 			CHEngine::String("Flat"),
 			CHEngine::String("shaders/flat.vert"),
 			CHEngine::String("shaders/flat.frag")
 		);
-		GetRenderResources().CreateShaderFromFile(
+		CHEngine::RenderFacade::CreateShaderFromFile(
 			CHEngine::String("Neon"),
 			CHEngine::String("shaders/neon.vert"),
 			CHEngine::String("shaders/neon.frag")

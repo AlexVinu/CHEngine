@@ -3,8 +3,7 @@
 
 namespace CHEngine {
 
-	void Mesh::Build(RenderResourceManager& resources,
-	                 const std::vector<Vertex>& vertices,
+	void Mesh::Build(const std::vector<Vertex>& vertices,
 	                 const std::vector<uint32_t>& indices)
 	{
 		m_Vertices = vertices;
@@ -29,15 +28,15 @@ namespace CHEngine {
 			flatData.push_back(v.Color.z);
 		}
 
-		m_VertexArray = resources.CreateVertexArray();
-		auto* vao = resources.Get(m_VertexArray);
+		m_VertexArray = RenderFacade::CreateVertexArray();
+		auto* vao = RenderFacade::GetVertexArray(m_VertexArray);
 		if (!vao)
 		{
 			CHE_CORE_ERROR("Mesh::Build — failed to create vertex array");
 			return;
 		}
 
-		auto vb = resources.CreateVertexBuffer(flatData.data(),
+		auto vb = RenderFacade::CreateVertexBuffer(flatData.data(),
 			static_cast<uint32_t>(flatData.size() * sizeof(float)));
 
 		BufferLayout layout = {
@@ -49,7 +48,7 @@ namespace CHEngine {
 		vb->SetLayout(layout);
 		vao->AddVertexBuffer(vb);
 
-		auto ib = resources.CreateIndexBuffer(m_Indices.data(),
+		auto ib = RenderFacade::CreateIndexBuffer(m_Indices.data(),
 			static_cast<uint32_t>(m_Indices.size()));
 		vao->SetIndexBuffer(ib);
 	}

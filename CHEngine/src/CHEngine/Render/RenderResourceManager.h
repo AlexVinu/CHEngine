@@ -17,13 +17,11 @@ namespace CHEngine {
 
 	struct ShaderTag {};
 	struct VertexArrayTag {};
-	struct RenderAPITag {};
 	struct TextureTag {};
 	struct FramebufferTag {};
 
 	using ShaderHandle      = Handle<ShaderTag>;
 	using VertexArrayHandle = Handle<VertexArrayTag>;
-	using RenderAPIHandle   = Handle<RenderAPITag>;
 	using TextureHandle     = Handle<TextureTag>;
 	using FramebufferHandle = Handle<FramebufferTag>;
 
@@ -53,7 +51,10 @@ namespace CHEngine {
 		                                  const String& fragmentPath);
 
 		VertexArrayHandle CreateVertexArray();
-		RenderAPIHandle   CreateRenderAPI();
+		// Creates the single active RendererAPI instance (idempotent).
+		// Returns nullptr on failure.
+		RendererAPI* InitRenderAPI();
+		RendererAPI* GetRenderAPI() const;
 
 		// Upload raw pixel data as a GPU texture.
 		// channels: 1=R, 2=RG, 3=RGB, 4=RGBA.
@@ -72,7 +73,6 @@ namespace CHEngine {
 
 		IShader*      Get(ShaderHandle h) const;
 		IVertexArray* Get(VertexArrayHandle h) const;
-		RendererAPI*  Get(RenderAPIHandle h) const;
 		ITexture*     Get(TextureHandle h) const;
 		IFramebuffer* Get(FramebufferHandle h) const;
 
@@ -88,7 +88,7 @@ namespace CHEngine {
 
 		void DestroyShader(ShaderHandle h);
 		void DestroyVertexArray(VertexArrayHandle h);
-		void DestroyRenderAPI(RenderAPIHandle h);
+		void DestroyRenderAPI();
 		void DestroyTexture(TextureHandle h);
 		void DestroyFramebuffer(FramebufferHandle h);
 
@@ -103,9 +103,10 @@ namespace CHEngine {
 
 		HandlePool<IShader,      ShaderTag>       m_Shaders;
 		HandlePool<IVertexArray, VertexArrayTag>  m_VertexArrays;
-		HandlePool<RendererAPI,  RenderAPITag>    m_RenderApis;
 		HandlePool<ITexture,     TextureTag>      m_Textures;
 		HandlePool<IFramebuffer, FramebufferTag>  m_Framebuffers;
+
+		RendererAPI* m_RenderAPI = nullptr;
 
 		std::vector<ShaderEntry> m_ShaderEntries;
 	};

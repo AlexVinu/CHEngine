@@ -17,14 +17,11 @@ namespace CHEngine {
 	class CHENGINE_API ModelLoader
 	{
 	public:
-		static LoadedModel Load(const std::string& filepath,
-		                        RenderResourceManager& resources);
+		static LoadedModel Load(const std::string& filepath);
 
 	private:
-		static LoadedModel LoadOBJ(const std::string& filepath,
-		                           RenderResourceManager& resources);
-		static LoadedModel LoadGLTF(const std::string& filepath,
-		                            RenderResourceManager& resources);
+		static LoadedModel LoadOBJ(const std::string& filepath);
+		static LoadedModel LoadGLTF(const std::string& filepath);
 	};
 
 }

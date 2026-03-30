@@ -1,5 +1,7 @@
 #include "SceneViewLayer.h"
 
+#include <CHEngine/Render/RenderFacade.h>
+
 
 // ============================================================================
 //  Constructor
@@ -7,28 +9,24 @@
 
 SceneViewLayer::SceneViewLayer()
     : Layer("SceneView")
-    , m_Resources(CHEngine::Application::Get().GetRenderResources())
     , m_Camera(45.0f, 0.1f, 500.0f)
 {
     UIActive::SetTheme(AppTheme::RetroOS);
     UIActive::SyncLayout();
 
-    auto& app = CHEngine::Application::Get();
-    m_RenderApi = app.GetRenderApiHandle();
-
-    m_MeshShader = m_Resources.CreateShaderFromFile(
+    m_MeshShader = CHEngine::RenderFacade::CreateShaderFromFile(
         CHEngine::String("Mesh"),
         CHEngine::String("shaders/mesh.vert"),
         CHEngine::String("shaders/mesh.frag")
     );
-    m_GridShader = m_Resources.CreateShaderFromFile(
+    m_GridShader = CHEngine::RenderFacade::CreateShaderFromFile(
         CHEngine::String("Grid"),
         CHEngine::String("shaders/grid.vert"),
         CHEngine::String("shaders/grid.frag")
     );
 
     BuildGrid();
-    m_Framebuffer = m_Resources.CreateFramebuffer(1280, 720);
+    m_Framebuffer = CHEngine::RenderFacade::CreateFramebuffer(1280, 720);
     m_Camera.SetPitch(-30.0f);   // default: look slightly down so grid is visible
     ApplyOrbit();
 
@@ -139,7 +137,7 @@ void SceneViewLayer::OnImGuiRender()
         {
             m_ViewportSize = panelSize;
             ImVec2 fbScale = ImGui::GetIO().DisplayFramebufferScale;
-            auto* fbo = m_Resources.Get(m_Framebuffer);
+            auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
             if (fbo) fbo->Resize(
                 static_cast<uint32_t>(panelSize.x * fbScale.x),
                 static_cast<uint32_t>(panelSize.y * fbScale.y));
@@ -150,7 +148,7 @@ void SceneViewLayer::OnImGuiRender()
         // Display the rendered scene as a texture (flip Y: OpenGL bottom-left → ImGui top-left).
         // Skip display on resize frame: Metal FBO has uninitialized Private texture,
         // cleared on next Bind() via MTLLoadActionClear. Prevents pink garbage flash.
-        auto* fbo2 = m_Resources.Get(m_Framebuffer);
+        auto* fbo2 = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
         if (fbo2 && !resizedThisFrame)
         {
             void* nativeTex = fbo2->GetNativeColorAttachment();

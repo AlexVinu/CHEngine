@@ -19,7 +19,7 @@ set(CHE_VENDOR_SOURCES
 )
 
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES} "src/CHEngine/Scene/Transform.h" "src/CHEngine/Scene/Transform.cpp")
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES})
 
 # Skip precompiled headers for vendor sources and ModelLoader files
 # (они включают tinyobjloader / tinygltf / stb_image с IMPLEMENTATION defines —

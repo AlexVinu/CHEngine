@@ -46,8 +46,7 @@ namespace CHEngine {
             return *s_Instance;
         }
 
-        RenderResourceManager& GetRenderResources() { return m_RenderResources; }
-        RenderAPIHandle GetRenderApiHandle() const { return m_RenderApi; }
+        RenderResourceManager* GetRenderResources() { return m_RenderResources.get(); }
         Window* GetWindow() const { return m_Window.get(); }
 
         ERenderAPI GetRenderAPIType() const { return m_RenderAPIType; }
@@ -64,8 +63,8 @@ namespace CHEngine {
 
         static Application* s_Instance;
 
-        ModuleManager         m_ModuleManager;
-        RenderResourceManager m_RenderResources;
+        std::unique_ptr<ModuleManager>         m_ModuleManager;
+        std::unique_ptr<RenderResourceManager> m_RenderResources;
 
         IWindowFactory* m_WindowFactory = nullptr;
         IRenderFactory* m_RenderFactory = nullptr;
@@ -75,7 +74,6 @@ namespace CHEngine {
         LayerStack      m_LayerStack;
 
         ShaderHandle    m_Shader;
-        RenderAPIHandle m_RenderApi;
 
         ERenderAPI      m_RenderAPIType = ERenderAPI::OPENGL;
         bool            m_RestartRequested = false;

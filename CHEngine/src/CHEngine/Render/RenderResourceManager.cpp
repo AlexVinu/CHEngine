@@ -21,10 +21,6 @@ namespace CHEngine {
 			[this](IVertexArray* ptr) { m_Factory->Delete(ptr); }
 		);
 
-		m_RenderApis = HandlePool<RendererAPI, RenderAPITag>(
-			[this](RendererAPI* ptr) { m_Factory->Delete(ptr); }
-		);
-
 		m_Textures = HandlePool<ITexture, TextureTag>(
 			[this](ITexture* ptr) { m_Factory->Delete(ptr); }
 		);
@@ -177,15 +173,27 @@ namespace CHEngine {
 		return m_VertexArrays.Add(vao);
 	}
 
-	RenderAPIHandle RenderResourceManager::CreateRenderAPI()
+	RendererAPI* RenderResourceManager::InitRenderAPI()
 	{
+		CHE_CORE_ASSERT(m_Factory, "RenderResourceManager::InitRenderAPI — factory is null (Init not called)");
+
+		if (m_RenderAPI)
+			return m_RenderAPI;
+
 		RendererAPI* api = m_Factory->CreateRenderAPI();
 		if (!api)
 		{
 			CHE_CORE_ERROR("RenderResourceManager: failed to create render API");
-			return RenderAPIHandle::Invalid();
+			return nullptr;
 		}
-		return m_RenderApis.Add(api);
+
+		m_RenderAPI = api;
+		return m_RenderAPI;
+	}
+
+	RendererAPI* RenderResourceManager::GetRenderAPI() const
+	{
+		return m_RenderAPI;
 	}
 
 	TextureHandle RenderResourceManager::CreateTexture(const uint8_t* data, uint32_t width,
@@ -269,11 +277,6 @@ namespace CHEngine {
 		return m_VertexArrays.Get(h);
 	}
 
-	RendererAPI* RenderResourceManager::Get(RenderAPIHandle h) const
-	{
-		return m_RenderApis.Get(h);
-	}
-
 	ITexture* RenderResourceManager::Get(TextureHandle h) const
 	{
 		return m_Textures.Get(h);
@@ -299,9 +302,14 @@ namespace CHEngine {
 		m_VertexArrays.Remove(h);
 	}
 
-	void RenderResourceManager::DestroyRenderAPI(RenderAPIHandle h)
+	void RenderResourceManager::DestroyRenderAPI()
 	{
-		m_RenderApis.Remove(h);
+		if (!m_RenderAPI)
+			return;
+
+		CHE_CORE_ASSERT(m_Factory, "RenderResourceManager::DestroyRenderAPI — factory is null");
+		m_Factory->Delete(m_RenderAPI);
+		m_RenderAPI = nullptr;
 	}
 
 	void RenderResourceManager::DestroyTexture(TextureHandle h)
@@ -319,7 +327,7 @@ namespace CHEngine {
 		m_ShaderWatcher.Clear();
 		m_Shaders.Clear();
 		m_VertexArrays.Clear();
-		m_RenderApis.Clear();
+		DestroyRenderAPI();
 		m_Textures.Clear();
 		m_Framebuffers.Clear();
 		m_ShaderEntries.clear();

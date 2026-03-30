@@ -1,5 +1,6 @@
 #include "SceneViewLayer.h"
 
+#include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
 
 #include <glm/gtc/type_ptr.hpp>
@@ -39,8 +40,6 @@ static glm::vec3 ForwardFromRotation(const glm::vec3& eulerDeg)
 
 void SceneViewLayer::BuildGrid()
 {
-    auto& res = m_Resources;
-
     float verts[] = {
         -1.0f, -1.0f,
          1.0f, -1.0f,
@@ -49,17 +48,17 @@ void SceneViewLayer::BuildGrid()
     };
     uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
 
-    m_GridVAO = res.CreateVertexArray();
-    auto* vao = res.Get(m_GridVAO);
+    m_GridVAO = CHEngine::RenderFacade::CreateVertexArray();
+    auto* vao = CHEngine::RenderFacade::GetVertexArray(m_GridVAO);
     if (!vao) return;
 
-    auto vb = res.CreateVertexBuffer(verts, static_cast<uint32_t>(sizeof(verts)));
+    auto vb = CHEngine::RenderFacade::CreateVertexBuffer(verts, static_cast<uint32_t>(sizeof(verts)));
     CHEngine::BufferLayout layout = {
         { CHEngine::ShaderDataType::Float2, "a_NDC" },
     };
     vb->SetLayout(layout);
     vao->AddVertexBuffer(vb);
-    auto ib = res.CreateIndexBuffer(indices, 6u);
+    auto ib = CHEngine::RenderFacade::CreateIndexBuffer(indices, 6u);
     vao->SetIndexBuffer(ib);
 }
 
@@ -70,14 +69,11 @@ void SceneViewLayer::BuildGrid()
 void SceneViewLayer::RenderScene()
 {
     CHE_PROFILE_FUNCTION();
-    auto& res = m_Resources;
-    auto* api = res.Get(m_RenderApi);
-    if (!api) return;
 
     // ── Bind FBO — all rendering goes into the offscreen texture ─────────
-    auto* fbo = res.Get(m_Framebuffer);
+    auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
     if (fbo) fbo->Bind();
-    api->Clear();
+    CHEngine::RenderFacade::Clear();
     // ─────────────────────────────────────────────────────────────────────
 
     glm::mat4 vp    = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
@@ -96,25 +92,24 @@ void SceneViewLayer::RenderScene()
     // Infinite grid (full-screen quad + analytical fragment shader)
     if (m_ShowGrid)
     {
-        auto* gs  = res.Get(m_GridShader);
-        auto* gva = res.Get(m_GridVAO);
-        if (gs && gva)
+        auto* gs  = CHEngine::RenderFacade::GetShader(m_GridShader);
+        if (gs && m_GridVAO.IsValid())
         {
-            api->SetBlend(true);
-            api->SetDepthWrite(false);
+            CHEngine::RenderFacade::SetBlend(true);
+            CHEngine::RenderFacade::SetDepthWrite(false);
 
             gs->Bind();
             gs->SetUniformBlock(CHEngine::EUniformBlock::Camera,
                                 &cameraUBO, sizeof(cameraUBO));
-            api->DrawIndexed(gva);
+            CHEngine::RenderFacade::DrawIndexed(m_GridVAO);
 
-            api->SetDepthWrite(true);
-            api->SetBlend(false);
+            CHEngine::RenderFacade::SetDepthWrite(true);
+            CHEngine::RenderFacade::SetBlend(false);
         }
     }
 
     // ── Meshes ────────────────────────────────────────────────────────────
-    auto* shader = res.Get(m_MeshShader);
+    auto* shader = CHEngine::RenderFacade::GetShader(m_MeshShader);
     if (!shader) return;
 
     shader->Bind();
@@ -221,7 +216,7 @@ void SceneViewLayer::RenderScene()
             const auto& mat = mesh.Mat;
 
             // Diffuse текстура (слот 0)
-            auto* diffTex = mat.DiffuseMap.IsValid() ? res.Get(mat.DiffuseMap) : nullptr;
+            auto* diffTex = mat.DiffuseMap.IsValid() ? CHEngine::RenderFacade::GetTexture(mat.DiffuseMap) : nullptr;
             objectUBO.UseTexture = diffTex ? 1 : 0;
             if (diffTex) {
                 diffTex->Bind(0);
@@ -229,7 +224,7 @@ void SceneViewLayer::RenderScene()
             }
 
             // Specular текстура (слот 1)
-            auto* specTex = mat.SpecularMap.IsValid() ? res.Get(mat.SpecularMap) : nullptr;
+            auto* specTex = mat.SpecularMap.IsValid() ? CHEngine::RenderFacade::GetTexture(mat.SpecularMap) : nullptr;
             objectUBO.UseSpecularMap = specTex ? 1 : 0;
             if (specTex) {
                 specTex->Bind(1);
@@ -242,8 +237,9 @@ void SceneViewLayer::RenderScene()
             shader->SetUniformBlock(CHEngine::EUniformBlock::Object,
                                     &objectUBO, sizeof(objectUBO));
 
-            auto* vao = res.Get(mesh.GetVertexArray());
-            if (vao) api->DrawIndexed(vao);
+            auto vao = mesh.GetVertexArray();
+            if (vao.IsValid())
+                CHEngine::RenderFacade::DrawIndexed(vao);
 
             if (diffTex) diffTex->Unbind();
             if (specTex) specTex->Unbind();

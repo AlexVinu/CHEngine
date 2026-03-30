@@ -1,5 +1,7 @@
 #include "SceneViewLayer.h"
 
+#include <CHEngine/Render/RenderFacade.h>
+
 #include <filesystem>
 #include <fstream>
 
@@ -37,7 +39,8 @@ void SceneViewLayer::LoadScene(const std::string& path)
     m_SelectedObjectID = 0;
 
     CHEngine::SceneSerializer serializer(&m_Scene);
-    if (serializer.LoadFromFile(filePath, m_Resources)) {
+    auto* resources = CHEngine::Application::Get().GetRenderResources();
+    if (resources && serializer.LoadFromFile(filePath, *resources)) {
         m_RecentFiles.AddPath(filePath);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
     }
@@ -98,7 +101,8 @@ void SceneViewLayer::TryRestoreSession()
     // 1. Восстанавливаем сцену
     if (std::filesystem::exists(k_SessionFile)) {
         CHEngine::SceneSerializer serializer(&m_Scene);
-        if (serializer.LoadFromFile(k_SessionFile, m_Resources))
+        auto* resources = CHEngine::Application::Get().GetRenderResources();
+        if (resources && serializer.LoadFromFile(k_SessionFile, *resources))
             CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
         else
             CHE_CORE_WARN("SceneViewLayer: failed to restore scene");
@@ -159,7 +163,7 @@ void SceneViewLayer::TryRestoreSession()
 
 void SceneViewLayer::ImportModel(const std::string& filepath)
 {
-    auto result = CHEngine::ModelLoader::Load(filepath, m_Resources);
+    auto result = CHEngine::ModelLoader::Load(filepath);
     if (!result.success)
         return;
 
@@ -182,10 +186,10 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
     {
         for (auto& mesh : result.meshes)
         {
-            m_Resources.DestroyVertexArray(mesh.GetVertexArray());
+            CHEngine::RenderFacade::DestroyVertexArray(mesh.GetVertexArray());
             auto verts = mesh.GetVertices();
             for (auto& v : verts) v.Position -= centroid;
-            mesh.Build(m_Resources, verts, mesh.GetIndices());
+            mesh.Build(verts, mesh.GetIndices());
         }
     }
 
