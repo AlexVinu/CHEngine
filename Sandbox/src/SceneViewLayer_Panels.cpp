@@ -1,6 +1,7 @@
 #include "SceneViewLayer.h"
 
 #include <CHEngine/EngineConfig.h>
+#include <CHEngine/Render/RenderFacade.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <cstring>
 #include <cmath>
@@ -419,8 +420,8 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                 if (!path.empty())
                 {
                     if (mat.DiffuseMap.IsValid())
-                        m_Resources.DestroyTexture(mat.DiffuseMap);
-                    mat.DiffuseMap = m_Resources.CreateTextureFromFile(path);
+                        CHEngine::RenderFacade::DestroyTexture(mat.DiffuseMap);
+                    mat.DiffuseMap = CHEngine::RenderFacade::CreateTextureFromFile(path);
                     mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? path : "";
                 }
             }
@@ -428,7 +429,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
             ImGui::SameLine(0, 4);
             if (ImGui::Button("X##dif", ImVec2(20, 0)) && mat.DiffuseMap.IsValid())
             {
-                m_Resources.DestroyTexture(mat.DiffuseMap);
+                CHEngine::RenderFacade::DestroyTexture(mat.DiffuseMap);
                 mat.DiffuseMap = CHEngine::TextureHandle::Invalid();
                 mat.DiffuseMapPath.clear();
             }
@@ -457,8 +458,8 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                 if (!path.empty())
                 {
                     if (mat.SpecularMap.IsValid())
-                        m_Resources.DestroyTexture(mat.SpecularMap);
-                    mat.SpecularMap = m_Resources.CreateTextureFromFile(path);
+                        CHEngine::RenderFacade::DestroyTexture(mat.SpecularMap);
+                    mat.SpecularMap = CHEngine::RenderFacade::CreateTextureFromFile(path);
                     mat.SpecularMapPath = mat.SpecularMap.IsValid() ? path : "";
                 }
             }
@@ -466,7 +467,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
             ImGui::SameLine(0, 4);
             if (ImGui::Button("X##spec", ImVec2(20, 0)) && mat.SpecularMap.IsValid())
             {
-                m_Resources.DestroyTexture(mat.SpecularMap);
+                CHEngine::RenderFacade::DestroyTexture(mat.SpecularMap);
                 mat.SpecularMap = CHEngine::TextureHandle::Invalid();
                 mat.SpecularMapPath.clear();
             }

@@ -136,7 +136,7 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
 
         if (!meshPath.empty()) {
             // Re-import model from disk
-            auto result = ModelLoader::Load(meshPath, resources);
+            auto result = ModelLoader::Load(meshPath);
             if (result.success) {
                 // Центрируем вершины вокруг геометрического центра — точно как ImportModel.
                 // Без этого позиция модели смещается на величину centroid при каждой загрузке.
@@ -155,7 +155,7 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
                         resources.DestroyVertexArray(mesh.GetVertexArray());
                         auto verts = mesh.GetVertices();
                         for (auto& v : verts) v.Position -= centroid;
-                        mesh.Build(resources, verts, mesh.GetIndices());
+                        mesh.Build(verts, mesh.GetIndices());
                     }
                 }
 

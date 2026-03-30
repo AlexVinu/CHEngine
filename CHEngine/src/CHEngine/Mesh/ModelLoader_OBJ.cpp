@@ -16,8 +16,7 @@
 
 namespace CHEngine {
 
-	LoadedModel ModelLoader::LoadOBJ(const std::string& filepath,
-	                                 RenderResourceManager& resources)
+	LoadedModel ModelLoader::LoadOBJ(const std::string& filepath)
 	{
 		LoadedModel result;
 		result.name = std::filesystem::path(filepath).stem().string();
@@ -157,7 +156,7 @@ namespace CHEngine {
 			if (!vertices.empty())
 			{
 				Mesh mesh;
-				mesh.Build(resources, vertices, indices);
+				mesh.Build(vertices, indices);
 
 				int matIdx = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[0];
 				if (matIdx >= 0 && matIdx < (int)materials.size())
@@ -171,7 +170,7 @@ namespace CHEngine {
 						uint8_t* pixels = stbi_load(texPath.c_str(), &w, &h, &ch, 0);
 						if (pixels)
 						{
-							mesh.Mat.DiffuseMapPath = texPath; mesh.Mat.DiffuseMap = resources.CreateTexture(
+							mesh.Mat.DiffuseMapPath = texPath; mesh.Mat.DiffuseMap = RenderFacade::CreateTexture(
 								pixels, (uint32_t)w, (uint32_t)h, (uint32_t)ch);
 							stbi_image_free(pixels);
 						}

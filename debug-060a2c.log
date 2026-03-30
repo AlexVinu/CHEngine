@@ -1,0 +1,8 @@
+{"sessionId":"060a2c","location":"Profiler.cpp:Flush","message":"Flush called","data":{"statsCount":0,"threadsCount":0,"flushIdx":0},"hypothesisId":"C"}
+{"sessionId":"060a2c","location":"SceneViewLayer_Panels.cpp:DrawProfilerPanel","message":"Panel called","data":{"showProfiler":false,"statsCount":0,"logIdx":0},"hypothesisId":"D"}
+{"sessionId":"060a2c","location":"Profiler.cpp:Flush","message":"Flush called","data":{"statsCount":3,"threadsCount":1,"flushIdx":1},"hypothesisId":"C"}
+{"sessionId":"060a2c","location":"SceneViewLayer_Panels.cpp:DrawProfilerPanel","message":"Panel called","data":{"showProfiler":false,"statsCount":3,"logIdx":1},"hypothesisId":"D"}
+{"sessionId":"060a2c","location":"Profiler.cpp:Flush","message":"Flush called","data":{"statsCount":3,"threadsCount":1,"flushIdx":2},"hypothesisId":"C"}
+{"sessionId":"060a2c","location":"SceneViewLayer_Panels.cpp:DrawProfilerPanel","message":"Panel called","data":{"showProfiler":false,"statsCount":3,"logIdx":2},"hypothesisId":"D"}
+{"sessionId":"060a2c","location":"Profiler.cpp:Flush","message":"Flush called","data":{"statsCount":3,"threadsCount":1,"flushIdx":3},"hypothesisId":"C"}
+{"sessionId":"060a2c","location":"Profiler.cpp:Flush","message":"Flush called","data":{"statsCount":3,"threadsCount":1,"flushIdx":4},"hypothesisId":"C"}

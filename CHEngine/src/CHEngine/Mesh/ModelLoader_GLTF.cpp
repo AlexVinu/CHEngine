@@ -13,8 +13,7 @@
 
 namespace CHEngine {
 
-	LoadedModel ModelLoader::LoadGLTF(const std::string& filepath,
-	                                  RenderResourceManager& resources)
+	LoadedModel ModelLoader::LoadGLTF(const std::string& filepath)
 	{
 		LoadedModel result;
 		result.name = std::filesystem::path(filepath).stem().string();
@@ -154,7 +153,7 @@ namespace CHEngine {
 				if (!vertices.empty() && !indices.empty())
 				{
 					Mesh mesh;
-					mesh.Build(resources, vertices, indices);
+					mesh.Build(vertices, indices);
 
 					// ── Diffuse texture ───────────────────────────────────────
 					if (primitive.material >= 0 && primitive.material < (int)model.materials.size())
@@ -186,7 +185,7 @@ namespace CHEngine {
 								const auto& img = model.images[imgIdx];
 								if (!img.image.empty() && img.width > 0 && img.height > 0)
 								{
-									mesh.Mat.DiffuseMap = resources.CreateTexture(
+									mesh.Mat.DiffuseMap = RenderFacade::CreateTexture(
 										img.image.data(),
 										(uint32_t)img.width,
 										(uint32_t)img.height,

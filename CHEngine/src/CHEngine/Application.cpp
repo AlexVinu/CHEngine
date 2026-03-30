@@ -6,6 +6,7 @@
 #include "Profiler.h"
 #include "CHEngine/Input/Input.h"
 #include "CHEngine/EngineConfig.h"
+#include "Render/RenderFacade.h"
 
 #include <imgui.h>
 
@@ -26,9 +27,10 @@ namespace CHEngine {
     Application* Application::s_Instance = nullptr;
 
     Application::Application(const ApplicationConfig& config)
-        : m_ModuleManager()
-        , m_RenderAPIType(config.RenderAPI)
+        : m_RenderAPIType(config.RenderAPI)
     {
+        m_ModuleManager = std::make_unique<ModuleManager>();
+        m_RenderResources = std::make_unique<RenderResourceManager>();
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
         // Set working directory to executable location so relative paths
@@ -65,13 +67,13 @@ namespace CHEngine {
         for (auto api : RenderAPICaps::AllAvailableAPI())
         {
             auto module_name = RenderAPICaps::GetModuleNames(api);
-            bool flag = module_name.Renderer && (m_ModuleManager.LoadModule(module_name.Renderer) &&
-                m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render)->CheckIsWorking());
+            bool flag = module_name.Renderer && (m_ModuleManager->LoadModule(module_name.Renderer) &&
+                m_ModuleManager->GetModule<IRenderFactory>(ModuleType::Render)->CheckIsWorking());
             
             RenderAPICaps::SetFlag(api, flag);
         }
 
-        m_ModuleManager.UnloadAll();
+        m_ModuleManager->UnloadAll();
 
         CHE_CORE_INFO("ALL AVAILABLE RENDER API ------------------");
         for (auto api : RenderAPICaps::AllAvailableAPI())
@@ -91,18 +93,18 @@ namespace CHEngine {
         }
 
 #if defined(CHE_PLATFORM_WINDOWS)
-        m_ModuleManager.LoadModule("WindowGLFW.dll");
+        m_ModuleManager->LoadModule("WindowGLFW.dll");
 #elif defined(CHE_PLATFORM_APPLE)
-        m_ModuleManager.LoadModule("libWindowGLFW.dylib");
+        m_ModuleManager->LoadModule("libWindowGLFW.dylib");
 #else
-        m_ModuleManager.LoadModule("libWindowGLFW.so");
+        m_ModuleManager->LoadModule("libWindowGLFW.so");
 #endif
-        m_ModuleManager.LoadModule(moduleNames.Renderer);
-        m_ModuleManager.LoadModule(moduleNames.ImGui);
+        m_ModuleManager->LoadModule(moduleNames.Renderer);
+        m_ModuleManager->LoadModule(moduleNames.ImGui);
 
-        m_WindowFactory = m_ModuleManager.GetModule<IWindowFactory>(ModuleType::Window);
-        m_RenderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
-        m_ImGuiFactory  = m_ModuleManager.GetModule<IImGuiFactory>(ModuleType::ImGui);
+        m_WindowFactory = m_ModuleManager->GetModule<IWindowFactory>(ModuleType::Window);
+        m_RenderFactory = m_ModuleManager->GetModule<IRenderFactory>(ModuleType::Render);
+        m_ImGuiFactory  = m_ModuleManager->GetModule<IImGuiFactory>(ModuleType::ImGui);
 
         if (!m_WindowFactory)
         {
@@ -124,7 +126,7 @@ namespace CHEngine {
         // в LoadRendererPreference, и следующий запуск вернётся к прежнему renderer.
         EngineConfig::CommitRendererPreference(m_RenderAPIType);
 
-        m_RenderResources.Init(m_RenderFactory);
+        m_RenderResources->Init(m_RenderFactory);
 
         // ─── 2. Создать окно ────────────────────────────────────────────────
         ERenderAPI render_api = m_RenderFactory->GetRenderApi();
@@ -142,7 +144,7 @@ namespace CHEngine {
         // ─── 4а. Зарегистрировать hot reload для ImGuiOGL ────────────────────
         // WindowGLFW и RendererOGL не перезагружаем — они держат GL-контекст
         if (m_ImGuiFactory) {
-            m_ModuleManager.Watch(ModuleType::ImGui, {
+            m_ModuleManager->Watch(ModuleType::ImGui, {
                 // Уничтожить ImGui-слой до выгрузки dylib
                 [this]() {
                     if (m_ImGuiLayer && m_ImGuiFactory)
@@ -160,11 +162,10 @@ namespace CHEngine {
         }
 
         // ─── 5. Создать рендер-объекты (нужен GLAD, поэтому после шага 3) ───
-        m_RenderApi = m_RenderResources.CreateRenderAPI();
-        if (auto* api = m_RenderResources.Get(m_RenderApi))
-            api->SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
+        RenderFacade::InitAPI();
+        RenderFacade::SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
 
-        m_Shader = m_RenderResources.CreateShaderFromFile(
+        m_Shader = m_RenderResources->CreateShaderFromFile(
             String("Basic"),
             String("shaders/basic.vert"),
             String("shaders/basic.frag")
@@ -179,7 +180,7 @@ namespace CHEngine {
         if (m_Renderer && m_RenderFactory)
             m_RenderFactory->Delete(m_Renderer);
 
-        m_RenderResources.Shutdown();
+        m_RenderResources->Shutdown();
     }
 
     void Application::PushLayer(Layer* layer)
@@ -214,8 +215,7 @@ namespace CHEngine {
 
     bool Application::OnWindowResized(WindowResizeEvent& e)
     {
-        if (auto* api = m_RenderResources.Get(m_RenderApi))
-            api->SetViewport(e.GetWidth(), e.GetHeight());
+        RenderFacade::SetViewport(e.GetWidth(), e.GetHeight());
         return false;
     }
 
@@ -247,14 +247,14 @@ namespace CHEngine {
             shaderPollAcc += dt;
             if (shaderPollAcc >= ShaderPollInterval) {
                 shaderPollAcc = 0.0f;
-                m_RenderResources.PollShaders();
+                m_RenderResources->PollShaders();
             }
 
             // ── Module hot reload ────────────────────────────────────────────
             modulePollAcc += dt;
             if (modulePollAcc >= ModulePollInterval) {
                 modulePollAcc = 0.0f;
-                m_ModuleManager.Poll();
+                m_ModuleManager->Poll();
             }
 
             // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
@@ -264,8 +264,7 @@ namespace CHEngine {
             if (m_Renderer)
                 m_Renderer->BeginFrame();
 
-            if (auto* api = m_RenderResources.Get(m_RenderApi))
-                api->Clear();
+            RenderFacade::Clear();
 
             for (Layer* layer : m_LayerStack)
                 layer->OnUpdate(dt);
@@ -295,8 +294,7 @@ namespace CHEngine {
             if (m_Renderer)
                 m_Renderer->BeginFrame();
 
-            if (auto* api = m_RenderResources.Get(m_RenderApi))
-                api->Clear();
+            RenderFacade::Clear();
 
             if (m_Renderer)
                 m_ImGuiLayer->SetRenderContext(m_Renderer->GetRenderContext());

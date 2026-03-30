@@ -42,6 +42,7 @@ namespace CHEngine
     class ModuleManager
     {
     public:
+        ModuleManager() = default;
 
         ~ModuleManager() { UnloadAll(); }
 
