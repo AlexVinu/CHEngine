@@ -1,35 +1,56 @@
 #include "RendererVK.h"
 
-#include <Log/Log.h>
+#include <cstring>
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+#include <glm/matrix.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include "Render/IShader.h"
 
 namespace CHModules
 {
-    void RendererVK::Init(const CHEngine::RendererInitInfo& init_info)
+    RendererVK::RendererVK(CHEngine::IRenderApi* api)
+        : m_Api(api)
     {
-        auto* window = static_cast<GLFWwindow*>(init_info.Vulkan.WindowHandle);
-        if (!window) {
-            CHE_CORE_CRITICAL("RendererVK::Init — WindowHandle is NULL!");
+    }
+
+    void RendererVK::BeginScene() {}
+
+    void RendererVK::EndScene() {}
+
+    void RendererVK::Submit(const CHEngine::IVertexArray* mesh, const glm::mat4& transform)
+    {
+        (void)transform;
+        if (m_Api)
+            m_Api->DrawIndexed(mesh);
+    }
+
+    void RendererVK::Submit(CHEngine::IShader* shader, CHEngine::IVertexArray* vertexArray,
+                            const glm::mat4& transform, const CHEngine::UBOCamera& sceneCamera)
+    {
+        if (!m_Api || !shader || !vertexArray)
             return;
-        }
 
-        int w, h;
-        glfwGetFramebufferSize(window, &w, &h);
+        shader->Bind();
+        shader->SetUniformBlock(CHEngine::EUniformBlock::Camera, &sceneCamera, sizeof(sceneCamera));
 
-        if (!m_Context.Init(window, static_cast<uint32_t>(w), static_cast<uint32_t>(h))) {
-            CHE_CORE_CRITICAL("RendererVK::Init — VulkanContext init failed!");
-        }
+        CHEngine::UBOObject objectUBO;
+        const glm::mat4 normalMat = glm::transpose(glm::inverse(transform));
+        std::memcpy(objectUBO.Transform, glm::value_ptr(transform), sizeof(objectUBO.Transform));
+        std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), sizeof(objectUBO.NormalMatrix));
+
+        shader->SetUniformBlock(CHEngine::EUniformBlock::Object, &objectUBO, sizeof(objectUBO));
+
+        CHEngine::UBOMaterial defaultMaterial;
+        shader->SetUniformBlock(CHEngine::EUniformBlock::Material, &defaultMaterial, sizeof(defaultMaterial));
+
+        m_Api->DrawIndexed(vertexArray);
     }
 
-    void RendererVK::Shutdown()
+    void RendererVK::SubmitLines(const CHEngine::IVertexArray* mesh, const glm::mat4& transform)
     {
-        m_Context.Shutdown();
-    }
-
-    void RendererVK::SetViewport(uint32_t width, uint32_t height)
-    {
-        m_Context.RecreateSwapchain(width, height);
+        (void)transform;
+        if (m_Api)
+            m_Api->DrawLines(mesh);
     }
 }

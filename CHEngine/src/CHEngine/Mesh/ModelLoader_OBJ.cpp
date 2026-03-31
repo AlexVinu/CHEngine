@@ -3,8 +3,12 @@
 #include "Log/Log.h"
 
 #include <algorithm>
-#include <unordered_map>
 #include <filesystem>
+#include <memory>
+#include <unordered_map>
+
+#include "CHEngine/Render/RenderFacade.h"
+#include "Material.h"
 
 // OBJ loader implementation (header-only lib — compile exactly once here)
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -16,7 +20,7 @@
 
 namespace CHEngine {
 
-	LoadedModel ModelLoader::LoadOBJ(const std::string& filepath)
+	LoadedModel ModelLoader::LoadOBJ(const std::string& filepath, ShaderHandle meshShader)
 	{
 		LoadedModel result;
 		result.name = std::filesystem::path(filepath).stem().string();
@@ -42,6 +46,40 @@ namespace CHEngine {
 			result.error = "Failed to load OBJ: " + err;
 			return result;
 		}
+
+		std::unordered_map<int, std::shared_ptr<MaterialInstance>> objMatByIdx;
+
+		auto getOrCreateObjMaterial = [&](int matIdx) -> std::shared_ptr<MaterialInstance> {
+			if (matIdx < 0 || matIdx >= static_cast<int>(materials.size()))
+				return MaterialInstance::FromBase(std::make_shared<Material>(meshShader));
+			auto it = objMatByIdx.find(matIdx);
+			if (it != objMatByIdx.end())
+				return it->second;
+
+			auto base = std::make_shared<Material>(meshShader);
+			const std::string& texName = materials[static_cast<size_t>(matIdx)].diffuse_texname;
+			if (!texName.empty())
+			{
+				std::string texPath = baseDir + texName;
+				int w, h, ch;
+				stbi_set_flip_vertically_on_load(1);
+				uint8_t* pixels = stbi_load(texPath.c_str(), &w, &h, &ch, 0);
+				if (pixels)
+				{
+					base->DiffuseMapPath = texPath;
+					base->DiffuseMap = RenderFacade::CreateTexture(
+						pixels, static_cast<uint32_t>(w), static_cast<uint32_t>(h), static_cast<uint32_t>(ch));
+					stbi_image_free(pixels);
+				}
+				else
+				{
+					CHE_CORE_WARN("OBJ: failed to load texture '{0}'", texPath.c_str());
+				}
+			}
+			auto inst = MaterialInstance::FromBase(base);
+			objMatByIdx[matIdx] = inst;
+			return inst;
+		};
 
 		for (const auto& shape : shapes)
 		{
@@ -155,32 +193,13 @@ namespace CHEngine {
 
 			if (!vertices.empty())
 			{
+				int matIdx = -1;
+				if (!shape.mesh.material_ids.empty())
+					matIdx = shape.mesh.material_ids[0];
+
 				Mesh mesh;
 				mesh.Build(vertices, indices);
-
-				int matIdx = shape.mesh.material_ids.empty() ? -1 : shape.mesh.material_ids[0];
-				if (matIdx >= 0 && matIdx < (int)materials.size())
-				{
-					const std::string& texName = materials[matIdx].diffuse_texname;
-					if (!texName.empty())
-					{
-						std::string texPath = baseDir + texName;
-						int w, h, ch;
-						stbi_set_flip_vertically_on_load(1);
-						uint8_t* pixels = stbi_load(texPath.c_str(), &w, &h, &ch, 0);
-						if (pixels)
-						{
-							mesh.Mat.DiffuseMapPath = texPath; mesh.Mat.DiffuseMap = RenderFacade::CreateTexture(
-								pixels, (uint32_t)w, (uint32_t)h, (uint32_t)ch);
-							stbi_image_free(pixels);
-						}
-						else
-						{
-							CHE_CORE_WARN("OBJ: failed to load texture '{0}'", texPath.c_str());
-						}
-					}
-				}
-
+				mesh.Mat = getOrCreateObjMaterial(matIdx);
 				result.meshes.push_back(std::move(mesh));
 			}
 		}

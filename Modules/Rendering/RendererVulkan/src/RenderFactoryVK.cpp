@@ -30,16 +30,14 @@ namespace CHModules
         return CreateImpl<ShaderVK>(vertexSrc, fragmentSrc);
     }
 
-    CHEngine::RendererAPI* RenderFactoryVK::CreateRenderAPI()
+    CHEngine::IRenderApi* RenderFactoryVK::CreateRenderAPI()
     {
         return CreateImpl<RenderApiVK>();
     }
 
-    CHEngine::IRenderer* RenderFactoryVK::CreateRenderer(const CHEngine::RendererInitInfo& init_info)
+    CHEngine::IRenderer* RenderFactoryVK::CreateRenderer(CHEngine::IRenderApi* api)
     {
-        auto* renderer = CreateImpl<RendererVK>();
-        renderer->Init(init_info);
-        return renderer;
+        return CreateImpl<RendererVK>(api);
     }
 
     CHEngine::ITexture* RenderFactoryVK::CreateTexture(const uint8_t* data, uint32_t width,
@@ -57,13 +55,14 @@ namespace CHModules
     void RenderFactoryVK::Delete(CHEngine::IIndexBuffer*  ptr) { DestroyImpl(static_cast<IndexBufferVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::IVertexArray*  ptr) { DestroyImpl(static_cast<VertexArrayVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::IShader*       ptr) { DestroyImpl(static_cast<ShaderVK*>(ptr)); }
-    void RenderFactoryVK::Delete(CHEngine::RendererAPI*   ptr) { DestroyImpl(static_cast<RenderApiVK*>(ptr)); }
+    void RenderFactoryVK::Delete(CHEngine::IRenderApi*    ptr) { DestroyImpl(static_cast<RenderApiVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::IRenderer*     ptr) { DestroyImpl(static_cast<RendererVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::ITexture*      ptr) { DestroyImpl(static_cast<TextureVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::IFramebuffer*  ptr) { delete static_cast<FramebufferVK*>(ptr); }
 
     CHEngine::ModuleType RenderFactoryVK::GetType() const { return CHEngine::ModuleType::Render; }
     CHEngine::ERenderAPI RenderFactoryVK::GetRenderApi() { return CHEngine::ERenderAPI::VULKAN; }
+    bool RenderFactoryVK::CheckIsWorking() { return true; }
 }
 
 IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryVK)

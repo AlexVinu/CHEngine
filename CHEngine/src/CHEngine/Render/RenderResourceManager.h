@@ -7,6 +7,8 @@
 
 #include "Render/IRenderFactory.h"
 #include "Render/IFramebuffer.h"
+#include "Render/UniformBlocks.h"
+#include "RenderData.h"
 #include "CHEngine/Utils/FileWatcher.h"
 
 #include <memory>
@@ -51,10 +53,11 @@ namespace CHEngine {
 		                                  const String& fragmentPath);
 
 		VertexArrayHandle CreateVertexArray();
-		// Creates the single active RendererAPI instance (idempotent).
+		// Creates the single active IRenderApi, calls Init(init_info). Idempotent.
 		// Returns nullptr on failure.
-		RendererAPI* InitRenderAPI();
-		RendererAPI* GetRenderAPI() const;
+		IRenderer* InitRenderer(const RendererInitInfo& init_info);
+		IRenderApi* GetRenderAPI() const;
+		IRenderer* GetRenderer() const;
 
 		// Upload raw pixel data as a GPU texture.
 		// channels: 1=R, 2=RG, 3=RGB, 4=RGBA.
@@ -86,15 +89,26 @@ namespace CHEngine {
 
 		const std::vector<ShaderEntry>& GetShaderEntries() const;
 
+		// Per-frame camera for Submit(Shader, VAO, transform). Invalidated at BeginFrame.
+		void SetSceneCamera(const UBOCamera& camera);
+		const UBOCamera& GetSceneCamera() const { return m_SceneCamera; }
+		bool HasSceneCamera() const { return m_SceneCameraValid; }
+		void InvalidateSceneCameraForFrame();
+
 		void DestroyShader(ShaderHandle h);
 		void DestroyVertexArray(VertexArrayHandle h);
 		void DestroyRenderAPI();
+		void DestroyRenderer();
 		void DestroyTexture(TextureHandle h);
 		void DestroyFramebuffer(FramebufferHandle h);
 
 		void Shutdown();
 
+		static void SetDefaultMeshShader(ShaderHandle h);
+		static ShaderHandle GetDefaultMeshShader();
+
 	private:
+		IRenderApi* InitRenderAPI(const RendererInitInfo& init_info);
 		static String ReadTextFile(const String& path);
 
 		IRenderFactory* m_Factory = nullptr;
@@ -106,9 +120,15 @@ namespace CHEngine {
 		HandlePool<ITexture,     TextureTag>      m_Textures;
 		HandlePool<IFramebuffer, FramebufferTag>  m_Framebuffers;
 
-		RendererAPI* m_RenderAPI = nullptr;
+		IRenderApi* m_RenderApi = nullptr;
+		IRenderer* m_Renderer = nullptr;
 
 		std::vector<ShaderEntry> m_ShaderEntries;
+
+		UBOCamera m_SceneCamera{};
+		bool m_SceneCameraValid = false;
+
+		static ShaderHandle s_DefaultMeshShader;
 	};
 
 }

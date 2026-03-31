@@ -90,9 +90,10 @@ namespace CHModules
 	{
 		struct BlockBinding { const char* name; GLuint binding; };
 		static const BlockBinding blocks[] = {
-			{ "CameraUBO",   0 },
-			{ "ObjectUBO",   1 },
-			{ "LightingUBO", 2 },
+			{ "CameraUBO",    0 },
+			{ "ObjectUBO",    1 },
+			{ "LightingUBO",  2 },
+			{ "MaterialUBO",  3 },
 		};
 
 		for (const auto& b : blocks) {
@@ -116,6 +117,7 @@ namespace CHModules
 			static_cast<uint32_t>(sizeof(CHEngine::UBOCamera)),
 			static_cast<uint32_t>(sizeof(CHEngine::UBOObject)),
 			static_cast<uint32_t>(sizeof(CHEngine::UBOLighting)),
+			static_cast<uint32_t>(sizeof(CHEngine::UBOMaterial)),
 		};
 
 		for (uint32_t i = 0; i < UBO_COUNT; ++i) {

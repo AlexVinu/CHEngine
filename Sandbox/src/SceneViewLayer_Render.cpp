@@ -1,12 +1,15 @@
 #include "SceneViewLayer.h"
 
+#include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Render/RenderFacade.h>
+#include <Render/IShader.h>
 #include <Render/UniformBlocks.h>
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <cmath>
 #include <cstring>
+#include <memory>
 
 // ── Дефолтный ambient (если нет источников — чтоб сцена не была чёрной) ───
 namespace DefaultLight {
@@ -89,19 +92,17 @@ void SceneViewLayer::RenderScene()
     cameraUBO.CameraPos[2] = camPos.z;
     cameraUBO.CameraPos[3] = 0.0f;
 
+    CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
+
     // Infinite grid (full-screen quad + analytical fragment shader)
     if (m_ShowGrid)
     {
-        auto* gs  = CHEngine::RenderFacade::GetShader(m_GridShader);
-        if (gs && m_GridVAO.IsValid())
+        if (m_GridShader.IsValid() && m_GridVAO.IsValid())
         {
             CHEngine::RenderFacade::SetBlend(true);
             CHEngine::RenderFacade::SetDepthWrite(false);
 
-            gs->Bind();
-            gs->SetUniformBlock(CHEngine::EUniformBlock::Camera,
-                                &cameraUBO, sizeof(cameraUBO));
-            CHEngine::RenderFacade::DrawIndexed(m_GridVAO);
+            CHEngine::RenderFacade::Submit(m_GridShader, m_GridVAO, glm::mat4(1.0f));
 
             CHEngine::RenderFacade::SetDepthWrite(true);
             CHEngine::RenderFacade::SetBlend(false);
@@ -109,13 +110,6 @@ void SceneViewLayer::RenderScene()
     }
 
     // ── Meshes ────────────────────────────────────────────────────────────
-    auto* shader = CHEngine::RenderFacade::GetShader(m_MeshShader);
-    if (!shader) return;
-
-    shader->Bind();
-    shader->SetUniformBlock(CHEngine::EUniformBlock::Camera,
-                            &cameraUBO, sizeof(cameraUBO));
-
     // ── Заполняем LightingUBO ─────────────────────────────────────────────
     CHEngine::UBOLighting lightingUBO;
     lightingUBO.AmbientColor[0] = DefaultLight::AmbR;
@@ -181,10 +175,8 @@ void SceneViewLayer::RenderScene()
 
     lightingUBO.NumLights = lightCount;
 
-    shader->SetUniformBlock(CHEngine::EUniformBlock::Lighting,
-                            &lightingUBO, sizeof(lightingUBO));
-
-    // ── Рисуем объекты ────────────────────────────────────────────────────
+    // ── Рисуем объекты (переключение шейдера по материалу) ────────────────
+    CHEngine::ShaderHandle activeMeshShader{};
     m_Scene.ForEach<CHEngine::MeshComponent>(
         [&](CHEngine::EntityHandle handle, CHEngine::TagComponentIDType objectID,
             CHEngine::MeshComponent& meshComp) {
@@ -213,36 +205,33 @@ void SceneViewLayer::RenderScene()
 
         for (auto& mesh : meshComp.Meshes)
         {
-            const auto& mat = mesh.Mat;
+            if (!mesh.Mat)
+                mesh.Mat = CHEngine::MaterialInstance::FromBase(
+                    std::make_shared<CHEngine::Material>(m_MeshShader));
 
-            // Diffuse текстура (слот 0)
-            auto* diffTex = mat.DiffuseMap.IsValid() ? CHEngine::RenderFacade::GetTexture(mat.DiffuseMap) : nullptr;
-            objectUBO.UseTexture = diffTex ? 1 : 0;
-            if (diffTex) {
-                diffTex->Bind(0);
-                shader->SetInt(CHEngine::String("u_DiffuseTexture"), 0);
+            CHEngine::ShaderHandle h = mesh.Mat->GetShaderHandle();
+            CHEngine::IShader* sh = CHEngine::RenderFacade::GetShader(h);
+            if (!sh)
+                continue;
+
+            if (h != activeMeshShader)
+            {
+                sh->Bind();
+                sh->SetUniformBlock(CHEngine::EUniformBlock::Camera,
+                                    &cameraUBO, sizeof(cameraUBO));
+                sh->SetUniformBlock(CHEngine::EUniformBlock::Lighting,
+                                    &lightingUBO, sizeof(lightingUBO));
+                activeMeshShader = h;
             }
 
-            // Specular текстура (слот 1)
-            auto* specTex = mat.SpecularMap.IsValid() ? CHEngine::RenderFacade::GetTexture(mat.SpecularMap) : nullptr;
-            objectUBO.UseSpecularMap = specTex ? 1 : 0;
-            if (specTex) {
-                specTex->Bind(1);
-                shader->SetInt(CHEngine::String("u_SpecularMap"), 1);
-            }
+            sh->SetUniformBlock(CHEngine::EUniformBlock::Object,
+                                &objectUBO, sizeof(objectUBO));
 
-            objectUBO.Shininess = mat.Shininess;
-
-            // Отправляем ObjectUBO
-            shader->SetUniformBlock(CHEngine::EUniformBlock::Object,
-                                    &objectUBO, sizeof(objectUBO));
+            mesh.Mat->ApplyMaterial();
 
             auto vao = mesh.GetVertexArray();
             if (vao.IsValid())
-                CHEngine::RenderFacade::DrawIndexed(vao);
-
-            if (diffTex) diffTex->Unbind();
-            if (specTex) specTex->Unbind();
+                CHEngine::RenderFacade::Submit(vao, model);
         }
     });
 

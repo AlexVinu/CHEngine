@@ -1,11 +1,13 @@
 #include "SceneViewLayer.h"
 
 #include <CHEngine/EngineConfig.h>
+#include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <glm/gtc/type_ptr.hpp>
 #include <cstring>
 #include <cmath>
 #include <algorithm>
+#include <memory>
 
 // ============================================================================
 //  UI — Toolbar
@@ -382,26 +384,34 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
             m_UndoStack.PushVisibility(&m_Scene, m_SelectedObjectID, before);
     }
 
-    // ── Текстуры меша ─────────────────────────────────────────────────────
+    // ── Текстуры (по одному материалу на сабмеш) ─────────────────────────
     for (size_t mi = 0; mi < meshComp->Meshes.size(); ++mi)
     {
-        auto& mat = meshComp->Meshes[mi].Mat;
-
-        // Уникальный ImGui ID для каждого меша (избегает коллизии виджетов)
         ImGui::PushID(static_cast<int>(mi));
+        if (meshComp->Meshes.size() > 1)
+        {
+            ImGui::Spacing();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+            ImGui::Text("Mesh %zu", mi);
+            ImGui::PopStyleColor();
+        }
+
+        auto& subMesh = meshComp->Meshes[mi];
+        if (!subMesh.Mat)
+            subMesh.Mat = CHEngine::MaterialInstance::FromBase(
+                std::make_shared<CHEngine::Material>(m_MeshShader));
+        CHEngine::MaterialInstance& mat = *subMesh.Mat;
 
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
-        if (meshComp->Meshes.size() > 1)
-            ImGui::Text("Mesh %zu", mi);
-        else
-            ImGui::TextUnformatted("Textures");
+        ImGui::TextUnformatted("Textures");
         ImGui::PopStyleColor();
 
-        // Diffuse текстура
-        {
+    // Diffuse текстура
+    {
             char diffBuf[512];
-            const char* dSrc = mat.DiffuseMapPath.empty() ? "(none)" : mat.DiffuseMapPath.c_str();
+            std::string effDiff = mat.EffectiveDiffuseMapPath();
+            const char* dSrc = effDiff.empty() ? "(none)" : effDiff.c_str();
             std::strncpy(diffBuf, dSrc, sizeof(diffBuf));
             diffBuf[sizeof(diffBuf) - 1] = '\0';
 
@@ -419,27 +429,43 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                 std::string path = CHEngine::FileDialog::OpenImageFile();
                 if (!path.empty())
                 {
-                    if (mat.DiffuseMap.IsValid())
-                        CHEngine::RenderFacade::DestroyTexture(mat.DiffuseMap);
+                    CHEngine::TextureHandle d0, s0;
+                    mat.ResolveTextures(d0, s0);
+                    if (d0.IsValid())
+                        CHEngine::RenderFacade::DestroyTexture(d0);
+                    if (mat.Base)
+                    {
+                        mat.Base->DiffuseMap = CHEngine::TextureHandle{};
+                        mat.Base->DiffuseMapPath.clear();
+                    }
                     mat.DiffuseMap = CHEngine::RenderFacade::CreateTextureFromFile(path);
                     mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? path : "";
                 }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Выбрать текстуру");
             ImGui::SameLine(0, 4);
-            if (ImGui::Button("X##dif", ImVec2(20, 0)) && mat.DiffuseMap.IsValid())
+            if (ImGui::Button("X##dif", ImVec2(20, 0)))
             {
-                CHEngine::RenderFacade::DestroyTexture(mat.DiffuseMap);
-                mat.DiffuseMap = CHEngine::TextureHandle::Invalid();
+                CHEngine::TextureHandle d0, s0;
+                mat.ResolveTextures(d0, s0);
+                if (d0.IsValid())
+                    CHEngine::RenderFacade::DestroyTexture(d0);
+                mat.DiffuseMap = CHEngine::TextureHandle{};
                 mat.DiffuseMapPath.clear();
+                if (mat.Base)
+                {
+                    mat.Base->DiffuseMap = CHEngine::TextureHandle{};
+                    mat.Base->DiffuseMapPath.clear();
+                }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать текстуру");
-        }
+    }
 
-        // Specular текстура
-        {
+    // Specular текстура
+    {
             char specBuf[512];
-            const char* sSrc = mat.SpecularMapPath.empty() ? "(none)" : mat.SpecularMapPath.c_str();
+            std::string effSpec = mat.EffectiveSpecularMapPath();
+            const char* sSrc = effSpec.empty() ? "(none)" : effSpec.c_str();
             std::strncpy(specBuf, sSrc, sizeof(specBuf));
             specBuf[sizeof(specBuf) - 1] = '\0';
 
@@ -457,30 +483,52 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                 std::string path = CHEngine::FileDialog::OpenImageFile();
                 if (!path.empty())
                 {
-                    if (mat.SpecularMap.IsValid())
-                        CHEngine::RenderFacade::DestroyTexture(mat.SpecularMap);
+                    CHEngine::TextureHandle d0, s0;
+                    mat.ResolveTextures(d0, s0);
+                    if (s0.IsValid())
+                        CHEngine::RenderFacade::DestroyTexture(s0);
+                    if (mat.Base)
+                    {
+                        mat.Base->SpecularMap = CHEngine::TextureHandle{};
+                        mat.Base->SpecularMapPath.clear();
+                    }
                     mat.SpecularMap = CHEngine::RenderFacade::CreateTextureFromFile(path);
                     mat.SpecularMapPath = mat.SpecularMap.IsValid() ? path : "";
                 }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Выбрать specular карту");
             ImGui::SameLine(0, 4);
-            if (ImGui::Button("X##spec", ImVec2(20, 0)) && mat.SpecularMap.IsValid())
+            if (ImGui::Button("X##spec", ImVec2(20, 0)))
             {
-                CHEngine::RenderFacade::DestroyTexture(mat.SpecularMap);
-                mat.SpecularMap = CHEngine::TextureHandle::Invalid();
+                CHEngine::TextureHandle d0, s0;
+                mat.ResolveTextures(d0, s0);
+                if (s0.IsValid())
+                    CHEngine::RenderFacade::DestroyTexture(s0);
+                mat.SpecularMap = CHEngine::TextureHandle{};
                 mat.SpecularMapPath.clear();
+                if (mat.Base)
+                {
+                    mat.Base->SpecularMap = CHEngine::TextureHandle{};
+                    mat.Base->SpecularMapPath.clear();
+                }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать specular карту");
-        }
+    }
 
-        // Shininess
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
-        ImGui::TextUnformatted("Shininess");
-        ImGui::PopStyleColor();
-        ImGui::SameLine(labelW);
-        ImGui::SetNextItemWidth(-1.0f);
-        ImGui::DragFloat("##shin", &mat.Shininess, 0.5f, 1.0f, 256.0f, "%.1f");
+    // Shininess
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+    ImGui::TextUnformatted("Shininess");
+    ImGui::PopStyleColor();
+    ImGui::SameLine(labelW);
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::DragFloat("##shin", &mat.Shininess, 0.5f, 1.0f, 256.0f, "%.1f");
+
+    ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
+    ImGui::TextUnformatted("Specular scale");
+    ImGui::PopStyleColor();
+    ImGui::SameLine(labelW);
+    ImGui::SetNextItemWidth(-1.0f);
+    ImGui::DragFloat("##specScale", &mat.SpecularScale, 0.02f, 0.0f, 4.0f, "%.2f");
 
         ImGui::PopID();
     }

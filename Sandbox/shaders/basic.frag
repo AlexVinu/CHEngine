@@ -10,9 +10,9 @@ layout(std140) uniform ObjectUBO
     mat4  NormalMatrix;
     vec4  Color;
     float Selected;
-    int   UseTexture;
-    int   UseSpecularMap;
-    float Shininess;
+    float _pad0;
+    float _pad1;
+    float _pad2;
 } object;
 
 void main()

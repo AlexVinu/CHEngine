@@ -3,20 +3,30 @@
 #include "Core.h"
 #include "RenderResourceManager.h"
 
+#include <glm/mat4x4.hpp>
+
 namespace CHEngine
 {
 	class CHENGINE_API RenderFacade
 	{
 	public:
-		static void InitAPI();
+		static void InitRenderer(const RendererInitInfo& init_info);
 		// Frame commands
 		static void SetClearColor(float r, float g, float b, float a);
 		static void Clear();
 		static void SetViewport(uint32_t width, uint32_t height);
 		static void SetBlend(bool enable);
 		static void SetDepthWrite(bool enable);
+		static void BeginFrame();
+		static void EndFrame();
 
-		// Draw commands
+		static void BeginScene();
+		static void EndScene();
+		static void SetSceneCamera(const UBOCamera& camera);
+		static void Submit(ShaderHandle shader, VertexArrayHandle vertexArray, const glm::mat4& transform);
+		static void Submit(VertexArrayHandle vertexArray, const glm::mat4& transform);
+		static void SubmitLines(VertexArrayHandle vertexArray, const glm::mat4& transform);
+
 		static void DrawIndexed(VertexArrayHandle vertexArray);
 		static void DrawLines(VertexArrayHandle vertexArray);
 
@@ -38,7 +48,10 @@ namespace CHEngine
 		static IVertexArray* GetVertexArray(VertexArrayHandle h);
 		static ITexture*     GetTexture(TextureHandle h);
 		static IFramebuffer* GetFramebuffer(FramebufferHandle h);
-		static RendererAPI*  GetRenderAPI();
+		static IRenderApi*   GetRenderAPI();
+
+		static void SetDefaultMeshShader(ShaderHandle h);
+		static ShaderHandle GetDefaultMeshShader();
 
 		// Resource destroy
 		static void DestroyShader(ShaderHandle h);

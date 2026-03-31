@@ -23,14 +23,12 @@ namespace CHModules
     CHEngine::IShader* RenderFactoryMTL::CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
     { return CreateImpl<ShaderMTL>(vertexSrc, fragmentSrc); }
 
-    CHEngine::RendererAPI* RenderFactoryMTL::CreateRenderAPI()
+    CHEngine::IRenderApi* RenderFactoryMTL::CreateRenderAPI()
     { return CreateImpl<RenderApiMTL>(); }
 
-    CHEngine::IRenderer* RenderFactoryMTL::CreateRenderer(const CHEngine::RendererInitInfo& init_info)
+    CHEngine::IRenderer* RenderFactoryMTL::CreateRenderer(CHEngine::IRenderApi* api)
     {
-        auto* renderer = CreateImpl<RendererMTL>();
-        renderer->Init(init_info);
-        return renderer;
+        return CreateImpl<RendererMTL>(api);
     }
 
     CHEngine::ITexture* RenderFactoryMTL::CreateTexture(const uint8_t* data, uint32_t width,
@@ -44,13 +42,14 @@ namespace CHModules
     void RenderFactoryMTL::Delete(CHEngine::IIndexBuffer*  ptr) { DestroyImpl(static_cast<IndexBufferMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IVertexArray*  ptr) { DestroyImpl(static_cast<VertexArrayMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IShader*       ptr) { DestroyImpl(static_cast<ShaderMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::RendererAPI*   ptr) { DestroyImpl(static_cast<RenderApiMTL*>(ptr)); }
+    void RenderFactoryMTL::Delete(CHEngine::IRenderApi*    ptr) { DestroyImpl(static_cast<RenderApiMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IRenderer*     ptr) { DestroyImpl(static_cast<RendererMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::ITexture*      ptr) { DestroyImpl(static_cast<TextureMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IFramebuffer*  ptr) { delete static_cast<FramebufferMTL*>(ptr); }
 
     CHEngine::ModuleType RenderFactoryMTL::GetType() const { return CHEngine::ModuleType::Render; }
     CHEngine::ERenderAPI RenderFactoryMTL::GetRenderApi() { return CHEngine::ERenderAPI::METAL; }
+    bool RenderFactoryMTL::CheckIsWorking() { return true; }
 }
 
 IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryMTL)

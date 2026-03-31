@@ -7,15 +7,17 @@
 
 namespace CHEngine {
 
-	LoadedModel ModelLoader::Load(const std::string& filepath)
+	LoadedModel ModelLoader::Load(const std::string& filepath, ShaderHandle meshShader)
 	{
+		CHE_CORE_ASSERT(meshShader.IsValid(), "ModelLoader::Load — meshShader must be valid");
+
 		std::string ext = std::filesystem::path(filepath).extension().string();
 		std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
 		if (ext == ".obj")
-			return LoadOBJ(filepath);
+			return LoadOBJ(filepath, meshShader);
 		else if (ext == ".glb" || ext == ".gltf")
-			return LoadGLTF(filepath);
+			return LoadGLTF(filepath, meshShader);
 
 		LoadedModel result;
 		result.error = "Unsupported file format: " + ext;
