@@ -1,5 +1,7 @@
 #pragma once
 
+#include <memory>
+
 #ifdef CHE_PLATFORM_WINDOWS
 	#ifdef CHE_BUILD_DLL
 		#define CHENGINE_API __declspec(dllexport)
@@ -41,3 +43,10 @@
 #endif
 
 #define BIT(x) (1 << x)
+
+// На будущее, возможно придется делать свои аналоги умных указателей
+template<class T>
+using Ref = std::shared_ptr<T>;
+
+template<class T>
+using Scope = std::unique_ptr<T>;

@@ -2,11 +2,12 @@
 
 #include <Core.h>
 #include <glm/glm.hpp>
+#include <memory>
 #include <vector>
 #include <cstdint>
 
-#include "CHEngine/Mesh/Material.h"
 #include "CHEngine/Render/RenderFacade.h"
+#include "Material.h"
 
 namespace CHEngine {
 
@@ -32,8 +33,7 @@ namespace CHEngine {
 		const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
 		const std::vector<uint32_t>& GetIndices() const { return m_Indices; }
 
-		// Материал меша — диффузная/specular текстуры и параметры освещения.
-		Material Mat;
+		std::shared_ptr<MaterialInstance> Mat;
 
 	private:
 		VertexArrayHandle m_VertexArray;

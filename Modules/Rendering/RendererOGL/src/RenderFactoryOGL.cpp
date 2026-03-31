@@ -8,8 +8,6 @@
 #include "RendererOGL.h"
 #include "RenderApiOGL.h"
 
-#include <glad/glad.h>
-
 namespace CHModules
 {
     CHEngine::IVertexBuffer* RenderFactoryOGL::CreateVertexBuffer(float* verticies, uint32_t size)
@@ -32,16 +30,14 @@ namespace CHModules
         return CreateImpl<ShaderOGL>(vertexSrc, fragmentSrc);
     }
 
-    CHEngine::RendererAPI* RenderFactoryOGL::CreateRenderAPI()
+    CHEngine::IRenderApi* RenderFactoryOGL::CreateRenderAPI()
     {
         return CreateImpl<RendererApiOGL>();
     }
 
-    CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(const CHEngine::RendererInitInfo& init_info)
+    CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(CHEngine::IRenderApi* api)
     {
-        auto* renderer = CreateImpl<RendererOGL>();
-        renderer->Init(init_info);
-        return renderer;
+        return CreateImpl<RendererOGL>(api);
     }
 
     CHEngine::ModuleType RenderFactoryOGL::GetType() const
@@ -79,7 +75,7 @@ namespace CHModules
         DestroyImpl(static_cast<ShaderOGL*>(ptr));
     }
 
-    void RenderFactoryOGL::Delete(CHEngine::RendererAPI* ptr)
+    void RenderFactoryOGL::Delete(CHEngine::IRenderApi* ptr)
     {
         DestroyImpl(static_cast<RendererApiOGL*>(ptr));
     }

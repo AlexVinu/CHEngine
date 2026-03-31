@@ -1,42 +1,76 @@
 #include "RenderApiVK.h"
+#include "VulkanGlobals.h"
 
 #include <Log/Log.h>
 
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+
 namespace CHModules
 {
+    void RenderApiVK::Init(const CHEngine::RendererInitInfo& init_info)
+    {
+        auto* window = static_cast<GLFWwindow*>(init_info.Vulkan.WindowHandle);
+        if (!window) {
+            CHE_CORE_CRITICAL("RenderApiVK::Init — WindowHandle is NULL!");
+            return;
+        }
+
+        int w, h;
+        glfwGetFramebufferSize(window, &w, &h);
+
+        if (!m_Context.Init(window, static_cast<uint32_t>(w), static_cast<uint32_t>(h))) {
+            CHE_CORE_CRITICAL("RenderApiVK::Init — VulkanContext init failed!");
+            return;
+        }
+
+        VKGlobals::g_ContextPtr = &m_Context;
+    }
+
+    void RenderApiVK::Shutdown()
+    {
+        VKGlobals::g_ContextPtr = nullptr;
+        m_Context.Shutdown();
+    }
+
+    bool RenderApiVK::BeginFrame()
+    {
+        return m_Context.BeginFrame();
+    }
+
+    void RenderApiVK::EndFrame()
+    {
+        m_Context.EndFrame();
+    }
+
     void RenderApiVK::SetClearColor(float r, float g, float b, float a)
     {
-        m_ClearR = r; m_ClearG = g; m_ClearB = b; m_ClearA = a;
+        m_Context.SetClearColor(r, g, b, a);
     }
 
     void RenderApiVK::Clear()
     {
-        // Clear выполняется в BeginFrame VulkanContext через VkClearValue
     }
 
-    void RenderApiVK::DrawIndexed(const CHEngine::IVertexArray* /*vertexArray*/)
+    void RenderApiVK::SetViewport(uint32_t width, uint32_t height)
     {
-        // TODO: Vulkan draw indexed — требует pipeline, descriptor sets
-        // Скелетная реализация — будет расширена при добавлении pipeline
-    }
-
-    void RenderApiVK::DrawLines(const CHEngine::IVertexArray* /*vertexArray*/)
-    {
-        // TODO: Vulkan draw lines
-    }
-
-    void RenderApiVK::SetViewport(uint32_t /*width*/, uint32_t /*height*/)
-    {
-        // Viewport устанавливается в VulkanContext::BeginFrame
+        if (m_Context.GetDevice() != VK_NULL_HANDLE)
+            m_Context.RecreateSwapchain(width, height);
     }
 
     void RenderApiVK::SetBlend(bool /*enable*/)
     {
-        // Blending настраивается в pipeline state
     }
 
     void RenderApiVK::SetDepthWrite(bool /*enable*/)
     {
-        // Depth write настраивается в pipeline state
+    }
+
+    void RenderApiVK::DrawIndexed(const CHEngine::IVertexArray* /*vertexArray*/)
+    {
+    }
+
+    void RenderApiVK::DrawLines(const CHEngine::IVertexArray* /*vertexArray*/)
+    {
     }
 }

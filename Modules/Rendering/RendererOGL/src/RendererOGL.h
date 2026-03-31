@@ -1,24 +1,24 @@
 #pragma once
 
+#include "Render/IRenderApi.h"
 #include "Render/IRenderer.h"
-
-#include <glad/glad.h>
 
 namespace CHModules
 {
-    // OpenGL рендерер. Отвечает только за инициализацию GLAD и управление viewport.
-    // Создание окна, swap buffers, события — вынесены в WindowGLFW модуль.
     class RendererOGL : public CHEngine::IRenderer
     {
     public:
-        RendererOGL() = default;
+        explicit RendererOGL(CHEngine::IRenderApi* api);
         ~RendererOGL() override = default;
 
-        // Инициализировать GLAD используя текущий GL-контекст (из WindowGLFW).
-        // nativeWindow используется только для получения glfwGetProcAddress.
-        void Init(const CHEngine::RendererInitInfo& init_info) override;
-        void Shutdown() override {}
+        void BeginScene() override;
+        void Submit(const CHEngine::IVertexArray* mesh, const glm::mat4& transform) override;
+        void SubmitLines(const CHEngine::IVertexArray* mesh, const glm::mat4& transform) override;
+        void Submit(CHEngine::IShader* shader, CHEngine::IVertexArray* vertexArray, const glm::mat4& transform,
+                      const CHEngine::UBOCamera& sceneCamera) override;
+        void EndScene() override;
 
-        void SetViewport(uint32_t width, uint32_t height) override;
+    private:
+        CHEngine::IRenderApi* m_Api = nullptr;
     };
 }

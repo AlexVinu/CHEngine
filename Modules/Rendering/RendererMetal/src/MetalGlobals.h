@@ -46,5 +46,8 @@ namespace MTLGlobals {
     // Pointer to MetalContext (for resize from RenderApiMTL::SetViewport)
     inline void* g_ContextPtr = nullptr;
 
+    // Depth stencil cache lives on RendererMTL; SetDepthWrite on API sets this flag.
+    inline bool g_DepthStencilStateDirty = true;
+
 } // namespace MTLGlobals
 } // namespace CHModules

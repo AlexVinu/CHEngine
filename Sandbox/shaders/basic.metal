@@ -22,9 +22,9 @@ struct ObjectUBO {
     float4x4 NormalMatrix;
     float4   Color;
     float    Selected;
-    int      UseTexture;
-    int      UseSpecularMap;
-    float    Shininess;
+    float    _pad0;
+    float    _pad1;
+    float    _pad2;
 };
 
 vertex VertexOut vertexMain(VertexIn in [[stage_in]],

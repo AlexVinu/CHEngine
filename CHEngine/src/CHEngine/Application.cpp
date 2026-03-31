@@ -133,8 +133,9 @@ namespace CHEngine {
         m_Window = std::unique_ptr<Window>(Window::Create(m_WindowFactory, render_api));
         m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
 
-        // ─── 3. Инициализировать рендерер ─────────────────────────────────────
-        m_Renderer = m_RenderFactory->CreateRenderer(m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api));
+        // ─── 3. Инициализировать IRenderApi (GLAD / device / Vulkan), затем IRenderer (только draw) ───
+        RendererInitInfo renderInitInfo = m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api);
+        RenderFacade::InitRenderer(renderInitInfo);
 
         // ─── 4. Создать ImGui layer ──────────────────────────────────────────
         // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
@@ -161,8 +162,7 @@ namespace CHEngine {
             });
         }
 
-        // ─── 5. Создать рендер-объекты (нужен GLAD, поэтому после шага 3) ───
-        RenderFacade::InitAPI();
+        // ─── 5. Создать рендер-объекты (нужен GLAD / API Init, поэтому после шага 3) ───
         RenderFacade::SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
 
         m_Shader = m_RenderResources->CreateShaderFromFile(
@@ -176,9 +176,6 @@ namespace CHEngine {
     {
         if (m_ImGuiLayer && m_ImGuiFactory)
             m_ImGuiFactory->Delete(m_ImGuiLayer);
-
-        if (m_Renderer && m_RenderFactory)
-            m_RenderFactory->Delete(m_Renderer);
 
         m_RenderResources->Shutdown();
     }
@@ -261,8 +258,8 @@ namespace CHEngine {
             Input::BeginFrame(m_Window->GetPlatformWindow());
 
             // ── BeginFrame (Metal: drawable + command buffer + encoder) ──
-            if (m_Renderer)
-                m_Renderer->BeginFrame();
+            if (m_RenderResources->GetRenderAPI())
+                RenderFacade::BeginFrame();
 
             RenderFacade::Clear();
 
@@ -272,8 +269,8 @@ namespace CHEngine {
             if (m_ImGuiLayer)
             {
                 // Передать нативный контекст (Metal нужны Device/CmdBuf/Encoder)
-                if (m_Renderer)
-                    m_ImGuiLayer->SetRenderContext(m_Renderer->GetRenderContext());
+                if (IRenderApi* api = m_RenderResources->GetRenderAPI())
+                    m_ImGuiLayer->SetRenderContext(api->GetRenderContext());
 
                 m_ImGuiLayer->Begin();
                 for (Layer* layer : m_LayerStack)
@@ -282,8 +279,8 @@ namespace CHEngine {
             }
 
             // ── EndFrame (Metal: end encoding, present, commit) ──
-            if (m_Renderer)
-                m_Renderer->EndFrame();
+            if (m_RenderResources->GetRenderAPI())
+                RenderFacade::EndFrame();
 
             m_Window->OnUpdate();
         }
@@ -291,13 +288,16 @@ namespace CHEngine {
         // ── Overlay «Restarting...» — один финальный кадр ────────────────────
         if (m_RestartRequested && m_ImGuiLayer)
         {
-            if (m_Renderer)
-                m_Renderer->BeginFrame();
+            if (m_RenderResources->GetRenderAPI())
+                RenderFacade::BeginFrame();
 
             RenderFacade::Clear();
 
-            if (m_Renderer)
-                m_ImGuiLayer->SetRenderContext(m_Renderer->GetRenderContext());
+            RenderFacade::BeginScene();
+            RenderFacade::EndScene();
+
+            if (IRenderApi* api = m_RenderResources->GetRenderAPI())
+                m_ImGuiLayer->SetRenderContext(api->GetRenderContext());
 
             m_ImGuiLayer->Begin();
 
@@ -319,8 +319,8 @@ namespace CHEngine {
 
             m_ImGuiLayer->End();
 
-            if (m_Renderer)
-                m_Renderer->EndFrame();
+            if (m_RenderResources->GetRenderAPI())
+                RenderFacade::EndFrame();
 
             m_Window->OnUpdate();
         }

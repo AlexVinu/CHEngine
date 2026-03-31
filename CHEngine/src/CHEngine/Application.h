@@ -22,6 +22,8 @@
 
 namespace CHEngine {
 
+    class IRenderer;
+
     struct CHENGINE_API ApplicationConfig
     {
         ERenderAPI RenderAPI = ERenderAPI::OPENGL;
@@ -79,7 +81,6 @@ namespace CHEngine {
         bool            m_RestartRequested = false;
 
         IImGuiLayer* m_ImGuiLayer  = nullptr;
-        IRenderer*   m_Renderer    = nullptr;
 
         std::unique_ptr<Window> m_Window;
 

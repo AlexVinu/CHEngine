@@ -9,7 +9,7 @@ struct GLFWwindow;
 namespace CHModules {
 
     // Централизованный Vulkan-контекст: instance, device, swapchain, render pass.
-    // Создаётся один раз при инициализации RendererVK.
+    // Создаётся один раз при инициализации RenderApiVK.
     class VulkanContext
     {
     public:
@@ -32,6 +32,8 @@ namespace CHModules {
 
         void SetViewport(uint32_t width, uint32_t height);
         void RecreateSwapchain(uint32_t width, uint32_t height);
+
+        void SetClearColor(float r, float g, float b, float a);
 
     private:
         bool CreateInstance();
@@ -86,6 +88,8 @@ namespace CHModules {
         bool CreateDebugMessenger();
         void DestroyDebugMessenger();
 #endif
+
+        float m_ClearR = 0.18f, m_ClearG = 0.18f, m_ClearB = 0.20f, m_ClearA = 1.0f;
     };
 
 }

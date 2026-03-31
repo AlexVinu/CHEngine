@@ -19,7 +19,7 @@ namespace CHEngine {
 		virtual bool Reload(const String& vertexSrc, const String& fragmentSrc) = 0;
 
 		// --- Uniform Buffer Objects ---
-		// Заполняем структуру (UBOCamera / UBOObject / UBOLighting),
+		// Заполняем структуру (UBOCamera / UBOObject / UBOLighting / UBOMaterial),
 		// отправляем одним вызовом. Shader должен быть Bind().
 		virtual void SetUniformBlock(EUniformBlock block, const void* data, uint32_t size) = 0;
 

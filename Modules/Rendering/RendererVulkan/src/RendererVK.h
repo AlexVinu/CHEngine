@@ -1,24 +1,24 @@
 #pragma once
 
+#include "Render/IRenderApi.h"
 #include "Render/IRenderer.h"
-#include "VulkanContext.h"
 
 namespace CHModules
 {
     class RendererVK : public CHEngine::IRenderer
     {
     public:
-        RendererVK() = default;
+        explicit RendererVK(CHEngine::IRenderApi* api);
         ~RendererVK() override = default;
 
-        void Init(const CHEngine::RendererInitInfo& init_info) override;
-        void Shutdown() override;
-
-        void SetViewport(uint32_t width, uint32_t height) override;
-
-        VulkanContext& GetContext() { return m_Context; }
+        void BeginScene() override;
+        void Submit(const CHEngine::IVertexArray* mesh, const glm::mat4& transform) override;
+        void SubmitLines(const CHEngine::IVertexArray* mesh, const glm::mat4& transform) override;
+        void Submit(CHEngine::IShader* shader, CHEngine::IVertexArray* vertexArray, const glm::mat4& transform,
+                      const CHEngine::UBOCamera& sceneCamera) override;
+        void EndScene() override;
 
     private:
-        VulkanContext m_Context;
+        CHEngine::IRenderApi* m_Api = nullptr;
     };
 }
