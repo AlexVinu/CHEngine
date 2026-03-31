@@ -165,7 +165,7 @@ namespace CHModules {
         rpInfo.renderArea.extent = m_SwapchainExtent;
 
         VkClearValue clearValues[2]{};
-        clearValues[0].color = {{0.18f, 0.18f, 0.20f, 1.0f}};
+        clearValues[0].color = {{m_ClearR, m_ClearG, m_ClearB, m_ClearA}};
         clearValues[1].depthStencil = {1.0f, 0};
         rpInfo.clearValueCount = 2;
         rpInfo.pClearValues = clearValues;
@@ -241,6 +241,14 @@ namespace CHModules {
         CreateSwapchain(width, height);
         CreateDepthResources();
         CreateFramebuffers();
+    }
+
+    void VulkanContext::SetClearColor(float r, float g, float b, float a)
+    {
+        m_ClearR = r;
+        m_ClearG = g;
+        m_ClearB = b;
+        m_ClearA = a;
     }
 
     // ─── Create functions ─────────────────────────────────────────────────────

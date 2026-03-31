@@ -8,6 +8,18 @@
 
 namespace CHEngine {
 
+	ShaderHandle RenderResourceManager::s_DefaultMeshShader{};
+
+	void RenderResourceManager::SetDefaultMeshShader(ShaderHandle h)
+	{
+		s_DefaultMeshShader = h;
+	}
+
+	ShaderHandle RenderResourceManager::GetDefaultMeshShader()
+	{
+		return s_DefaultMeshShader;
+	}
+
 	void RenderResourceManager::Init(IRenderFactory* factory)
 	{
 		CHE_CORE_ASSERT(factory, "RenderResourceManager::Init — factory is null");
@@ -173,27 +185,52 @@ namespace CHEngine {
 		return m_VertexArrays.Add(vao);
 	}
 
-	RendererAPI* RenderResourceManager::InitRenderAPI()
+	IRenderApi* RenderResourceManager::InitRenderAPI(const RendererInitInfo& init_info)
 	{
 		CHE_CORE_ASSERT(m_Factory, "RenderResourceManager::InitRenderAPI — factory is null (Init not called)");
 
-		if (m_RenderAPI)
-			return m_RenderAPI;
+		if (m_RenderApi)
+			return m_RenderApi;
 
-		RendererAPI* api = m_Factory->CreateRenderAPI();
+		IRenderApi* api = m_Factory->CreateRenderAPI();
 		if (!api)
 		{
 			CHE_CORE_ERROR("RenderResourceManager: failed to create render API");
 			return nullptr;
 		}
 
-		m_RenderAPI = api;
-		return m_RenderAPI;
+		api->Init(init_info);
+		m_RenderApi = api;
+		return m_RenderApi;
 	}
 
-	RendererAPI* RenderResourceManager::GetRenderAPI() const
+	IRenderer* RenderResourceManager::InitRenderer(const RendererInitInfo& init_info)
 	{
-		return m_RenderAPI;
+		CHE_CORE_ASSERT(m_Factory, "RenderResourceManager::InitRenderAPI — factory is null (Init not called)");
+
+		if (m_Renderer)
+			return m_Renderer;
+
+		auto* api = InitRenderAPI(init_info);
+		IRenderer* renderer = m_Factory->CreateRenderer(api);
+
+		if (!renderer)
+		{
+			CHE_CORE_ERROR("RenderResourceManager: failed to create renderer");
+			return nullptr;
+		}
+		m_Renderer = renderer;
+		return m_Renderer;
+	}
+
+	IRenderApi* RenderResourceManager::GetRenderAPI() const
+	{
+		return m_RenderApi;
+	}
+
+	IRenderer* RenderResourceManager::GetRenderer() const
+	{
+		return m_Renderer;
 	}
 
 	TextureHandle RenderResourceManager::CreateTexture(const uint8_t* data, uint32_t width,
@@ -292,6 +329,17 @@ namespace CHEngine {
 		return m_ShaderEntries; 
 	}
 
+	void RenderResourceManager::SetSceneCamera(const UBOCamera& camera)
+	{
+		m_SceneCamera = camera;
+		m_SceneCameraValid = true;
+	}
+
+	void RenderResourceManager::InvalidateSceneCameraForFrame()
+	{
+		m_SceneCameraValid = false;
+	}
+
 	void RenderResourceManager::DestroyShader(ShaderHandle h)
 	{
 		m_Shaders.Remove(h);
@@ -304,12 +352,23 @@ namespace CHEngine {
 
 	void RenderResourceManager::DestroyRenderAPI()
 	{
-		if (!m_RenderAPI)
+		if (!m_RenderApi)
 			return;
 
 		CHE_CORE_ASSERT(m_Factory, "RenderResourceManager::DestroyRenderAPI — factory is null");
-		m_Factory->Delete(m_RenderAPI);
-		m_RenderAPI = nullptr;
+		m_RenderApi->Shutdown();
+		m_Factory->Delete(m_RenderApi);
+		m_RenderApi = nullptr;
+	}
+
+	void RenderResourceManager::DestroyRenderer()
+	{
+		if (!m_Renderer)
+			return;
+
+		CHE_CORE_ASSERT(m_Factory, "RenderResourceManager::DestroyRenderAPI — factory is null");
+		m_Factory->Delete(m_Renderer);
+		m_Renderer = nullptr;
 	}
 
 	void RenderResourceManager::DestroyTexture(TextureHandle h)
@@ -327,10 +386,12 @@ namespace CHEngine {
 		m_ShaderWatcher.Clear();
 		m_Shaders.Clear();
 		m_VertexArrays.Clear();
+		DestroyRenderer();
 		DestroyRenderAPI();
 		m_Textures.Clear();
 		m_Framebuffers.Clear();
 		m_ShaderEntries.clear();
+		m_SceneCameraValid = false;
 	}
 
 }

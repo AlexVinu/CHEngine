@@ -23,9 +23,9 @@ namespace CHEngine {
         virtual IIndexBuffer*  CreateIndexBuffer(uint32_t* indices, uint32_t count) = 0;
         virtual IVertexArray*  CreateVertexArray() = 0;
         virtual IShader*       CreateShader(const String& vertexSrc, const String& fragmentSrc) = 0;
-        virtual RendererAPI*   CreateRenderAPI() = 0;
+        virtual IRenderApi*    CreateRenderAPI() = 0;
 
-        virtual IRenderer* CreateRenderer(const RendererInitInfo& init_info) = 0;
+        virtual IRenderer* CreateRenderer(IRenderApi* api) = 0;
 
         // data — raw RGBA/RGB/RG/R pixels (уже декодированные stb_image или tinygltf).
         // channels: 1=R, 2=RG, 3=RGB, 4=RGBA.
@@ -38,7 +38,7 @@ namespace CHEngine {
         virtual void Delete(IIndexBuffer*  ptr) = 0;
         virtual void Delete(IVertexArray*  ptr) = 0;
         virtual void Delete(IShader*       ptr) = 0;
-        virtual void Delete(RendererAPI*   ptr) = 0;
+        virtual void Delete(IRenderApi*    ptr) = 0;
         virtual void Delete(IRenderer*     ptr) = 0;
         virtual void Delete(ITexture*      ptr) = 0;
         virtual void Delete(IFramebuffer*  ptr) = 0;

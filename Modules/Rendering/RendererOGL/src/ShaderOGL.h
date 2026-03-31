@@ -38,7 +38,7 @@ namespace CHModules
 		void BindUBOBlocks();
 
 		// OpenGL Uniform Buffer Objects (по одному на каждый binding point)
-		static constexpr uint32_t UBO_COUNT = 3;
-		GLuint m_UBOs[UBO_COUNT] = {0, 0, 0};
+		static constexpr uint32_t UBO_COUNT = 4;
+		GLuint m_UBOs[UBO_COUNT] = {0, 0, 0, 0};
 	};
 }

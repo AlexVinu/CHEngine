@@ -31,9 +31,20 @@ struct ObjectUBO {
     float4x4 NormalMatrix;
     float4   Color;
     float    Selected;
-    int      UseTexture;
-    int      UseSpecularMap;
-    float    Shininess;
+    float    _pad0;
+    float    _pad1;
+    float    _pad2;
+};
+
+struct MaterialUBO {
+    int   UseTexture;
+    int   UseSpecularMap;
+    float Shininess;
+    uint  MaterialFlags;
+    float SpecularScale;
+    float _pad0;
+    float _pad1;
+    float _pad2;
 };
 
 struct LightData {
@@ -86,7 +97,7 @@ float CalcAttenuation(float distance, float range)
 // ─── Light contribution ─────────────────────────────────────────────────────
 float3 CalcLight(int index, float3 fragPos, float3 normal, float3 viewDir,
                  float specularMask, constant LightingUBO& lighting,
-                 float shininess)
+                 float shininess, float specularScale)
 {
     int   type     = lighting.Lights[index].Type;
     float3 lightCol = lighting.Lights[index].ColorIntensity.rgb * lighting.Lights[index].ColorIntensity.a;
@@ -120,15 +131,16 @@ float3 CalcLight(int index, float3 fragPos, float3 normal, float3 viewDir,
     // Specular (Blinn-Phong)
     float3 halfDir = normalize(lightDir + viewDir);
     float  spec    = pow(max(dot(normal, halfDir), 0.0), max(shininess, 1.0));
-    float3 specular = 0.5 * spec * specularMask * lightCol;
+    float3 specular = 0.5 * spec * specularMask * lightCol * specularScale;
 
     return (diffuse + specular) * atten;
 }
 
 fragment float4 fragmentMain(VertexOut in [[stage_in]],
-                             constant CameraUBO&   camera   [[buffer(1)]],
+                             constant CameraUBO&    camera   [[buffer(1)]],
                              constant ObjectUBO&    object   [[buffer(2)]],
                              constant LightingUBO&  lighting [[buffer(3)]],
+                             constant MaterialUBO&  material [[buffer(4)]],
                              texture2d<float> diffuseMap  [[texture(0)]],
                              texture2d<float> specularMap [[texture(1)]],
                              sampler texSampler [[sampler(0)]])
@@ -138,14 +150,14 @@ fragment float4 fragmentMain(VertexOut in [[stage_in]],
 
     // Base color
     float3 baseColor;
-    if (object.UseTexture > 0)
+    if (material.UseTexture > 0)
         baseColor = diffuseMap.sample(texSampler, in.texCoords).rgb * object.Color.rgb;
     else
         baseColor = in.color * object.Color.rgb;
 
     // Specular mask
     float specMask;
-    if (object.UseSpecularMap > 0)
+    if (material.UseSpecularMap > 0)
         specMask = specularMap.sample(texSampler, in.texCoords).r;
     else
         specMask = 1.0;
@@ -154,7 +166,7 @@ fragment float4 fragmentMain(VertexOut in [[stage_in]],
     float3 result_lighting = lighting.AmbientColor.rgb;
     int count = min(lighting.NumLights, MAX_LIGHTS);
     for (int i = 0; i < count; ++i)
-        result_lighting += CalcLight(i, in.fragPos, norm, viewDir, specMask, lighting, object.Shininess);
+        result_lighting += CalcLight(i, in.fragPos, norm, viewDir, specMask, lighting, material.Shininess, material.SpecularScale);
 
     float3 result = result_lighting * baseColor;
 

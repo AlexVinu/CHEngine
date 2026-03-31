@@ -3,6 +3,10 @@
 #include "Log/Log.h"
 
 #include <filesystem>
+#include <memory>
+#include <vector>
+
+#include "CHEngine/Render/RenderFacade.h"
 
 // GLTF/GLB loader implementation (header-only lib — compile exactly once here)
 // STB_IMAGE_IMPLEMENTATION defined here so stbi_load is available for OBJ loader too
@@ -13,7 +17,56 @@
 
 namespace CHEngine {
 
-	LoadedModel ModelLoader::LoadGLTF(const std::string& filepath)
+	namespace {
+
+	std::shared_ptr<MaterialInstance> CreateGltfMaterialInstance(const tinygltf::Model& model, int materialIndex,
+	                                                             ShaderHandle meshShader)
+	{
+		auto base = std::make_shared<Material>(meshShader);
+
+		if (materialIndex < 0 || materialIndex >= static_cast<int>(model.materials.size()))
+			return MaterialInstance::FromBase(base);
+
+		const auto& mat = model.materials[materialIndex];
+		int texIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
+
+		if (texIdx < 0)
+		{
+			auto extIt = mat.extensions.find("KHR_materials_pbrSpecularGlossiness");
+			if (extIt != mat.extensions.end() && extIt->second.IsObject())
+			{
+				const auto& sg = extIt->second;
+				if (sg.Has("diffuseTexture"))
+				{
+					const auto& dt = sg.Get("diffuseTexture");
+					if (dt.IsObject() && dt.Has("index"))
+						texIdx = dt.Get("index").GetNumberAsInt();
+				}
+			}
+		}
+
+		if (texIdx >= 0 && texIdx < static_cast<int>(model.textures.size()))
+		{
+			int imgIdx = model.textures[texIdx].source;
+			if (imgIdx >= 0 && imgIdx < static_cast<int>(model.images.size()))
+			{
+				const auto& img = model.images[imgIdx];
+				if (!img.image.empty() && img.width > 0 && img.height > 0)
+				{
+					base->DiffuseMap = RenderFacade::CreateTexture(
+						img.image.data(),
+						static_cast<uint32_t>(img.width),
+						static_cast<uint32_t>(img.height),
+						static_cast<uint32_t>(img.component));
+				}
+			}
+		}
+		return MaterialInstance::FromBase(base);
+	}
+
+	} // namespace
+
+	LoadedModel ModelLoader::LoadGLTF(const std::string& filepath, ShaderHandle meshShader)
 	{
 		LoadedModel result;
 		result.name = std::filesystem::path(filepath).stem().string();
@@ -37,6 +90,13 @@ namespace CHEngine {
 			result.error = "Failed to load GLTF: " + err;
 			return result;
 		}
+
+		std::vector<std::shared_ptr<MaterialInstance>> gltfMats;
+		gltfMats.reserve(model.materials.size());
+		for (size_t mi = 0; mi < model.materials.size(); ++mi)
+			gltfMats.push_back(CreateGltfMaterialInstance(model, static_cast<int>(mi), meshShader));
+
+		auto defaultMat = MaterialInstance::FromBase(std::make_shared<Material>(meshShader));
 
 		for (const auto& gltfMesh : model.meshes)
 		{
@@ -154,47 +214,11 @@ namespace CHEngine {
 				{
 					Mesh mesh;
 					mesh.Build(vertices, indices);
-
-					// ── Diffuse texture ───────────────────────────────────────
-					if (primitive.material >= 0 && primitive.material < (int)model.materials.size())
-					{
-						const auto& mat = model.materials[primitive.material];
-						int texIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
-
-						// Fallback: KHR_materials_pbrSpecularGlossiness
-						if (texIdx < 0)
-						{
-							auto extIt = mat.extensions.find("KHR_materials_pbrSpecularGlossiness");
-							if (extIt != mat.extensions.end() && extIt->second.IsObject())
-							{
-								const auto& sg = extIt->second;
-								if (sg.Has("diffuseTexture"))
-								{
-									const auto& dt = sg.Get("diffuseTexture");
-									if (dt.IsObject() && dt.Has("index"))
-										texIdx = dt.Get("index").GetNumberAsInt();
-								}
-							}
-						}
-
-						if (texIdx >= 0 && texIdx < (int)model.textures.size())
-						{
-							int imgIdx = model.textures[texIdx].source;
-							if (imgIdx >= 0 && imgIdx < (int)model.images.size())
-							{
-								const auto& img = model.images[imgIdx];
-								if (!img.image.empty() && img.width > 0 && img.height > 0)
-								{
-									mesh.Mat.DiffuseMap = RenderFacade::CreateTexture(
-										img.image.data(),
-										(uint32_t)img.width,
-										(uint32_t)img.height,
-										(uint32_t)img.component);
-								}
-							}
-						}
-					}
-
+					const int matIdx = primitive.material;
+					if (matIdx >= 0 && matIdx < static_cast<int>(gltfMats.size()))
+						mesh.Mat = gltfMats[static_cast<size_t>(matIdx)];
+					else
+						mesh.Mat = defaultMat;
 					result.meshes.push_back(std::move(mesh));
 				}
 			}

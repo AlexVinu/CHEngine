@@ -209,6 +209,9 @@ void ShaderMTL::FlushUniforms(void* encoderPtr) const
 
     // buffer(3) = LightingUBO — fragment only
     [encoder setFragmentBytes:&m_Lighting length:sizeof(CHEngine::UBOLighting) atIndex:3];
+
+    // buffer(4) = MaterialUBO — fragment only
+    [encoder setFragmentBytes:&m_Material length:sizeof(CHEngine::UBOMaterial) atIndex:4];
 }
 
 // ─── Uniform Block setter ───────────────────────────────────────────────────
@@ -225,6 +228,9 @@ void ShaderMTL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data,
         break;
     case CHEngine::EUniformBlock::Lighting:
         std::memcpy(&m_Lighting, data, std::min(size, static_cast<uint32_t>(sizeof(m_Lighting))));
+        break;
+    case CHEngine::EUniformBlock::Material:
+        std::memcpy(&m_Material, data, std::min(size, static_cast<uint32_t>(sizeof(m_Material))));
         break;
     }
 }

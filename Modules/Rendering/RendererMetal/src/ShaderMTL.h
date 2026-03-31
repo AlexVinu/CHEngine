@@ -68,8 +68,9 @@ namespace CHModules
         std::unordered_map<PipelineCacheKey, void*, PipelineHash> m_PipelineCache;
 
         // UBO данные (std140-совместимые структуры)
-        CHEngine::UBOCamera   m_Camera;
-        CHEngine::UBOObject   m_Object;
-        CHEngine::UBOLighting m_Lighting;
+        CHEngine::UBOCamera    m_Camera;
+        CHEngine::UBOObject    m_Object;
+        CHEngine::UBOLighting  m_Lighting;
+        CHEngine::UBOMaterial  m_Material;
     };
 }

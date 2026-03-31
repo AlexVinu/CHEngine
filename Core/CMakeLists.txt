@@ -77,9 +77,10 @@ if(UNIX)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 endif()
 
-target_link_libraries(${PROJECT_NAME} 
-    PUBLIC 
-    imgui)
+target_link_libraries(${PROJECT_NAME}
+    PUBLIC
+    imgui
+    glm)
 
 # Настройка выходных директорий
 set_target_properties(${PROJECT_NAME} PROPERTIES
