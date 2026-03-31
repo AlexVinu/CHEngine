@@ -11,10 +11,9 @@ namespace CHModules
         CHEngine::IIndexBuffer*  CreateIndexBuffer(uint32_t* indices, uint32_t count) override;
         CHEngine::IVertexArray*  CreateVertexArray() override;
         CHEngine::IShader*       CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
-        CHEngine::RendererAPI*   CreateRenderAPI() override;
+        CHEngine::IRenderApi*    CreateRenderAPI() override;
 
-        // Принимает нативное окно (GLFWwindow* из WindowGLFW) и инициализирует GLAD
-        CHEngine::IRenderer* CreateRenderer(const CHEngine::RendererInitInfo& init_info) override;
+        CHEngine::IRenderer* CreateRenderer(CHEngine::IRenderApi* api) override;
 
         CHEngine::ITexture* CreateTexture(const uint8_t* data, uint32_t width,
                                           uint32_t height, uint32_t channels) override;
@@ -25,7 +24,7 @@ namespace CHModules
         void Delete(CHEngine::IIndexBuffer*  ptr) override;
         void Delete(CHEngine::IVertexArray*  ptr) override;
         void Delete(CHEngine::IShader*       ptr) override;
-        void Delete(CHEngine::RendererAPI*   ptr) override;
+        void Delete(CHEngine::IRenderApi*    ptr) override;
         void Delete(CHEngine::IRenderer*     ptr) override;
         void Delete(CHEngine::ITexture*      ptr) override;
         void Delete(CHEngine::IFramebuffer*  ptr) override;

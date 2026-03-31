@@ -19,6 +19,7 @@ SceneViewLayer::SceneViewLayer()
         CHEngine::String("shaders/mesh.vert"),
         CHEngine::String("shaders/mesh.frag")
     );
+    CHEngine::RenderFacade::SetDefaultMeshShader(m_MeshShader);
     m_GridShader = CHEngine::RenderFacade::CreateShaderFromFile(
         CHEngine::String("Grid"),
         CHEngine::String("shaders/grid.vert"),

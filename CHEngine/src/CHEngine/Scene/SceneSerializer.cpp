@@ -2,7 +2,11 @@
 #include "SceneSerializer.h"
 #include <nlohmann/json.hpp>
 #include <fstream>
+#include <memory>
+#include <unordered_set>
+#include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Mesh/ModelLoader.h>
+#include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Render/RenderResourceManager.h>
 #include <CHEngine/Scene/Components.h>
 #include "Entity.h"
@@ -12,6 +16,94 @@
 using json = nlohmann::json;
 
 namespace CHEngine {
+
+namespace {
+
+static void DestroyTexturesForInstance(MaterialInstance* p, RenderResourceManager& resources,
+                                       std::unordered_set<Material*>& baseDiffuseDestroyed,
+                                       std::unordered_set<Material*>& baseSpecDestroyed)
+{
+    TextureHandle d, s;
+    p->ResolveTextures(d, s);
+
+    if (d.IsValid())
+    {
+        if (p->DiffuseMap.IsValid())
+            resources.DestroyTexture(d);
+        else if (p->Base && p->Base->DiffuseMap.IsValid())
+        {
+            if (baseDiffuseDestroyed.insert(p->Base.get()).second)
+                resources.DestroyTexture(d);
+        }
+    }
+    if (s.IsValid())
+    {
+        if (p->SpecularMap.IsValid())
+            resources.DestroyTexture(s);
+        else if (p->Base && p->Base->SpecularMap.IsValid())
+        {
+            if (baseSpecDestroyed.insert(p->Base.get()).second)
+                resources.DestroyTexture(s);
+        }
+    }
+}
+
+void DestroyUniqueMeshTextures(MeshComponent& meshComp, RenderResourceManager& resources)
+{
+    std::unordered_set<MaterialInstance*> seenInst;
+    std::unordered_set<Material*> baseDiffuseDestroyed;
+    std::unordered_set<Material*> baseSpecDestroyed;
+
+    for (auto& mesh : meshComp.Meshes)
+    {
+        if (!mesh.Mat)
+            continue;
+        MaterialInstance* p = mesh.Mat.get();
+        if (!seenInst.insert(p).second)
+            continue;
+        DestroyTexturesForInstance(p, resources, baseDiffuseDestroyed, baseSpecDestroyed);
+    }
+}
+
+void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat, RenderResourceManager& resources)
+{
+    mat.Shininess     = mj.value("shininess", 32.0f);
+    mat.SpecularScale = mj.value("specularScale", 1.0f);
+
+    std::string diffPath = mj.value("diffusePath", "");
+    if (!diffPath.empty() && diffPath != mat.EffectiveDiffuseMapPath())
+    {
+        TextureHandle oldD, oldS;
+        mat.ResolveTextures(oldD, oldS);
+        if (oldD.IsValid())
+            resources.DestroyTexture(oldD);
+        if (mat.Base)
+        {
+            mat.Base->DiffuseMap = TextureHandle{};
+            mat.Base->DiffuseMapPath.clear();
+        }
+        mat.DiffuseMap     = resources.CreateTextureFromFile(diffPath);
+        mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
+    }
+
+    std::string specPath = mj.value("specularPath", "");
+    if (!specPath.empty() && specPath != mat.EffectiveSpecularMapPath())
+    {
+        TextureHandle oldD, oldS;
+        mat.ResolveTextures(oldD, oldS);
+        if (oldS.IsValid())
+            resources.DestroyTexture(oldS);
+        if (mat.Base)
+        {
+            mat.Base->SpecularMap = TextureHandle{};
+            mat.Base->SpecularMapPath.clear();
+        }
+        mat.SpecularMap     = resources.CreateTextureFromFile(specPath);
+        mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
+    }
+}
+
+} // namespace
 
 SceneSerializer::SceneSerializer(Scene* scene) : m_Scene(scene) {}
 
@@ -43,16 +135,20 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
         // Retrieve SourcePath via Scene's accessor (avoids exposing entt publicly)
         o["meshPath"] = mesh.SourcePath;
 
-        // Сериализация материалов по мешам (пути к текстурам + shininess)
-        json mats = json::array();
-        for (auto& meshItem : mesh.Meshes) {
-            json m;
-            m["diffusePath"]  = meshItem.Mat.DiffuseMapPath;
-            m["specularPath"] = meshItem.Mat.SpecularMapPath;
-            m["shininess"]    = meshItem.Mat.Shininess;
-            mats.push_back(m);
+        json materials = json::array();
+        for (auto& meshItem : mesh.Meshes)
+        {
+            if (!meshItem.Mat)
+                meshItem.Mat = MaterialInstance::FromBase(
+                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+            json matObj;
+            matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
+            matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
+            matObj["shininess"]     = meshItem.Mat->Shininess;
+            matObj["specularScale"] = meshItem.Mat->SpecularScale;
+            materials.push_back(matObj);
         }
-        o["materials"] = mats;
+        o["materials"] = materials;
 
         // Сериализация источника света
         if (const auto* lightComp = m_Scene->TryGetComponent<LightComponent>(handle)) {
@@ -105,11 +201,8 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         for (auto& mesh : meshComp.Meshes) {
             if (mesh.GetVertexArray().IsValid())
                 resources.DestroyVertexArray(mesh.GetVertexArray());
-            if (mesh.Mat.DiffuseMap.IsValid())
-                resources.DestroyTexture(mesh.Mat.DiffuseMap);
-            if (mesh.Mat.SpecularMap.IsValid())
-                resources.DestroyTexture(mesh.Mat.SpecularMap);
         }
+        DestroyUniqueMeshTextures(meshComp, resources);
     });
     m_Scene->Clear();
 
@@ -136,7 +229,7 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
 
         if (!meshPath.empty()) {
             // Re-import model from disk
-            auto result = ModelLoader::Load(meshPath);
+            auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
             if (result.success) {
                 // Центрируем вершины вокруг геометрического центра — точно как ImportModel.
                 // Без этого позиция модели смещается на величину centroid при каждой загрузке.
@@ -171,7 +264,6 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
         auto& color = obj->GetComponent<ColorComponent>().Color;
         auto& visible = obj->GetComponent<VisibilityComponent>().Visible;
-        auto& meshes = obj->GetComponent<MeshComponent>().Meshes;
 
         // Restore transform (with validation)
         float v3[3];
@@ -190,29 +282,33 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
 
         visible = o.value("visible", true);
 
-        // Десериализация материалов — перезаписываем поверх того, что загрузил ModelLoader
-        if (o.contains("materials") && o["materials"].is_array()) {
-            const auto& mats = o["materials"];
-            for (size_t mi = 0; mi < meshes.size() && mi < mats.size(); ++mi) {
-                const auto& mj = mats[mi];
-                auto& mat = meshes[mi].Mat;
+        // Десериализация материалов: materials[] по сабмешам; v2 material — один на все сабмеши (шаринг ptr)
+        if (auto* meshCompForMat = m_Scene->TryGetComponent<MeshComponent>(handle))
+        {
+            for (auto& meshItem : meshCompForMat->Meshes)
+            {
+                if (!meshItem.Mat)
+                    meshItem.Mat = MaterialInstance::FromBase(
+                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+            }
 
-                mat.Shininess = mj.value("shininess", 32.0f);
-
-                std::string diffPath = mj.value("diffusePath", "");
-                if (!diffPath.empty() && diffPath != mat.DiffuseMapPath) {
-                    if (mat.DiffuseMap.IsValid())
-                        resources.DestroyTexture(mat.DiffuseMap);
-                    mat.DiffuseMap = resources.CreateTextureFromFile(diffPath);
-                    mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
+            if (o.contains("materials") && o["materials"].is_array())
+            {
+                const auto& arr = o["materials"];
+                for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
+                {
+                    if (arr[mi].is_object())
+                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat, resources);
                 }
-
-                std::string specPath = mj.value("specularPath", "");
-                if (!specPath.empty() && specPath != mat.SpecularMapPath) {
-                    if (mat.SpecularMap.IsValid())
-                        resources.DestroyTexture(mat.SpecularMap);
-                    mat.SpecularMap = resources.CreateTextureFromFile(specPath);
-                    mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
+            }
+            else if (o.contains("material") && o["material"].is_object())
+            {
+                auto& meshes = meshCompForMat->Meshes;
+                if (!meshes.empty())
+                {
+                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat, resources);
+                    for (size_t i = 1; i < meshes.size(); ++i)
+                        meshes[i].Mat = meshes[0].Mat;
                 }
             }
         }

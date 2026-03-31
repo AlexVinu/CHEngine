@@ -1,32 +1,56 @@
 #include "RendererOGL.h"
 
-#include <Log/Log.h>
+#include <cstring>
+
+#include <glm/matrix.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
+#include "Render/IShader.h"
 
 namespace CHModules
 {
-    static bool s_GLADInitialized = false;
-
-    void RendererOGL::Init(const CHEngine::RendererInitInfo& init_info)
+    RendererOGL::RendererOGL(CHEngine::IRenderApi* api)
+        : m_Api(api)
     {
-        if (!s_GLADInitialized) {
-            if (!init_info.OpenGL.Loader) {
-                CHE_CORE_CRITICAL("RendererOGL::Init — GL loader function is NULL!");
-                return;
-            }
-
-            int success = gladLoadGLLoader((GLADloadproc)init_info.OpenGL.Loader);
-            if (!success) {
-                CHE_CORE_CRITICAL("RendererOGL::Init - GLAD initialization failed (gladLoadGLLoader returned 0)!");
-                return;
-            }
-            s_GLADInitialized = true;
-
-            CHE_CORE_INFO("OpenGL initialized: {}", (const char*)glGetString(GL_VERSION));
-        }
     }
 
-    void RendererOGL::SetViewport(uint32_t width, uint32_t height)
+    void RendererOGL::BeginScene() {}
+
+    void RendererOGL::EndScene() {}
+
+    void RendererOGL::Submit(const CHEngine::IVertexArray* mesh, const glm::mat4& transform)
     {
-        glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+        (void)transform;
+        if (m_Api)
+            m_Api->DrawIndexed(mesh);
+    }
+
+    void RendererOGL::Submit(CHEngine::IShader* shader, CHEngine::IVertexArray* vertexArray,
+                             const glm::mat4& transform, const CHEngine::UBOCamera& sceneCamera)
+    {
+        if (!m_Api || !shader || !vertexArray)
+            return;
+
+        shader->Bind();
+        shader->SetUniformBlock(CHEngine::EUniformBlock::Camera, &sceneCamera, sizeof(sceneCamera));
+
+        CHEngine::UBOObject objectUBO;
+        const glm::mat4 normalMat = glm::transpose(glm::inverse(transform));
+        std::memcpy(objectUBO.Transform, glm::value_ptr(transform), sizeof(objectUBO.Transform));
+        std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), sizeof(objectUBO.NormalMatrix));
+
+        shader->SetUniformBlock(CHEngine::EUniformBlock::Object, &objectUBO, sizeof(objectUBO));
+
+        CHEngine::UBOMaterial defaultMaterial;
+        shader->SetUniformBlock(CHEngine::EUniformBlock::Material, &defaultMaterial, sizeof(defaultMaterial));
+
+        m_Api->DrawIndexed(vertexArray);
+    }
+
+    void RendererOGL::SubmitLines(const CHEngine::IVertexArray* mesh, const glm::mat4& transform)
+    {
+        (void)transform;
+        if (m_Api)
+            m_Api->DrawLines(mesh);
     }
 }

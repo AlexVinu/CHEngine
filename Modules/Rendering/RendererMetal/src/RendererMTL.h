@@ -1,28 +1,24 @@
 #pragma once
 
+#include "Render/IRenderApi.h"
 #include "Render/IRenderer.h"
-#include "MetalContext.h"
 
 namespace CHModules
 {
     class RendererMTL : public CHEngine::IRenderer
     {
     public:
-        RendererMTL() = default;
+        explicit RendererMTL(CHEngine::IRenderApi* api);
         ~RendererMTL() override = default;
 
-        void Init(const CHEngine::RendererInitInfo& init_info) override;
-        void Shutdown() override;
-
-        void SetViewport(uint32_t width, uint32_t height) override;
-
-        bool BeginFrame() override;
-        void EndFrame() override;
-        CHEngine::RenderContextInfo GetRenderContext() const override;
-
-        MetalContext& GetContext() { return m_Context; }
+        void BeginScene() override;
+        void Submit(const CHEngine::IVertexArray* mesh, const glm::mat4& transform) override;
+        void SubmitLines(const CHEngine::IVertexArray* mesh, const glm::mat4& transform) override;
+        void Submit(CHEngine::IShader* shader, CHEngine::IVertexArray* vertexArray, const glm::mat4& transform,
+                      const CHEngine::UBOCamera& sceneCamera) override;
+        void EndScene() override;
 
     private:
-        MetalContext m_Context;
+        CHEngine::IRenderApi* m_Api = nullptr;
     };
 }

@@ -57,6 +57,10 @@ public:
 		objectUBO.Color[3] = m_TintColor[3];
 		shader->SetUniformBlock(CHEngine::EUniformBlock::Object,
 		                        &objectUBO, sizeof(objectUBO));
+
+		CHEngine::UBOMaterial materialUBO;
+		shader->SetUniformBlock(CHEngine::EUniformBlock::Material,
+		                        &materialUBO, sizeof(materialUBO));
 	}
 
 	void OnImGuiRender() override

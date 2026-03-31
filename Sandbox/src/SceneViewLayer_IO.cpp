@@ -163,7 +163,7 @@ void SceneViewLayer::TryRestoreSession()
 
 void SceneViewLayer::ImportModel(const std::string& filepath)
 {
-    auto result = CHEngine::ModelLoader::Load(filepath);
+    auto result = CHEngine::ModelLoader::Load(filepath, CHEngine::RenderFacade::GetDefaultMeshShader());
     if (!result.success)
         return;
 

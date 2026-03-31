@@ -7,6 +7,9 @@
 
 namespace CHEngine
 {
+    // Uses a paair of 
+    // a store where every bit is a boolean( 1 = true, 0 = false) 
+    // and a EnumWrapper
     template<class TEnumWrapper, typename TStore>
         requires std::is_convertible_v<TEnumWrapper, int> && std::unsigned_integral<TStore>
     class BitwiseRange
