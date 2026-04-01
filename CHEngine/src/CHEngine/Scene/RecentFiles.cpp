@@ -1,7 +1,10 @@
 #include "chepch.h"
 #include "RecentFiles.h"
-#include <fstream>
+
+#include "FileSystem/FileSystem.h"
+
 #include <algorithm>
+#include <sstream>
 
 namespace CHEngine {
 
@@ -14,18 +17,19 @@ void RecentFiles::AddPath(const std::string& path) {
 }
 
 bool RecentFiles::SaveToFile(const std::string& filePath) const {
-    std::ofstream f(filePath);
-    if (!f) return false;
-    for (auto& p : m_Paths) f << p << "\n";
-    return true;
+    std::ostringstream oss;
+    for (auto& p : m_Paths) oss << p << "\n";
+    return FileSystem::WriteFileText(filePath, oss.str());
 }
 
 bool RecentFiles::LoadFromFile(const std::string& filePath) {
-    std::ifstream f(filePath);
-    if (!f) return false;
+    if (!FileSystem::Exists(filePath))
+        return false;
+    const std::string text = FileSystem::ReadFileText(filePath);
     m_Paths.clear();
+    std::istringstream iss(text);
     std::string line;
-    while (std::getline(f, line) && (int)m_Paths.size() < k_Max)
+    while (std::getline(iss, line) && (int)m_Paths.size() < k_Max)
         if (!line.empty()) m_Paths.push_back(line);
     return true;
 }

@@ -1,8 +1,9 @@
 #include "chepch.h"
 #include "RenderResourceManager.h"
 
-#include <fstream>
-#include <sstream>
+#include "FileSystem/FileSystem.h"
+
+#include <climits>
 #include <filesystem>
 #include <stb_image.h>
 
@@ -44,15 +45,13 @@ namespace CHEngine {
 
 	String RenderResourceManager::ReadTextFile(const String& path)
 	{
-		std::ifstream file(path.c_str());
-		if (!file.is_open())
+		const std::filesystem::path fsPath(path.c_str());
+		if (!FileSystem::Exists(fsPath))
 		{
 			CHE_CORE_ERROR("RenderResourceManager: cannot open file '{0}'", path.c_str());
 			return {};
 		}
-		std::ostringstream ss;
-		ss << file.rdbuf();
-		return String(ss.str().c_str());
+		return String(FileSystem::ReadFileText(fsPath).c_str());
 	}
 
 	ShaderHandle RenderResourceManager::CreateShaderFromFile(const String& name,

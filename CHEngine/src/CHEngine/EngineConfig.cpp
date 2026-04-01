@@ -1,11 +1,11 @@
 #include "chepch.h"
 #include "EngineConfig.h"
 
+#include "FileSystem/FileSystem.h"
 #include "Log/Log.h"
 
 #include <nlohmann/json.hpp>
 #include <filesystem>
-#include <fstream>
 
 namespace CHEngine {
 
@@ -33,19 +33,21 @@ namespace CHEngine {
     static nlohmann::json ReadJsonSafe(const std::filesystem::path& path)
     {
         nlohmann::json j = nlohmann::json::object();
-        if (std::filesystem::exists(path)) {
-            try {
-                std::ifstream ifs(path);
-                ifs >> j;
-            } catch (...) {}
-        }
+        if (!FileSystem::Exists(path))
+            return j;
+        try {
+            const std::string text = FileSystem::ReadFileText(path);
+            if (text.empty())
+                return j;
+            return nlohmann::json::parse(text);
+        } catch (...) {}
         return j;
     }
 
     static void WriteJson(const std::filesystem::path& path, const nlohmann::json& j)
     {
-        std::ofstream ofs(path);
-        ofs << j.dump(2) << std::endl;
+        const std::string dump = j.dump(2) + "\n";
+        FileSystem::WriteFileText(path, dump);
     }
 
     ERenderAPI EngineConfig::LoadRendererPreference()
