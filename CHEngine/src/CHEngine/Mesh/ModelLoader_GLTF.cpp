@@ -19,7 +19,7 @@ namespace CHEngine {
 
 	namespace {
 
-	std::shared_ptr<MaterialInstance> CreateGltfMaterialInstance(const tinygltf::Model& model, int materialIndex,
+	Ref<MaterialInstance> CreateGltfMaterialInstance(const tinygltf::Model& model, int materialIndex,
 	                                                             ShaderHandle meshShader)
 	{
 		auto base = std::make_shared<Material>(meshShader);
@@ -91,7 +91,7 @@ namespace CHEngine {
 			return result;
 		}
 
-		std::vector<std::shared_ptr<MaterialInstance>> gltfMats;
+		std::vector<Ref<MaterialInstance>> gltfMats;
 		gltfMats.reserve(model.materials.size());
 		for (size_t mi = 0; mi < model.materials.size(); ++mi)
 			gltfMats.push_back(CreateGltfMaterialInstance(model, static_cast<int>(mi), meshShader));

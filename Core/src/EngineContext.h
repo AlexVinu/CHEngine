@@ -11,9 +11,9 @@ namespace CHEngine
     {
         IAllocator* Allocator = nullptr;
 
-        std::shared_ptr<spdlog::logger> CoreLogger;
-        std::shared_ptr<spdlog::logger> ModuleLogger;
-        std::shared_ptr<spdlog::logger> ClientLogger;
+        Ref<spdlog::logger> CoreLogger;
+        Ref<spdlog::logger> ModuleLogger;
+        Ref<spdlog::logger> ClientLogger;
 
         RenderAPIStore* RenderApiStore = nullptr;
     };

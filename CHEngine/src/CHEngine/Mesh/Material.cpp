@@ -27,7 +27,7 @@ void Material::FillUBOMaterial(UBOMaterial& out) const
     out._pad0 = out._pad1 = out._pad2 = 0.0f;
 }
 
-MaterialInstance::MaterialInstance(std::shared_ptr<Material> base)
+MaterialInstance::MaterialInstance(Ref<Material> base)
     : Base(std::move(base))
 {
     CHE_CORE_ASSERT(Base && Base->ShaderHandler.IsValid(), "MaterialInstance — base material with valid shader required");
@@ -35,7 +35,7 @@ MaterialInstance::MaterialInstance(std::shared_ptr<Material> base)
     SpecularScale = Base->SpecularScale;
 }
 
-std::shared_ptr<MaterialInstance> MaterialInstance::FromBase(std::shared_ptr<Material> base)
+Ref<MaterialInstance> MaterialInstance::FromBase(Ref<Material> base)
 {
     CHE_CORE_ASSERT(base && base->ShaderHandler.IsValid(), "FromBase — base material with valid shader required");
     return std::make_shared<MaterialInstance>(std::move(base));

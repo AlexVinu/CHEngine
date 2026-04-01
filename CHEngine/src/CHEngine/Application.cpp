@@ -130,7 +130,7 @@ namespace CHEngine {
 
         // ─── 2. Создать окно ────────────────────────────────────────────────
         ERenderAPI render_api = m_RenderFactory->GetRenderApi();
-        m_Window = std::unique_ptr<Window>(Window::Create(m_WindowFactory, render_api));
+        m_Window = Scope<Window>(Window::Create(m_WindowFactory, render_api));
         m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
 
         // ─── 3. Инициализировать IRenderApi (GLAD / device / Vulkan), затем IRenderer (только draw) ───

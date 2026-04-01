@@ -12,9 +12,9 @@ namespace CHEngine {
     public:
         static void init();
 
-        static std::shared_ptr<spdlog::logger>& GetCoreLogger();
-        static std::shared_ptr<spdlog::logger>& GetModuleLogger();
-        static std::shared_ptr<spdlog::logger>& GetClientLogger();
+        static Ref<spdlog::logger>& GetCoreLogger();
+        static Ref<spdlog::logger>& GetModuleLogger();
+        static Ref<spdlog::logger>& GetClientLogger();
     };
 
 } // namespace CHEngine

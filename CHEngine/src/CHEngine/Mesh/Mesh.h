@@ -33,7 +33,7 @@ namespace CHEngine {
 		const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
 		const std::vector<uint32_t>& GetIndices() const { return m_Indices; }
 
-		std::shared_ptr<MaterialInstance> Mat;
+		Ref<MaterialInstance> Mat;
 
 	private:
 		VertexArrayHandle m_VertexArray;

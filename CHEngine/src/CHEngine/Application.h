@@ -65,8 +65,8 @@ namespace CHEngine {
 
         static Application* s_Instance;
 
-        std::unique_ptr<ModuleManager>         m_ModuleManager;
-        std::unique_ptr<RenderResourceManager> m_RenderResources;
+        Scope<ModuleManager>         m_ModuleManager;
+        Scope<RenderResourceManager> m_RenderResources;
 
         IWindowFactory* m_WindowFactory = nullptr;
         IRenderFactory* m_RenderFactory = nullptr;
@@ -82,7 +82,7 @@ namespace CHEngine {
 
         IImGuiLayer* m_ImGuiLayer  = nullptr;
 
-        std::unique_ptr<Window> m_Window;
+        Scope<Window> m_Window;
 
         // Delta time
         std::chrono::steady_clock::time_point m_LastFrameTime;
