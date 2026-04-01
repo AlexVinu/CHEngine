@@ -1,9 +1,10 @@
 #include "SceneViewLayer.h"
 
 #include <CHEngine/Render/RenderFacade.h>
+#include <FileSystem/FileSystem.h>
 
 #include <filesystem>
-#include <fstream>
+#include <sstream>
 
 
 // ============================================================================
@@ -60,26 +61,21 @@ void SceneViewLayer::AutoSaveForRestart()
         CHE_CORE_WARN("SceneViewLayer: failed to autosave scene");
 
     // 2. Состояние редактора: камера, orbit, выделение
-    std::ofstream f(k_SessionStateFile);
-    if (!f) {
-        CHE_CORE_WARN("SceneViewLayer: cannot write session state");
-        return;
-    }
-
+    std::ostringstream oss;
     // Camera
     glm::vec3 pos = m_Camera.GetPosition();
-    f << pos.x        << " " << pos.y         << " " << pos.z << "\n";
-    f << m_Camera.GetYaw()   << "\n";
-    f << m_Camera.GetPitch() << "\n";
-    f << m_Camera.GetFOV()   << "\n";
+    oss << pos.x        << " " << pos.y         << " " << pos.z << "\n";
+    oss << m_Camera.GetYaw()   << "\n";
+    oss << m_Camera.GetPitch() << "\n";
+    oss << m_Camera.GetFOV()   << "\n";
 
     // Orbit
-    f << m_OrbitTarget.x << " " << m_OrbitTarget.y << " " << m_OrbitTarget.z << "\n";
-    f << m_OrbitDist     << "\n";
-    f << (m_FollowObject ? 1 : 0) << "\n";
+    oss << m_OrbitTarget.x << " " << m_OrbitTarget.y << " " << m_OrbitTarget.z << "\n";
+    oss << m_OrbitDist     << "\n";
+    oss << (m_FollowObject ? 1 : 0) << "\n";
 
     // Selected object
-    f << m_SelectedObjectID << "\n";
+    oss << m_SelectedObjectID << "\n";
 
     // Window position and size — чтобы новое окно открылось на том же месте
     {
@@ -88,9 +84,14 @@ void SceneViewLayer::AutoSaveForRestart()
             auto* pw = win->GetPlatformWindow();
             int wx = 0, wy = 0;
             pw->GetWindowPos(wx, wy);
-            f << wx << " " << wy << " "
+            oss << wx << " " << wy << " "
               << pw->GetWidth() << " " << pw->GetHeight() << "\n";
         }
+    }
+
+    if (!CHEngine::FileSystem::WriteFileText(k_SessionStateFile, oss.str())) {
+        CHE_CORE_WARN("SceneViewLayer: cannot write session state");
+        return;
     }
 
     CHE_CORE_INFO("SceneViewLayer: editor state saved");
@@ -112,11 +113,12 @@ void SceneViewLayer::TryRestoreSession()
     // 2. Восстанавливаем состояние редактора
     if (!std::filesystem::exists(k_SessionStateFile)) return;
 
-    std::ifstream f(k_SessionStateFile);
-    if (!f) {
+    const std::string stateText = CHEngine::FileSystem::ReadFileText(k_SessionStateFile);
+    if (stateText.empty()) {
         CHE_CORE_WARN("SceneViewLayer: cannot read session state");
         return;
     }
+    std::istringstream f(stateText);
 
     // Camera
     glm::vec3 pos{};

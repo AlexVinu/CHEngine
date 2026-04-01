@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <cstdio>
+#include <filesystem>
 #include <string>
 
 // ============================================================================
@@ -102,7 +102,7 @@ namespace UIThemeRetro
             ImFontConfig cfg;
             cfg.OversampleH = 2; cfg.OversampleV = 2;
             for (const char* p : paths)
-                if (FILE* f = fopen(p, "rb")) { fclose(f);
+                if (std::filesystem::exists(p)) {
                     g_FontMono = io.Fonts->AddFontFromFileTTF(p, 13.0f, &cfg);
                     break; }
         }
@@ -122,7 +122,7 @@ namespace UIThemeRetro
             ImFontConfig cfg;
             cfg.OversampleH = 2; cfg.OversampleV = 2;
             for (const char* p : paths)
-                if (FILE* f = fopen(p, "rb")) { fclose(f);
+                if (std::filesystem::exists(p)) {
                     g_FontMonoBig = io.Fonts->AddFontFromFileTTF(p, 11.0f, &cfg);
                     break; }
         }

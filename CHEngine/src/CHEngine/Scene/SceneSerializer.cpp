@@ -1,7 +1,9 @@
 #include "chepch.h"
 #include "SceneSerializer.h"
+
+#include "FileSystem/FileSystem.h"
+
 #include <nlohmann/json.hpp>
-#include <fstream>
 #include <memory>
 #include <unordered_set>
 #include <CHEngine/Mesh/Material.h>
@@ -166,25 +168,24 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
         j["objects"].push_back(o);
     });
 
-    std::ofstream file(path);
-    if (!file.is_open()) {
+    if (!FileSystem::WriteFileText(path, j.dump(4))) {
         CHE_CORE_ERROR("SceneSerializer: cannot write to {}", path);
         return false;
     }
-    file << j.dump(4);
     CHE_CORE_INFO("Scene saved: {}", path);
     return true;
 }
 
 bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManager& resources) {
-    std::ifstream file(path);
-    if (!file.is_open()) {
+    if (!FileSystem::Exists(path)) {
         CHE_CORE_ERROR("SceneSerializer: cannot read {}", path);
         return false;
     }
 
     json j;
-    try { file >> j; }
+    try {
+        j = json::parse(FileSystem::ReadFileText(path));
+    }
     catch (const std::exception& e) {
         CHE_CORE_ERROR("SceneSerializer: JSON parse error: {}", e.what());
         return false;

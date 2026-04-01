@@ -2,7 +2,7 @@
 
 #include <imgui.h>
 #include <imgui_internal.h>
-#include <cstdio>
+#include <filesystem>
 
 // ============================================================================
 //  CHEngine UI Theme — Dark / Apple-inspired
@@ -80,7 +80,7 @@ namespace UITheme
             ImFontConfig cfg;
             cfg.OversampleH = 3;  cfg.OversampleV = 2;
             for (const char* p : paths)
-                if (FILE* f = fopen(p,"rb")) { fclose(f);
+                if (std::filesystem::exists(p)) {
                     g_FontBody = io.Fonts->AddFontFromFileTTF(p, 14.5f, &cfg);
                     break; }
         }
@@ -94,7 +94,7 @@ namespace UITheme
             cfg.OversampleH = 3;  cfg.OversampleV = 2;
             cfg.GlyphOffset  = ImVec2(0.0f, 1.0f);
             for (const char* p : paths)
-                if (FILE* f = fopen(p,"rb")) { fclose(f);
+                if (std::filesystem::exists(p)) {
                     g_FontHeading = io.Fonts->AddFontFromFileTTF(p, 11.0f, &cfg);
                     break; }
         }

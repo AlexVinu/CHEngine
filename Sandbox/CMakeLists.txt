@@ -30,6 +30,7 @@ endif()
 
 # Директории включения
 target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CHE_CORE_DIR}
     ${CHE_SRC_DIR}
     ${MODULES_DIR}
     "${CHE_VENDOR_DIR}/spdlog/include"
