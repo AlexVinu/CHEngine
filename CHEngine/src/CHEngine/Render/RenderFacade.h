@@ -40,8 +40,8 @@ namespace CHEngine
 		                                    uint32_t height, uint32_t channels);
 		static TextureHandle CreateTextureFromFile(const std::string& path);
 		static FramebufferHandle CreateFramebuffer(uint32_t width, uint32_t height);
-		static std::shared_ptr<IVertexBuffer> CreateVertexBuffer(float* vertices, uint32_t size);
-		static std::shared_ptr<IIndexBuffer>  CreateIndexBuffer(uint32_t* indices, uint32_t count);
+		static Ref<IVertexBuffer> CreateVertexBuffer(float* vertices, uint32_t size);
+		static Ref<IIndexBuffer>  CreateIndexBuffer(uint32_t* indices, uint32_t count);
 
 		// Resource access
 		static IShader*       GetShader(ShaderHandle h);

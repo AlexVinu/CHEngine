@@ -17,8 +17,8 @@ namespace CHEngine {
         GetEngineContext().ClientLogger->set_level(spdlog::level::trace);
     }
 
-    std::shared_ptr<spdlog::logger>& Log::GetCoreLogger() { return GetEngineContext().CoreLogger; }
-    std::shared_ptr<spdlog::logger>& Log::GetModuleLogger() { return GetEngineContext().ModuleLogger; }
-    std::shared_ptr<spdlog::logger>& Log::GetClientLogger() { return GetEngineContext().ClientLogger; }
+    Ref<spdlog::logger>& Log::GetCoreLogger() { return GetEngineContext().CoreLogger; }
+    Ref<spdlog::logger>& Log::GetModuleLogger() { return GetEngineContext().ModuleLogger; }
+    Ref<spdlog::logger>& Log::GetClientLogger() { return GetEngineContext().ClientLogger; }
 
 } // namespace CHEngine

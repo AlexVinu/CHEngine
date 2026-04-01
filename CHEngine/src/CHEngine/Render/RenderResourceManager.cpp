@@ -278,7 +278,7 @@ namespace CHEngine {
 		return m_Framebuffers.Add(fb);
 	}
 
-	std::shared_ptr<IVertexBuffer> RenderResourceManager::CreateVertexBuffer(float* vertices, uint32_t size)
+	Ref<IVertexBuffer> RenderResourceManager::CreateVertexBuffer(float* vertices, uint32_t size)
 	{
 		IVertexBuffer* vb = m_Factory->CreateVertexBuffer(vertices, size);
 		if (!vb)
@@ -286,12 +286,12 @@ namespace CHEngine {
 			CHE_CORE_ERROR("RenderResourceManager: failed to create vertex buffer");
 			return nullptr;
 		}
-		return std::shared_ptr<IVertexBuffer>(vb,
+		return Ref<IVertexBuffer>(vb,
 			[this](IVertexBuffer* ptr) { m_Factory->Delete(ptr); }
 		);
 	}
 
-	std::shared_ptr<IIndexBuffer> RenderResourceManager::CreateIndexBuffer(uint32_t* indices, uint32_t count)
+	Ref<IIndexBuffer> RenderResourceManager::CreateIndexBuffer(uint32_t* indices, uint32_t count)
 	{
 		IIndexBuffer* ib = m_Factory->CreateIndexBuffer(indices, count);
 		if (!ib)
@@ -299,7 +299,7 @@ namespace CHEngine {
 			CHE_CORE_ERROR("RenderResourceManager: failed to create index buffer");
 			return nullptr;
 		}
-		return std::shared_ptr<IIndexBuffer>(ib,
+		return Ref<IIndexBuffer>(ib,
 			[this](IIndexBuffer* ptr) { m_Factory->Delete(ptr); }
 		);
 	}

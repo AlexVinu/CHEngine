@@ -9,7 +9,7 @@
 
 namespace CHEngine {
 
-	// Инстансы лежат на каждом Mesh (Mat); один и тот же shared_ptr может шариться между мешами.
+	// Инстансы лежат на каждом Mesh (Mat); один и тот же Ref может шариться между мешами.
 	struct LoadedModel {
 		std::vector<Mesh>                        meshes;
 		std::string                              name;

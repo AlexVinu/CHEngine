@@ -71,8 +71,8 @@ namespace CHEngine {
 		// Create an offscreen framebuffer (FBO) for rendering into a texture.
 		FramebufferHandle CreateFramebuffer(uint32_t width, uint32_t height);
 
-		std::shared_ptr<IVertexBuffer> CreateVertexBuffer(float* vertices, uint32_t size);
-		std::shared_ptr<IIndexBuffer>  CreateIndexBuffer(uint32_t* indices, uint32_t count);
+		Ref<IVertexBuffer> CreateVertexBuffer(float* vertices, uint32_t size);
+		Ref<IIndexBuffer>  CreateIndexBuffer(uint32_t* indices, uint32_t count);
 
 		IShader*      Get(ShaderHandle h) const;
 		IVertexArray* Get(VertexArrayHandle h) const;

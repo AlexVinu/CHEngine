@@ -22,7 +22,7 @@ class CHENGINE_API Scene
 {
 public:
 	Scene();
-	~Scene();  // Must be declared (not defaulted here) for unique_ptr<incomplete type>
+	~Scene();  // Must be declared (not defaulted here) for Scope<incomplete type>
 
 	Scene(const Scene&) = delete;
 	Scene& operator=(const Scene&) = delete;
@@ -78,7 +78,7 @@ private:
 	void OnEntityDestroyed(EntityHandle entityHandle);
 	bool IsEnttEntityValid(entt::entity entity) const;
 
-	std::unique_ptr<SceneRegistry> m_SceneRegistry;
+	Scope<SceneRegistry> m_SceneRegistry;
 
 	template<typename T, typename... Args>
 	T& AddComponent(entt::entity entity, Args&&... args);

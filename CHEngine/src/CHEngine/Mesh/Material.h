@@ -33,13 +33,13 @@ public:
 class CHENGINE_API MaterialInstance
 {
 public:
-    explicit MaterialInstance(std::shared_ptr<Material> base);
+    explicit MaterialInstance(Ref<Material> base);
 
-    static std::shared_ptr<MaterialInstance> FromBase(std::shared_ptr<Material> base);
+    static Ref<MaterialInstance> FromBase(Ref<Material> base);
 
     ShaderHandle GetShaderHandle() const;
 
-    std::shared_ptr<Material> Base;
+    Ref<Material> Base;
 
     TextureHandle DiffuseMap{};
     std::string   DiffuseMapPath;

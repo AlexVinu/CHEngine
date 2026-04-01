@@ -186,12 +186,12 @@ namespace CHEngine
 		return GetRenderResources()->CreateFramebuffer(width, height);
 	}
 
-	std::shared_ptr<IVertexBuffer> RenderFacade::CreateVertexBuffer(float* vertices, uint32_t size)
+	Ref<IVertexBuffer> RenderFacade::CreateVertexBuffer(float* vertices, uint32_t size)
 	{
 		return GetRenderResources()->CreateVertexBuffer(vertices, size);
 	}
 
-	std::shared_ptr<IIndexBuffer> RenderFacade::CreateIndexBuffer(uint32_t* indices, uint32_t count)
+	Ref<IIndexBuffer> RenderFacade::CreateIndexBuffer(uint32_t* indices, uint32_t count)
 	{
 		return GetRenderResources()->CreateIndexBuffer(indices, count);
 	}

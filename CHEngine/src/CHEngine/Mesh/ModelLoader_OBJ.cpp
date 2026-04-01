@@ -47,9 +47,9 @@ namespace CHEngine {
 			return result;
 		}
 
-		std::unordered_map<int, std::shared_ptr<MaterialInstance>> objMatByIdx;
+		std::unordered_map<int, Ref<MaterialInstance>> objMatByIdx;
 
-		auto getOrCreateObjMaterial = [&](int matIdx) -> std::shared_ptr<MaterialInstance> {
+		auto getOrCreateObjMaterial = [&](int matIdx) -> Ref<MaterialInstance> {
 			if (matIdx < 0 || matIdx >= static_cast<int>(materials.size()))
 				return MaterialInstance::FromBase(std::make_shared<Material>(meshShader));
 			auto it = objMatByIdx.find(matIdx);
