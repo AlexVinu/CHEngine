@@ -8,22 +8,22 @@ namespace CHModules
     void VertexArrayVK::Bind() const {}
     void VertexArrayVK::Unbind() const {}
 
-    void VertexArrayVK::AddVertexBuffer(const Ref<CHEngine::IVertexBuffer>& vertexBuffer)
+    void VertexArrayVK::AddVertexBuffer(const CHEngine::Ref<CHEngine::IVertexBuffer>& vertexBuffer)
     {
         m_VertexBuffers.push_back(vertexBuffer);
     }
 
-    void VertexArrayVK::SetIndexBuffer(const Ref<CHEngine::IIndexBuffer>& indexBuffer)
+    void VertexArrayVK::SetIndexBuffer(const CHEngine::Ref<CHEngine::IIndexBuffer>& indexBuffer)
     {
         m_IndexBuffer = indexBuffer;
     }
 
-    const CHEngine::Vector<Ref<CHEngine::IVertexBuffer>>& VertexArrayVK::GetVertexBuffers() const
+    const CHEngine::Vector<CHEngine::Ref<CHEngine::IVertexBuffer>>& VertexArrayVK::GetVertexBuffers() const
     {
         return m_VertexBuffers;
     }
 
-    const Ref<CHEngine::IIndexBuffer>& VertexArrayVK::GetIndexBuffer() const
+    const CHEngine::Ref<CHEngine::IIndexBuffer>& VertexArrayVK::GetIndexBuffer() const
     {
         return m_IndexBuffer;
     }

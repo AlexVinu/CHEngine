@@ -323,8 +323,8 @@ namespace CHEngine {
 		return m_Framebuffers.Get(h);
 	}
 
-	const std::vector<ShaderEntry>& RenderResourceManager::GetShaderEntries() const 
-	{ 
+	const Vector<ShaderEntry>& RenderResourceManager::GetShaderEntries() const 
+	{
 		return m_ShaderEntries; 
 	}
 

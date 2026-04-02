@@ -3,7 +3,9 @@
 #include <Core.h>
 #include <Memory/Handle.h>
 #include <Memory/HandlePool.h>
-#include <Containers/String.h>
+#include <CheStl/String.h>
+#include <CheStl/Vector.h>
+#include <CheStl/MemoryTypes.h>
 
 #include "Render/IRenderFactory.h"
 #include "Render/IFramebuffer.h"
@@ -13,7 +15,6 @@
 
 #include <memory>
 #include <string>
-#include <vector>
 
 namespace CHEngine {
 
@@ -87,7 +88,7 @@ namespace CHEngine {
 		// Вызывать раз в 0.5–1 сек (не каждый кадр).
 		void PollShaders();
 
-		const std::vector<ShaderEntry>& GetShaderEntries() const;
+		const Vector<ShaderEntry>& GetShaderEntries() const;
 
 		// Per-frame camera for Submit(Shader, VAO, transform). Invalidated at BeginFrame.
 		void SetSceneCamera(const UBOCamera& camera);
@@ -123,7 +124,7 @@ namespace CHEngine {
 		IRenderApi* m_RenderApi = nullptr;
 		IRenderer* m_Renderer = nullptr;
 
-		std::vector<ShaderEntry> m_ShaderEntries;
+		Vector<ShaderEntry> m_ShaderEntries;
 
 		UBOCamera m_SceneCamera{};
 		bool m_SceneCameraValid = false;

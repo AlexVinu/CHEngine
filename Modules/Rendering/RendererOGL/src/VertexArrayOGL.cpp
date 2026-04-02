@@ -51,7 +51,7 @@ namespace CHModules
 		glBindVertexArray(0);
 	}
 
-	void VertexArrayOGL::AddVertexBuffer(const Ref<CHEngine::IVertexBuffer>& vertexBuffer)
+	void VertexArrayOGL::AddVertexBuffer(const CHEngine::Ref<CHEngine::IVertexBuffer>& vertexBuffer)
 	{
 
 		CHE_CORE_ASSERT(vertexBuffer->GetLayout().GetElements().size(), "Vertex Buffer has no layout!");
@@ -120,7 +120,7 @@ namespace CHModules
 		m_VertexBuffers.push_back(vertexBuffer);
 	}
 
-	void VertexArrayOGL::SetIndexBuffer(const Ref<CHEngine::IIndexBuffer>& indexBuffer)
+	void VertexArrayOGL::SetIndexBuffer(const CHEngine::Ref<CHEngine::IIndexBuffer>& indexBuffer)
 	{
 
 		glBindVertexArray(m_RendererID);
@@ -128,11 +128,11 @@ namespace CHModules
 
 		m_IndexBuffer = indexBuffer;
 	}
-	const CHEngine::Vector<Ref<CHEngine::IVertexBuffer>>& VertexArrayOGL::GetVertexBuffers() const
+	const CHEngine::Vector<CHEngine::Ref<CHEngine::IVertexBuffer>>& VertexArrayOGL::GetVertexBuffers() const
 	{
 		return m_VertexBuffers;
 	}
-	const Ref<CHEngine::IIndexBuffer>& VertexArrayOGL::GetIndexBuffer() const
+	const CHEngine::Ref<CHEngine::IIndexBuffer>& VertexArrayOGL::GetIndexBuffer() const
 	{
 		return m_IndexBuffer;
 	}

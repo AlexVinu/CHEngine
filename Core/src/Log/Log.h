@@ -2,14 +2,15 @@
 
 #include <Core.h>
 
+#include "CheStl/MemoryTypes.h"
+
 #include <memory>
 #include "spdlog/spdlog.h"
 
 namespace CHEngine {
 
-    class CHE_CORE_API Log
+    struct CHE_CORE_API Log
     {
-    public:
         static void init();
 
         static Ref<spdlog::logger>& GetCoreLogger();

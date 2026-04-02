@@ -2,6 +2,8 @@
 
 #include <Core.h>
 
+#include "CheStl/MemoryTypes.h"
+
 #include "IBuffer.h"
 
 namespace CHEngine {
