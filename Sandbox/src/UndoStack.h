@@ -82,7 +82,7 @@ class UndoStack
 public:
     static constexpr int k_MaxSize = 50;
 
-    void Push(Scope<UndoCommand> cmd)
+    void Push(CHEngine::Scope<UndoCommand> cmd)
     {
         if ((int)m_Stack.size() >= k_MaxSize)
             m_Stack.erase(m_Stack.begin());
@@ -129,5 +129,5 @@ public:
     void Clear()         { m_Stack.clear(); }
 
 private:
-    std::vector<Scope<UndoCommand>> m_Stack;
+    std::vector<CHEngine::Scope<UndoCommand>> m_Stack;
 };
