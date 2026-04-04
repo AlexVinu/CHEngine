@@ -7,6 +7,7 @@
 #include "CHEngine/Input/Input.h"
 #include "CHEngine/EngineConfig.h"
 #include "Render/RenderFacade.h"
+#include "UI/UIFacade.h"
 
 #include <imgui.h>
 
@@ -140,7 +141,7 @@ namespace CHEngine {
         // ─── 4. Создать ImGui layer ──────────────────────────────────────────
         // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
         if (m_ImGuiFactory)
-            m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow());
+            UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
 
         // ─── 4а. Зарегистрировать hot reload для ImGuiOGL ────────────────────
         // WindowGLFW и RendererOGL не перезагружаем — они держат GL-контекст
@@ -148,16 +149,16 @@ namespace CHEngine {
             m_ModuleManager->Watch(ModuleType::ImGui, {
                 // Уничтожить ImGui-слой до выгрузки dylib
                 [this]() {
-                    if (m_ImGuiLayer && m_ImGuiFactory)
-                        m_ImGuiFactory->Delete(m_ImGuiLayer);
-                    m_ImGuiLayer   = nullptr;
+                    if (IImGuiLayer* layer = UIFacade::GetLayer(); layer && m_ImGuiFactory)
+                        m_ImGuiFactory->Delete(layer);
+                    UIFacade::SetLayer(nullptr);
                     m_ImGuiFactory = nullptr;
                 },
                 // Пересоздать после загрузки нового dylib
                 [this](IModuleFactory* factory) {
                     m_ImGuiFactory = static_cast<IImGuiFactory*>(factory);
                     if (m_Window)
-                        m_ImGuiLayer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow());
+                        UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
                 }
             });
         }
@@ -174,8 +175,9 @@ namespace CHEngine {
 
     Application::~Application()
     {
-        if (m_ImGuiLayer && m_ImGuiFactory)
-            m_ImGuiFactory->Delete(m_ImGuiLayer);
+        if (IImGuiLayer* layer = UIFacade::GetLayer(); layer && m_ImGuiFactory)
+            m_ImGuiFactory->Delete(layer);
+        UIFacade::SetLayer(nullptr);
 
         m_RenderResources->Shutdown();
     }
@@ -266,16 +268,16 @@ namespace CHEngine {
             for (Layer* layer : m_LayerStack)
                 layer->OnUpdate(dt);
 
-            if (m_ImGuiLayer)
+            if (UIFacade::GetLayer())
             {
                 // Передать нативный контекст (Metal нужны Device/CmdBuf/Encoder)
                 if (IRenderApi* api = m_RenderResources->GetRenderAPI())
-                    m_ImGuiLayer->SetRenderContext(api->GetRenderContext());
+                    UIFacade::SetRenderContext(api->GetRenderContext());
 
-                m_ImGuiLayer->Begin();
+                UIFacade::Begin();
                 for (Layer* layer : m_LayerStack)
                     layer->OnImGuiRender();
-                m_ImGuiLayer->End();
+                UIFacade::End();
             }
 
             // ── EndFrame (Metal: end encoding, present, commit) ──
@@ -286,7 +288,7 @@ namespace CHEngine {
         }
 
         // ── Overlay «Restarting...» — один финальный кадр ────────────────────
-        if (m_RestartRequested && m_ImGuiLayer)
+        if (m_RestartRequested && UIFacade::GetLayer())
         {
             if (m_RenderResources->GetRenderAPI())
                 RenderFacade::BeginFrame();
@@ -297,9 +299,9 @@ namespace CHEngine {
             RenderFacade::EndScene();
 
             if (IRenderApi* api = m_RenderResources->GetRenderAPI())
-                m_ImGuiLayer->SetRenderContext(api->GetRenderContext());
+                UIFacade::SetRenderContext(api->GetRenderContext());
 
-            m_ImGuiLayer->Begin();
+            UIFacade::Begin();
 
             ImVec2 displaySize = ImGui::GetIO().DisplaySize;
             ImGui::GetBackgroundDrawList()->AddRectFilled(
@@ -317,7 +319,7 @@ namespace CHEngine {
             ImGui::TextUnformatted(text);
             ImGui::End();
 
-            m_ImGuiLayer->End();
+            UIFacade::End();
 
             if (m_RenderResources->GetRenderAPI())
                 RenderFacade::EndFrame();

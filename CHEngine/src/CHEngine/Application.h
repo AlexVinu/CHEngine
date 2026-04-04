@@ -8,7 +8,7 @@
 #include "Window.h"
 
 #include "Render/RenderResourceManager.h"
-#include "UISystem/IImGuiLayer.h"
+#include "UI/UIFacade.h"
 
 #include "WindowSystem/IWindowFactory.h"
 #include "UISystem/IImGuiFactory.h"
@@ -79,8 +79,6 @@ namespace CHEngine {
 
         ERenderAPI      m_RenderAPIType = ERenderAPI::OPENGL;
         bool            m_RestartRequested = false;
-
-        IImGuiLayer* m_ImGuiLayer  = nullptr;
 
         Scope<Window> m_Window;
 
