@@ -3,6 +3,40 @@
 
 namespace CHEngine {
 
+	Mesh::~Mesh()
+	{
+		if (m_VertexArray.IsValid())
+			RenderFacade::DestroyVertexArray(m_VertexArray);
+	}
+
+	Mesh::Mesh(Mesh&& other) noexcept
+		: Mat(std::move(other.Mat))
+		, m_VertexArray(other.m_VertexArray)
+		, m_IndexCount(other.m_IndexCount)
+		, m_Vertices(std::move(other.m_Vertices))
+		, m_Indices(std::move(other.m_Indices))
+	{
+		other.m_VertexArray = {};
+		other.m_IndexCount = 0;
+	}
+
+	Mesh& Mesh::operator=(Mesh&& other) noexcept
+	{
+		if (this != &other)
+		{
+			if (m_VertexArray.IsValid())
+				RenderFacade::DestroyVertexArray(m_VertexArray);
+			Mat = std::move(other.Mat);
+			m_VertexArray = other.m_VertexArray;
+			m_IndexCount = other.m_IndexCount;
+			m_Vertices = std::move(other.m_Vertices);
+			m_Indices = std::move(other.m_Indices);
+			other.m_VertexArray = {};
+			other.m_IndexCount = 0;
+		}
+		return *this;
+	}
+
 	void Mesh::Build(const std::vector<Vertex>& vertices,
 	                 const std::vector<uint32_t>& indices)
 	{

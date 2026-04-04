@@ -17,6 +17,14 @@ Material::Material(ShaderHandle handler)
     CHE_CORE_ASSERT(handler.IsValid(), "Material — ShaderHandle must be valid");
 }
 
+Material::~Material()
+{
+    if (DiffuseMap.IsValid())
+        RenderFacade::DestroyTexture(DiffuseMap);
+    if (SpecularMap.IsValid())
+        RenderFacade::DestroyTexture(SpecularMap);
+}
+
 void Material::FillUBOMaterial(UBOMaterial& out) const
 {
     out.UseTexture     = DiffuseMap.IsValid() ? 1 : 0;
@@ -27,12 +35,27 @@ void Material::FillUBOMaterial(UBOMaterial& out) const
     out._pad0 = out._pad1 = out._pad2 = 0.0f;
 }
 
-MaterialInstance::MaterialInstance(Ref<Material> base)
-    : Base(std::move(base))
+ShaderHandle Material::GetShaderHandle() const
 {
-    CHE_CORE_ASSERT(Base && Base->ShaderHandler.IsValid(), "MaterialInstance — base material with valid shader required");
-    Shininess     = Base->Shininess;
-    SpecularScale = Base->SpecularScale;
+    return ShaderHandler;
+}
+
+MaterialInstance::MaterialInstance(Ref<Material> base)
+    : m_Material(std::move(base))
+{
+    CHE_CORE_ASSERT(m_Material && m_Material->ShaderHandler.IsValid(), "MaterialInstance — base material with valid shader required");
+    Shininess     = m_Material->Shininess;
+    SpecularScale = m_Material->SpecularScale;
+}
+
+MaterialInstance::~MaterialInstance()
+{
+    if (DiffuseMap.IsValid())
+        RenderFacade::DestroyTexture(DiffuseMap);
+    if (SpecularMap.IsValid())
+        RenderFacade::DestroyTexture(SpecularMap);
+    DiffuseMap = {};
+    SpecularMap = {};
 }
 
 Ref<MaterialInstance> MaterialInstance::FromBase(Ref<Material> base)
@@ -41,23 +64,23 @@ Ref<MaterialInstance> MaterialInstance::FromBase(Ref<Material> base)
     return std::make_shared<MaterialInstance>(std::move(base));
 }
 
-ShaderHandle MaterialInstance::GetShaderHandle() const
+Ref<Material> MaterialInstance::GetMaterial() const
 {
-    return Base->ShaderHandler;
+    return m_Material;
 }
 
 void MaterialInstance::ResolveTextures(TextureHandle& outDiffuse, TextureHandle& outSpecular) const
 {
-    outDiffuse  = DiffuseMap.IsValid() ? DiffuseMap : Base->DiffuseMap;
-    outSpecular = SpecularMap.IsValid() ? SpecularMap : Base->SpecularMap;
+    outDiffuse  = DiffuseMap.IsValid() ? DiffuseMap : m_Material->DiffuseMap;
+    outSpecular = SpecularMap.IsValid() ? SpecularMap : m_Material->SpecularMap;
 }
 
 std::string MaterialInstance::EffectiveDiffuseMapPath() const
 {
     if (!DiffuseMapPath.empty())
         return DiffuseMapPath;
-    if (Base && !Base->DiffuseMapPath.empty())
-        return Base->DiffuseMapPath;
+    if (m_Material && !m_Material->DiffuseMapPath.empty())
+        return m_Material->DiffuseMapPath;
     return {};
 }
 
@@ -65,14 +88,14 @@ std::string MaterialInstance::EffectiveSpecularMapPath() const
 {
     if (!SpecularMapPath.empty())
         return SpecularMapPath;
-    if (Base && !Base->SpecularMapPath.empty())
-        return Base->SpecularMapPath;
+    if (m_Material && !m_Material->SpecularMapPath.empty())
+        return m_Material->SpecularMapPath;
     return {};
 }
 
 void MaterialInstance::FillUBOMaterial(UBOMaterial& out) const
 {
-    Base->FillUBOMaterial(out);
+    m_Material->FillUBOMaterial(out);
 
     TextureHandle d, s;
     ResolveTextures(d, s);
@@ -84,7 +107,7 @@ void MaterialInstance::FillUBOMaterial(UBOMaterial& out) const
 
 void MaterialInstance::ApplyMaterial() const
 {
-    IShader* shader = RenderFacade::GetShader(Base->ShaderHandler);
+    IShader* shader = RenderFacade::GetShader(m_Material->ShaderHandler);
     if (!shader)
         return;
 

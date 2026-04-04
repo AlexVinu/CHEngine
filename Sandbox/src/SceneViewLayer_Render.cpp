@@ -209,7 +209,7 @@ void SceneViewLayer::RenderScene()
                 mesh.Mat = CHEngine::MaterialInstance::FromBase(
                     std::make_shared<CHEngine::Material>(m_MeshShader));
 
-            CHEngine::ShaderHandle h = mesh.Mat->GetShaderHandle();
+            CHEngine::ShaderHandle h = mesh.Mat->GetMaterial()->GetShaderHandle();
             CHEngine::IShader* sh = CHEngine::RenderFacade::GetShader(h);
             if (!sh)
                 continue;
