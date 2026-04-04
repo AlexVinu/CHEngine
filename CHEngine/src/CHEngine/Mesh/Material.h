@@ -13,6 +13,10 @@ class CHENGINE_API Material
 {
 public:
     explicit Material(ShaderHandle handler);
+    ~Material();
+
+    Material(const Material&) = delete;
+    Material& operator=(const Material&) = delete;
 
     ShaderHandle ShaderHandler;
 
@@ -27,6 +31,8 @@ public:
     MaterialParamsStore MaterialFlags = 0;
 
     void FillUBOMaterial(UBOMaterial& out) const;
+
+    ShaderHandle GetShaderHandle() const;
 };
 
 /// Экземпляр: база + переопределения; слияние и биндинг — здесь.
@@ -34,12 +40,16 @@ class CHENGINE_API MaterialInstance
 {
 public:
     explicit MaterialInstance(Ref<Material> base);
+    ~MaterialInstance();
+
+    MaterialInstance(const MaterialInstance&) = delete;
+    MaterialInstance& operator=(const MaterialInstance&) = delete;
 
     static Ref<MaterialInstance> FromBase(Ref<Material> base);
 
-    ShaderHandle GetShaderHandle() const;
+    Ref<Material> GetMaterial() const;
 
-    Ref<Material> Base;
+    Ref<Material> m_Material;
 
     TextureHandle DiffuseMap{};
     std::string   DiffuseMapPath;

@@ -433,10 +433,10 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                     mat.ResolveTextures(d0, s0);
                     if (d0.IsValid())
                         CHEngine::RenderFacade::DestroyTexture(d0);
-                    if (mat.Base)
+                    if (mat.m_Material)
                     {
-                        mat.Base->DiffuseMap = CHEngine::TextureHandle{};
-                        mat.Base->DiffuseMapPath.clear();
+                        mat.m_Material->DiffuseMap = CHEngine::TextureHandle{};
+                        mat.m_Material->DiffuseMapPath.clear();
                     }
                     mat.DiffuseMap = CHEngine::RenderFacade::CreateTextureFromFile(path);
                     mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? path : "";
@@ -452,10 +452,10 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                     CHEngine::RenderFacade::DestroyTexture(d0);
                 mat.DiffuseMap = CHEngine::TextureHandle{};
                 mat.DiffuseMapPath.clear();
-                if (mat.Base)
+                if (mat.m_Material)
                 {
-                    mat.Base->DiffuseMap = CHEngine::TextureHandle{};
-                    mat.Base->DiffuseMapPath.clear();
+                    mat.m_Material->DiffuseMap = CHEngine::TextureHandle{};
+                    mat.m_Material->DiffuseMapPath.clear();
                 }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать текстуру");
@@ -487,10 +487,10 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                     mat.ResolveTextures(d0, s0);
                     if (s0.IsValid())
                         CHEngine::RenderFacade::DestroyTexture(s0);
-                    if (mat.Base)
+                    if (mat.m_Material)
                     {
-                        mat.Base->SpecularMap = CHEngine::TextureHandle{};
-                        mat.Base->SpecularMapPath.clear();
+                        mat.m_Material->SpecularMap = CHEngine::TextureHandle{};
+                        mat.m_Material->SpecularMapPath.clear();
                     }
                     mat.SpecularMap = CHEngine::RenderFacade::CreateTextureFromFile(path);
                     mat.SpecularMapPath = mat.SpecularMap.IsValid() ? path : "";
@@ -506,10 +506,10 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
                     CHEngine::RenderFacade::DestroyTexture(s0);
                 mat.SpecularMap = CHEngine::TextureHandle{};
                 mat.SpecularMapPath.clear();
-                if (mat.Base)
+                if (mat.m_Material)
                 {
-                    mat.Base->SpecularMap = CHEngine::TextureHandle{};
-                    mat.Base->SpecularMapPath.clear();
+                    mat.m_Material->SpecularMap = CHEngine::TextureHandle{};
+                    mat.m_Material->SpecularMapPath.clear();
                 }
             }
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Убрать specular карту");

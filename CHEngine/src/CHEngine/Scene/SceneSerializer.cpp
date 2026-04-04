@@ -32,9 +32,9 @@ static void DestroyTexturesForInstance(MaterialInstance* p, RenderResourceManage
     {
         if (p->DiffuseMap.IsValid())
             resources.DestroyTexture(d);
-        else if (p->Base && p->Base->DiffuseMap.IsValid())
+        else if (p->m_Material && p->m_Material->DiffuseMap.IsValid())
         {
-            if (baseDiffuseDestroyed.insert(p->Base.get()).second)
+            if (baseDiffuseDestroyed.insert(p->m_Material.get()).second)
                 resources.DestroyTexture(d);
         }
     }
@@ -42,9 +42,9 @@ static void DestroyTexturesForInstance(MaterialInstance* p, RenderResourceManage
     {
         if (p->SpecularMap.IsValid())
             resources.DestroyTexture(s);
-        else if (p->Base && p->Base->SpecularMap.IsValid())
+        else if (p->m_Material && p->m_Material->SpecularMap.IsValid())
         {
-            if (baseSpecDestroyed.insert(p->Base.get()).second)
+            if (baseSpecDestroyed.insert(p->m_Material.get()).second)
                 resources.DestroyTexture(s);
         }
     }
@@ -79,10 +79,10 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat, RenderResource
         mat.ResolveTextures(oldD, oldS);
         if (oldD.IsValid())
             resources.DestroyTexture(oldD);
-        if (mat.Base)
+        if (mat.m_Material)
         {
-            mat.Base->DiffuseMap = TextureHandle{};
-            mat.Base->DiffuseMapPath.clear();
+            mat.m_Material->DiffuseMap = TextureHandle{};
+            mat.m_Material->DiffuseMapPath.clear();
         }
         mat.DiffuseMap     = resources.CreateTextureFromFile(diffPath);
         mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
@@ -95,10 +95,10 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat, RenderResource
         mat.ResolveTextures(oldD, oldS);
         if (oldS.IsValid())
             resources.DestroyTexture(oldS);
-        if (mat.Base)
+        if (mat.m_Material)
         {
-            mat.Base->SpecularMap = TextureHandle{};
-            mat.Base->SpecularMapPath.clear();
+            mat.m_Material->SpecularMap = TextureHandle{};
+            mat.m_Material->SpecularMapPath.clear();
         }
         mat.SpecularMap     = resources.CreateTextureFromFile(specPath);
         mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
