@@ -12,6 +12,7 @@
 
 #include "WindowSystem/IWindowFactory.h"
 #include "UISystem/IImGuiFactory.h"
+#include "Physics/IPhysicsFactory.h"
 
 #include "ModuleManager.h"
 
@@ -69,8 +70,8 @@ namespace CHEngine {
         Scope<RenderResourceManager> m_RenderResources;
 
         IWindowFactory* m_WindowFactory = nullptr;
-        IRenderFactory* m_RenderFactory = nullptr;
         IImGuiFactory*  m_ImGuiFactory  = nullptr;
+        IPhysicsFactory* m_PhysicsFactory = nullptr;
 
         bool            m_Running = true;
         LayerStack      m_LayerStack;

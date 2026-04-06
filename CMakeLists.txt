@@ -12,6 +12,7 @@ cmake_policy(SET CMP0091 NEW) # Для MSVC_RUNTIME_LIBRARY
 option(CHE_BUILD_SANDBOX "Build Sandbox project" ON)
 option(CHE_BUILD_OPENGL "Build OpengGL render" ON)
 option(CHE_BUILD_VULKAN "Build Vulkan render" OFF)
+option(CHE_BUILD_PHYSICS "Build PhysX physics module" ON)
 if(APPLE)
     option(CHE_BUILD_METAL "Build Metal render" ON)
 endif()
@@ -98,6 +99,69 @@ if(CHE_BUILD_METAL AND APPLE)
     endif()
     add_subdirectory(${MODULES_DIR}/Rendering/RendererMetal)
     add_subdirectory(${MODULES_DIR}/UI/ImGuiMTL)
+endif()
+
+if(CHE_BUILD_PHYSICS)
+    if(WIN32 OR (UNIX AND NOT APPLE))
+        set(PHYSX_ROOT_DIR "${CHE_VENDOR_DIR}/PhysX/physx" CACHE PATH "PhysX root path" FORCE)
+
+        if(WIN32)
+            set(TARGET_BUILD_PLATFORM "windows" CACHE STRING "PhysX target platform" FORCE)
+        else()
+            set(TARGET_BUILD_PLATFORM "linux" CACHE STRING "PhysX target platform" FORCE)
+        endif()
+
+        set(PX_BUILDSNIPPETS OFF CACHE BOOL "" FORCE)
+        set(PX_BUILDPVDRUNTIME OFF CACHE BOOL "" FORCE)
+        set(PX_GENERATE_GPU_PROJECTS OFF CACHE BOOL "" FORCE)
+        set(PX_GENERATE_GPU_PROJECTS_ONLY OFF CACHE BOOL "" FORCE)
+        set(PX_CMAKE_SUPPRESS_REGENERATION ON CACHE BOOL "" FORCE)
+        set(NV_USE_DEBUG_WINCRT ON CACHE BOOL "" FORCE)
+        set(PUBLIC_RELEASE 1 CACHE BOOL "Build PhysX as embedded dependency" FORCE)
+        set(PX_OUTPUT_LIB_DIR "${CMAKE_BINARY_DIR}/physx" CACHE PATH "PhysX output lib directory" FORCE)
+        set(PX_OUTPUT_BIN_DIR "${CMAKE_BINARY_DIR}/physx" CACHE PATH "PhysX output bin directory" FORCE)
+        list(APPEND CMAKE_MODULE_PATH "${PHYSX_ROOT_DIR}/source/compiler/cmake/modules")
+
+        # PhysX rewrites configuration types in its own CMake.
+        # Save and restore project configs to keep CHEngine's Dist profile.
+        set(_CHE_SAVED_CONFIG_TYPES "${CMAKE_CONFIGURATION_TYPES}")
+        set(_CHE_SAVED_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+
+        add_subdirectory(${CHE_VENDOR_DIR}/PhysX/physx/source/compiler/cmake vendors/PhysX)
+
+        set(CHE_PHYSX_TARGETS
+            PhysXFoundation
+            LowLevel
+            LowLevelAABB
+            LowLevelDynamics
+            PhysX
+            PhysXCharacterKinematic
+            PhysXCommon
+            PhysXCooking
+            PhysXExtensions
+            PhysXVehicle2
+            SceneQuery
+            SimulationController
+            PhysXPvdSDK
+            PhysXTask
+        )
+
+        foreach(physx_target IN LISTS CHE_PHYSX_TARGETS)
+            if(TARGET ${physx_target})
+                target_compile_definitions(${physx_target} PRIVATE
+                    $<$<CONFIG:Debug>:_DEBUG;PX_DEBUG=1;PX_CHECKED=1;PX_SUPPORT_PVD=1;PX_SUPPORT_OMNI_PVD=1>
+                    $<$<OR:$<CONFIG:Release>,$<CONFIG:Dist>>:NDEBUG;PX_SUPPORT_PVD=0;PX_SUPPORT_OMNI_PVD=0>
+                )
+            endif()
+        endforeach()
+
+        set(CMAKE_CONFIGURATION_TYPES "${_CHE_SAVED_CONFIG_TYPES}" CACHE STRING "" FORCE)
+        set(CMAKE_BUILD_TYPE "${_CHE_SAVED_BUILD_TYPE}" CACHE STRING "Choose build type: Debug, Release, Dist" FORCE)
+
+        add_subdirectory(${MODULES_DIR}/Physics/PhysicsPhysX)
+    else()
+        message(WARNING "CHE_BUILD_PHYSICS is ON, but PhysX backend is unavailable on this platform.")
+    endif()
 endif()
 
 if(CHE_BUILD_SANDBOX)
