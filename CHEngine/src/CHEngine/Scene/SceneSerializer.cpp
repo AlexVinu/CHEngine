@@ -4,6 +4,8 @@
 #include "FileSystem/FileSystem.h"
 
 #include <nlohmann/json.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <cstddef>
 #include <memory>
 #include <unordered_set>
 #include <CHEngine/Mesh/Material.h>
@@ -20,6 +22,47 @@ using json = nlohmann::json;
 namespace CHEngine {
 
 namespace {
+constexpr int kSceneFormatVersion = 2;
+
+int HexToNibble(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+    return -1;
+}
+
+bool TryParseUUIDString(const std::string& input, UUID& outUUID)
+{
+    std::string s = input;
+    if (s.size() == 38 && s.front() == '{' && s.back() == '}')
+        s = s.substr(1, s.size() - 2);
+
+    std::string hex;
+    hex.reserve(32);
+    for (char c : s)
+    {
+        if (c == '-')
+            continue;
+        hex.push_back(c);
+    }
+
+    if (hex.size() != 32)
+        return false;
+
+    UUID parsed = boost::uuids::nil_uuid();
+    for (size_t i = 0; i < 16; ++i)
+    {
+        const int hi = HexToNibble(hex[i * 2]);
+        const int lo = HexToNibble(hex[i * 2 + 1]);
+        if (hi < 0 || lo < 0)
+            return false;
+        *(parsed.begin() + static_cast<std::ptrdiff_t>(i)) = static_cast<uint8_t>((hi << 4) | lo);
+    }
+
+    outUUID = parsed;
+    return true;
+}
 
 static void DestroyTexturesForInstance(MaterialInstance* p, RenderResourceManager& resources,
                                        std::unordered_set<Material*>& baseDiffuseDestroyed,
@@ -111,15 +154,16 @@ SceneSerializer::SceneSerializer(Scene* scene) : m_Scene(scene) {}
 
 bool SceneSerializer::SaveToFile(const std::string& path) {
     json j;
-    j["version"] = 1;
+    j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
 
-    m_Scene->ForEach<TagComponent>([&](EntityHandle handle, TagComponentIDType, TagComponent& tag) {
+    m_Scene->ForEach<TagComponent>([&](EntityHandle handle, const UUID&, TagComponent& tag) {
+        auto* idComp = m_Scene->TryGetComponent<IDComponent>(handle);
         auto* transformComp = m_Scene->TryGetComponent<TransformComponent>(handle);
         auto* meshPtr = m_Scene->TryGetComponent<MeshComponent>(handle);
         auto* colorPtr = m_Scene->TryGetComponent<ColorComponent>(handle);
         auto* visibilityPtr = m_Scene->TryGetComponent<VisibilityComponent>(handle);
-        if (!transformComp || !meshPtr || !colorPtr || !visibilityPtr)
+        if (!idComp || !transformComp || !meshPtr || !colorPtr || !visibilityPtr)
             return;
         auto& mesh = *meshPtr;
         auto& color = *colorPtr;
@@ -127,6 +171,7 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
         auto& transform = transformComp->ObjectTransform;
         json o;
         o["name"]    = tag.Name;
+        o["uuid"]    = boost::uuids::to_string(idComp->Value);
         o["visible"] = visibility.Visible;
         o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
 
@@ -196,9 +241,19 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         CHE_CORE_ERROR("SceneSerializer: malformed scene file (missing 'objects' array)");
         return false;
     }
+    if (!j.contains("version") || !j["version"].is_number_integer()) {
+        CHE_CORE_ERROR("SceneSerializer: malformed scene file (missing integer 'version')");
+        return false;
+    }
+    const int version = j["version"].get<int>();
+    if (version != kSceneFormatVersion) {
+        CHE_CORE_ERROR("SceneSerializer: unsupported scene format version {} (expected {})",
+            version, kSceneFormatVersion);
+        return false;
+    }
 
     // Clear existing scene GPU resources first
-    m_Scene->ForEach<MeshComponent>([&](EntityHandle, TagComponentIDType, MeshComponent& meshComp) {
+    m_Scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
         for (auto& mesh : meshComp.Meshes) {
             if (mesh.GetVertexArray().IsValid())
                 resources.DestroyVertexArray(mesh.GetVertexArray());
@@ -225,6 +280,16 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
 
         std::string name     = o.value("name", "Object");
         std::string meshPath = o.value("meshPath", "");
+        if (!o.contains("uuid") || !o["uuid"].is_string()) {
+            CHE_CORE_WARN("SceneSerializer: skipping object '{}' without valid string 'uuid'", name);
+            continue;
+        }
+
+        UUID entityUUID = boost::uuids::nil_uuid();
+        if (!TryParseUUIDString(o["uuid"].get<std::string>(), entityUUID)) {
+            CHE_CORE_WARN("SceneSerializer: skipping object '{}' with invalid uuid", name);
+            continue;
+        }
 
         EntityHandle handle{};
 
@@ -253,12 +318,16 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
                     }
                 }
 
-                handle = m_Scene->CreateModelEntity(name, std::move(result.meshes), meshPath);
+                handle = m_Scene->CreateEntity(name, entityUUID);
+                if (auto* meshComp = m_Scene->TryGetComponent<MeshComponent>(handle)) {
+                    meshComp->Meshes = std::move(result.meshes);
+                    meshComp->SourcePath = meshPath;
+                }
             }
         }
 
         if (!m_Scene->IsEntityHandleValid(handle))
-            handle = m_Scene->CreateEntity(name);
+            handle = m_Scene->CreateEntity(name, entityUUID);
         auto* obj = m_Scene->TryGetEntity(handle);
         if (!obj) continue;
 
