@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <CHEngine.h>
+#include <boost/uuid/nil_generator.hpp>
 
 // ============================================================================
 //  UndoStack — простая история действий (до 50 шагов)
@@ -29,12 +30,12 @@ struct UndoCommand
 struct TransformCommand : UndoCommand
 {
     CHEngine::Scene*     scene;
-    CHEngine::TagComponentIDType objectID;
+    CHEngine::UUID objectID;
     CHEngine::Transform  before;
 
     void Undo() override
     {
-        auto handle = scene->TryGetEntityHandleByID(objectID);
+        auto handle = scene->TryGetEntityHandleByUUID(objectID);
         if (auto* transform = scene->TryGetComponent<CHEngine::TransformComponent>(handle))
             transform->ObjectTransform = before;
     }
@@ -46,12 +47,12 @@ struct TransformCommand : UndoCommand
 struct VisibilityCommand : UndoCommand
 {
     CHEngine::Scene* scene;
-    CHEngine::TagComponentIDType objectID;
+    CHEngine::UUID objectID;
     bool             before;
 
     void Undo() override
     {
-        auto handle = scene->TryGetEntityHandleByID(objectID);
+        auto handle = scene->TryGetEntityHandleByUUID(objectID);
         if (auto* visibility = scene->TryGetComponent<CHEngine::VisibilityComponent>(handle))
             visibility->Visible = before;
     }
@@ -63,13 +64,13 @@ struct VisibilityCommand : UndoCommand
 struct ImportCommand : UndoCommand
 {
     CHEngine::Scene* scene;
-    CHEngine::TagComponentIDType objectID;
-    CHEngine::TagComponentIDType* selectedID;   // указатель на m_SelectedObjectID
+    CHEngine::UUID objectID;
+    CHEngine::UUID* selectedID;   // указатель на m_SelectedObjectID
 
     void Undo() override
     {
         if (*selectedID == objectID)
-            *selectedID = 0;
+            *selectedID = boost::uuids::nil_uuid();
         scene->RemoveObject(objectID);
     }
 };
@@ -90,7 +91,7 @@ public:
     }
 
     // Хелперы — чтобы не писать make_unique каждый раз
-    void PushTransform(CHEngine::Scene* scene, CHEngine::TagComponentIDType id,
+    void PushTransform(CHEngine::Scene* scene, const CHEngine::UUID& id,
                        const CHEngine::Transform& before)
     {
         auto cmd    = std::make_unique<TransformCommand>();
@@ -100,7 +101,7 @@ public:
         Push(std::move(cmd));
     }
 
-    void PushVisibility(CHEngine::Scene* scene, CHEngine::TagComponentIDType id, bool before)
+    void PushVisibility(CHEngine::Scene* scene, const CHEngine::UUID& id, bool before)
     {
         auto cmd      = std::make_unique<VisibilityCommand>();
         cmd->scene    = scene;
@@ -109,7 +110,7 @@ public:
         Push(std::move(cmd));
     }
 
-    void PushImport(CHEngine::Scene* scene, CHEngine::TagComponentIDType id, CHEngine::TagComponentIDType* selectedID)
+    void PushImport(CHEngine::Scene* scene, const CHEngine::UUID& id, CHEngine::UUID* selectedID)
     {
         auto cmd           = std::make_unique<ImportCommand>();
         cmd->scene         = scene;

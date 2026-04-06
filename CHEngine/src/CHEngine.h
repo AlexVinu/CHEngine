@@ -42,6 +42,10 @@
 #include <Input/KeyCodes.h>
 // ================================
 
+// Physics ------------------------
+#include "CHEngine/Physics/PhysicsFacade.h"
+// ================================
+
 // Utils --------------------------
 #include "CHEngine/Utils/FileDialog.h"
 // ================================

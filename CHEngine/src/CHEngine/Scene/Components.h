@@ -1,20 +1,33 @@
 #pragma once
-#include <memory>
 #include <string>
+#include <cstdint>
 #include <vector>
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/nil_generator.hpp>
 #include "CHEngine/Mesh/Mesh.h"
 #include "Light.h"
 #include "Transform.h"
+#include "Physics/IPhysicsBody.h"
 
 namespace CHEngine {
 
-    using TagComponentIDType = uint32_t;
+    using UUID = boost::uuids::uuid;
+
+    struct IDComponent
+    {
+        UUID Value = boost::uuids::nil_uuid();
+        IDComponent() = default;
+        explicit IDComponent(const UUID& uuid)
+            : Value(uuid)
+        {
+        }
+    };
 
     struct TagComponent {
         std::string         Name;
-        TagComponentIDType  ID = 0;
     };
 
+    // Render
     struct TransformComponent {
         Transform ObjectTransform;
     };
@@ -40,5 +53,20 @@ namespace CHEngine {
 
     struct LightComponent {
         Light LightData;
+    };
+
+    // Physics
+    enum class RigidBodySyncMode : uint8_t
+    {
+        Auto = 0,
+        ReadFromPhysics = 1,
+        WriteToPhysics = 2,
+        ReadWrite = 3
+    };
+
+    struct RigidBody3DComponent
+    {
+        IPhysicsBody* Body = nullptr;
+        RigidBodySyncMode SyncMode = RigidBodySyncMode::Auto;
     };
 }

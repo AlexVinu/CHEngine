@@ -18,8 +18,12 @@ set(CHE_VENDOR_SOURCES
     "${CHE_VENDOR_DIR}/tinyfiledialogs/tinyfiledialogs.c"
 )
 
+file(GLOB CHE_BOOST_INCLUDE_DIRS
+    "${CHE_VENDOR_DIR}/boost/libs/*/include"
+)
+
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES} "src/CHEngine/Mesh/Material.cpp")
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES} "src/CHEngine/Mesh/Material.cpp"  )
 
 # Skip precompiled headers for vendor sources and ModelLoader files
 # (они включают tinyobjloader / tinygltf / stb_image с IMPLEMENTATION defines —
@@ -49,6 +53,8 @@ target_include_directories(${PROJECT_NAME}
         "src"
         ${IMGUI_INCLUDE_DIR}
         "${CHE_VENDOR_DIR}"
+        "${CHE_VENDOR_DIR}/boost/libs/uuid/include"
+        ${CHE_BOOST_INCLUDE_DIRS}
         ${CHE_INTERFACES_DIR}   # PUBLIC: Sandbox и другие клиенты видят <Input/KeyCodes.h> и т.д.
     PRIVATE
         ${CHE_CORE_DIR}

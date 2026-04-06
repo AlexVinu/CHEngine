@@ -120,7 +120,7 @@ void SceneViewLayer::RenderScene()
     int lightCount = 0;
 
     m_Scene.ForEach<CHEngine::LightComponent>(
-        [&](CHEngine::EntityHandle handle, CHEngine::TagComponentIDType,
+        [&](CHEngine::EntityHandle handle, const CHEngine::UUID&,
             CHEngine::LightComponent& lightComp) {
         const auto* visible = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(handle);
         if (!visible || !visible->Visible) return;
@@ -178,7 +178,7 @@ void SceneViewLayer::RenderScene()
     // ── Рисуем объекты (переключение шейдера по материалу) ────────────────
     CHEngine::ShaderHandle activeMeshShader{};
     m_Scene.ForEach<CHEngine::MeshComponent>(
-        [&](CHEngine::EntityHandle handle, CHEngine::TagComponentIDType objectID,
+        [&](CHEngine::EntityHandle handle, const CHEngine::UUID& objectID,
             CHEngine::MeshComponent& meshComp) {
         const auto* visible = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(handle);
         if (!visible || !visible->Visible) return;
@@ -246,7 +246,7 @@ void SceneViewLayer::RenderScene()
 
 void SceneViewLayer::DrawGizmo()
 {
-    auto handle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+    auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
     auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
     if (!transformComp) return;
     auto& selectedTransform = transformComp->ObjectTransform;

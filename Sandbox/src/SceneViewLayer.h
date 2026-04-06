@@ -7,6 +7,7 @@
 #include "ContentBrowserPanel.h"
 
 #include <glm/glm.hpp>
+#include <boost/uuid/nil_generator.hpp>
 
 #include <string>
 
@@ -92,7 +93,7 @@ private:
     bool      m_FollowObject = false;
 
     // Selection & viewport
-    CHEngine::TagComponentIDType m_SelectedObjectID = 0;
+    CHEngine::UUID m_SelectedObjectID = boost::uuids::nil_uuid();
     float     m_AspectRatio      = 16.0f / 9.0f;
 
     // Framebuffer (offscreen render target)

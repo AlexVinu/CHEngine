@@ -35,7 +35,7 @@ void SceneViewLayer::SetViewPreset(float yaw, float pitch)
 
 void SceneViewLayer::FocusOnSelected()
 {
-    auto handle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+    auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
     auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
     auto* meshComp = m_Scene.TryGetComponent<CHEngine::MeshComponent>(handle);
     if (!transformComp || !meshComp) return;
@@ -125,13 +125,13 @@ void SceneViewLayer::UpdateCameraInput()
     }
 
     // ── F → frame selected ───────────────────────────────────────────────────
-    if (CHEngine::Input::IsKeyPressed(CHEngine::Key::F) && m_SelectedObjectID != 0)
+    if (CHEngine::Input::IsKeyPressed(CHEngine::Key::F) && m_SelectedObjectID != boost::uuids::nil_uuid())
         FocusOnSelected();
 
     // ── Follow mode ──────────────────────────────────────────────────────────
-    if (m_FollowObject && m_SelectedObjectID != 0)
+    if (m_FollowObject && m_SelectedObjectID != boost::uuids::nil_uuid())
     {
-        auto handle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+        auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
         if (auto* transform = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
             m_OrbitTarget = transform->ObjectTransform.Position;
             ApplyOrbit();

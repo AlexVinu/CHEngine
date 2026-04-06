@@ -2,10 +2,54 @@
 
 #include <CHEngine/Render/RenderFacade.h>
 #include <FileSystem/FileSystem.h>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/nil_generator.hpp>
 
 #include <filesystem>
 #include <sstream>
+#include <cstddef>
 
+namespace {
+int HexToNibble(char c)
+{
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
+    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
+    return -1;
+}
+
+bool TryParseUUIDString(const std::string& input, CHEngine::UUID& outUUID)
+{
+    std::string s = input;
+    if (s.size() == 38 && s.front() == '{' && s.back() == '}')
+        s = s.substr(1, s.size() - 2);
+
+    std::string hex;
+    hex.reserve(32);
+    for (char c : s)
+    {
+        if (c == '-')
+            continue;
+        hex.push_back(c);
+    }
+
+    if (hex.size() != 32)
+        return false;
+
+    CHEngine::UUID parsed = boost::uuids::nil_uuid();
+    for (size_t i = 0; i < 16; ++i)
+    {
+        const int hi = HexToNibble(hex[i * 2]);
+        const int lo = HexToNibble(hex[i * 2 + 1]);
+        if (hi < 0 || lo < 0)
+            return false;
+        *(parsed.begin() + static_cast<std::ptrdiff_t>(i)) = static_cast<uint8_t>((hi << 4) | lo);
+    }
+
+    outUUID = parsed;
+    return true;
+}
+} // namespace
 
 // ============================================================================
 //  Scene serialization
@@ -37,7 +81,7 @@ void SceneViewLayer::LoadScene(const std::string& path)
 
     // Clear undo and selection
     m_UndoStack = UndoStack{};
-    m_SelectedObjectID = 0;
+    m_SelectedObjectID = boost::uuids::nil_uuid();
 
     CHEngine::SceneSerializer serializer(&m_Scene);
     auto* resources = CHEngine::Application::Get().GetRenderResources();
@@ -75,7 +119,7 @@ void SceneViewLayer::AutoSaveForRestart()
     oss << (m_FollowObject ? 1 : 0) << "\n";
 
     // Selected object
-    oss << m_SelectedObjectID << "\n";
+    oss << boost::uuids::to_string(m_SelectedObjectID) << "\n";
 
     // Window position and size — чтобы новое окно открылось на том же месте
     {
@@ -139,7 +183,10 @@ void SceneViewLayer::TryRestoreSession()
     m_FollowObject = (follow != 0);
 
     // Selected object
-    f >> m_SelectedObjectID;
+    std::string selectedUUIDStr;
+    f >> selectedUUIDStr;
+    if (!TryParseUUIDString(selectedUUIDStr, m_SelectedObjectID))
+        m_SelectedObjectID = boost::uuids::nil_uuid();
 
     // Восстанавливаем позицию и размер окна
     {
@@ -200,7 +247,7 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
     if (!transform)
         return;
     transform->ObjectTransform.Position = centroid;
-    const auto objectID = m_Scene.GetID(handle);
+    const auto objectID = m_Scene.GetUUID(handle);
     m_SelectedObjectID = objectID;
     m_UndoStack.PushImport(&m_Scene, objectID, &m_SelectedObjectID);
     FocusOnSelected();

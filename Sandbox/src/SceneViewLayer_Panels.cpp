@@ -8,6 +8,8 @@
 #include <cmath>
 #include <algorithm>
 #include <memory>
+#include <optional>
+#include <boost/container_hash/hash.hpp>
 
 // ============================================================================
 //  UI — Toolbar
@@ -217,7 +219,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
         auto handle = m_Scene.CreateLightEntity("Directional Light", CHEngine::LightType::Directional);
         if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
             tr->ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
-            m_SelectedObjectID = m_Scene.GetID(handle);
+            m_SelectedObjectID = m_Scene.GetUUID(handle);
         }
     }
     ImGui::SameLine(0, 4);
@@ -226,7 +228,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
         auto handle = m_Scene.CreateLightEntity("Point Light", CHEngine::LightType::Point);
         if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
             tr->ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
-            m_SelectedObjectID = m_Scene.GetID(handle);
+            m_SelectedObjectID = m_Scene.GetUUID(handle);
         }
     }
     if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
@@ -236,7 +238,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
             auto& tr = tcomp->ObjectTransform;
             tr.Position = { 0.0f, 5.0f, 0.0f };
             tr.Rotation = { -90.0f, 0.0f, 0.0f };
-            m_SelectedObjectID = m_Scene.GetID(handle);
+            m_SelectedObjectID = m_Scene.GetUUID(handle);
         }
     }
 
@@ -247,10 +249,10 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     ImGui::PopStyleColor();
     ImGui::Spacing();
 
-    CHEngine::TagComponentIDType deleteID = 0;
+    std::optional<CHEngine::UUID> deleteID;
     size_t objectCount = 0;
     m_Scene.ForEach<CHEngine::TagComponent>([&](CHEngine::EntityHandle handle,
-                                                CHEngine::TagComponentIDType objectID,
+                                                const CHEngine::UUID& objectID,
                                                 CHEngine::TagComponent& tag) {
         ++objectCount;
         bool isSelected = (objectID == m_SelectedObjectID);
@@ -269,8 +271,9 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
             else if (type == CHEngine::LightType::Spot)   icon = "[S] ";
         }
 
+        ImGui::PushID(static_cast<int>(boost::hash<CHEngine::UUID>{}(objectID)));
         bool opened = ImGui::TreeNodeEx(
-            (void*)(intptr_t)objectID, flags, "  %s%s", icon, tag.Name.c_str());
+            "##object", flags, "  %s%s", icon, tag.Name.c_str());
 
         if (ImGui::IsItemClicked())
             m_SelectedObjectID = objectID;
@@ -286,6 +289,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
             ImGui::EndPopup();
         }
         if (opened) ImGui::TreePop();
+        ImGui::PopID();
     });
 
     if (objectCount == 0)
@@ -296,10 +300,10 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
         ImGui::PopStyleColor();
     }
 
-    if (deleteID > 0)
+    if (deleteID.has_value())
     {
-        if (m_SelectedObjectID == deleteID) m_SelectedObjectID = 0;
-        m_Scene.RemoveObject(deleteID);
+        if (m_SelectedObjectID == deleteID.value()) m_SelectedObjectID = boost::uuids::nil_uuid();
+        m_Scene.RemoveObject(deleteID.value());
     }
 
     UIActive::EndPanel();
@@ -313,7 +317,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
     UIActive::BeginPanel("Properties", pos, size, 0, resetSize);
 
-    auto selectedHandle = m_Scene.TryGetEntityHandleByID(m_SelectedObjectID);
+    auto selectedHandle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
     if (!m_Scene.IsEntityHandleValid(selectedHandle))
     {
         ImGui::Spacing();
