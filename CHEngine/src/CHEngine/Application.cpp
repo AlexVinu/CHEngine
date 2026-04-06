@@ -6,6 +6,7 @@
 #include "Profiler.h"
 #include "CHEngine/Input/Input.h"
 #include "CHEngine/EngineConfig.h"
+#include "Physics/PhysicsFacade.h"
 #include "Render/RenderFacade.h"
 #include "UI/UIFacade.h"
 
@@ -103,9 +104,20 @@ namespace CHEngine {
         m_ModuleManager->LoadModule(moduleNames.Renderer);
         m_ModuleManager->LoadModule(moduleNames.ImGui);
 
+        bool physicsLoaded = false;
+#if defined(CHE_PLATFORM_WINDOWS)
+        physicsLoaded = m_ModuleManager->LoadModule("PhysicsPhysX.dll");
+#elif defined(CHE_PLATFORM_APPLE)
+        physicsLoaded = m_ModuleManager->LoadModule("libPhysicsPhysX.dylib");
+#else
+        physicsLoaded = m_ModuleManager->LoadModule("libPhysicsPhysX.so");
+#endif
+
         m_WindowFactory = m_ModuleManager->GetModule<IWindowFactory>(ModuleType::Window);
-        m_RenderFactory = m_ModuleManager->GetModule<IRenderFactory>(ModuleType::Render);
+        auto render_factory = m_ModuleManager->GetModule<IRenderFactory>(ModuleType::Render);
         m_ImGuiFactory  = m_ModuleManager->GetModule<IImGuiFactory>(ModuleType::ImGui);
+        if (physicsLoaded)
+            m_PhysicsFactory = m_ModuleManager->GetModule<IPhysicsFactory>(ModuleType::Physics);
 
         if (!m_WindowFactory)
         {
@@ -113,7 +125,7 @@ namespace CHEngine {
             m_Running = false;
             return;
         }
-        if (!m_RenderFactory)
+        if (!render_factory)
         {
             CHE_CORE_CRITICAL("Failed to load Renderer module! Cannot continue.");
             m_Running = false;
@@ -121,16 +133,18 @@ namespace CHEngine {
         }
         if (!m_ImGuiFactory)
             CHE_CORE_ERROR("Failed to load ImGuiOGL module! ImGui will be unavailable.");
+        if (!m_PhysicsFactory)
+            CHE_CORE_WARN("Failed to load Physics module! Physics will be unavailable.");
 
         // Все модули загружены успешно — фиксируем рендерер как рабочий.
         // Если движок до этой точки крашнулся, renderer_pending уже очищен
         // в LoadRendererPreference, и следующий запуск вернётся к прежнему renderer.
         EngineConfig::CommitRendererPreference(m_RenderAPIType);
 
-        m_RenderResources->Init(m_RenderFactory);
+        m_RenderResources->Init(render_factory);
 
         // ─── 2. Создать окно ────────────────────────────────────────────────
-        ERenderAPI render_api = m_RenderFactory->GetRenderApi();
+        ERenderAPI render_api = render_factory->GetRenderApi();
         m_Window = Scope<Window>(Window::Create(m_WindowFactory, render_api));
         m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
 
@@ -171,6 +185,12 @@ namespace CHEngine {
             String("shaders/basic.vert"),
             String("shaders/basic.frag")
         );
+
+        if (m_PhysicsFactory)
+        {
+            if (!PhysicsFacade::Init(m_PhysicsFactory))
+                CHE_CORE_WARN("Failed to initialize physics facade!");
+        }
     }
 
     Application::~Application()
@@ -178,6 +198,8 @@ namespace CHEngine {
         if (IImGuiLayer* layer = UIFacade::GetLayer(); layer && m_ImGuiFactory)
             m_ImGuiFactory->Delete(layer);
         UIFacade::SetLayer(nullptr);
+
+        PhysicsFacade::Shutdown();
 
         m_RenderResources->Shutdown();
     }
@@ -267,6 +289,8 @@ namespace CHEngine {
 
             for (Layer* layer : m_LayerStack)
                 layer->OnUpdate(dt);
+
+            PhysicsFacade::StepSimulation(dt);
 
             if (UIFacade::GetLayer())
             {
