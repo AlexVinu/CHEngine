@@ -2,15 +2,28 @@
 
 #include "PhysicsFacade.h"
 
-#include "CHEngine/Scene/Scene.h"
-
-#include <algorithm>
-#include <vector>
-
 namespace
 {
     CHEngine::IPhysicsFactory* g_PhysicsFactory = nullptr;
-    std::vector<CHEngine::Scene*> g_RegisteredScenes;
+
+    CHEngine::IPhysicsShape* CreateShape(CHEngine::IPhysicsFactory* factory,
+                                         const CHEngine::PhysicsColliderShapeDesc& shapeDesc)
+    {
+        if (!factory)
+            return nullptr;
+
+        switch (shapeDesc.Type)
+        {
+        case CHEngine::PhysicsColliderShapeType::Box:
+            return factory->CreateBoxShape(shapeDesc.HalfExtents);
+        case CHEngine::PhysicsColliderShapeType::Sphere:
+            return factory->CreateSphereShape(shapeDesc.Radius);
+        case CHEngine::PhysicsColliderShapeType::Capsule:
+            return factory->CreateCapsuleShape(shapeDesc.Radius, shapeDesc.HalfHeight);
+        default:
+            return nullptr;
+        }
+    }
 }
 
 namespace CHEngine
@@ -27,15 +40,6 @@ namespace CHEngine
 
     void PhysicsFacade::Shutdown()
     {
-        if (g_PhysicsFactory)
-            for (Scene* scene : g_RegisteredScenes)
-                if (scene)
-                {
-                    auto* phys_world = scene->m_PhysicsWorld.release();
-                    PhysicsFacade::Delete(phys_world);
-                }
-                    
-        g_RegisteredScenes.clear();
         g_PhysicsFactory = nullptr;
     }
 
@@ -51,53 +55,56 @@ namespace CHEngine
 
     IPhysicsWorld* PhysicsFacade::CreateWorld(const PhysicsWorldDesc& worldDesc)
     {
+        if (!g_PhysicsFactory)
+            return nullptr;
         return g_PhysicsFactory->CreateWorld(worldDesc);
     }
 
-    void PhysicsFacade::Delete(IPhysicsWorld* world)
+    void PhysicsFacade::DestroyWorld(IPhysicsWorld*& world)
     {
+        if (!g_PhysicsFactory || !world)
+            return;
+
         g_PhysicsFactory->Delete(world);
+        world = nullptr;
     }
 
-    void PhysicsFacade::StepSimulation(Timestep deltaTime)
+    bool PhysicsFacade::CreateRigidBodyRuntime(IPhysicsWorld* world,
+                                               RigidBody3DComponent& rigidBody,
+                                               const PhysicsTransform& initialTransform)
     {
-        if (deltaTime <= 0.0f)
-            return;
-        for (Scene* scene : g_RegisteredScenes)
+        if (!g_PhysicsFactory || !world)
+            return false;
+
+        DestroyRigidBodyRuntime(world, rigidBody);
+
+        IPhysicsShape* shape = CreateShape(g_PhysicsFactory, rigidBody.ShapeDesc);
+        if (!shape)
+            return false;
+
+        PhysicsRigidBodyDesc bodyDesc = rigidBody.BodyDesc;
+        bodyDesc.Transform = initialTransform;
+
+        IPhysicsBody* body = world->CreateRigidBody(bodyDesc, shape);
+        if (!body)
         {
-            scene->SyncTransformsToPhysics();
-
-            scene->m_PhysicsWorld->StepSimulation(deltaTime);
-
-            scene->SyncTransformsFromPhysics();
+            g_PhysicsFactory->Delete(shape);
+            return false;
         }
+
+        rigidBody.Shape = shape;
+        rigidBody.Body = body;
+        return true;
     }
 
-    void PhysicsFacade::RegisterScene(Scene* scene)
+    void PhysicsFacade::DestroyRigidBodyRuntime(IPhysicsWorld* world, RigidBody3DComponent& rigidBody)
     {
-        if (!scene)
-            return;
-        if (std::find(g_RegisteredScenes.begin(), g_RegisteredScenes.end(), scene) != g_RegisteredScenes.end())
-            return;
+        if (world && rigidBody.Body)
+            world->DestroyRigidBody(rigidBody.Body);
+        rigidBody.Body = nullptr;
 
-        IPhysicsWorld* world = PhysicsFacade::CreateWorld(scene->m_PhysicsWorldDesc);
-        CHE_ASSERT(world, "Physics World wasn`t made");
-
-        scene->m_PhysicsWorld.reset(world);
-
-        g_RegisteredScenes.push_back(scene);
-    }
-
-    void PhysicsFacade::UnregisterScene(Scene* scene)
-    {
-        if (!scene)
-            return;
-
-        g_RegisteredScenes.erase(
-            std::remove(g_RegisteredScenes.begin(), g_RegisteredScenes.end(), scene),
-            g_RegisteredScenes.end());
-
-        auto* phys_world = scene->m_PhysicsWorld.release();
-        PhysicsFacade::Delete(phys_world);
+        if (g_PhysicsFactory && rigidBody.Shape)
+            g_PhysicsFactory->Delete(rigidBody.Shape);
+        rigidBody.Shape = nullptr;
     }
 }

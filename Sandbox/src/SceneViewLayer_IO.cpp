@@ -62,7 +62,7 @@ void SceneViewLayer::SaveScene()
         "Save Scene", "scene.chscene", filters, 1, ".chscene");
     if (path.empty()) return;
 
-    CHEngine::SceneSerializer serializer(&m_Scene);
+    CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
     if (serializer.SaveToFile(path)) {
         m_RecentFiles.AddPath(path);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
@@ -83,7 +83,7 @@ void SceneViewLayer::LoadScene(const std::string& path)
     m_UndoStack = UndoStack{};
     m_SelectedObjectID = boost::uuids::nil_uuid();
 
-    CHEngine::SceneSerializer serializer(&m_Scene);
+    CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
     auto* resources = CHEngine::Application::Get().GetRenderResources();
     if (resources && serializer.LoadFromFile(filePath, *resources)) {
         m_RecentFiles.AddPath(filePath);
@@ -98,7 +98,7 @@ void SceneViewLayer::LoadScene(const std::string& path)
 void SceneViewLayer::AutoSaveForRestart()
 {
     // 1. Сцена (объекты, источники света)
-    CHEngine::SceneSerializer serializer(&m_Scene);
+    CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
     if (serializer.SaveToFile(k_SessionFile))
         CHE_CORE_INFO("SceneViewLayer: scene autosaved to {}", k_SessionFile);
     else
@@ -145,7 +145,7 @@ void SceneViewLayer::TryRestoreSession()
 {
     // 1. Восстанавливаем сцену
     if (std::filesystem::exists(k_SessionFile)) {
-        CHEngine::SceneSerializer serializer(&m_Scene);
+        CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
         auto* resources = CHEngine::Application::Get().GetRenderResources();
         if (resources && serializer.LoadFromFile(k_SessionFile, *resources))
             CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
@@ -242,7 +242,7 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
         }
     }
 
-    auto handle = m_Scene.CreateModelEntity(result.name, std::move(result.meshes), filepath);
+    auto handle = CHEngine::SceneSpawner::CreateModelEntity(m_Scene, result.name, std::move(result.meshes), filepath);
     auto* transform = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
     if (!transform)
         return;

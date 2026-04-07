@@ -216,7 +216,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     float halfW = (ImGui::GetContentRegionAvail().x - 4.0f) * 0.5f;
     if (ImGui::Button("+ Dir Light", ImVec2(halfW, 0.0f)))
     {
-        auto handle = m_Scene.CreateLightEntity("Directional Light", CHEngine::LightType::Directional);
+        auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Directional Light", CHEngine::LightType::Directional);
         if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
             tr->ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
             m_SelectedObjectID = m_Scene.GetUUID(handle);
@@ -225,7 +225,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     ImGui::SameLine(0, 4);
     if (ImGui::Button("+ Point Light", ImVec2(halfW, 0.0f)))
     {
-        auto handle = m_Scene.CreateLightEntity("Point Light", CHEngine::LightType::Point);
+        auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Point Light", CHEngine::LightType::Point);
         if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
             tr->ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
             m_SelectedObjectID = m_Scene.GetUUID(handle);
@@ -233,7 +233,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     }
     if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
     {
-        auto handle = m_Scene.CreateLightEntity("Spot Light", CHEngine::LightType::Spot);
+        auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Spot Light", CHEngine::LightType::Spot);
         if (auto* tcomp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
             auto& tr = tcomp->ObjectTransform;
             tr.Position = { 0.0f, 5.0f, 0.0f };

@@ -6,10 +6,11 @@ namespace CHEngine {
 
 // Forward declare RenderResourceManager to avoid heavy include in header
 class RenderResourceManager;
+class World;
 
 class CHENGINE_API SceneSerializer {
 public:
-    explicit SceneSerializer(Scene* scene);
+    explicit SceneSerializer(Scene* scene, World* world = nullptr);
 
     // Saves scene to .chscene JSON file. Returns true on success.
     bool SaveToFile(const std::string& path);
@@ -20,6 +21,7 @@ public:
 
 private:
     Scene* m_Scene;
+    World* m_World;
 };
 
 } // namespace CHEngine

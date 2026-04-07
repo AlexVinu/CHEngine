@@ -10,7 +10,6 @@
 #include <boost/container_hash/hash.hpp>
 #include "Components.h"
 #include "Memory/HandlePool.h"
-#include "Physics/IPhysicsWorld.h"
 
 
 #include <entt/entt.hpp>
@@ -18,8 +17,6 @@
 namespace CHEngine {
 
 	class Entity;
-	class PhysicsFacade;
-
 	struct EntityTag {};
 	using EntityHandle = Handle<EntityTag>;
 
@@ -36,9 +33,6 @@ public:
 
 	EntityHandle CreateEntity(const std::string& name = "Object");
 	EntityHandle CreateEntity(const std::string& name, const UUID& uuid);
-	EntityHandle CreateModelEntity(const std::string& name, std::vector<Mesh>&& meshes,
-	                               const std::string& sourcePath = "");
-	EntityHandle CreateLightEntity(const std::string& name, LightType type);
 	void DestroyEntity(EntityHandle entityHandle);
 	EntityHandle TryGetEntityHandleByUUID(const UUID& uuid) const;
 	UUID GetUUID(EntityHandle entityHandle) const;
@@ -66,51 +60,12 @@ public:
 	void RemoveObject(const UUID& uuid);
 	void Clear();
 
-	void OnUpdateRuntime(Timestep ts);
-	//void OnUpdateSimulation(Timestep ts, EditorCamera& camera);
-	//void OnUpdateEditor(Timestep ts, EditorCamera& camera);
-
-	void SetPhysicsWorldDesc(const PhysicsWorldDesc& worldDesc);
-	const PhysicsWorldDesc& GetPhysicsWorldDesc() const { return m_PhysicsWorldDesc; }
-	bool InitPhysicsWorld();
-	bool HasPhysicsWorld() const { return m_PhysicsWorld != nullptr; }
-
-	EntityHandle CreatePhysicsEntity(const std::string& name,
-	                                 const PhysicsRigidBodyDesc& bodyDesc,
-	                                 const IPhysicsShape* shape,
-	                                 RigidBodySyncMode syncMode = RigidBodySyncMode::Auto);
-	IPhysicsBody* AttachRigidBody(EntityHandle entityHandle,
-	                              const PhysicsRigidBodyDesc& bodyDesc,
-	                              const IPhysicsShape* shape,
-	                              RigidBodySyncMode syncMode = RigidBodySyncMode::Auto);
-	IPhysicsBody* AttachRigidBody(const UUID& uuid,
-	                              const PhysicsRigidBodyDesc& bodyDesc,
-	                              const IPhysicsShape* shape,
-	                              RigidBodySyncMode syncMode = RigidBodySyncMode::Auto);
-	void DetachRigidBody(EntityHandle entityHandle);
-	void DetachRigidBody(const UUID& uuid);
-
-	IPhysicsBody* CreateRigidBody(const PhysicsRigidBodyDesc& bodyDesc, const IPhysicsShape* shape);
-	void DestroyRigidBody(IPhysicsBody* body);
-	bool Raycast(const glm::vec3& origin, const glm::vec3& direction, float maxDistance, PhysicsRaycastHit& outHit);
-	bool OverlapSphere(const glm::vec3& center, float radius, PhysicsOverlapResult& outResult);
-	bool OverlapBox(const glm::vec3& center, const glm::vec3& halfExtents,
-	                const glm::quat& rotation, PhysicsOverlapResult& outResult);
-	bool OverlapCapsule(const glm::vec3& center, float radius, float halfHeight,
-	                    const glm::quat& rotation, PhysicsOverlapResult& outResult);
-	void SetGravity(const glm::vec3& gravity);
-	void SetContactListener(IPhysicsContactListener* listener);
-
 	// Returns the source file path (mesh import path) stored in ECS for the given object ID.
 	// Returns empty string if not found. Avoids exposing entt registry publicly.
 	std::string GetMeshSourcePath(const UUID& objectUUID) const;
 
-	bool IsRunning() const { return m_IsRunning; }
-	bool IsPaused() const { return m_IsPaused; }
-
 private:
 	friend Entity;
-	friend PhysicsFacade;
 
 	struct SceneRegistry {
 		entt::registry Registry;
@@ -121,17 +76,8 @@ private:
 	void OnEntityDestroyed(EntityHandle entityHandle);
 	bool IsEnttEntityValid(entt::entity entity) const;
 	bool IsEntityBoundToHandle(entt::entity entity) const;
-	void DestroyAttachedRigidBody(entt::entity entity);
-
-	void SyncTransformsToPhysics();
-	void SyncTransformsFromPhysics();
-
-	bool m_IsRunning = false;
-	bool m_IsPaused = false;
 
 	Scope<SceneRegistry> m_SceneRegistry;
-	PhysicsWorldDesc m_PhysicsWorldDesc{};
-	Scope<IPhysicsWorld> m_PhysicsWorld;
 
 	template<typename T, typename... Args>
 	T& AddComponent(entt::entity entity, Args&&... args);

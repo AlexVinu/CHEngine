@@ -1,6 +1,7 @@
 #include "SceneViewLayer.h"
 
 #include <CHEngine/Render/RenderFacade.h>
+#include <CHEngine/Scene/Entity.h>
 
 
 // ============================================================================
@@ -9,6 +10,7 @@
 
 SceneViewLayer::SceneViewLayer()
     : Layer("SceneView")
+    , m_World(&m_Scene)
     , m_Camera(45.0f, 0.1f, 500.0f)
 {
     UIActive::SetTheme(AppTheme::RetroOS);
@@ -41,10 +43,50 @@ SceneViewLayer::SceneViewLayer()
 //  Layer overrides
 // ============================================================================
 
-void SceneViewLayer::OnUpdate(CHEngine::Timestep)
+void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
-    RenderScene();
+    SyncEditorCameraToECS();
+    RenderScene(dt);
+}
+
+void SceneViewLayer::SyncEditorCameraToECS()
+{
+    if (!m_Scene.IsEntityHandleValid(m_EditorCameraEntity))
+    {
+        m_EditorCameraEntity = m_Scene.CreateEntity("EditorCamera");
+        if (auto* entity = m_Scene.TryGetEntity(m_EditorCameraEntity))
+        {
+            if (!entity->HasComponent<CHEngine::CameraComponent>())
+                entity->AddComponent<CHEngine::CameraComponent>(CHEngine::CameraComponent{});
+        }
+    }
+
+    auto* cameraComp = m_Scene.TryGetComponent<CHEngine::CameraComponent>(m_EditorCameraEntity);
+    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(m_EditorCameraEntity);
+    if (!cameraComp || !transformComp)
+        return;
+
+    cameraComp->FOV = m_Camera.GetFOV();
+    cameraComp->NearClip = 0.1f;
+    cameraComp->FarClip = 500.0f;
+    cameraComp->AspectRatio = m_AspectRatio;
+    cameraComp->Active = true;
+    cameraComp->Primary = true;
+
+    CHEngine::Transform cameraTransform = cameraComp->CameraTransform;
+    cameraTransform.Position = m_Camera.GetPosition();
+    cameraTransform.Rotation.x = m_Camera.GetPitch();
+    cameraTransform.Rotation.y = m_Camera.GetYaw();
+    cameraTransform.Rotation.z = 0.0f;
+    cameraTransform.Scale = { 1.0f, 1.0f, 1.0f };
+    cameraComp->CameraTransform = cameraTransform;
+    transformComp->ObjectTransform = cameraTransform;
+}
+
+void SceneViewLayer::OnEvent(CHEngine::Event& e)
+{
+    m_World.OnEvent(e);
 }
 
 void SceneViewLayer::OnImGuiRender()

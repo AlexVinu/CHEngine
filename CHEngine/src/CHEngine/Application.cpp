@@ -191,6 +191,8 @@ namespace CHEngine {
             if (!PhysicsFacade::Init(m_PhysicsFactory))
                 CHE_CORE_WARN("Failed to initialize physics facade!");
         }
+
+        m_RuntimeWorlds.emplace_back();
     }
 
     Application::~Application()
@@ -219,6 +221,16 @@ namespace CHEngine {
         EventDispatcher dispatcher(e);
         dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(OnWindowClosed));
         dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FN(OnWindowResized));
+
+        if (!e.Handled)
+        {
+            for (World& world : m_RuntimeWorlds)
+            {
+                world.OnEvent(e);
+                if (e.Handled)
+                    break;
+            }
+        }
 
         for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
         {
@@ -290,7 +302,8 @@ namespace CHEngine {
             for (Layer* layer : m_LayerStack)
                 layer->OnUpdate(dt);
 
-            PhysicsFacade::StepSimulation(dt);
+            for (World& world : m_RuntimeWorlds)
+                world.update(dt);
 
             if (UIFacade::GetLayer())
             {
