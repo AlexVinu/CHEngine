@@ -1,20 +1,10 @@
 #include "SceneViewLayer.h"
 
-#include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Render/RenderFacade.h>
-#include <Render/IShader.h>
 #include <Render/UniformBlocks.h>
 
 #include <glm/gtc/type_ptr.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <cmath>
 #include <cstring>
-#include <memory>
-
-// ── Дефолтный ambient (если нет источников — чтоб сцена не была чёрной) ───
-namespace DefaultLight {
-    constexpr float AmbR = 0.15f, AmbG = 0.15f, AmbB = 0.2f;
-}
 
 // ── Вспомогательная функция: Transform → float[16] matrix ─────────────────
 static void TransformToMatrix(const CHEngine::Transform& tr, float out[16])
@@ -23,18 +13,6 @@ static void TransformToMatrix(const CHEngine::Transform& tr, float out[16])
     float r[3] = { tr.Rotation.x, tr.Rotation.y, tr.Rotation.z };
     float s[3] = { tr.Scale.x,    tr.Scale.y,    tr.Scale.z    };
     ImGuizmo::RecomposeMatrixFromComponents(t, r, s, out);
-}
-
-// ── Направление "вперёд" из эйлеровых углов (градусы) ─────────────────────
-static glm::vec3 ForwardFromRotation(const glm::vec3& eulerDeg)
-{
-    float pitch = glm::radians(eulerDeg.x);
-    float yaw   = glm::radians(eulerDeg.y);
-    return glm::normalize(glm::vec3(
-        std::cos(pitch) * std::sin(yaw),
-       -std::sin(pitch),
-        std::cos(pitch) * std::cos(yaw)
-    ));
 }
 
 // ============================================================================
@@ -69,7 +47,7 @@ void SceneViewLayer::BuildGrid()
 //  Rendering
 // ============================================================================
 
-void SceneViewLayer::RenderScene()
+void SceneViewLayer::RenderScene(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
 
@@ -109,131 +87,8 @@ void SceneViewLayer::RenderScene()
         }
     }
 
-    // ── Meshes ────────────────────────────────────────────────────────────
-    // ── Заполняем LightingUBO ─────────────────────────────────────────────
-    CHEngine::UBOLighting lightingUBO;
-    lightingUBO.AmbientColor[0] = DefaultLight::AmbR;
-    lightingUBO.AmbientColor[1] = DefaultLight::AmbG;
-    lightingUBO.AmbientColor[2] = DefaultLight::AmbB;
-    lightingUBO.AmbientColor[3] = 0.0f;
-
-    int lightCount = 0;
-
-    m_Scene.ForEach<CHEngine::LightComponent>(
-        [&](CHEngine::EntityHandle handle, const CHEngine::UUID&,
-            CHEngine::LightComponent& lightComp) {
-        const auto* visible = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(handle);
-        if (!visible || !visible->Visible) return;
-        auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
-        if (!transformComp) return;
-        auto& transform = transformComp->ObjectTransform;
-        auto& light = lightComp.LightData;
-        if (lightCount >= CHEngine::MaxUBOLights) return;
-        if (light.Type == CHEngine::LightType::None) return;
-        auto& L     = lightingUBO.Lights[lightCount];
-
-        L.Type = static_cast<int32_t>(light.Type);
-
-        L.Position[0] = transform.Position.x;
-        L.Position[1] = transform.Position.y;
-        L.Position[2] = transform.Position.z;
-        L.Position[3] = 0.0f;
-
-        glm::vec3 dir = ForwardFromRotation(transform.Rotation);
-        L.Direction[0] = dir.x;
-        L.Direction[1] = dir.y;
-        L.Direction[2] = dir.z;
-        L.Direction[3] = 0.0f;
-
-        L.ColorIntensity[0] = light.Color.r;
-        L.ColorIntensity[1] = light.Color.g;
-        L.ColorIntensity[2] = light.Color.b;
-        L.ColorIntensity[3] = light.Intensity;
-
-        L.Range     = light.Range;
-        L.InnerCone = std::cos(glm::radians(light.InnerCone));
-        L.OuterCone = std::cos(glm::radians(light.OuterCone));
-
-        ++lightCount;
-    });
-
-    // Если нет источников — добавляем дефолтный directional
-    if (lightCount == 0)
-    {
-        auto& L = lightingUBO.Lights[0];
-        L.Type = 0;
-        L.Direction[0] = -0.3f;
-        L.Direction[1] = -1.0f;
-        L.Direction[2] = -0.5f;
-        L.Direction[3] = 0.0f;
-        L.ColorIntensity[0] = 1.0f;
-        L.ColorIntensity[1] = 1.0f;
-        L.ColorIntensity[2] = 0.95f;
-        L.ColorIntensity[3] = 1.0f;
-        lightCount = 1;
-    }
-
-    lightingUBO.NumLights = lightCount;
-
-    // ── Рисуем объекты (переключение шейдера по материалу) ────────────────
-    CHEngine::ShaderHandle activeMeshShader{};
-    m_Scene.ForEach<CHEngine::MeshComponent>(
-        [&](CHEngine::EntityHandle handle, const CHEngine::UUID& objectID,
-            CHEngine::MeshComponent& meshComp) {
-        const auto* visible = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(handle);
-        if (!visible || !visible->Visible) return;
-        auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
-        auto* colorComp = m_Scene.TryGetComponent<CHEngine::ColorComponent>(handle);
-        if (!transformComp || !colorComp) return;
-        auto& transform = transformComp->ObjectTransform;
-        auto& color = colorComp->Color;
-
-        float raw[16];
-        TransformToMatrix(transform, raw);
-        glm::mat4 model     = glm::make_mat4(raw);
-        glm::mat4 normalMat = glm::transpose(glm::inverse(model));
-
-        // Заполняем ObjectUBO
-        CHEngine::UBOObject objectUBO;
-        std::memcpy(objectUBO.Transform,    glm::value_ptr(model),     64);
-        std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), 64);
-        objectUBO.Color[0] = color.r;
-        objectUBO.Color[1] = color.g;
-        objectUBO.Color[2] = color.b;
-        objectUBO.Color[3] = color.a;
-        objectUBO.Selected = (objectID == m_SelectedObjectID) ? 1.0f : 0.0f;
-
-        for (auto& mesh : meshComp.Meshes)
-        {
-            if (!mesh.Mat)
-                mesh.Mat = CHEngine::MaterialInstance::FromBase(
-                    std::make_shared<CHEngine::Material>(m_MeshShader));
-
-            CHEngine::ShaderHandle h = mesh.Mat->GetMaterial()->GetShaderHandle();
-            CHEngine::IShader* sh = CHEngine::RenderFacade::GetShader(h);
-            if (!sh)
-                continue;
-
-            if (h != activeMeshShader)
-            {
-                sh->Bind();
-                sh->SetUniformBlock(CHEngine::EUniformBlock::Camera,
-                                    &cameraUBO, sizeof(cameraUBO));
-                sh->SetUniformBlock(CHEngine::EUniformBlock::Lighting,
-                                    &lightingUBO, sizeof(lightingUBO));
-                activeMeshShader = h;
-            }
-
-            sh->SetUniformBlock(CHEngine::EUniformBlock::Object,
-                                &objectUBO, sizeof(objectUBO));
-
-            mesh.Mat->ApplyMaterial();
-
-            auto vao = mesh.GetVertexArray();
-            if (vao.IsValid())
-                CHEngine::RenderFacade::Submit(vao, model);
-        }
-    });
+    // Mesh-pass moved to ECS Presentation phase (RenderSystem).
+    m_World.update(dt);
 
     // ── Unbind FBO — restore default framebuffer ─────────────────────────
     if (fbo) fbo->Unbind();

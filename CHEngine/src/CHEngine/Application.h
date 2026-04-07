@@ -19,7 +19,9 @@
 #include "RenderData.h"
 
 #include "Timestep.h"
+#include "World/World.h"
 #include <chrono>
+#include <vector>
 
 namespace CHEngine {
 
@@ -82,6 +84,7 @@ namespace CHEngine {
         bool            m_RestartRequested = false;
 
         Scope<Window> m_Window;
+        std::vector<World> m_RuntimeWorlds;
 
         // Delta time
         std::chrono::steady_clock::time_point m_LastFrameTime;

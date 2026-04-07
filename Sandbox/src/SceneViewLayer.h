@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CHEngine.h>
+#include <CHEngine/World/World.h>
 #include <ImGuizmo.h>
 #include "UIThemeActive.h"
 #include "UndoStack.h"
@@ -36,9 +37,9 @@ class SceneViewLayer : public CHEngine::Layer
 public:
     SceneViewLayer();
 
-    void OnUpdate(CHEngine::Timestep dt)      override;
+    void OnUpdate(CHEngine::Timestep dt) override;
     void OnImGuiRender() override;
-    void OnEvent(CHEngine::Event& /*e*/) override {}
+    void OnEvent(CHEngine::Event& e) override;
 
 private:
     // ── Orbit camera ─────────────────────────────────────────────────────────
@@ -51,7 +52,8 @@ private:
     void BuildGrid();
 
     // ── Rendering ────────────────────────────────────────────────────────────
-    void RenderScene();
+    void SyncEditorCameraToECS();
+    void RenderScene(CHEngine::Timestep dt);
 
     // ── UI panels ────────────────────────────────────────────────────────────
     void DrawToolbar      (ImVec2 pos, ImVec2 size);
@@ -82,6 +84,7 @@ private:
 
     // Scene
     CHEngine::Scene             m_Scene;
+    CHEngine::World             m_World;
     CHEngine::Camera            m_Camera;
     CHEngine::ShaderHandle      m_MeshShader;
     CHEngine::ShaderHandle      m_GridShader;
@@ -120,6 +123,7 @@ private:
 
     // Recent files
     CHEngine::RecentFiles   m_RecentFiles;
+    CHEngine::EntityHandle  m_EditorCameraEntity{};
 
     // Content Browser (bottom panel)
     ContentBrowserPanel     m_ContentBrowser;

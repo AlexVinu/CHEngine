@@ -3,11 +3,10 @@
 #include <Core.h>
 
 #include "Physics/IPhysicsFactory.h"
+#include "CHEngine/Scene/Components.h"
 
 namespace CHEngine
 {
-    class Scene;
-
     class CHENGINE_API PhysicsFacade
     {
     public:
@@ -18,10 +17,12 @@ namespace CHEngine
         static IPhysicsFactory* GetFactory();
 
         static IPhysicsWorld* CreateWorld(const PhysicsWorldDesc& worldDesc = {});
-        static void Delete(IPhysicsWorld* world);
-        static void StepSimulation(Timestep deltaTime);
-        static void RegisterScene(Scene* scene);
-        static void UnregisterScene(Scene* scene);
+        static void DestroyWorld(IPhysicsWorld*& world);
+
+        static bool CreateRigidBodyRuntime(IPhysicsWorld* world,
+                                           RigidBody3DComponent& rigidBody,
+                                           const PhysicsTransform& initialTransform);
+        static void DestroyRigidBodyRuntime(IPhysicsWorld* world, RigidBody3DComponent& rigidBody);
 
     private:
         PhysicsFacade() = delete;

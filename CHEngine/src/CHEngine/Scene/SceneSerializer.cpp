@@ -13,6 +13,7 @@
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Render/RenderResourceManager.h>
 #include <CHEngine/Scene/Components.h>
+#include <CHEngine/World/World.h>
 #include "Entity.h"
 #include <Log/Log.h>
 #include <glm/glm.hpp>
@@ -22,7 +23,7 @@ using json = nlohmann::json;
 namespace CHEngine {
 
 namespace {
-constexpr int kSceneFormatVersion = 2;
+constexpr int kSceneFormatVersion = 3;
 
 int HexToNibble(char c)
 {
@@ -148,9 +149,64 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat, RenderResource
     }
 }
 
+json SerializeRigidBody(const RigidBody3DComponent& rigidBody)
+{
+    json shape;
+    shape["type"] = static_cast<int>(rigidBody.ShapeDesc.Type);
+    shape["halfExtents"] = {
+        rigidBody.ShapeDesc.HalfExtents.x,
+        rigidBody.ShapeDesc.HalfExtents.y,
+        rigidBody.ShapeDesc.HalfExtents.z
+    };
+    shape["radius"] = rigidBody.ShapeDesc.Radius;
+    shape["halfHeight"] = rigidBody.ShapeDesc.HalfHeight;
+
+    json rigidBodyJson;
+    rigidBodyJson["syncMode"] = static_cast<int>(rigidBody.SyncMode);
+    rigidBodyJson["bodyType"] = static_cast<int>(rigidBody.BodyDesc.Type);
+    rigidBodyJson["mass"] = rigidBody.BodyDesc.Mass;
+    rigidBodyJson["linearDamping"] = rigidBody.BodyDesc.LinearDamping;
+    rigidBodyJson["angularDamping"] = rigidBody.BodyDesc.AngularDamping;
+    rigidBodyJson["enableGravity"] = rigidBody.BodyDesc.EnableGravity;
+    rigidBodyJson["staticFriction"] = rigidBody.BodyDesc.StaticFriction;
+    rigidBodyJson["dynamicFriction"] = rigidBody.BodyDesc.DynamicFriction;
+    rigidBodyJson["restitution"] = rigidBody.BodyDesc.Restitution;
+    rigidBodyJson["shape"] = std::move(shape);
+    return rigidBodyJson;
+}
+
+RigidBody3DComponent DeserializeRigidBody(const json& rbj)
+{
+    RigidBody3DComponent rigidBody{};
+    rigidBody.SyncMode = static_cast<RigidBodySyncMode>(rbj.value("syncMode", static_cast<int>(RigidBodySyncMode::Auto)));
+    rigidBody.BodyDesc.Type = static_cast<PhysicsBodyType>(rbj.value("bodyType", static_cast<int>(PhysicsBodyType::Dynamic)));
+    rigidBody.BodyDesc.Mass = rbj.value("mass", 1.0f);
+    rigidBody.BodyDesc.LinearDamping = rbj.value("linearDamping", 0.0f);
+    rigidBody.BodyDesc.AngularDamping = rbj.value("angularDamping", 0.05f);
+    rigidBody.BodyDesc.EnableGravity = rbj.value("enableGravity", true);
+    rigidBody.BodyDesc.StaticFriction = rbj.value("staticFriction", 0.5f);
+    rigidBody.BodyDesc.DynamicFriction = rbj.value("dynamicFriction", 0.5f);
+    rigidBody.BodyDesc.Restitution = rbj.value("restitution", 0.1f);
+
+    if (rbj.contains("shape") && rbj["shape"].is_object()) {
+        const auto& shapeJson = rbj["shape"];
+        rigidBody.ShapeDesc.Type = static_cast<PhysicsColliderShapeType>(
+            shapeJson.value("type", static_cast<int>(PhysicsColliderShapeType::Box)));
+        if (shapeJson.contains("halfExtents") && shapeJson["halfExtents"].is_array() && shapeJson["halfExtents"].size() >= 3) {
+            rigidBody.ShapeDesc.HalfExtents.x = shapeJson["halfExtents"][0].get<float>();
+            rigidBody.ShapeDesc.HalfExtents.y = shapeJson["halfExtents"][1].get<float>();
+            rigidBody.ShapeDesc.HalfExtents.z = shapeJson["halfExtents"][2].get<float>();
+        }
+        rigidBody.ShapeDesc.Radius = shapeJson.value("radius", 0.5f);
+        rigidBody.ShapeDesc.HalfHeight = shapeJson.value("halfHeight", 0.5f);
+    }
+
+    return rigidBody;
+}
+
 } // namespace
 
-SceneSerializer::SceneSerializer(Scene* scene) : m_Scene(scene) {}
+SceneSerializer::SceneSerializer(Scene* scene, World* world) : m_Scene(scene), m_World(world) {}
 
 bool SceneSerializer::SaveToFile(const std::string& path) {
     json j;
@@ -210,6 +266,9 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
             o["light"] = light;
         }
 
+        if (const auto* rigidBody = m_Scene->TryGetComponent<RigidBody3DComponent>(handle))
+            o["rigidBody"] = SerializeRigidBody(*rigidBody);
+
         j["objects"].push_back(o);
     });
 
@@ -246,8 +305,8 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         return false;
     }
     const int version = j["version"].get<int>();
-    if (version != kSceneFormatVersion) {
-        CHE_CORE_ERROR("SceneSerializer: unsupported scene format version {} (expected {})",
+    if (version != 2 && version != kSceneFormatVersion) {
+        CHE_CORE_ERROR("SceneSerializer: unsupported scene format version {} (expected 2 or {})",
             version, kSceneFormatVersion);
         return false;
     }
@@ -406,7 +465,24 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         } else if (obj->HasComponent<LightComponent>()) {
             obj->RemoveComponent<LightComponent>();
         }
+
+        if (version >= 3 && o.contains("rigidBody") && o["rigidBody"].is_object()) {
+            const RigidBody3DComponent rigidBody = DeserializeRigidBody(o["rigidBody"]);
+            if (obj->HasComponent<RigidBody3DComponent>()) {
+                if (m_World)
+                    m_World->DestroyRigidBodyRuntime(handle);
+                obj->RemoveComponent<RigidBody3DComponent>();
+            }
+            obj->AddComponent<RigidBody3DComponent>(RigidBody3DComponent{ rigidBody });
+        } else if (obj->HasComponent<RigidBody3DComponent>()) {
+            if (m_World)
+                m_World->DestroyRigidBodyRuntime(handle);
+            obj->RemoveComponent<RigidBody3DComponent>();
+        }
     }
+
+    if (m_World)
+        m_World->RebuildPhysicsRuntime();
 
     CHE_CORE_INFO("Scene loaded: {}", path);
     return true;

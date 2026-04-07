@@ -7,11 +7,13 @@
 #include "CHEngine/Mesh/Mesh.h"
 #include "Light.h"
 #include "Transform.h"
-#include "Physics/IPhysicsBody.h"
+#include "Physics/PhysicsTypes.h"
 
 namespace CHEngine {
 
     using UUID = boost::uuids::uuid;
+    class IPhysicsBody;
+    class IPhysicsShape;
 
     struct IDComponent
     {
@@ -55,6 +57,17 @@ namespace CHEngine {
         Light LightData;
     };
 
+    struct CameraComponent
+    {
+        Transform CameraTransform;
+        float FOV = 45.0f;
+        float NearClip = 0.1f;
+        float FarClip = 1000.0f;
+        float AspectRatio = 16.0f / 9.0f;
+        bool Active = true;
+        bool Primary = true;
+    };
+
     // Physics
     enum class RigidBodySyncMode : uint8_t
     {
@@ -64,9 +77,39 @@ namespace CHEngine {
         ReadWrite = 3
     };
 
+    enum class PhysicsColliderShapeType : uint8_t
+    {
+        Box = 0,
+        Sphere = 1,
+        Capsule = 2
+    };
+
+    struct PhysicsColliderShapeDesc
+    {
+        PhysicsColliderShapeType Type = PhysicsColliderShapeType::Box;
+        glm::vec3 HalfExtents = { 0.5f, 0.5f, 0.5f };
+        float Radius = 0.5f;
+        float HalfHeight = 0.5f;
+    };
+
     struct RigidBody3DComponent
     {
-        IPhysicsBody* Body = nullptr;
+        PhysicsRigidBodyDesc BodyDesc{};
+        PhysicsColliderShapeDesc ShapeDesc{};
         RigidBodySyncMode SyncMode = RigidBodySyncMode::Auto;
+
+        IPhysicsBody* Body = nullptr;
+        IPhysicsShape* Shape = nullptr;
+    };
+
+    struct TransformDirtyComponent
+    {
+        bool Dirty = true;
+    };
+
+    struct LifetimeComponent
+    {
+        float RemainingSeconds = 0.0f;
+        bool DestroyOnExpire = true;
     };
 }
