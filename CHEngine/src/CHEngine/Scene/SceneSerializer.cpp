@@ -488,4 +488,216 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
     return true;
 }
 
+// ── In-memory snapshot ────────────────────────────────────────────────────────
+
+nlohmann::json SceneSerializer::SerializeToJson()
+{
+    json j;
+    j["version"] = kSceneFormatVersion;
+    j["objects"]  = json::array();
+
+    m_Scene->ForEach<TagComponent>([&](EntityHandle handle, const UUID&, TagComponent& tag) {
+        auto* idComp        = m_Scene->TryGetComponent<IDComponent>(handle);
+        auto* transformComp = m_Scene->TryGetComponent<TransformComponent>(handle);
+        auto* meshPtr       = m_Scene->TryGetComponent<MeshComponent>(handle);
+        auto* colorPtr      = m_Scene->TryGetComponent<ColorComponent>(handle);
+        auto* visibilityPtr = m_Scene->TryGetComponent<VisibilityComponent>(handle);
+        if (!idComp || !transformComp || !meshPtr || !colorPtr || !visibilityPtr)
+            return;
+
+        auto& mesh       = *meshPtr;
+        auto& color      = *colorPtr;
+        auto& visibility = *visibilityPtr;
+        auto& transform  = transformComp->ObjectTransform;
+
+        json o;
+        o["name"]    = tag.Name;
+        o["uuid"]    = boost::uuids::to_string(idComp->Value);
+        o["visible"] = visibility.Visible;
+        o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
+        o["position"] = { transform.Position.x, transform.Position.y, transform.Position.z };
+        o["rotation"] = { transform.Rotation.x, transform.Rotation.y, transform.Rotation.z };
+        o["scale"]    = { transform.Scale.x,    transform.Scale.y,    transform.Scale.z    };
+        o["meshPath"] = mesh.SourcePath;
+
+        json materials = json::array();
+        for (auto& meshItem : mesh.Meshes)
+        {
+            if (!meshItem.Mat)
+                meshItem.Mat = MaterialInstance::FromBase(
+                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+            json matObj;
+            matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
+            matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
+            matObj["shininess"]     = meshItem.Mat->Shininess;
+            matObj["specularScale"] = meshItem.Mat->SpecularScale;
+            materials.push_back(matObj);
+        }
+        o["materials"] = materials;
+
+        if (const auto* lightComp = m_Scene->TryGetComponent<LightComponent>(handle)) {
+            const auto& ld = lightComp->LightData;
+            json light;
+            light["type"]      = static_cast<int>(ld.Type);
+            light["color"]     = { ld.Color.r, ld.Color.g, ld.Color.b };
+            light["intensity"] = ld.Intensity;
+            light["range"]     = ld.Range;
+            light["innerCone"] = ld.InnerCone;
+            light["outerCone"] = ld.OuterCone;
+            o["light"] = light;
+        }
+
+        if (const auto* rigidBody = m_Scene->TryGetComponent<RigidBody3DComponent>(handle))
+            o["rigidBody"] = SerializeRigidBody(*rigidBody);
+
+        j["objects"].push_back(o);
+    });
+
+    return j;
+}
+
+bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources)
+{
+    if (!data.is_object() || !data.contains("objects") || !data["objects"].is_array())
+        return false;
+
+    const int version = data.value("version", kSceneFormatVersion);
+    if (version != 2 && version != kSceneFormatVersion)
+        return false;
+
+    // Очистить GPU-ресурсы текущей сцены
+    m_Scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
+        for (auto& mesh : meshComp.Meshes) {
+            if (mesh.GetVertexArray().IsValid())
+                resources.DestroyVertexArray(mesh.GetVertexArray());
+        }
+        DestroyUniqueMeshTextures(meshComp, resources);
+    });
+    m_Scene->Clear();
+
+    auto readFloats = [](const json& arr, size_t count, float* out) -> bool {
+        if (!arr.is_array() || arr.size() < count) return false;
+        for (size_t i = 0; i < count; ++i) {
+            if (!arr[i].is_number()) return false;
+            out[i] = arr[i].get<float>();
+        }
+        return true;
+    };
+
+    for (auto& o : data["objects"]) {
+        if (!o.is_object()) continue;
+
+        std::string name     = o.value("name", "Object");
+        std::string meshPath = o.value("meshPath", "");
+
+        if (!o.contains("uuid") || !o["uuid"].is_string()) continue;
+
+        UUID entityUUID = boost::uuids::nil_uuid();
+        if (!TryParseUUIDString(o["uuid"].get<std::string>(), entityUUID)) continue;
+
+        EntityHandle handle{};
+
+        if (!meshPath.empty()) {
+            auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
+            if (result.success) {
+                glm::vec3 centroid(0.0f);
+                size_t totalVerts = 0;
+                for (auto& mesh : result.meshes) {
+                    for (const auto& v : mesh.GetVertices()) {
+                        centroid += v.Position;
+                        ++totalVerts;
+                    }
+                }
+                if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
+                if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
+                    for (auto& mesh : result.meshes) {
+                        resources.DestroyVertexArray(mesh.GetVertexArray());
+                        auto verts = mesh.GetVertices();
+                        for (auto& v : verts) v.Position -= centroid;
+                        mesh.Build(verts, mesh.GetIndices());
+                    }
+                }
+
+                handle = m_Scene->CreateEntity(name, entityUUID);
+                if (auto* meshComp = m_Scene->TryGetComponent<MeshComponent>(handle)) {
+                    meshComp->Meshes    = std::move(result.meshes);
+                    meshComp->SourcePath = meshPath;
+                }
+            }
+        }
+
+        if (!m_Scene->IsEntityHandleValid(handle))
+            handle = m_Scene->CreateEntity(name, entityUUID);
+        auto* obj = m_Scene->TryGetEntity(handle);
+        if (!obj) continue;
+
+        auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
+        auto& color     = obj->GetComponent<ColorComponent>().Color;
+        auto& visible   = obj->GetComponent<VisibilityComponent>().Visible;
+
+        float v3[3], v4[4];
+        if (o.contains("position") && readFloats(o["position"], 3, v3))
+            transform.Position = { v3[0], v3[1], v3[2] };
+        if (o.contains("rotation") && readFloats(o["rotation"], 3, v3))
+            transform.Rotation = { v3[0], v3[1], v3[2] };
+        if (o.contains("scale") && readFloats(o["scale"], 3, v3))
+            transform.Scale = { v3[0], v3[1], v3[2] };
+        if (o.contains("color") && readFloats(o["color"], 4, v4))
+            color = { v4[0], v4[1], v4[2], v4[3] };
+
+        visible = o.value("visible", true);
+
+        if (auto* meshCompForMat = m_Scene->TryGetComponent<MeshComponent>(handle)) {
+            for (auto& meshItem : meshCompForMat->Meshes) {
+                if (!meshItem.Mat)
+                    meshItem.Mat = MaterialInstance::FromBase(
+                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+            }
+            if (o.contains("materials") && o["materials"].is_array()) {
+                const auto& arr = o["materials"];
+                for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
+                    if (arr[mi].is_object())
+                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat, resources);
+            }
+        }
+
+        if (o.contains("light") && o["light"].is_object()) {
+            const auto& lj = o["light"];
+            int typeVal = lj.value("type", -1);
+            if (typeVal < 0 || typeVal > 2) typeVal = -1;
+            Light lightData;
+            lightData.Type = static_cast<LightType>(typeVal);
+            float lc[3];
+            if (lj.contains("color") && readFloats(lj["color"], 3, lc))
+                lightData.Color = { lc[0], lc[1], lc[2] };
+            lightData.Intensity = lj.value("intensity", 1.0f);
+            lightData.Range     = lj.value("range", 10.0f);
+            lightData.InnerCone = lj.value("innerCone", 12.5f);
+            lightData.OuterCone = lj.value("outerCone", 17.5f);
+            if (obj->HasComponent<LightComponent>())
+                obj->RemoveComponent<LightComponent>();
+            obj->AddComponent<LightComponent>(LightComponent{ lightData });
+        } else if (obj->HasComponent<LightComponent>()) {
+            obj->RemoveComponent<LightComponent>();
+        }
+
+        if (version >= 3 && o.contains("rigidBody") && o["rigidBody"].is_object()) {
+            const RigidBody3DComponent rigidBody = DeserializeRigidBody(o["rigidBody"]);
+            if (obj->HasComponent<RigidBody3DComponent>()) {
+                if (m_World) m_World->DestroyRigidBodyRuntime(handle);
+                obj->RemoveComponent<RigidBody3DComponent>();
+            }
+            obj->AddComponent<RigidBody3DComponent>(RigidBody3DComponent{ rigidBody });
+        } else if (obj->HasComponent<RigidBody3DComponent>()) {
+            if (m_World) m_World->DestroyRigidBodyRuntime(handle);
+            obj->RemoveComponent<RigidBody3DComponent>();
+        }
+    }
+
+    if (m_World)
+        m_World->RebuildPhysicsRuntime();
+
+    return true;
+}
+
 } // namespace CHEngine

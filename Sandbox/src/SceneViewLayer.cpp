@@ -206,6 +206,21 @@ void SceneViewLayer::OnImGuiRender()
         // Gizmo MUST be inside the viewport window and use its drawlist
         DrawGizmo();
 
+        // ── Цветная рамка режима воспроизведения ──────────────────────────
+        if (m_EditorState != EditorState::Edit)
+        {
+            const ImVec4 col = (m_EditorState == EditorState::Play)
+                ? ImVec4(0.20f, 0.75f, 0.20f, 0.85f)   // зелёная — Play
+                : ImVec4(0.90f, 0.70f, 0.10f, 0.85f);  // жёлтая  — Pause
+            const float  thick = 3.0f;
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            ImVec2 wMin = ImGui::GetWindowPos();
+            ImVec2 wMax = { wMin.x + ImGui::GetWindowWidth(),
+                            wMin.y + ImGui::GetWindowHeight() };
+            dl->AddRect(wMin, wMax, ImGui::ColorConvertFloat4ToU32(col), 0.0f, 0, thick);
+        }
+        // ─────────────────────────────────────────────────────────────────
+
         ImGui::End();
     }
     // ─────────────────────────────────────────────────────────────────────

@@ -101,6 +101,9 @@ void SceneViewLayer::RenderScene(CHEngine::Timestep dt)
 
 void SceneViewLayer::DrawGizmo()
 {
+    // Гизмо недоступен в Play/Pause режиме
+    if (m_EditorState != EditorState::Edit) return;
+
     auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
     auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
     if (!transformComp) return;

@@ -61,8 +61,10 @@ namespace CHEngine
         if (!m_Scene)
             return;
 
-        m_Scheduler.runPhase(SystemPhase::Simulation, *this, m_CommandBuffer, dt);
-        if(m_Active)
+        if (m_Simulating)
+            m_Scheduler.runPhase(SystemPhase::Simulation, *this, m_CommandBuffer, dt);
+
+        if (m_Active)
             m_Scheduler.runPhase(SystemPhase::Presentation, *this, m_CommandBuffer, dt);
 
         std::vector<EntityHandle> pendingDestroyHandles;

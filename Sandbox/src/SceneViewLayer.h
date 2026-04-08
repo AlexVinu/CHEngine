@@ -3,6 +3,7 @@
 #include <CHEngine.h>
 #include <CHEngine/World/World.h>
 #include <ImGuizmo.h>
+#include <nlohmann/json.hpp>
 #include "UIThemeActive.h"
 #include "UndoStack.h"
 #include "ContentBrowserPanel.h"
@@ -32,6 +33,16 @@
 //    F                          → frame selected
 //    Shift + gizmo drag         → snap (1 unit / 45° / 0.1)
 // ============================================================================
+// ============================================================================
+//  Editor state machine
+// ============================================================================
+enum class EditorState : uint8_t
+{
+    Edit,   // Редактор — симуляция не идёт
+    Play,   // Игровой режим — всё работает
+    Pause,  // Пауза — симуляция стоит, рендер идёт
+};
+
 class SceneViewLayer : public CHEngine::Layer
 {
 public:
@@ -70,6 +81,13 @@ private:
     // ── Scene serialization ───────────────────────────────────────────────────
     void SaveScene();
     void LoadScene(const std::string& path = "");
+
+    // ── Play / Pause / Stop ───────────────────────────────────────────────────
+    void EnterPlayMode();
+    void EnterPauseMode();
+    void ResumeFromPause();
+    void StopPlayMode();
+    void StepOneFrame();
 
     // Сохраняет/восстанавливает сцену при переключении render API
     void AutoSaveForRestart();
@@ -128,4 +146,10 @@ private:
     // Content Browser (bottom panel)
     ContentBrowserPanel     m_ContentBrowser;
     float                   m_ContentBrowserHeight = 200.0f;
+
+    // ── Editor state ──────────────────────────────────────────────────────────
+    EditorState             m_EditorState  = EditorState::Edit;
+    nlohmann::json          m_SceneSnapshot;          // Снапшот сцены перед Play
+    bool                    m_HasSnapshot  = false;
+    float                   m_StepDt       = 1.0f / 60.0f; // dt для Step-режима
 };
