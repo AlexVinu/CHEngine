@@ -78,19 +78,6 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         vcenter(20.0f);
         UIActive::Toggle("Profiler", &m_ShowProfiler);
 
-        // Scene save/load buttons
-        ImGui::SameLine(0, 12);
-        vcenter(20.0f);
-        ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-        ImGui::SameLine(0, 12);
-        vcenter(ImGui::GetFrameHeight());
-        if (ImGui::Button("Save Scene"))
-            SaveScene();
-        ImGui::SameLine(0, 4);
-        vcenter(ImGui::GetFrameHeight());
-        if (ImGui::Button("Open Scene"))
-            LoadScene();
-
         // ── Play / Pause / Stop — центр тулбара ──────────────────────────────
         {
             // Горячие клавиши
@@ -113,22 +100,20 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
             const bool isPlay  = (m_EditorState == EditorState::Play);
             const bool isPause = (m_EditorState == EditorState::Pause);
 
-            // Вычислить ширину блока и прыгнуть в центр через SameLine(offset)
+            // Абсолютное позиционирование по центру окна (независимо от left-flow)
             const float pad    = ImGui::GetStyle().FramePadding.x;
             const float btnW   = ImGui::CalcTextSize("Pause").x + pad * 2.0f + 14.0f;
             const float stopW  = ImGui::CalcTextSize("Stop").x  + pad * 2.0f + 14.0f;
             const float stepW  = ImGui::CalcTextSize("Step").x  + pad * 2.0f + 10.0f;
             const float gap    = 4.0f;
             const float blockW = btnW + stopW + stepW + gap * 2.0f;
-            const float centerX = (ImGui::GetWindowWidth() - blockW) * 0.5f;
 
-            // SameLine с абсолютным offset = прыжок к центру без переноса строки
-            if (centerX > ImGui::GetCursorPosX() + 4.0f)
-                ImGui::SameLine(centerX);
-            else
-                ImGui::SameLine(0, 20);
-
-            vcenter(ImGui::GetFrameHeight());
+            ImVec2 winPos  = ImGui::GetWindowPos();
+            float  winW    = ImGui::GetWindowWidth();
+            float  winH    = ImGui::GetWindowHeight();
+            float  screenX = winPos.x + (winW - blockW) * 0.5f;
+            float  screenY = winPos.y + (winH - ImGui::GetFrameHeight()) * 0.5f;
+            ImGui::SetCursorScreenPos(ImVec2(screenX, screenY));
 
             // Play / Pause кнопка
             ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.50f, 0.15f, 1.0f));
@@ -229,7 +214,13 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         snprintf(rendererLabel, sizeof(rendererLabel), "API: %s", availApis[apiIdx].name);
         float rendererComboW = ImGui::CalcTextSize(rendererLabel).x + pad * 2.0f + 8.0f;
 
-        float rightBlockW = rendererComboW
+        float saveSceneW = ImGui::CalcTextSize("Save Scene").x + pad * 2.0f;
+        float openSceneW = ImGui::CalcTextSize("Open Scene").x + pad * 2.0f;
+
+        float rightBlockW = saveSceneW + 4.0f
+                          + openSceneW + 12.0f
+                          + ImGui::CalcTextSize("|").x + 12.0f  // separator
+                          + rendererComboW
                           + 8.0f
                           + ImGui::CalcTextSize(themeLabel).x + pad * 2.0f
                           + 8.0f
@@ -240,6 +231,20 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         if (startX > ImGui::GetCursorPosX() + 10.0f)
         {
             ImGui::SetCursorPosX(startX);
+
+            // Save / Open Scene
+            vcenter(ImGui::GetFrameHeight());
+            if (ImGui::Button("Save Scene"))
+                SaveScene();
+            ImGui::SameLine(0, 4);
+            vcenter(ImGui::GetFrameHeight());
+            if (ImGui::Button("Open Scene"))
+                LoadScene();
+
+            ImGui::SameLine(0, 12);
+            vcenter(20.0f);
+            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
+            ImGui::SameLine(0, 12);
 
             // Renderer dropdown
             vcenter(ImGui::GetFrameHeight());
