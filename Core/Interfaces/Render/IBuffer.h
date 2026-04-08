@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core.h>
+#include <Log/Log.h>
 #include <cstdint>
 #include "CheStl/String.h"
 #include "CheStl/Vector.h"

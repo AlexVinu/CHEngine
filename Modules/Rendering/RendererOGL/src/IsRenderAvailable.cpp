@@ -86,10 +86,16 @@ namespace CHModules
         return ok;
     }
 
-    #elif defined(CHE_PLATFORM_APPLE)
+} // namespace CHModules
 
-    // ========================= MACOS / CGL =========================
+#elif defined(CHE_PLATFORM_APPLE)
 
+// ========================= MACOS / CGL =========================
+#include <OpenGL/OpenGL.h>
+#include <OpenGL/gl.h>
+
+namespace CHModules
+{
     bool CheckIsWorking()
     {
         CGLPixelFormatAttribute attrs[] =
@@ -128,11 +134,15 @@ namespace CHModules
         return ok;
     }
 
-    #elif defined(CHE_PLATFORM_LINUX)
+} // namespace CHModules
 
-    // ========================= LINUX / X11 + GLX =========================
-    #include <X11/Xlib.h>
+#elif defined(CHE_PLATFORM_LINUX)
 
+// ========================= LINUX / X11 + GLX =========================
+#include <X11/Xlib.h>
+
+namespace CHModules
+{
     bool CheckIsWorking()
     {
         Display* display = XOpenDisplay(nullptr);
@@ -211,12 +221,17 @@ namespace CHModules
         return ok;
     }
 
-    #else
+} // namespace CHModules
 
+#else
+
+namespace CHModules
+{
     bool CheckIsWorking()
     {
         return false;
     }
 
-    #endif
-}
+} // namespace CHModules
+
+#endif

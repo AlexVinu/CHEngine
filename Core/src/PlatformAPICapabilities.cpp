@@ -15,7 +15,7 @@ namespace CHEngine {
 #endif
 
 #ifdef CHE_PLATFORM_APPLE
-		store |= BIT((int)ERenderAPI::METALL);
+		store |= BIT((int)ERenderAPI::METAL);
 #endif
 
 		return store;
