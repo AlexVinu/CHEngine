@@ -22,17 +22,25 @@ namespace CHEngine
         DIRECTX12 = 5
     };
 
-    using WRenderAPI = EnumWrapper<ERenderAPI, 
-        [](ERenderAPI api) {
-        switch (api)
+    // Именованный функтор вместо лямбды — гарантирует стабильный mangled name
+    // во всех единицах компиляции (лямбда как шаблон-параметр даёт разный $_N).
+    struct ERenderAPIToString
+    {
+        constexpr const char* operator()(ERenderAPI api) const
         {
-            case ERenderAPI::OPENGL: return "OpenGL";
-            case ERenderAPI::VULKAN: return "Vulkan";
-            case ERenderAPI::METAL: return "Metal";
-            case ERenderAPI::DIRECTX11: return "DirectX11";
-            case ERenderAPI::DIRECTX12: return "DirectX12";
-            default: return "None";
-        }}>;
+            switch (api)
+            {
+                case ERenderAPI::OPENGL:    return "OpenGL";
+                case ERenderAPI::VULKAN:    return "Vulkan";
+                case ERenderAPI::METAL:     return "Metal";
+                case ERenderAPI::DIRECTX11: return "DirectX11";
+                case ERenderAPI::DIRECTX12: return "DirectX12";
+                default:                    return "None";
+            }
+        }
+    };
+
+    using WRenderAPI = EnumWrapper<ERenderAPI, ERenderAPIToString{}>;
     // ─── Инициализационные данные для конкретного рендер-бэкенда ──────────────
     // Передаётся из Window → Renderer при инициализации.
     // Активен ровно один член union — выбирается по ERenderAPI.
