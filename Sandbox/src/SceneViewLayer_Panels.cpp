@@ -91,6 +91,92 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         if (ImGui::Button("Open Scene"))
             LoadScene();
 
+        // ── Play / Pause / Stop — центр тулбара ──────────────────────────────
+        {
+            // Горячие клавиши (Cmd/Ctrl + P)
+            if (!ImGui::GetIO().WantTextInput)
+            {
+                const bool mod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyCtrl;
+                if (mod && ImGui::IsKeyPressed(ImGuiKey_P, false))
+                {
+                    if      (m_EditorState == EditorState::Edit)  EnterPlayMode();
+                    else if (m_EditorState == EditorState::Play)  EnterPauseMode();
+                    else if (m_EditorState == EditorState::Pause) ResumeFromPause();
+                }
+                // Escape — стоп
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && m_EditorState != EditorState::Edit)
+                    StopPlayMode();
+                // Ctrl+Shift+Right — step
+                if (mod && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
+                    StepOneFrame();
+            }
+
+            // Ширина блока кнопок: 3 кнопки + разделитель
+            const float btnW  = 52.0f;
+            const float stepW = 40.0f;
+            const float gap   = 4.0f;
+            const float blockW = btnW * 2 + stepW + gap * 3;
+            const float centerPosX = (ImGui::GetWindowWidth() - blockW) * 0.5f;
+            ImGui::SetCursorPosX(centerPosX);
+
+            const bool isEdit  = (m_EditorState == EditorState::Edit);
+            const bool isPlay  = (m_EditorState == EditorState::Play);
+            const bool isPause = (m_EditorState == EditorState::Pause);
+
+            vcenter(ImGui::GetFrameHeight());
+
+            // Play / Resume
+            if (isPlay)
+            {
+                // Показываем Pause
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.20f, 0.55f, 0.20f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.65f, 0.25f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.15f, 0.45f, 0.15f, 1.0f));
+                if (ImGui::Button("\xe2\x8f\xb8##pause", ImVec2(btnW, 0))) // ⏸
+                    EnterPauseMode();
+                ImGui::PopStyleColor(3);
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pause  (Cmd+P)");
+            }
+            else
+            {
+                // Показываем Play (серый если Pause — Resume)
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.20f, 0.55f, 0.20f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.65f, 0.25f, 1.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.15f, 0.45f, 0.15f, 1.0f));
+                if (ImGui::Button("\xe2\x96\xb6##play", ImVec2(btnW, 0))) // ▶
+                {
+                    if (isEdit)  EnterPlayMode();
+                    else         ResumeFromPause();
+                }
+                ImGui::PopStyleColor(3);
+                if (ImGui::IsItemHovered()) ImGui::SetTooltip(isEdit ? "Play  (Cmd+P)" : "Resume  (Cmd+P)");
+            }
+
+            ImGui::SameLine(0, gap);
+            vcenter(ImGui::GetFrameHeight());
+
+            // Stop
+            ImGui::BeginDisabled(isEdit);
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f, 0.20f, 0.20f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.65f, 0.25f, 0.25f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.45f, 0.15f, 0.15f, 1.0f));
+            if (ImGui::Button("\xe2\x8f\xb9##stop", ImVec2(btnW, 0))) // ⏹
+                StopPlayMode();
+            ImGui::PopStyleColor(3);
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Stop  (Esc)");
+
+            ImGui::SameLine(0, gap);
+            vcenter(ImGui::GetFrameHeight());
+
+            // Step (только в Pause)
+            ImGui::BeginDisabled(!isPause);
+            if (ImGui::Button("\xe2\x8f\xad##step", ImVec2(stepW, 0))) // ⏭
+                StepOneFrame();
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Step one frame  (Ctrl+Shift+\xe2\x86\x92)");
+        }
+
         // Snap hint
         {
             bool   shiftHeld = ImGui::GetIO().KeyShift;
@@ -204,11 +290,13 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
     UIActive::BeginPanel("Scene", pos, size, 0, resetSize);
 
+    ImGui::BeginDisabled(m_EditorState != EditorState::Edit);
     if (UIActive::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
     {
         std::string path = CHEngine::FileDialog::OpenModelFile();
         if (!path.empty()) ImportModel(path);
     }
+    ImGui::EndDisabled();
 
     ImGui::Spacing();
 
@@ -338,6 +426,18 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         return;
     }
     auto& transform = transformComp->ObjectTransform;
+
+    // В Play/Pause — только чтение (для наблюдения за состоянием)
+    const bool propsReadOnly = (m_EditorState != EditorState::Edit);
+    if (propsReadOnly)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.7f, 0.1f, 1.0f));
+        ImGui::TextUnformatted(m_EditorState == EditorState::Play ? "\xe2\x96\xb6 Play mode — read only"
+                                                                   : "\xe2\x8f\xb8 Paused — read only");
+        ImGui::PopStyleColor();
+        ImGui::Spacing();
+        ImGui::BeginDisabled(true);
+    }
 
     // Name field
     char nameBuf[256];
@@ -611,6 +711,9 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     ImGui::Spacing();
     if (ImGui::Button("Focus Camera  (F)", ImVec2(-1.0f, 0.0f)))
         FocusOnSelected();
+
+    if (propsReadOnly)
+        ImGui::EndDisabled();
 
     UIActive::EndPanel();
 }

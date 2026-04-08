@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include "Scene.h"
+#include <nlohmann/json.hpp>
 
 namespace CHEngine {
 
@@ -18,6 +19,14 @@ public:
     // Loads scene from .chscene JSON file. Needs RenderResourceManager to re-import meshes.
     // Clears the scene first. Returns true on success.
     bool LoadFromFile(const std::string& path, RenderResourceManager& resources);
+
+    // ── In-memory snapshot (для Play/Stop режима) ─────────────────────────────
+    // Сериализует сцену в JSON-объект (без записи на диск).
+    nlohmann::json SerializeToJson();
+
+    // Восстанавливает сцену из JSON-снапшота (без чтения с диска).
+    // Аналог LoadFromFile, но источник — память.
+    bool DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources);
 
 private:
     Scene* m_Scene;
