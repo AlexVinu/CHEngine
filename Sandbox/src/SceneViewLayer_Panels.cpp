@@ -93,7 +93,7 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
 
         // ── Play / Pause / Stop — центр тулбара ──────────────────────────────
         {
-            // Горячие клавиши (Cmd/Ctrl + P)
+            // Горячие клавиши
             if (!ImGui::GetIO().WantTextInput)
             {
                 const bool mod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyCtrl;
@@ -103,64 +103,65 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
                     else if (m_EditorState == EditorState::Play)  EnterPauseMode();
                     else if (m_EditorState == EditorState::Pause) ResumeFromPause();
                 }
-                // Escape — стоп
                 if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && m_EditorState != EditorState::Edit)
                     StopPlayMode();
-                // Ctrl+Shift+Right — step
                 if (mod && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
                     StepOneFrame();
             }
-
-            // Ширина блока кнопок: 3 кнопки + разделитель
-            const float btnW  = 52.0f;
-            const float stepW = 40.0f;
-            const float gap   = 4.0f;
-            const float blockW = btnW * 2 + stepW + gap * 3;
-            const float centerPosX = (ImGui::GetWindowWidth() - blockW) * 0.5f;
-            ImGui::SetCursorPosX(centerPosX);
 
             const bool isEdit  = (m_EditorState == EditorState::Edit);
             const bool isPlay  = (m_EditorState == EditorState::Play);
             const bool isPause = (m_EditorState == EditorState::Pause);
 
+            // Вычислить ширину блока и прыгнуть в центр через SameLine(offset)
+            const float pad    = ImGui::GetStyle().FramePadding.x;
+            const float btnW   = ImGui::CalcTextSize("Pause").x + pad * 2.0f + 14.0f;
+            const float stopW  = ImGui::CalcTextSize("Stop").x  + pad * 2.0f + 14.0f;
+            const float stepW  = ImGui::CalcTextSize("Step").x  + pad * 2.0f + 10.0f;
+            const float gap    = 4.0f;
+            const float blockW = btnW + stopW + stepW + gap * 2.0f;
+            const float centerX = (ImGui::GetWindowWidth() - blockW) * 0.5f;
+
+            // SameLine с абсолютным offset = прыжок к центру без переноса строки
+            if (centerX > ImGui::GetCursorPosX() + 4.0f)
+                ImGui::SameLine(centerX);
+            else
+                ImGui::SameLine(0, 20);
+
             vcenter(ImGui::GetFrameHeight());
 
-            // Play / Resume
+            // Play / Pause кнопка
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.50f, 0.15f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.62f, 0.20f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.10f, 0.38f, 0.10f, 1.0f));
             if (isPlay)
             {
-                // Показываем Pause
-                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.20f, 0.55f, 0.20f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.65f, 0.25f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.15f, 0.45f, 0.15f, 1.0f));
-                if (ImGui::Button("\xe2\x8f\xb8##pause", ImVec2(btnW, 0))) // ⏸
+                if (ImGui::Button("Pause##playctrl", ImVec2(btnW, 0)))
                     EnterPauseMode();
-                ImGui::PopStyleColor(3);
                 if (ImGui::IsItemHovered()) ImGui::SetTooltip("Pause  (Cmd+P)");
             }
             else
             {
-                // Показываем Play (серый если Pause — Resume)
-                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.20f, 0.55f, 0.20f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.25f, 0.65f, 0.25f, 1.0f));
-                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.15f, 0.45f, 0.15f, 1.0f));
-                if (ImGui::Button("\xe2\x96\xb6##play", ImVec2(btnW, 0))) // ▶
+                const char* label = isPause ? "Resume##playctrl" : "Play##playctrl";
+                if (ImGui::Button(label, ImVec2(btnW, 0)))
                 {
-                    if (isEdit)  EnterPlayMode();
-                    else         ResumeFromPause();
+                    if (isEdit) EnterPlayMode();
+                    else        ResumeFromPause();
                 }
-                ImGui::PopStyleColor(3);
-                if (ImGui::IsItemHovered()) ImGui::SetTooltip(isEdit ? "Play  (Cmd+P)" : "Resume  (Cmd+P)");
+                if (ImGui::IsItemHovered())
+                    ImGui::SetTooltip(isEdit ? "Play  (Cmd+P)" : "Resume  (Cmd+P)");
             }
+            ImGui::PopStyleColor(3);
 
             ImGui::SameLine(0, gap);
             vcenter(ImGui::GetFrameHeight());
 
             // Stop
             ImGui::BeginDisabled(isEdit);
-            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.55f, 0.20f, 0.20f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.65f, 0.25f, 0.25f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.45f, 0.15f, 0.15f, 1.0f));
-            if (ImGui::Button("\xe2\x8f\xb9##stop", ImVec2(btnW, 0))) // ⏹
+            ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.50f, 0.15f, 0.15f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.62f, 0.20f, 0.20f, 1.0f));
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.38f, 0.10f, 0.10f, 1.0f));
+            if (ImGui::Button("Stop##playctrl", ImVec2(stopW, 0)))
                 StopPlayMode();
             ImGui::PopStyleColor(3);
             ImGui::EndDisabled();
@@ -169,12 +170,12 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
             ImGui::SameLine(0, gap);
             vcenter(ImGui::GetFrameHeight());
 
-            // Step (только в Pause)
+            // Step
             ImGui::BeginDisabled(!isPause);
-            if (ImGui::Button("\xe2\x8f\xad##step", ImVec2(stepW, 0))) // ⏭
+            if (ImGui::Button("Step##playctrl", ImVec2(stepW, 0)))
                 StepOneFrame();
             ImGui::EndDisabled();
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Step one frame  (Ctrl+Shift+\xe2\x86\x92)");
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Step one frame  (Cmd+Shift+Right)");
         }
 
         // Snap hint
