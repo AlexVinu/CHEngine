@@ -1,233 +1,248 @@
 # CHЁngine
 <img width="2000" height="400" alt="84956" src="https://github.com/user-attachments/assets/ececca6f-cde5-4221-bba6-d378dbd6d750" />
 
-Кроссплатформенный игровой движок на C++ с поддержкой Windows, macOS и Linux.
+Кроссплатформенный игровой движок на **C++20** с модульной архитектурой, ECS, физикой и горячей перезагрузкой шейдеров и плагинов.
+
+---
 
 ## Возможности
 
-- **Кроссплатформенная поддержка**: Сборка и запуск на Windows (MSVC), macOS (Clang) и Linux (GCC/Clang)
-- **Рендеринг на OpenGL**: Аппаратное ускорение графики с GLAD и GLFW, совместимость с OpenGL 3.3–4.6
-- **Модульная архитектура**: Подключаемые модули рендера с динамической загрузкой (.dll/.so/.dylib)
-- **Система событий**: Event-driven приложение с слойной архитектурой
-- **Пользовательская система памяти**: Кастомный аллокатор с поддержкой выравнивания на всех платформах
-- **Логирование**: Структурированное логирование с spdlog
+- 🎨 **Мульти-рендеринг** — OpenGL 4.1, Metal (Apple Silicon / Intel Mac), Vulkan; выбор в рантайме
+- 🧩 **Модульная архитектура** — рендерер, окно, UI и физика — отдельные `.dylib`/`.dll`, загружаются динамически
+- 🔁 **Горячая перезагрузка** — шейдеры и ImGui-модуль обновляются без перезапуска
+- 🌍 **ECS** — Entity Component System на базе [entt](https://github.com/skypjack/entt) с поддержкой фазовой симуляции
+- ⚙️ **World / SystemScheduler** — детерминированные фазы Initialization → Simulation → Presentation
+- 💥 **Физика** — NVIDIA PhysX + Blast (опционально)
+- 📦 **Загрузка моделей** — OBJ и GLTF/GLB из коробки
+- 🖥️ **ImGui** — встроенный UI-оверлей, независимо обновляемый модуль
+- 🪵 **Логирование** — spdlog с уровнями Debug / Release / Dist
 
-## Поддерживаемые платформы
+---
 
-| Платформа | Компилятор | Статус |
-|----------|----------|--------|
-| Windows  | MSVC 2022 | ✅ Поддерживается |
-| macOS    | Clang    | ✅ Поддерживается |
-| Linux    | GCC/Clang| ✅ Поддерживается |
+## Платформы
+
+| Платформа | Компилятор | Рендереры | Статус |
+|-----------|-----------|-----------|--------|
+| macOS (Apple Silicon / Intel) | Clang | Metal, OpenGL | ✅ |
+| Windows | MSVC 2022 | OpenGL, Vulkan, DirectX11/12 | ✅ |
+| Linux | GCC / Clang | OpenGL, Vulkan | ✅ |
+
+---
 
 ## Структура проекта
 
 ```
 CHEngine/
-├── Core/                          # Ядро движка
-│   ├── src/
-│   │   ├── Core.h                # Платформенные макросы
-│   │   ├── Log/                  # Система логирования
-│   │   └── Memory/               # Утилиты для памяти
-│   └── vendor/spdlog/            # Библиотека логирования
-├── CHEngine/                       # Основной движок
-│   ├── src/
-│   │   ├── CHEngine/             # Приложение, события, слои
-│   │   ├── Platform/Desktop/     # Кроссплатформенная реализация окна
-│   │   └── Interfaces/           # Интерфейсы рендера
-│   ├── vendor/
-│   │   ├── GLFW/                 # Управление окном и вводом
-│   │   └── GLM/                  # Математическая библиотека
-│   └── CMakeLists.txt
-├── Modules/
-│   └── Rendering/RendererOGL/    # Модуль рендера OpenGL
-├── Sandbox/                        # Пример приложения
-└── CMakeLists.txt                 # Корневая конфигурация CMake
+├── Core/                        # Разделяемые интерфейсы и утилиты
+│   ├── src/                     # Log, FileSystem, Memory, Handle, Timestep
+│   └── Interfaces/              # IRenderFactory, IWindowFactory, IPhysicsFactory, IImGuiFactory
+│
+├── CHEngine/                    # Основная shared-библиотека (.dylib / .dll)
+│   └── src/CHEngine/
+│       ├── Application.*        # Главный класс, главный цикл
+│       ├── ModuleManager.*      # Загрузка / горячая перезагрузка плагинов
+│       ├── Scene/               # Scene, Entity, Components (ECS)
+│       ├── World/               # World, SystemScheduler, CommandBuffer, ISystem
+│       ├── Render/              # RenderFacade, RenderResourceManager
+│       ├── Physics/             # PhysicsFacade
+│       ├── Mesh/                # Mesh, Material, ModelLoader (OBJ / GLTF)
+│       ├── Camera/              # Camera
+│       ├── Input/               # Input (polling)
+│       ├── UI/                  # UIFacade
+│       ├── Layer/               # Layer, LayerStack
+│       └── Events/              # Event, EventDispatcher, KeyEvent, MouseEvent…
+│
+├── Modules/                     # Динамически загружаемые плагины
+│   ├── Rendering/
+│   │   ├── RendererOGL/         # OpenGL 4.1
+│   │   ├── RendererMetal/       # Metal (macOS / iOS)
+│   │   └── RendererVulkan/      # Vulkan
+│   ├── Window/WindowGLFW/       # GLFW окно
+│   ├── UI/
+│   │   ├── ImGuiOGL/
+│   │   ├── ImGuiMTL/
+│   │   └── ImGuiVK/
+│   └── Physics/PhysicsPhysX/   # NVIDIA PhysX + Blast
+│
+├── Sandbox/                     # Демонстрационное приложение
+├── docs/                        # Подробная документация
+└── CMakeLists.txt
 ```
+
+---
 
 ## Зависимости
 
-### Обязательные
-- **CMake** 3.20+
-- **C++20** компилятор (MSVC 2022, Clang или GCC 10+)
+| Библиотека | Назначение |
+|------------|-----------|
+| [entt](https://github.com/skypjack/entt) | ECS |
+| [glm](https://github.com/g-truc/glm) | Математика (vec3, mat4, quat) |
+| [GLFW](https://www.glfw.org/) | Окно, контекст, ввод |
+| [GLAD](https://glad.dav1d.de/) | Загрузчик OpenGL |
+| [spdlog](https://github.com/gabime/spdlog) | Логирование |
+| [Dear ImGui](https://github.com/ocornut/imgui) | Редакторский UI |
+| [tinygltf](https://github.com/syoyo/tinygltf) | GLTF / GLB модели |
+| [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader) | OBJ модели |
+| [PhysX + Blast](https://github.com/NVIDIA-Omniverse/PhysX) | Физический движок (опц.) |
+| [boost](https://www.boost.org/) | UUID |
 
-### Встроенные (Vendored)
-- **spdlog** - Быстрая библиотека логирования для C++
-- **GLFW** - Управление окном и вводом
-- **GLAD** - OpenGL загрузчик
-- **GLM** - Математическая библиотека
+Все зависимости — **vendored**, ничего устанавливать вручную не нужно.
+
+---
 
 ## Сборка
 
-### Windows (MSVC)
+### Требования
+
+- CMake **3.5+**
+- C++**20** компилятор: Clang 12+, GCC 10+, MSVC 2022
+
+### Быстрый старт
 
 ```bash
-mkdir build
-cd build
-cmake -G "Visual Studio 17 2022" ..
-cmake --build . --config Debug
+git clone https://github.com/AlexVinu/CHEngine
+cd CHEngine
+
+cmake -B build \
+  -DCHE_BUILD_SANDBOX=ON \
+  -DCHE_BUILD_OPENGL=ON \
+  -DCHE_BUILD_METAL=ON     # только macOS
+
+cmake --build build --config Debug -j$(nproc)
+```
+
+### CMake-опции
+
+| Опция | По умолчанию | Описание |
+|-------|-------------|---------|
+| `CHE_BUILD_SANDBOX` | `ON` | Собрать демо-приложение |
+| `CHE_BUILD_OPENGL` | `ON` | Модуль OpenGL |
+| `CHE_BUILD_VULKAN` | `OFF` | Модуль Vulkan |
+| `CHE_BUILD_METAL` | `ON` (macOS) | Модуль Metal |
+| `CHE_BUILD_PHYSICS` | `ON` | Модуль PhysX (если доступен) |
+
+### Windows (MSVC)
+
+```bat
+cmake -B build -G "Visual Studio 17 2022" -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON
+cmake --build build --config Debug
 ```
 
 ### macOS (Clang)
 
 ```bash
-mkdir build
-cd build
-cmake -G "Unix Makefiles" ..
-cmake --build .
+cmake -B build -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON
+cmake --build build --config Debug -j$(sysctl -n hw.logicalcpu)
 ```
 
-> **Примечание**: macOS поддерживает OpenGL максимум до версии 4.1. Движок автоматически запрашивает нужную версию.
-
-### Linux (GCC/Clang)
+### Linux (GCC / Clang)
 
 ```bash
-mkdir build
-cd build
-cmake -G "Unix Makefiles" ..
-cmake --build .
+cmake -B build -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON
+cmake --build build --config Debug -j$(nproc)
 ```
 
-## Конфигурация
+---
 
-Проект использует CMake со следующими опциями:
+## Запуск
 
-```cmake
--DCHE_BUILD_SANDBOX=ON      # Сборка приложения-примера Sandbox
--DCHE_BUILD_OPENGL=ON       # Сборка модуля рендера OpenGL
-```
-
-## Платформенные дефайны
-
-Движок автоматически определяет платформенные макросы:
-
-- `CHE_PLATFORM_WINDOWS` - Платформа Windows
-- `CHE_PLATFORM_APPLE` - Платформа macOS
-- `CHE_PLATFORM_LINUX` - Платформа Linux
-- `CHE_PLATFORM_UNIX` - Любая Unix-подобная система (macOS или Linux)
-
-## Архитектурные решения
-
-### Кроссплатформенные C++ макросы
-
-```cpp
-// Core.h предоставляет платформо-независимые макросы экспорта
-#define CHENGINE_API __attribute__((visibility("default")))  // Unix
-#define CHENGINE_API __declspec(dllexport)                   // Windows
-
-// Макрос отладочного прерывания
-#define CHE_DEBUGBREAK() __builtin_trap()      // GCC/Clang
-#define CHE_DEBUGBREAK() __debugbreak()        // MSVC
-```
-
-### Флаги компилятора
-
-**MSVC:**
-```cmake
-/utf-8 /W4              # Предупреждения
-/Od /Zi                 # Отладка
-/O2                     # Релиз
-```
-
-**GCC/Clang:**
-```cmake
--Wall -Wextra -Wpedantic    # Предупреждения
--fvisibility=hidden         # Видимость символов
--g -O0                      # Отладка
--O2                         # Релиз
-```
-
-### Динамическая загрузка модулей
-
-Платформо-специфичные имена модулей обрабатываются прозрачно:
-
-```cpp
-#if defined(CHE_PLATFORM_WINDOWS)
-    LoadModule("RendererOGL.dll");
-#elif defined(CHE_PLATFORM_APPLE)
-    LoadModule("libRendererOGL.dylib");
-#else
-    LoadModule("libRendererOGL.so");
-#endif
-```
-
-## Результаты компиляции
-
-Артефакты сборки организованы по платформам и конфигурациям:
+После сборки бинарник и все `.dylib`/`.dll` находятся рядом:
 
 ```
-bin/
-├── Debug-windows-x64/
-├── Debug-macos-x64/
-├── Debug-linux-x64/
-├── Release-windows-x64/
-└── ...
+bin/Debug-macos-x64/Sandbox/
+├── Sandbox                  ← исполняемый файл
+├── CHEngine.dylib
+├── CHEngine_CORE.dylib
+├── libRendererMTL.dylib
+├── libRendererOGL.dylib
+├── libWindowGLFW.dylib
+├── libImGuiMTL.dylib
+├── shaders/
+└── assets/
 ```
-
-## Запуск примера
-
-После сборки запустите приложение Sandbox:
 
 ```bash
-# Windows
-./bin/Debug-windows-x64/Sandbox/Sandbox.exe
-
-# macOS
+# macOS / Linux
 ./bin/Debug-macos-x64/Sandbox/Sandbox
 
-# Linux
-./bin/Debug-linux-x64/Sandbox/Sandbox
+# Windows
+.\bin\Debug-windows-x64\Sandbox\Sandbox.exe
 ```
 
-## Разработка
+### Выбор рендерера
 
-### Добавление платформо-специфичного кода
+```bash
+./Sandbox --renderer=metal    # Metal  (macOS)
+./Sandbox --renderer=opengl   # OpenGL (все платформы)
+./Sandbox --renderer=vulkan   # Vulkan
+```
 
-Используйте платформенные дефайны для условной компиляции:
+Выбор сохраняется в `engine.json` рядом с исполняемым файлом — при следующем запуске аргумент можно не указывать.
+
+---
+
+## Создание приложения
 
 ```cpp
-#ifdef CHE_PLATFORM_WINDOWS
-    // Код специфичный для Windows
-#elif defined(CHE_PLATFORM_UNIX)
-    // Код для Unix-подобных систем (Linux/macOS)
-#endif
+#include <CHEngine.h>
+
+class GameLayer : public CHEngine::Layer {
+public:
+    void OnAttach() override {
+        // Загрузка ресурсов, создание сцены
+        auto& scene = CHEngine::Application::Get().GetWorld().GetScene();
+        auto entity = scene.CreateEntity("Cube");
+
+        auto meshes = CHEngine::ModelLoader::Load("assets/cube.obj");
+        entity.GetComponent<CHEngine::MeshComponent>().Meshes = meshes;
+        entity.GetComponent<CHEngine::TransformComponent>().Position = {0, 0, -3};
+    }
+
+    void OnUpdate(CHEngine::Timestep dt) override {
+        if (CHEngine::Input::IsKeyPressed(CHEngine::Key::Escape))
+            CHEngine::Application::Get().Close();
+    }
+
+    void OnImGuiRender() override {
+        ImGui::Begin("Stats");
+        ImGui::Text("dt: %.2f ms", dt * 1000.f);
+        ImGui::End();
+    }
+};
+
+class MyApp : public CHEngine::Application {
+public:
+    MyApp(const CHEngine::ApplicationConfig& cfg) : Application(cfg) {
+        PushLayer(new GameLayer());
+    }
+};
+
+// Точка входа — определяется пользователем
+CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& cfg) {
+    return new MyApp(cfg);
+}
 ```
 
-### Код специфичный для компилятора
+---
 
-Для различий между компиляторами используйте:
+## Документация
 
-```cpp
-#ifdef _MSC_VER
-    // Специфично для MSVC
-#else
-    // GCC/Clang
-#endif
-```
+Полная документация по всем подсистемам находится в папке [`docs/`](docs/):
 
-## Ключевые изменения
+| Раздел | Описание |
+|--------|---------|
+| [Архитектура](docs/architecture.md) | Схема системы, паттерны, последовательность запуска |
+| [Быстрый старт](docs/getting-started.md) | Сборка, первый проект |
+| [ECS / Scene / World](docs/ecs.md) | Сущности, компоненты, системы, CommandBuffer |
+| [Рендеринг](docs/rendering.md) | RenderFacade, шейдеры, текстуры, UBO |
+| [Физика](docs/physics.md) | PhysX-интеграция, RigidBody, режимы синхронизации |
+| [Модули](docs/modules.md) | Горячая перезагрузка, создание своего модуля |
+| [Ввод и события](docs/input-events.md) | Input polling, EventDispatcher, Layer |
 
-### v1.0 — Кроссплатформенность
-- Удалены Windows-only guards из CMakeLists.txt
-- Добавлено определение платформ APPLE, LINUX, UNIX
-- Заменены `__declspec(dllexport/import)` на `__attribute__((visibility()))`
-- Унифицированы флаги компилятора (MSVC vs GCC/Clang)
-- Переименован `WindowsWindow` → `DesktopWindow` (GLFW-based, платформо-независимый)
-- Платформо-специфичная загрузка модулей (.dll/.so/.dylib)
-- Исправлены ошибки dlopen/dlsym на не-Windows платформах
+Или читай на [GitHub Wiki](https://github.com/AlexVinu/CHEngine/wiki).
 
-### v1.1 — Исправления macOS
-- **OpenGL версия**: macOS поддерживает максимум OpenGL 4.1; добавлен `GLFW_OPENGL_FORWARD_COMPAT` для Core Profile
-- **OpenGL DSA**: заменены функции OpenGL 4.5 (`glCreateBuffers`, `glCreateVertexArrays`) на совместимые с 4.1 (`glGenBuffers`, `glGenVertexArrays`)
-- **MallocAllocator**: исправлен `posix_memalign` — выравнивание теперь минимально `sizeof(void*)`, что требует стандарт POSIX
+---
 
 ## Лицензия
 
-Смотрите файл LICENSE для деталей.
-
-## Внесение вклада
-
-Приветствуются вклады! Пожалуйста, убедитесь что:
-- Код компилируется на Windows, macOS и Linux
-- Платформо-специфичный код правильно защищен дефайнами
-- Изменения CMakeLists.txt сохраняют кроссплатформенность
+Смотри файл [LICENSE](LICENSE).
