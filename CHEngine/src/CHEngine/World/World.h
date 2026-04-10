@@ -38,8 +38,8 @@ namespace CHEngine
         void RebuildPhysicsRuntime();
         void ClearPhysicsRuntime();
         void DestroyRigidBodyRuntime(EntityHandle handle);
-        Scope<IPhysicsWorld>& physicsRuntimeWorld() { return m_PhysicsRuntimeWorld; }
-        const Scope<IPhysicsWorld>& physicsRuntimeWorld() const { return m_PhysicsRuntimeWorld; }
+        Scope<IPhysicsWorld>& physicsRuntimeWorld() { return m_PhysicsWorld; }
+        const Scope<IPhysicsWorld>& physicsRuntimeWorld() const { return m_PhysicsWorld; }
 
         SystemScheduler& scheduler() { return m_Scheduler; }
         const SystemScheduler& scheduler() const { return m_Scheduler; }
@@ -53,7 +53,7 @@ namespace CHEngine
         SystemScheduler m_Scheduler;
         CommandBuffer m_CommandBuffer;
         PhysicsWorldDesc m_PhysicsWorldDesc{};
-        Scope<IPhysicsWorld> m_PhysicsRuntimeWorld;
+        Scope<IPhysicsWorld> m_PhysicsWorld;
         Scene* m_Scene      = nullptr;
         bool   m_Active     = true;   // Presentation phase (рендер)
         bool   m_Simulating = false;  // Simulation phase (физика, логика)

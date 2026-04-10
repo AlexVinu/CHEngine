@@ -12,8 +12,8 @@ void ComponentValidationSystem::run(World& world, CommandBuffer&, Timestep)
     Scene& scene = world.scene();
     std::vector<EntityHandle> rigidBodiesWithoutTransform;
     scene.ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID& uuid, RigidBody3DComponent& rigidBody) {
-        auto* transform = scene.TryGetComponent<TransformComponent>(handle);
-        if (!transform) {
+        Entity* entity = scene.TryGetEntity(handle);
+        if (!entity || !entity->HasComponent<TransformComponent>()) {
             CHE_CORE_WARN("ComponentValidationSystem: entity {} has RigidBody3DComponent without TransformComponent",
                           boost::uuids::to_string(uuid));
             rigidBodiesWithoutTransform.push_back(handle);

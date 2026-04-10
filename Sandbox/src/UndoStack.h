@@ -36,8 +36,8 @@ struct TransformCommand : UndoCommand
     void Undo() override
     {
         auto handle = scene->TryGetEntityHandleByUUID(objectID);
-        if (auto* transform = scene->TryGetComponent<CHEngine::TransformComponent>(handle))
-            transform->ObjectTransform = before;
+        if (auto* entity = scene->TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>())
+            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform = before;
     }
 };
 
@@ -53,8 +53,8 @@ struct VisibilityCommand : UndoCommand
     void Undo() override
     {
         auto handle = scene->TryGetEntityHandleByUUID(objectID);
-        if (auto* visibility = scene->TryGetComponent<CHEngine::VisibilityComponent>(handle))
-            visibility->Visible = before;
+        if (auto* entity = scene->TryGetEntity(handle); entity && entity->HasComponent<CHEngine::VisibilityComponent>())
+            entity->GetComponent<CHEngine::VisibilityComponent>().Visible = before;
     }
 };
 

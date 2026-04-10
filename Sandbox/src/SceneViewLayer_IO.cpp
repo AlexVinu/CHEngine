@@ -243,10 +243,10 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
     }
 
     auto handle = CHEngine::SceneSpawner::CreateModelEntity(m_Scene, result.name, std::move(result.meshes), filepath);
-    auto* transform = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
-    if (!transform)
+    auto* entity = m_Scene.TryGetEntity(handle);
+    if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
         return;
-    transform->ObjectTransform.Position = centroid;
+    entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = centroid;
     const auto objectID = m_Scene.GetUUID(handle);
     m_SelectedObjectID = objectID;
     m_UndoStack.PushImport(&m_Scene, objectID, &m_SelectedObjectID);

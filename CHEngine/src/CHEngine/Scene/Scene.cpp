@@ -42,13 +42,15 @@ namespace CHEngine {
 		CHE_CORE_ASSERT(m_SceneRegistry->EntityHandlersStore.find(uuid) == m_SceneRegistry->EntityHandlersStore.end(),
 		                "CreateEntity: duplicate entity UUID");
 		auto* entity = new Entity{ m_SceneRegistry->Registry.create(), this };
-		const EntityHandle handle = m_SceneRegistry->EntityPool.Add(entity);
+
 		entity->AddComponent<TagComponent>(TagComponent{ name });
 		entity->AddComponent<IDComponent>(IDComponent{ uuid });
 		entity->AddComponent<TransformComponent>();
 		entity->AddComponent<MeshComponent>();
 		entity->AddComponent<ColorComponent>();
 		entity->AddComponent<VisibilityComponent>();
+
+		const EntityHandle handle = m_SceneRegistry->EntityPool.Add(entity);
 		m_SceneRegistry->EntityHandlersStore[uuid] = handle;
 
 		return handle;
@@ -59,7 +61,7 @@ namespace CHEngine {
 		return CreateEntity(name, GenerateEntityUUID());
 	}
 
-	void Scene::OnEntityDestroyed(EntityHandle entityHandle)
+	void Scene::DestroyEntity(EntityHandle entityHandle)
 	{
 		auto entity = m_SceneRegistry->EntityPool.Get(entityHandle);
 		if (!entity || !m_SceneRegistry->Registry.valid(entity->GetEnttHandle()))
@@ -75,30 +77,20 @@ namespace CHEngine {
 		m_SceneRegistry->Registry.destroy(handle);
 	}
 
-	void Scene::DestroyEntity(EntityHandle entity)
-	{
-		OnEntityDestroyed(entity);
-	}
-
 	EntityHandle Scene::TryGetEntityHandleByUUID(const UUID& uuid) const
 	{
 		auto it = m_SceneRegistry->EntityHandlersStore.find(uuid);
 		if (it == m_SceneRegistry->EntityHandlersStore.end())
 			return {};
 
-		Entity* pooledEntity = m_SceneRegistry->EntityPool.Get(it->second);
-		if (!pooledEntity) {
+		const Entity* pooledEntity = m_SceneRegistry->EntityPool.Get(it->second);
+		if (!pooledEntity || !pooledEntity->IsValid())
 			return {};
-		}
-
-		if (!IsEnttEntityValid(pooledEntity->GetEnttHandle())) {
-			return {};
-		}
 
 		return it->second;
 	}
 
-	UUID Scene::GetUUID(EntityHandle entityHandle) const
+	UUID Scene::GetUUID(const EntityHandle entityHandle) const
 	{
 		auto* entity = m_SceneRegistry->EntityPool.Get(entityHandle);
 		if (!entity)
@@ -111,25 +103,33 @@ namespace CHEngine {
 		return Registry.get<IDComponent>(handle).Value;
 	}
 
-	Entity* Scene::TryGetEntity(EntityHandle entityHandle)
+	Entity* Scene::TryGetEntity(const EntityHandle entityHandle)
 	{
 		Entity* entity = m_SceneRegistry->EntityPool.Get(entityHandle);
-		if (!entity || !IsEnttEntityValid(entity->GetEnttHandle()))
+		if (!entity || !entity->IsValid() || !m_SceneRegistry->Registry.valid(entity->GetEnttHandle()))
 			return nullptr;
 		return entity;
 	}
 
-	const Entity* Scene::TryGetEntity(EntityHandle entityHandle) const
+	const Entity* Scene::TryGetEntity(const EntityHandle entityHandle) const
 	{
-		Entity* entity = m_SceneRegistry->EntityPool.Get(entityHandle);
-		if (!entity || !IsEnttEntityValid(entity->GetEnttHandle()))
+		const Entity* entity = m_SceneRegistry->EntityPool.Get(entityHandle);
+		if (!entity || !entity->IsValid() || !m_SceneRegistry->Registry.valid(entity->GetEnttHandle()))
 			return nullptr;
 		return entity;
 	}
 
-	bool Scene::IsEntityHandleValid(EntityHandle entityHandle) const
+	bool Scene::IsEntityHandleValid(const EntityHandle entityHandle) const
 	{
 		return TryGetEntity(entityHandle) != nullptr;
+	}
+
+	entt::entity Scene::TryGetEnttEntity(const EntityHandle entityHandle) const
+	{
+		const Entity* entity = TryGetEntity(entityHandle);
+		if (!entity)
+			return entt::null;
+		return entity->GetEnttHandle();
 	}
 
 	void Scene::SetLightComponent(EntityHandle entityHandle, const Light& light)
@@ -169,157 +169,94 @@ namespace CHEngine {
 		return {};
 	}
 
-	bool Scene::IsEnttEntityValid(entt::entity entity) const
-	{
-		return entity != entt::null && m_SceneRegistry->Registry.valid(entity);
-	}
+	//template<typename T>
+	//T* Scene::TryGetComponent(EntityHandle entityHandle)
+	//{
+	//	Entity* e = TryGetEntity(entityHandle);
+	//	if (!e)
+	//		return nullptr;
+	//	const entt::entity h = e->GetEnttHandle();
+	//	if (!HasComponent<T>(h))
+	//		return nullptr;
+	//	return &GetComponent<T>(h);
+	//}
 
-	bool Scene::IsEntityBoundToHandle(entt::entity entity) const
-	{
-		if (!IsEnttEntityValid(entity))
-			return false;
+	//template CHENGINE_API TagComponent& Scene::AddComponent<TagComponent>(entt::entity, TagComponent&&);
+	//template CHENGINE_API TransformComponent& Scene::AddComponent<TransformComponent>(entt::entity);
+	//template CHENGINE_API MeshComponent& Scene::AddComponent<MeshComponent>(entt::entity);
+	//template CHENGINE_API ColorComponent& Scene::AddComponent<ColorComponent>(entt::entity);
+	//template CHENGINE_API VisibilityComponent& Scene::AddComponent<VisibilityComponent>(entt::entity);
+	//template CHENGINE_API LightComponent& Scene::AddComponent<LightComponent>(entt::entity, LightComponent&&);
+	//template CHENGINE_API RigidBody3DComponent& Scene::AddComponent<RigidBody3DComponent>(entt::entity, RigidBody3DComponent&&);
+	//template CHENGINE_API TransformDirtyComponent& Scene::AddComponent<TransformDirtyComponent>(entt::entity, TransformDirtyComponent&&);
+	//template CHENGINE_API LifetimeComponent& Scene::AddComponent<LifetimeComponent>(entt::entity, LifetimeComponent&&);
+	//template CHENGINE_API CameraComponent& Scene::AddComponent<CameraComponent, CameraComponent>(entt::entity, CameraComponent&&);
+	//		 
+	//template CHENGINE_API TagComponent& Scene::GetComponent<TagComponent>(entt::entity);
+	//template CHENGINE_API TransformComponent& Scene::GetComponent<TransformComponent>(entt::entity);
+	//template CHENGINE_API MeshComponent& Scene::GetComponent<MeshComponent>(entt::entity);
+	//template CHENGINE_API ColorComponent& Scene::GetComponent<ColorComponent>(entt::entity);
+	//template CHENGINE_API VisibilityComponent& Scene::GetComponent<VisibilityComponent>(entt::entity);
+	//template CHENGINE_API LightComponent& Scene::GetComponent<LightComponent>(entt::entity);
+	//template CHENGINE_API RigidBody3DComponent& Scene::GetComponent<RigidBody3DComponent>(entt::entity);
+	//template CHENGINE_API TransformDirtyComponent& Scene::GetComponent<TransformDirtyComponent>(entt::entity);
+	//template CHENGINE_API LifetimeComponent& Scene::GetComponent<LifetimeComponent>(entt::entity);
+	//template CHENGINE_API CameraComponent& Scene::GetComponent<CameraComponent>(entt::entity);
+	//template CHENGINE_API const TagComponent& Scene::GetComponent<TagComponent>(entt::entity) const;
+	//template CHENGINE_API const TransformComponent& Scene::GetComponent<TransformComponent>(entt::entity) const;
+	//template CHENGINE_API const MeshComponent& Scene::GetComponent<MeshComponent>(entt::entity) const;
+	//template CHENGINE_API const ColorComponent& Scene::GetComponent<ColorComponent>(entt::entity) const;
+	//template CHENGINE_API const VisibilityComponent& Scene::GetComponent<VisibilityComponent>(entt::entity) const;
+	//template CHENGINE_API const LightComponent& Scene::GetComponent<LightComponent>(entt::entity) const;
+	//template CHENGINE_API const RigidBody3DComponent& Scene::GetComponent<RigidBody3DComponent>(entt::entity) const;
+	//template CHENGINE_API const TransformDirtyComponent& Scene::GetComponent<TransformDirtyComponent>(entt::entity) const;
+	//template CHENGINE_API const LifetimeComponent& Scene::GetComponent<LifetimeComponent>(entt::entity) const;
+	//template CHENGINE_API const CameraComponent& Scene::GetComponent<CameraComponent>(entt::entity) const;
+	//		 
+	//template CHENGINE_API bool Scene::HasComponent<TagComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<TransformComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<MeshComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<ColorComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<VisibilityComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<LightComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<RigidBody3DComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<TransformDirtyComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<LifetimeComponent>(entt::entity) const;
+	//template CHENGINE_API bool Scene::HasComponent<CameraComponent>(entt::entity) const;
+	//		 
+	//template CHENGINE_API void Scene::RemoveComponent<TagComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<TransformComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<MeshComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<ColorComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<VisibilityComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<LightComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<RigidBody3DComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<TransformDirtyComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<LifetimeComponent>(entt::entity);
+	//template CHENGINE_API void Scene::RemoveComponent<CameraComponent>(entt::entity);
 
-		const auto& registry = m_SceneRegistry->Registry;
-		if (!registry.all_of<IDComponent>(entity))
-			return false;
+	//template CHENGINE_API TagComponent* Scene::TryGetComponent<TagComponent>(EntityHandle);
+	//template CHENGINE_API IDComponent* Scene::TryGetComponent<IDComponent>(EntityHandle);
+	//template CHENGINE_API TransformComponent* Scene::TryGetComponent<TransformComponent>(EntityHandle);
+	//template CHENGINE_API MeshComponent* Scene::TryGetComponent<MeshComponent>(EntityHandle);
+	//template CHENGINE_API ColorComponent* Scene::TryGetComponent<ColorComponent>(EntityHandle);
+	//template CHENGINE_API VisibilityComponent* Scene::TryGetComponent<VisibilityComponent>(EntityHandle);
+	//template CHENGINE_API LightComponent* Scene::TryGetComponent<LightComponent>(EntityHandle);
+	//template CHENGINE_API RigidBody3DComponent* Scene::TryGetComponent<RigidBody3DComponent>(EntityHandle);
+	//template CHENGINE_API TransformDirtyComponent* Scene::TryGetComponent<TransformDirtyComponent>(EntityHandle);
+	//template CHENGINE_API LifetimeComponent* Scene::TryGetComponent<LifetimeComponent>(EntityHandle);
+	//template CHENGINE_API CameraComponent* Scene::TryGetComponent<CameraComponent>(EntityHandle);
 
-		const UUID& uuid = registry.get<IDComponent>(entity).Value;
-		const auto it = m_SceneRegistry->EntityHandlersStore.find(uuid);
-		if (it == m_SceneRegistry->EntityHandlersStore.end())
-			return false;
-
-		Entity* pooledEntity = m_SceneRegistry->EntityPool.Get(it->second);
-		return pooledEntity && pooledEntity->GetEnttHandle() == entity;
-	}
-
-	template<typename T>
-	T* Scene::TryGetComponent(EntityHandle entityHandle)
-	{
-		Entity* e = TryGetEntity(entityHandle);
-		if (!e)
-			return nullptr;
-		const entt::entity h = e->GetEnttHandle();
-		if (!HasComponent<T>(h))
-			return nullptr;
-		return &GetComponent<T>(h);
-	}
-
-	template<typename T>
-	const T* Scene::TryGetComponent(EntityHandle entityHandle) const
-	{
-		return const_cast<Scene*>(this)->TryGetComponent<T>(entityHandle);
-	}
-
-	template<typename T, typename... Args>
-	T& Scene::AddComponent(entt::entity enttHandler, Args&&... args)
-	{
-		CHE_CORE_ASSERT(!HasComponent<T>(enttHandler), "Entity already has this component");
-		return m_SceneRegistry->Registry.emplace<T>(enttHandler, std::forward<Args>(args)...);
-	}
-
-	template<typename T>
-	T& Scene::GetComponent(entt::entity enttHandler)
-	{
-		CHE_CORE_ASSERT(HasComponent<T>(enttHandler), "Entity does not have this component");
-		return m_SceneRegistry->Registry.get<T>(enttHandler);
-	}
-
-	template<typename T>
-	const T& Scene::GetComponent(entt::entity enttHandler) const
-	{
-		CHE_CORE_ASSERT(HasComponent<T>(enttHandler), "Entity does not have this component");
-		return m_SceneRegistry->Registry.get<T>(enttHandler);
-	}
-
-	template<typename T>
-	bool Scene::HasComponent(entt::entity enttHandler) const
-	{
-		return m_SceneRegistry->Registry.all_of<T>(enttHandler);
-	}
-
-	template<typename T>
-	void Scene::RemoveComponent(entt::entity enttHandler)
-	{
-		CHE_CORE_ASSERT(HasComponent<T>(enttHandler), "Entity does not have this component");
-		m_SceneRegistry->Registry.remove<T>(enttHandler);
-	}
-
-	template TagComponent& Scene::AddComponent<TagComponent>(entt::entity, TagComponent&&);
-	template TransformComponent& Scene::AddComponent<TransformComponent>(entt::entity);
-	template MeshComponent& Scene::AddComponent<MeshComponent>(entt::entity);
-	template ColorComponent& Scene::AddComponent<ColorComponent>(entt::entity);
-	template VisibilityComponent& Scene::AddComponent<VisibilityComponent>(entt::entity);
-	template LightComponent& Scene::AddComponent<LightComponent>(entt::entity, LightComponent&&);
-	template RigidBody3DComponent& Scene::AddComponent<RigidBody3DComponent>(entt::entity, RigidBody3DComponent&&);
-	template TransformDirtyComponent& Scene::AddComponent<TransformDirtyComponent>(entt::entity, TransformDirtyComponent&&);
-	template LifetimeComponent& Scene::AddComponent<LifetimeComponent>(entt::entity, LifetimeComponent&&);
-	template CHENGINE_API CameraComponent& Scene::AddComponent<CameraComponent, CameraComponent>(entt::entity, CameraComponent&&);
-
-	template TagComponent& Scene::GetComponent<TagComponent>(entt::entity);
-	template TransformComponent& Scene::GetComponent<TransformComponent>(entt::entity);
-	template MeshComponent& Scene::GetComponent<MeshComponent>(entt::entity);
-	template ColorComponent& Scene::GetComponent<ColorComponent>(entt::entity);
-	template VisibilityComponent& Scene::GetComponent<VisibilityComponent>(entt::entity);
-	template LightComponent& Scene::GetComponent<LightComponent>(entt::entity);
-	template RigidBody3DComponent& Scene::GetComponent<RigidBody3DComponent>(entt::entity);
-	template TransformDirtyComponent& Scene::GetComponent<TransformDirtyComponent>(entt::entity);
-	template LifetimeComponent& Scene::GetComponent<LifetimeComponent>(entt::entity);
-	template CameraComponent& Scene::GetComponent<CameraComponent>(entt::entity);
-	template const TagComponent& Scene::GetComponent<TagComponent>(entt::entity) const;
-	template const TransformComponent& Scene::GetComponent<TransformComponent>(entt::entity) const;
-	template const MeshComponent& Scene::GetComponent<MeshComponent>(entt::entity) const;
-	template const ColorComponent& Scene::GetComponent<ColorComponent>(entt::entity) const;
-	template const VisibilityComponent& Scene::GetComponent<VisibilityComponent>(entt::entity) const;
-	template const LightComponent& Scene::GetComponent<LightComponent>(entt::entity) const;
-	template const RigidBody3DComponent& Scene::GetComponent<RigidBody3DComponent>(entt::entity) const;
-	template const TransformDirtyComponent& Scene::GetComponent<TransformDirtyComponent>(entt::entity) const;
-	template const LifetimeComponent& Scene::GetComponent<LifetimeComponent>(entt::entity) const;
-	template const CameraComponent& Scene::GetComponent<CameraComponent>(entt::entity) const;
-
-	template bool Scene::HasComponent<TagComponent>(entt::entity) const;
-	template bool Scene::HasComponent<TransformComponent>(entt::entity) const;
-	template bool Scene::HasComponent<MeshComponent>(entt::entity) const;
-	template bool Scene::HasComponent<ColorComponent>(entt::entity) const;
-	template bool Scene::HasComponent<VisibilityComponent>(entt::entity) const;
-	template bool Scene::HasComponent<LightComponent>(entt::entity) const;
-	template bool Scene::HasComponent<RigidBody3DComponent>(entt::entity) const;
-	template bool Scene::HasComponent<TransformDirtyComponent>(entt::entity) const;
-	template bool Scene::HasComponent<LifetimeComponent>(entt::entity) const;
-	template CHENGINE_API bool Scene::HasComponent<CameraComponent>(entt::entity) const;
-
-	template void Scene::RemoveComponent<TagComponent>(entt::entity);
-	template void Scene::RemoveComponent<TransformComponent>(entt::entity);
-	template void Scene::RemoveComponent<MeshComponent>(entt::entity);
-	template void Scene::RemoveComponent<ColorComponent>(entt::entity);
-	template void Scene::RemoveComponent<VisibilityComponent>(entt::entity);
-	template void Scene::RemoveComponent<LightComponent>(entt::entity);
-	template void Scene::RemoveComponent<RigidBody3DComponent>(entt::entity);
-	template void Scene::RemoveComponent<TransformDirtyComponent>(entt::entity);
-	template void Scene::RemoveComponent<LifetimeComponent>(entt::entity);
-	template void Scene::RemoveComponent<CameraComponent>(entt::entity);
-
-	template CHENGINE_API TagComponent* Scene::TryGetComponent<TagComponent>(EntityHandle);
-	template CHENGINE_API IDComponent* Scene::TryGetComponent<IDComponent>(EntityHandle);
-	template CHENGINE_API TransformComponent* Scene::TryGetComponent<TransformComponent>(EntityHandle);
-	template CHENGINE_API MeshComponent* Scene::TryGetComponent<MeshComponent>(EntityHandle);
-	template CHENGINE_API ColorComponent* Scene::TryGetComponent<ColorComponent>(EntityHandle);
-	template CHENGINE_API VisibilityComponent* Scene::TryGetComponent<VisibilityComponent>(EntityHandle);
-	template CHENGINE_API LightComponent* Scene::TryGetComponent<LightComponent>(EntityHandle);
-	template CHENGINE_API RigidBody3DComponent* Scene::TryGetComponent<RigidBody3DComponent>(EntityHandle);
-	template CHENGINE_API TransformDirtyComponent* Scene::TryGetComponent<TransformDirtyComponent>(EntityHandle);
-	template CHENGINE_API LifetimeComponent* Scene::TryGetComponent<LifetimeComponent>(EntityHandle);
-	template CHENGINE_API CameraComponent* Scene::TryGetComponent<CameraComponent>(EntityHandle);
-
-	template CHENGINE_API const TagComponent* Scene::TryGetComponent<TagComponent>(EntityHandle) const;
-	template CHENGINE_API const IDComponent* Scene::TryGetComponent<IDComponent>(EntityHandle) const;
-	template CHENGINE_API const TransformComponent* Scene::TryGetComponent<TransformComponent>(EntityHandle) const;
-	template CHENGINE_API const MeshComponent* Scene::TryGetComponent<MeshComponent>(EntityHandle) const;
-	template CHENGINE_API const ColorComponent* Scene::TryGetComponent<ColorComponent>(EntityHandle) const;
-	template CHENGINE_API const VisibilityComponent* Scene::TryGetComponent<VisibilityComponent>(EntityHandle) const;
-	template CHENGINE_API const LightComponent* Scene::TryGetComponent<LightComponent>(EntityHandle) const;
-	template CHENGINE_API const RigidBody3DComponent* Scene::TryGetComponent<RigidBody3DComponent>(EntityHandle) const;
-	template CHENGINE_API const TransformDirtyComponent* Scene::TryGetComponent<TransformDirtyComponent>(EntityHandle) const;
-	template CHENGINE_API const LifetimeComponent* Scene::TryGetComponent<LifetimeComponent>(EntityHandle) const;
-	template CHENGINE_API const CameraComponent* Scene::TryGetComponent<CameraComponent>(EntityHandle) const;
+	//template CHENGINE_API const TagComponent* Scene::TryGetComponent<TagComponent>(EntityHandle) const;
+	//template CHENGINE_API const IDComponent* Scene::TryGetComponent<IDComponent>(EntityHandle) const;
+	//template CHENGINE_API const TransformComponent* Scene::TryGetComponent<TransformComponent>(EntityHandle) const;
+	//template CHENGINE_API const MeshComponent* Scene::TryGetComponent<MeshComponent>(EntityHandle) const;
+	//template CHENGINE_API const ColorComponent* Scene::TryGetComponent<ColorComponent>(EntityHandle) const;
+	//template CHENGINE_API const VisibilityComponent* Scene::TryGetComponent<VisibilityComponent>(EntityHandle) const;
+	//template CHENGINE_API const LightComponent* Scene::TryGetComponent<LightComponent>(EntityHandle) const;
+	//template CHENGINE_API const RigidBody3DComponent* Scene::TryGetComponent<RigidBody3DComponent>(EntityHandle) const;
+	//template CHENGINE_API const TransformDirtyComponent* Scene::TryGetComponent<TransformDirtyComponent>(EntityHandle) const;
+	//template CHENGINE_API const LifetimeComponent* Scene::TryGetComponent<LifetimeComponent>(EntityHandle) const;
+	//template CHENGINE_API const CameraComponent* Scene::TryGetComponent<CameraComponent>(EntityHandle) const;
 
 } // namespace CHEngine

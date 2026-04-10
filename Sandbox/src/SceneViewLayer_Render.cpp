@@ -105,9 +105,9 @@ void SceneViewLayer::DrawGizmo()
     if (m_EditorState != EditorState::Edit) return;
 
     auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
-    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
-    if (!transformComp) return;
-    auto& selectedTransform = transformComp->ObjectTransform;
+    auto* entity = m_Scene.TryGetEntity(handle);
+    if (!entity || !entity->HasComponent<CHEngine::TransformComponent>()) return;
+    auto& selectedTransform = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
 
     ImGuizmo::SetOrthographic(false);
     ImGuizmo::SetDrawlist();

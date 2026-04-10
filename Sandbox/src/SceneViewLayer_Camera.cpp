@@ -36,11 +36,12 @@ void SceneViewLayer::SetViewPreset(float yaw, float pitch)
 void SceneViewLayer::FocusOnSelected()
 {
     auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
-    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle);
-    auto* meshComp = m_Scene.TryGetComponent<CHEngine::MeshComponent>(handle);
-    if (!transformComp || !meshComp) return;
-    auto& transform = transformComp->ObjectTransform;
-    auto& meshes = meshComp->Meshes;
+    auto* entity = m_Scene.TryGetEntity(handle);
+    if (!entity
+        || !entity->HasComponent<CHEngine::TransformComponent>()
+        || !entity->HasComponent<CHEngine::MeshComponent>()) return;
+    auto& transform = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
+    auto& meshes = entity->GetComponent<CHEngine::MeshComponent>().Meshes;
     m_OrbitTarget = transform.Position;
 
     float maxR = 0.5f;
@@ -132,8 +133,8 @@ void SceneViewLayer::UpdateCameraInput()
     if (m_FollowObject && m_SelectedObjectID != boost::uuids::nil_uuid())
     {
         auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
-        if (auto* transform = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
-            m_OrbitTarget = transform->ObjectTransform.Position;
+        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
+            m_OrbitTarget = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position;
             ApplyOrbit();
         }
     }

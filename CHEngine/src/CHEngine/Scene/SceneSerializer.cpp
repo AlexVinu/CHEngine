@@ -214,20 +214,22 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
     j["objects"]  = json::array();
 
     m_Scene->ForEach<TagComponent>([&](EntityHandle handle, const UUID&, TagComponent& tag) {
-        auto* idComp = m_Scene->TryGetComponent<IDComponent>(handle);
-        auto* transformComp = m_Scene->TryGetComponent<TransformComponent>(handle);
-        auto* meshPtr = m_Scene->TryGetComponent<MeshComponent>(handle);
-        auto* colorPtr = m_Scene->TryGetComponent<ColorComponent>(handle);
-        auto* visibilityPtr = m_Scene->TryGetComponent<VisibilityComponent>(handle);
-        if (!idComp || !transformComp || !meshPtr || !colorPtr || !visibilityPtr)
+        Entity* entity = m_Scene->TryGetEntity(handle);
+        if (!entity
+            || !entity->HasComponent<IDComponent>()
+            || !entity->HasComponent<TransformComponent>()
+            || !entity->HasComponent<MeshComponent>()
+            || !entity->HasComponent<ColorComponent>()
+            || !entity->HasComponent<VisibilityComponent>())
             return;
-        auto& mesh = *meshPtr;
-        auto& color = *colorPtr;
-        auto& visibility = *visibilityPtr;
-        auto& transform = transformComp->ObjectTransform;
+        auto& idComp = entity->GetComponent<IDComponent>();
+        auto& mesh = entity->GetComponent<MeshComponent>();
+        auto& color = entity->GetComponent<ColorComponent>();
+        auto& visibility = entity->GetComponent<VisibilityComponent>();
+        auto& transform = entity->GetComponent<TransformComponent>().ObjectTransform;
         json o;
         o["name"]    = tag.Name;
-        o["uuid"]    = boost::uuids::to_string(idComp->Value);
+        o["uuid"]    = boost::uuids::to_string(idComp.Value);
         o["visible"] = visibility.Visible;
         o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
 
@@ -254,7 +256,8 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
         o["materials"] = materials;
 
         // Сериализация источника света
-        if (const auto* lightComp = m_Scene->TryGetComponent<LightComponent>(handle)) {
+        if (entity->HasComponent<LightComponent>()) {
+            const auto* lightComp = &entity->GetComponent<LightComponent>();
             const auto& lightData = lightComp->LightData;
             json light;
             light["type"]      = static_cast<int>(lightData.Type);
@@ -266,8 +269,8 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
             o["light"] = light;
         }
 
-        if (const auto* rigidBody = m_Scene->TryGetComponent<RigidBody3DComponent>(handle))
-            o["rigidBody"] = SerializeRigidBody(*rigidBody);
+        if (entity->HasComponent<RigidBody3DComponent>())
+            o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
 
         j["objects"].push_back(o);
     });
@@ -378,7 +381,8 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
                 }
 
                 handle = m_Scene->CreateEntity(name, entityUUID);
-                if (auto* meshComp = m_Scene->TryGetComponent<MeshComponent>(handle)) {
+                if (auto* entity = m_Scene->TryGetEntity(handle); entity && entity->HasComponent<MeshComponent>()) {
+                    auto* meshComp = &entity->GetComponent<MeshComponent>();
                     meshComp->Meshes = std::move(result.meshes);
                     meshComp->SourcePath = meshPath;
                 }
@@ -412,8 +416,9 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         visible = o.value("visible", true);
 
         // Десериализация материалов: materials[] по сабмешам; v2 material — один на все сабмеши (шаринг ptr)
-        if (auto* meshCompForMat = m_Scene->TryGetComponent<MeshComponent>(handle))
+        if (obj->HasComponent<MeshComponent>())
         {
+            auto* meshCompForMat = &obj->GetComponent<MeshComponent>();
             for (auto& meshItem : meshCompForMat->Meshes)
             {
                 if (!meshItem.Mat)
@@ -497,22 +502,24 @@ nlohmann::json SceneSerializer::SerializeToJson()
     j["objects"]  = json::array();
 
     m_Scene->ForEach<TagComponent>([&](EntityHandle handle, const UUID&, TagComponent& tag) {
-        auto* idComp        = m_Scene->TryGetComponent<IDComponent>(handle);
-        auto* transformComp = m_Scene->TryGetComponent<TransformComponent>(handle);
-        auto* meshPtr       = m_Scene->TryGetComponent<MeshComponent>(handle);
-        auto* colorPtr      = m_Scene->TryGetComponent<ColorComponent>(handle);
-        auto* visibilityPtr = m_Scene->TryGetComponent<VisibilityComponent>(handle);
-        if (!idComp || !transformComp || !meshPtr || !colorPtr || !visibilityPtr)
+        Entity* entity = m_Scene->TryGetEntity(handle);
+        if (!entity
+            || !entity->HasComponent<IDComponent>()
+            || !entity->HasComponent<TransformComponent>()
+            || !entity->HasComponent<MeshComponent>()
+            || !entity->HasComponent<ColorComponent>()
+            || !entity->HasComponent<VisibilityComponent>())
             return;
 
-        auto& mesh       = *meshPtr;
-        auto& color      = *colorPtr;
-        auto& visibility = *visibilityPtr;
-        auto& transform  = transformComp->ObjectTransform;
+        auto& idComp     = entity->GetComponent<IDComponent>();
+        auto& mesh       = entity->GetComponent<MeshComponent>();
+        auto& color      = entity->GetComponent<ColorComponent>();
+        auto& visibility = entity->GetComponent<VisibilityComponent>();
+        auto& transform  = entity->GetComponent<TransformComponent>().ObjectTransform;
 
         json o;
         o["name"]    = tag.Name;
-        o["uuid"]    = boost::uuids::to_string(idComp->Value);
+        o["uuid"]    = boost::uuids::to_string(idComp.Value);
         o["visible"] = visibility.Visible;
         o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
         o["position"] = { transform.Position.x, transform.Position.y, transform.Position.z };
@@ -535,7 +542,8 @@ nlohmann::json SceneSerializer::SerializeToJson()
         }
         o["materials"] = materials;
 
-        if (const auto* lightComp = m_Scene->TryGetComponent<LightComponent>(handle)) {
+        if (entity->HasComponent<LightComponent>()) {
+            const auto* lightComp = &entity->GetComponent<LightComponent>();
             const auto& ld = lightComp->LightData;
             json light;
             light["type"]      = static_cast<int>(ld.Type);
@@ -547,8 +555,8 @@ nlohmann::json SceneSerializer::SerializeToJson()
             o["light"] = light;
         }
 
-        if (const auto* rigidBody = m_Scene->TryGetComponent<RigidBody3DComponent>(handle))
-            o["rigidBody"] = SerializeRigidBody(*rigidBody);
+        if (entity->HasComponent<RigidBody3DComponent>())
+            o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
 
         j["objects"].push_back(o);
     });
@@ -619,7 +627,8 @@ bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderReso
                 }
 
                 handle = m_Scene->CreateEntity(name, entityUUID);
-                if (auto* meshComp = m_Scene->TryGetComponent<MeshComponent>(handle)) {
+                if (auto* entity = m_Scene->TryGetEntity(handle); entity && entity->HasComponent<MeshComponent>()) {
+                    auto* meshComp = &entity->GetComponent<MeshComponent>();
                     meshComp->Meshes    = std::move(result.meshes);
                     meshComp->SourcePath = meshPath;
                 }
@@ -647,7 +656,8 @@ bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderReso
 
         visible = o.value("visible", true);
 
-        if (auto* meshCompForMat = m_Scene->TryGetComponent<MeshComponent>(handle)) {
+        if (obj->HasComponent<MeshComponent>()) {
+            auto* meshCompForMat = &obj->GetComponent<MeshComponent>();
             for (auto& meshItem : meshCompForMat->Meshes) {
                 if (!meshItem.Mat)
                     meshItem.Mat = MaterialInstance::FromBase(

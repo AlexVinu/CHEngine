@@ -6,6 +6,14 @@
 
 namespace CHEngine
 {
+    enum class RigidBodySyncMode : uint8_t
+    {
+        Auto = 0,
+        ReadFromPhysics = 1,
+        WriteToPhysics = 2,
+        ReadWrite = 3
+    };
+
     class IPhysicsBody
     {
     public:

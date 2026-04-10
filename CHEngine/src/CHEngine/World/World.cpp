@@ -7,6 +7,7 @@
 #include "Systems/RenderSystem.h"
 #include "Systems/TransformDirtySystem.h"
 #include "CHEngine/Physics/PhysicsFacade.h"
+#include "CHEngine/Scene/Entity.h"
 
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
@@ -92,33 +93,49 @@ namespace CHEngine
         IPhysicsWorld* runtimeWorld = PhysicsFacade::CreateWorld(m_PhysicsWorldDesc);
         if (!runtimeWorld)
             return;
-        m_PhysicsRuntimeWorld.reset(runtimeWorld);
+        m_PhysicsWorld.reset(runtimeWorld);
 
         m_Scene->ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID&, RigidBody3DComponent& rigidBody) {
-            auto* transformComponent = m_Scene->TryGetComponent<TransformComponent>(handle);
-            if (!transformComponent)
+            auto* entity = m_Scene->TryGetEntity(handle);
+            if (!entity || !entity->HasComponent<TransformComponent>())
                 return;
+            auto& transformComponent = entity->GetComponent<TransformComponent>();
 
             PhysicsTransform initialTransform{};
-            initialTransform.Position = transformComponent->ObjectTransform.Position;
-            initialTransform.Rotation = glm::quat(glm::radians(transformComponent->ObjectTransform.Rotation));
-            PhysicsFacade::CreateRigidBodyRuntime(m_PhysicsRuntimeWorld.get(), rigidBody, initialTransform);
+            initialTransform.Position = transformComponent.ObjectTransform.Position;
+            initialTransform.Rotation = glm::quat(glm::radians(transformComponent.ObjectTransform.Rotation));
+            
+            auto bodyDesc = rigidBody.BodyDesc;
+            auto shapeDesc = rigidBody.ShapeDesc;
+            auto* shape = PhysicsFacade::CreateShape(shapeDesc);
+            rigidBody.Shape = shape;
+            rigidBody.Body = m_PhysicsWorld->CreateRigidBody(bodyDesc, shape);
+
+            if (rigidBody.Body)
+                rigidBody.Body->SetTransform(initialTransform);
         });
     }
 
     void World::ClearPhysicsRuntime()
     {
-        IPhysicsWorld* runtimeWorld = m_PhysicsRuntimeWorld.get();
+        IPhysicsWorld* runtimeWorld = m_PhysicsWorld.get();
         if (m_Scene)
         {
             m_Scene->ForEach<RigidBody3DComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody) {
-                PhysicsFacade::DestroyRigidBodyRuntime(runtimeWorld, rigidBody);
+                if (runtimeWorld && rigidBody.Body)
+                    runtimeWorld->DestroyRigidBody(rigidBody.Body);
+                rigidBody.Body = nullptr;
+
+                if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
+                    PhysicsFacade::Delete(rigidBody.Shape);
+                rigidBody.Shape = nullptr;
+
             });
         }
 
         if (runtimeWorld)
             PhysicsFacade::DestroyWorld(runtimeWorld);
-        m_PhysicsRuntimeWorld.reset(runtimeWorld);
+        m_PhysicsWorld.reset(runtimeWorld);
     }
 
     void World::DestroyRigidBodyRuntime(EntityHandle handle)
@@ -126,8 +143,19 @@ namespace CHEngine
         if (!m_Scene)
             return;
 
-        if (auto* rigidBody = m_Scene->TryGetComponent<RigidBody3DComponent>(handle))
-            PhysicsFacade::DestroyRigidBodyRuntime(m_PhysicsRuntimeWorld.get(), *rigidBody);
+        auto* entity = m_Scene->TryGetEntity(handle);
+        if (!entity || !entity->HasComponent<RigidBody3DComponent>())
+            return;
+
+        auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
+
+        if (m_PhysicsWorld && rigidBody.Body)
+            m_PhysicsWorld->DestroyRigidBody(rigidBody.Body);
+        rigidBody.Body = nullptr;
+
+        if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
+            PhysicsFacade::Delete(rigidBody.Shape);
+        rigidBody.Shape = nullptr;
     }
 
     void World::registerDefaultSystems()
