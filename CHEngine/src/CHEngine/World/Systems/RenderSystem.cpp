@@ -4,6 +4,7 @@
 #include "CHEngine/Mesh/Material.h"
 #include "CHEngine/Render/RenderFacade.h"
 #include "CHEngine/Scene/Components.h"
+#include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
 #include <Render/IShader.h>
 #include <Render/UniformBlocks.h>
@@ -104,8 +105,11 @@ void RenderSystem::run(World& world, CommandBuffer&, Timestep)
     }
 
     const Transform* cameraTransform = &camera->CameraTransform;
-    if (const auto* transformComponent = scene.TryGetComponent<TransformComponent>(cameraHandle))
-        cameraTransform = &transformComponent->ObjectTransform;
+    if (Entity* cameraEntity = scene.TryGetEntity(cameraHandle);
+        cameraEntity && cameraEntity->HasComponent<TransformComponent>())
+    {
+        cameraTransform = &cameraEntity->GetComponent<TransformComponent>().ObjectTransform;
+    }
 
     const float fov = glm::max(camera->FOV, 1.0f);
     const float nearClip = glm::max(camera->NearClip, 0.0001f);
@@ -141,13 +145,13 @@ void RenderSystem::run(World& world, CommandBuffer&, Timestep)
         if (lightCount >= MaxUBOLights)
             return;
 
-        const auto* visible = scene.TryGetComponent<VisibilityComponent>(handle);
-        if (!visible || !visible->Visible)
+        Entity* entity = scene.TryGetEntity(handle);
+        if (!entity || !entity->HasComponent<VisibilityComponent>() || !entity->GetComponent<VisibilityComponent>().Visible)
             return;
 
-        const auto* transformComp = scene.TryGetComponent<TransformComponent>(handle);
-        if (!transformComp)
+        if (!entity->HasComponent<TransformComponent>())
             return;
+        const auto& transformComp = entity->GetComponent<TransformComponent>();
 
         const Light& light = lightComp.LightData;
         if (light.Type == LightType::None)
@@ -156,7 +160,7 @@ void RenderSystem::run(World& world, CommandBuffer&, Timestep)
         UBOLightData& L = lightingUBO.Lights[lightCount];
         L.Type = static_cast<int32_t>(light.Type);
 
-        const Transform& transform = transformComp->ObjectTransform;
+        const Transform& transform = transformComp.ObjectTransform;
         L.Position[0] = transform.Position.x;
         L.Position[1] = transform.Position.y;
         L.Position[2] = transform.Position.z;
@@ -197,17 +201,17 @@ void RenderSystem::run(World& world, CommandBuffer&, Timestep)
 
     ShaderHandle activeMeshShader{};
     scene.ForEach<MeshComponent>([&](EntityHandle handle, const UUID&, MeshComponent& meshComp) {
-        const auto* visible = scene.TryGetComponent<VisibilityComponent>(handle);
-        if (!visible || !visible->Visible)
+        Entity* entity = scene.TryGetEntity(handle);
+        if (!entity || !entity->HasComponent<VisibilityComponent>() || !entity->GetComponent<VisibilityComponent>().Visible)
             return;
 
-        const auto* transformComp = scene.TryGetComponent<TransformComponent>(handle);
-        const auto* colorComp = scene.TryGetComponent<ColorComponent>(handle);
-        if (!transformComp || !colorComp)
+        if (!entity->HasComponent<TransformComponent>() || !entity->HasComponent<ColorComponent>())
             return;
+        const auto& transformComp = entity->GetComponent<TransformComponent>();
+        const auto& colorComp = entity->GetComponent<ColorComponent>();
 
-        const Transform& transform = transformComp->ObjectTransform;
-        const glm::vec4& color = colorComp->Color;
+        const Transform& transform = transformComp.ObjectTransform;
+        const glm::vec4& color = colorComp.Color;
 
         const glm::mat4 model = glm::translate(glm::mat4(1.0f), transform.Position)
             * glm::mat4_cast(glm::quat(glm::radians(transform.Rotation)))

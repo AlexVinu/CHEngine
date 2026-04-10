@@ -311,8 +311,8 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     if (ImGui::Button("+ Dir Light", ImVec2(halfW, 0.0f)))
     {
         auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Directional Light", CHEngine::LightType::Directional);
-        if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
-            tr->ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
+            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
             m_SelectedObjectID = m_Scene.GetUUID(handle);
         }
     }
@@ -320,16 +320,16 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     if (ImGui::Button("+ Point Light", ImVec2(halfW, 0.0f)))
     {
         auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Point Light", CHEngine::LightType::Point);
-        if (auto* tr = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
-            tr->ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
+            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
             m_SelectedObjectID = m_Scene.GetUUID(handle);
         }
     }
     if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
     {
         auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Spot Light", CHEngine::LightType::Spot);
-        if (auto* tcomp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(handle)) {
-            auto& tr = tcomp->ObjectTransform;
+        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
+            auto& tr = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
             tr.Position = { 0.0f, 5.0f, 0.0f };
             tr.Rotation = { -90.0f, 0.0f, 0.0f };
             m_SelectedObjectID = m_Scene.GetUUID(handle);
@@ -358,8 +358,8 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
         // Метка типа объекта в иерархии
         const char* icon = "";
-        if (const auto* light = m_Scene.TryGetComponent<CHEngine::LightComponent>(handle)) {
-            const auto type = light->LightData.Type;
+        if (const auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::LightComponent>()) {
+            const auto type = entity->GetComponent<CHEngine::LightComponent>().LightData.Type;
             if (type == CHEngine::LightType::Directional) icon = "[D] ";
             else if (type == CHEngine::LightType::Point)  icon = "[P] ";
             else if (type == CHEngine::LightType::Spot)   icon = "[S] ";
@@ -422,16 +422,21 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         return;
     }
 
-    auto* tag = m_Scene.TryGetComponent<CHEngine::TagComponent>(selectedHandle);
-    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(selectedHandle);
-    auto* meshComp = m_Scene.TryGetComponent<CHEngine::MeshComponent>(selectedHandle);
-    auto* colorComp = m_Scene.TryGetComponent<CHEngine::ColorComponent>(selectedHandle);
-    auto* visibility = m_Scene.TryGetComponent<CHEngine::VisibilityComponent>(selectedHandle);
-    if (!tag || !transformComp || !meshComp || !colorComp || !visibility) {
+    auto* selectedEntity = m_Scene.TryGetEntity(selectedHandle);
+    if (!selectedEntity
+        || !selectedEntity->HasComponent<CHEngine::TagComponent>()
+        || !selectedEntity->HasComponent<CHEngine::TransformComponent>()
+        || !selectedEntity->HasComponent<CHEngine::MeshComponent>()
+        || !selectedEntity->HasComponent<CHEngine::ColorComponent>()
+        || !selectedEntity->HasComponent<CHEngine::VisibilityComponent>()) {
         UIActive::EndPanel();
         return;
     }
-    auto& transform = transformComp->ObjectTransform;
+    auto& tag = selectedEntity->GetComponent<CHEngine::TagComponent>();
+    auto& transform = selectedEntity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
+    auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
+    auto& colorComp = selectedEntity->GetComponent<CHEngine::ColorComponent>();
+    auto& visibility = selectedEntity->GetComponent<CHEngine::VisibilityComponent>();
 
     // В Play/Pause — только чтение (для наблюдения за состоянием)
     const bool propsReadOnly = (m_EditorState != EditorState::Edit);
@@ -447,11 +452,11 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
     // Name field
     char nameBuf[256];
-    std::strncpy(nameBuf, tag->Name.c_str(), sizeof(nameBuf));
+    std::strncpy(nameBuf, tag.Name.c_str(), sizeof(nameBuf));
     nameBuf[sizeof(nameBuf) - 1] = '\0';
     ImGui::SetNextItemWidth(-1.0f);
     if (ImGui::InputText("##name", nameBuf, sizeof(nameBuf)))
-        tag->Name = nameBuf;
+        tag.Name = nameBuf;
 
     // TRANSFORM
     UIActive::SectionHeader("TRANSFORM");
@@ -486,19 +491,19 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     // MATERIAL
     UIActive::SectionHeader("MATERIAL");
     ImGui::SetNextItemWidth(-1.0f);
-    ImGui::ColorEdit4("##color", glm::value_ptr(colorComp->Color));
+    ImGui::ColorEdit4("##color", glm::value_ptr(colorComp.Color));
     ImGui::Spacing();
     {
-        bool before = visibility->Visible;
-        if (UIActive::Toggle("Visible", &visibility->Visible) && visibility->Visible != before)
+        bool before = visibility.Visible;
+        if (UIActive::Toggle("Visible", &visibility.Visible) && visibility.Visible != before)
             m_UndoStack.PushVisibility(&m_Scene, m_SelectedObjectID, before);
     }
 
     // ── Текстуры (по одному материалу на сабмеш) ─────────────────────────
-    for (size_t mi = 0; mi < meshComp->Meshes.size(); ++mi)
+    for (size_t mi = 0; mi < meshComp.Meshes.size(); ++mi)
     {
         ImGui::PushID(static_cast<int>(mi));
-        if (meshComp->Meshes.size() > 1)
+        if (meshComp.Meshes.size() > 1)
         {
             ImGui::Spacing();
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
@@ -506,7 +511,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
             ImGui::PopStyleColor();
         }
 
-        auto& subMesh = meshComp->Meshes[mi];
+        auto& subMesh = meshComp.Meshes[mi];
         if (!subMesh.Mat)
             subMesh.Mat = CHEngine::MaterialInstance::FromBase(
                 std::make_shared<CHEngine::Material>(m_MeshShader));
@@ -644,8 +649,9 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     }
 
     // LIGHT (показывать только для источников света)
-    if (auto* lightComp = m_Scene.TryGetComponent<CHEngine::LightComponent>(selectedHandle))
+    if (selectedEntity->HasComponent<CHEngine::LightComponent>())
     {
+        auto* lightComp = &selectedEntity->GetComponent<CHEngine::LightComponent>();
         auto& lightData = lightComp->LightData;
         UIActive::SectionHeader("LIGHT");
 
@@ -703,13 +709,13 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     // INFO
     UIActive::SectionHeader("INFO");
     uint32_t tv = 0, ti = 0;
-    for (auto& m : meshComp->Meshes)
+    for (auto& m : meshComp.Meshes)
     {
         tv += static_cast<uint32_t>(m.GetVertices().size());
         ti += static_cast<uint32_t>(m.GetIndices().size());
     }
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f,0.557f,0.576f,1.0f));
-    ImGui::Text("Meshes      %zu",  meshComp->Meshes.size());
+    ImGui::Text("Meshes      %zu",  meshComp.Meshes.size());
     ImGui::Text("Vertices    %u",   tv);
     ImGui::Text("Triangles   %u",   ti / 3);
     ImGui::PopStyleColor();

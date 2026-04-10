@@ -14,6 +14,9 @@
 
 #include <entt/entt.hpp>
 
+// Scene is a container of entities
+// You must not add here another functionality except providing access to entities
+
 namespace CHEngine {
 
 	class Entity;
@@ -33,26 +36,16 @@ public:
 
 	EntityHandle CreateEntity(const std::string& name = "Object");
 	EntityHandle CreateEntity(const std::string& name, const UUID& uuid);
+
 	void DestroyEntity(EntityHandle entityHandle);
-	EntityHandle TryGetEntityHandleByUUID(const UUID& uuid) const;
-	UUID GetUUID(EntityHandle entityHandle) const;
-	Entity* TryGetEntity(EntityHandle entityHandle);
-	const Entity* TryGetEntity(EntityHandle entityHandle) const;
-	bool IsEntityHandleValid(EntityHandle entityHandle) const;
 
 	/// Iterates entities that have \p Component. Invokes \p fn(handle, id, comp).
-	/// Stable \p id / \p handle come from TagComponent and EntityHandlersStore (skipped if inconsistent).
+	/// Stable \p id / \p handle come from IdComponent and EntityHandlersStore (skipped if inconsistent).
 	template<typename Component, typename Fn>
 	void ForEach(Fn&& fn);
 
 	template<typename Component, typename Fn>
 	void ForEach(Fn&& fn) const;
-
-	template<typename T>
-	T* TryGetComponent(EntityHandle entityHandle);
-
-	template<typename T>
-	const T* TryGetComponent(EntityHandle entityHandle) const;
 
 	void SetLightComponent(EntityHandle entityHandle, const Light& light);
 	void RemoveLightComponent(EntityHandle entityHandle);
@@ -64,6 +57,13 @@ public:
 	// Returns empty string if not found. Avoids exposing entt registry publicly.
 	std::string GetMeshSourcePath(const UUID& objectUUID) const;
 
+	// Entity getters
+	EntityHandle TryGetEntityHandleByUUID(const UUID& uuid) const;
+	UUID GetUUID(const EntityHandle entityHandle) const;
+	Entity* TryGetEntity(const EntityHandle entityHandle);
+	const Entity* TryGetEntity(const EntityHandle entityHandle) const;
+	bool IsEntityHandleValid(const EntityHandle entityHandle) const;
+
 private:
 	friend Entity;
 
@@ -73,26 +73,8 @@ private:
 		HandlePool<Entity, EntityTag> EntityPool;
 	};
 
-	void OnEntityDestroyed(EntityHandle entityHandle);
-	bool IsEnttEntityValid(entt::entity entity) const;
-	bool IsEntityBoundToHandle(entt::entity entity) const;
-
 	Scope<SceneRegistry> m_SceneRegistry;
-
-	template<typename T, typename... Args>
-	T& AddComponent(entt::entity entity, Args&&... args);
-
-	template<typename T>
-	T& GetComponent(entt::entity entity);
-
-	template<typename T>
-	const T& GetComponent(entt::entity entity) const;
-
-	template<typename T>
-	bool HasComponent(entt::entity entity) const;
-
-	template<typename T>
-	void RemoveComponent(entt::entity entity);
+	entt::entity TryGetEnttEntity(const EntityHandle entityHandle) const;
 };
 
 template<typename Component, typename Fn>

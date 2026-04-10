@@ -24,15 +24,16 @@ void PhysicsSystem::run(World& world, CommandBuffer&, Timestep dt)
         if (!rigidBody.Body)
             return;
 
-        auto* transformComponent = scene.TryGetComponent<TransformComponent>(handle);
-        if (!transformComponent)
+        Entity* entity = scene.TryGetEntity(handle);
+        if (!entity || !entity->HasComponent<TransformComponent>())
             return;
+        auto& transformComponent = entity->GetComponent<TransformComponent>();
 
         const PhysicsBodyType bodyType = rigidBody.Body->GetType();
         if (!ShouldWriteToPhysics(rigidBody.SyncMode, bodyType))
             return;
 
-        const Transform& transform = transformComponent->ObjectTransform;
+        const Transform& transform = transformComponent.ObjectTransform;
         PhysicsTransform physicsTransform{};
         physicsTransform.Position = transform.Position;
         physicsTransform.Rotation = glm::quat(glm::radians(transform.Rotation));
@@ -49,17 +50,18 @@ void PhysicsSystem::run(World& world, CommandBuffer&, Timestep dt)
         if (!rigidBody.Body)
             return;
 
-        auto* transformComponent = scene.TryGetComponent<TransformComponent>(handle);
-        if (!transformComponent)
+        Entity* entity = scene.TryGetEntity(handle);
+        if (!entity || !entity->HasComponent<TransformComponent>())
             return;
+        auto& transformComponent = entity->GetComponent<TransformComponent>();
 
         const PhysicsBodyType bodyType = rigidBody.Body->GetType();
         if (!ShouldReadFromPhysics(rigidBody.SyncMode, bodyType))
             return;
 
         const PhysicsTransform physicsTransform = rigidBody.Body->GetTransform();
-        transformComponent->ObjectTransform.Position = physicsTransform.Position;
-        transformComponent->ObjectTransform.Rotation = glm::degrees(glm::eulerAngles(physicsTransform.Rotation));
+        transformComponent.ObjectTransform.Position = physicsTransform.Position;
+        transformComponent.ObjectTransform.Rotation = glm::degrees(glm::eulerAngles(physicsTransform.Rotation));
     });
 }
 

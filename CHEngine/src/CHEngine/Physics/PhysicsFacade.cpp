@@ -5,25 +5,6 @@
 namespace
 {
     CHEngine::IPhysicsFactory* g_PhysicsFactory = nullptr;
-
-    CHEngine::IPhysicsShape* CreateShape(CHEngine::IPhysicsFactory* factory,
-                                         const CHEngine::PhysicsColliderShapeDesc& shapeDesc)
-    {
-        if (!factory)
-            return nullptr;
-
-        switch (shapeDesc.Type)
-        {
-        case CHEngine::PhysicsColliderShapeType::Box:
-            return factory->CreateBoxShape(shapeDesc.HalfExtents);
-        case CHEngine::PhysicsColliderShapeType::Sphere:
-            return factory->CreateSphereShape(shapeDesc.Radius);
-        case CHEngine::PhysicsColliderShapeType::Capsule:
-            return factory->CreateCapsuleShape(shapeDesc.Radius, shapeDesc.HalfHeight);
-        default:
-            return nullptr;
-        }
-    }
 }
 
 namespace CHEngine
@@ -48,10 +29,10 @@ namespace CHEngine
         return g_PhysicsFactory != nullptr;
     }
 
-    IPhysicsFactory* PhysicsFacade::GetFactory()
-    {
-        return g_PhysicsFactory;
-    }
+    //IPhysicsFactory* PhysicsFacade::GetFactory()
+    //{
+    //    return g_PhysicsFactory;
+    //}
 
     IPhysicsWorld* PhysicsFacade::CreateWorld(const PhysicsWorldDesc& worldDesc)
     {
@@ -60,7 +41,7 @@ namespace CHEngine
         return g_PhysicsFactory->CreateWorld(worldDesc);
     }
 
-    void PhysicsFacade::DestroyWorld(IPhysicsWorld*& world)
+    void PhysicsFacade::DestroyWorld(IPhysicsWorld* world)
     {
         if (!g_PhysicsFactory || !world)
             return;
@@ -69,7 +50,33 @@ namespace CHEngine
         world = nullptr;
     }
 
-    bool PhysicsFacade::CreateRigidBodyRuntime(IPhysicsWorld* world,
+    IPhysicsShape* PhysicsFacade::CreateShape(const CHEngine::PhysicsColliderShapeDesc& shapeDesc)
+    {
+        if (!g_PhysicsFactory)
+            return nullptr;
+
+        switch (shapeDesc.Type)
+        {
+        case CHEngine::PhysicsColliderShapeType::Box:
+            return g_PhysicsFactory->CreateBoxShape(shapeDesc.HalfExtents);
+        case CHEngine::PhysicsColliderShapeType::Sphere:
+            return g_PhysicsFactory->CreateSphereShape(shapeDesc.Radius);
+        case CHEngine::PhysicsColliderShapeType::Capsule:
+            return g_PhysicsFactory->CreateCapsuleShape(shapeDesc.Radius, shapeDesc.HalfHeight);
+        default:
+            return nullptr;
+        }
+    }
+
+    void PhysicsFacade::Delete(IPhysicsShape* shape)
+    {
+        if (!g_PhysicsFactory)
+            return;
+
+        g_PhysicsFactory->Delete(shape);
+    }
+
+    /*bool PhysicsFacade::CreateRigidBodyRuntime(IPhysicsWorld* world,
                                                RigidBody3DComponent& rigidBody,
                                                const PhysicsTransform& initialTransform)
     {
@@ -105,6 +112,6 @@ namespace CHEngine
 
         if (g_PhysicsFactory && rigidBody.Shape)
             g_PhysicsFactory->Delete(rigidBody.Shape);
-        rigidBody.Shape = nullptr;
-    }
+        rigidBody.Shape = nullptr;*/
+    //}
 }

@@ -3,7 +3,6 @@
 #include <Core.h>
 
 #include "Physics/IPhysicsFactory.h"
-#include "CHEngine/Scene/Components.h"
 
 namespace CHEngine
 {
@@ -14,16 +13,16 @@ namespace CHEngine
         static void Shutdown();
 
         static bool IsAvailable();
-        static IPhysicsFactory* GetFactory();
 
         static IPhysicsWorld* CreateWorld(const PhysicsWorldDesc& worldDesc = {});
-        static void DestroyWorld(IPhysicsWorld*& world);
+        static void DestroyWorld(IPhysicsWorld* world);
 
-        static bool CreateRigidBodyRuntime(IPhysicsWorld* world,
-                                           RigidBody3DComponent& rigidBody,
-                                           const PhysicsTransform& initialTransform);
-        static void DestroyRigidBodyRuntime(IPhysicsWorld* world, RigidBody3DComponent& rigidBody);
-
+        //static bool CreateRigidBodyRuntime(IPhysicsWorld* world,
+        //                                   RigidBody3DComponent& rigidBody,
+        //                                   const PhysicsTransform& initialTransform);
+        //static void DestroyRigidBodyRuntime(IPhysicsWorld* world, RigidBody3DComponent& rigidBody);
+        static IPhysicsShape* CreateShape(const CHEngine::PhysicsColliderShapeDesc& shapeDesc);
+        static void Delete(IPhysicsShape* shape);
     private:
         PhysicsFacade() = delete;
         ~PhysicsFacade() = delete;

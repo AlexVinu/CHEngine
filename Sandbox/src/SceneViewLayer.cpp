@@ -62,26 +62,29 @@ void SceneViewLayer::SyncEditorCameraToECS()
         }
     }
 
-    auto* cameraComp = m_Scene.TryGetComponent<CHEngine::CameraComponent>(m_EditorCameraEntity);
-    auto* transformComp = m_Scene.TryGetComponent<CHEngine::TransformComponent>(m_EditorCameraEntity);
-    if (!cameraComp || !transformComp)
+    auto* entity = m_Scene.TryGetEntity(m_EditorCameraEntity);
+    if (!entity
+        || !entity->HasComponent<CHEngine::CameraComponent>()
+        || !entity->HasComponent<CHEngine::TransformComponent>())
         return;
+    auto& cameraComp = entity->GetComponent<CHEngine::CameraComponent>();
+    auto& transformComp = entity->GetComponent<CHEngine::TransformComponent>();
 
-    cameraComp->FOV = m_Camera.GetFOV();
-    cameraComp->NearClip = 0.1f;
-    cameraComp->FarClip = 500.0f;
-    cameraComp->AspectRatio = m_AspectRatio;
-    cameraComp->Active = true;
-    cameraComp->Primary = true;
+    cameraComp.FOV = m_Camera.GetFOV();
+    cameraComp.NearClip = 0.1f;
+    cameraComp.FarClip = 500.0f;
+    cameraComp.AspectRatio = m_AspectRatio;
+    cameraComp.Active = true;
+    cameraComp.Primary = true;
 
-    CHEngine::Transform cameraTransform = cameraComp->CameraTransform;
+    CHEngine::Transform cameraTransform = cameraComp.CameraTransform;
     cameraTransform.Position = m_Camera.GetPosition();
     cameraTransform.Rotation.x = m_Camera.GetPitch();
     cameraTransform.Rotation.y = m_Camera.GetYaw();
     cameraTransform.Rotation.z = 0.0f;
     cameraTransform.Scale = { 1.0f, 1.0f, 1.0f };
-    cameraComp->CameraTransform = cameraTransform;
-    transformComp->ObjectTransform = cameraTransform;
+    cameraComp.CameraTransform = cameraTransform;
+    transformComp.ObjectTransform = cameraTransform;
 }
 
 void SceneViewLayer::OnEvent(CHEngine::Event& e)
