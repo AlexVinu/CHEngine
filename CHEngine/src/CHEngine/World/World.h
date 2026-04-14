@@ -1,6 +1,10 @@
 #pragma once
 
-#include "CommandBuffer.h"
+#include <Core.h>
+#include "CheStl/MemoryTypes.h"
+
+#include "DeferredOps.h"
+#include "EventBus.h"
 #include "SystemScheduler.h"
 #include "Physics/IPhysicsWorld.h"
 #include "CHEngine/Scene/Components.h"
@@ -10,52 +14,54 @@
 
 namespace CHEngine
 {
+    class Event;
+
+    // You may not turn this into god class, so less functionality = good
+    // It is just provides connection between Scene, Systems, Events and PhysicalWorld(if exists)
     class CHENGINE_API World {
     public:
         World();
         explicit World(Scene* scene);
-        World(const World&) = delete;
-        World& operator=(const World&) = delete;
-        World(World&&) noexcept = default;
-        World& operator=(World&&) noexcept = default;
 
-        void setScene(Scene* scene);
-        bool hasScene() const { return m_Scene != nullptr; }
-        Scene& scene();
-        const Scene& scene() const;
+        void SetScene(Scene* scene);
+        bool HasScene() const { return m_Scene != nullptr; }
+        Scene* GetScene();
+        const Scene* GetScene() const;
 
-        void update(Timestep dt);
+        void Update(Timestep dt);
         void OnEvent(Event& event);
 
         // ── Play / Pause / Edit mode control ─────────────────────────────────
-        void setSimulating(bool sim) { m_Simulating = sim; }
-        bool isSimulating()   const  { return m_Simulating; }
-        void setActive(bool active)  { m_Active = active; }
-        bool isActive()       const  { return m_Active; }
+        void SetSimulating(bool sim) { m_Simulating = sim; }
+        bool IsSimulating()   const  { return m_Simulating; }
+        void SetActive(bool active)  { m_Active = active; }
+        bool IsActive()       const  { return m_Active; }
 
-        void setPhysicsWorldDesc(const PhysicsWorldDesc& worldDesc);
-        const PhysicsWorldDesc& physicsWorldDesc() const { return m_PhysicsWorldDesc; }
-        void RebuildPhysicsRuntime();
-        void ClearPhysicsRuntime();
-        void DestroyRigidBodyRuntime(EntityHandle handle);
-        Scope<IPhysicsWorld>& physicsRuntimeWorld() { return m_PhysicsWorld; }
-        const Scope<IPhysicsWorld>& physicsRuntimeWorld() const { return m_PhysicsWorld; }
+        void SetPhysicsWorldDesc(const PhysicsWorldDesc& world_desc);
+        const PhysicsWorldDesc& GetPhysicsWorldDesc() const { return m_PhysicsWorldDesc; }
+        Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() { return m_PhysicsWorld; }
+        const Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() const { return m_PhysicsWorld; }
 
-        SystemScheduler& scheduler() { return m_Scheduler; }
-        const SystemScheduler& scheduler() const { return m_Scheduler; }
-        CommandBuffer& commands() { return m_CommandBuffer; }
-        const CommandBuffer& commands() const { return m_CommandBuffer; }
+        SystemScheduler& GetScheduler() { return m_Scheduler; }
+        const SystemScheduler& GetScheduler() const { return m_Scheduler; }
+        DeferredOps& GetDeferredOps() { return m_DeferredOps; }
+        const DeferredOps& GetDeferredOps() const { return m_DeferredOps; }
+        EventBus& GetEvents() { return m_EventBus; }
+        const EventBus& GetEvents() const { return m_EventBus; }
 
     private:
-        void registerDefaultSystems();
+        void RegisterDefaultSystems();
+        void FlushDeferredOps();
 
     private:
         SystemScheduler m_Scheduler;
-        CommandBuffer m_CommandBuffer;
+        DeferredOps m_DeferredOps;
+        EventBus m_EventBus;
         PhysicsWorldDesc m_PhysicsWorldDesc{};
         Scope<IPhysicsWorld> m_PhysicsWorld;
         Scene* m_Scene      = nullptr;
         bool   m_Active     = true;   // Presentation phase (рендер)
         bool   m_Simulating = false;  // Simulation phase (физика, логика)
+        bool   m_InitializationDispatched = false;
     };
 }

@@ -33,7 +33,6 @@
 #include "CHEngine/Scene/Light.h"
 #include "CHEngine/Scene/Components.h"
 #include "CHEngine/Scene/Entity.h"
-#include "CHEngine/Scene/SceneSpawner.h"
 #include "CHEngine/Scene/SceneSerializer.h"
 #include "CHEngine/Scene/RecentFiles.h"
 // ================================

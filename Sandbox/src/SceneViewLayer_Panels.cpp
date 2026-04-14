@@ -10,6 +10,7 @@
 #include <memory>
 #include <optional>
 #include <boost/container_hash/hash.hpp>
+#include <boost/uuid/random_generator.hpp>
 
 // ============================================================================
 //  UI — Toolbar
@@ -310,29 +311,44 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     float halfW = (ImGui::GetContentRegionAvail().x - 4.0f) * 0.5f;
     if (ImGui::Button("+ Dir Light", ImVec2(halfW, 0.0f)))
     {
-        auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Directional Light", CHEngine::LightType::Directional);
+        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
+        const CHEngine::UUID object_id = boost::uuids::random_generator()();
+        const CHEngine::DeferredEntityHandle deferred_handle = deferred_ops->CreateEntityWithUUID("Directional Light", object_id);
+        deferred_ops->AddComponent<CHEngine::LightComponent>(deferred_handle, CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
+        m_World.Update(CHEngine::Timestep(0.0f));
+        auto handle = m_Scene.TryGetEntityHandleByUUID(object_id);
         if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
             entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
-            m_SelectedObjectID = m_Scene.GetUUID(handle);
+            m_SelectedObjectID = object_id;
         }
     }
     ImGui::SameLine(0, 4);
     if (ImGui::Button("+ Point Light", ImVec2(halfW, 0.0f)))
     {
-        auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Point Light", CHEngine::LightType::Point);
+        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
+        const CHEngine::UUID object_id = boost::uuids::random_generator()();
+        const CHEngine::DeferredEntityHandle deferred_handle = deferred_ops->CreateEntityWithUUID("Point Light", object_id);
+        deferred_ops->AddComponent<CHEngine::LightComponent>(deferred_handle, CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Point } });
+        m_World.Update(CHEngine::Timestep(0.0f));
+        auto handle = m_Scene.TryGetEntityHandleByUUID(object_id);
         if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
             entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
-            m_SelectedObjectID = m_Scene.GetUUID(handle);
+            m_SelectedObjectID = object_id;
         }
     }
     if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
     {
-        auto handle = CHEngine::SceneSpawner::CreateLightEntity(m_Scene, "Spot Light", CHEngine::LightType::Spot);
+        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
+        const CHEngine::UUID object_id = boost::uuids::random_generator()();
+        const CHEngine::DeferredEntityHandle deferred_handle = deferred_ops->CreateEntityWithUUID("Spot Light", object_id);
+        deferred_ops->AddComponent<CHEngine::LightComponent>(deferred_handle, CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Spot } });
+        m_World.Update(CHEngine::Timestep(0.0f));
+        auto handle = m_Scene.TryGetEntityHandleByUUID(object_id);
         if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
             auto& tr = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
             tr.Position = { 0.0f, 5.0f, 0.0f };
             tr.Rotation = { -90.0f, 0.0f, 0.0f };
-            m_SelectedObjectID = m_Scene.GetUUID(handle);
+            m_SelectedObjectID = object_id;
         }
     }
 
@@ -397,7 +413,9 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     if (deleteID.has_value())
     {
         if (m_SelectedObjectID == deleteID.value()) m_SelectedObjectID = boost::uuids::nil_uuid();
-        m_Scene.RemoveObject(deleteID.value());
+        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
+        deferred_ops->DestroyEntityByUUID(deleteID.value());
+        m_World.Update(CHEngine::Timestep(0.0f));
     }
 
     UIActive::EndPanel();

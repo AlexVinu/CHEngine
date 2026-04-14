@@ -303,7 +303,7 @@ namespace CHEngine {
                 layer->OnUpdate(dt);
 
             for (World& world : m_RuntimeWorlds)
-                world.update(dt);
+                world.Update(dt);
 
             if (UIFacade::GetLayer())
             {

@@ -7,6 +7,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <tuple>
 #include <boost/container_hash/hash.hpp>
 #include "Components.h"
 #include "Memory/HandlePool.h"
@@ -38,24 +39,17 @@ public:
 	EntityHandle CreateEntity(const std::string& name, const UUID& uuid);
 
 	void DestroyEntity(EntityHandle entityHandle);
+	void DestroyEntity(const UUID& uuid);
 
-	/// Iterates entities that have \p Component. Invokes \p fn(handle, id, comp).
+	/// Iterates entities that have every type in \p Components (AND). Invokes \p fn(handle, id, comps...).
 	/// Stable \p id / \p handle come from IdComponent and EntityHandlersStore (skipped if inconsistent).
-	template<typename Component, typename Fn>
+	template<typename... Components, typename Fn>
 	void ForEach(Fn&& fn);
 
-	template<typename Component, typename Fn>
+	template<typename... Components, typename Fn>
 	void ForEach(Fn&& fn) const;
 
-	void SetLightComponent(EntityHandle entityHandle, const Light& light);
-	void RemoveLightComponent(EntityHandle entityHandle);
-
-	void RemoveObject(const UUID& uuid);
 	void Clear();
-
-	// Returns the source file path (mesh import path) stored in ECS for the given object ID.
-	// Returns empty string if not found. Avoids exposing entt registry publicly.
-	std::string GetMeshSourcePath(const UUID& objectUUID) const;
 
 	// Entity getters
 	EntityHandle TryGetEntityHandleByUUID(const UUID& uuid) const;
@@ -77,11 +71,13 @@ private:
 	entt::entity TryGetEnttEntity(const EntityHandle entityHandle) const;
 };
 
-template<typename Component, typename Fn>
+template<typename... Components, typename Fn>
 void Scene::ForEach(Fn&& fn)
 {
+	static_assert(sizeof...(Components) >= 1u, "ForEach requires at least one component type.");
+
 	auto& reg = m_SceneRegistry->Registry;
-	for (const auto entity : reg.view<Component>()) {
+	for (const auto entity : reg.template view<Components...>()) {
 		if (!reg.all_of<IDComponent>(entity))
 			continue;
 
@@ -94,15 +90,22 @@ void Scene::ForEach(Fn&& fn)
 		if (!TryGetEntity(handle))
 			continue;
 
-		fn(handle, uuid, reg.template get<Component>(entity));
+		if constexpr (sizeof...(Components) == 1u) {
+			fn(handle, uuid, reg.template get<Components...>(entity));
+		} else {
+			std::apply([&](auto&&... comps) { fn(handle, uuid, std::forward<decltype(comps)>(comps)...); },
+				reg.template get<Components...>(entity));
+		}
 	}
 }
 
-template<typename Component, typename Fn>
+template<typename... Components, typename Fn>
 void Scene::ForEach(Fn&& fn) const
 {
+	static_assert(sizeof...(Components) >= 1u, "ForEach requires at least one component type.");
+
 	const auto& reg = m_SceneRegistry->Registry;
-	for (const auto entity : reg.view<Component>()) {
+	for (const auto entity : reg.template view<Components...>()) {
 		if (!reg.all_of<IDComponent>(entity))
 			continue;
 
@@ -115,7 +118,12 @@ void Scene::ForEach(Fn&& fn) const
 		if (!TryGetEntity(handle))
 			continue;
 
-		fn(handle, uuid, reg.template get<Component>(entity));
+		if constexpr (sizeof...(Components) == 1u) {
+			fn(handle, uuid, reg.template get<Components...>(entity));
+		} else {
+			std::apply([&](auto&&... comps) { fn(handle, uuid, std::forward<decltype(comps)>(comps)...); },
+				reg.template get<Components...>(entity));
+		}
 	}
 }
 

@@ -15,10 +15,14 @@ public:
     }
     ~PhysicsSystem() override = default;
 
-    const char* name() const override { return "PhysicsSystem"; }
-    void run(World& world, CommandBuffer& commands, Timestep dt) override;
+    const char* GetName() const override { return "PhysicsSystem"; }
+    void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
+    void OnPhaseDispatch(World& world, DeferredOps& deferred_ops) override;
 
-private:
+    static void RebuildPhysicsRuntime(World& world);
+    static void ClearPhysicsRuntime(World& world);
+    static void DestroyRigidBody(World& world, EntityHandle handle);
+
     static bool ShouldWriteToPhysics(RigidBodySyncMode syncMode, PhysicsBodyType bodyType);
     static bool ShouldReadFromPhysics(RigidBodySyncMode syncMode, PhysicsBodyType bodyType);
 };

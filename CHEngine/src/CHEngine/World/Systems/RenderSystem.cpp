@@ -93,11 +93,11 @@ const CameraComponent* SelectActiveCamera(Scene& scene, EntityHandle& outHandle)
 
 } // namespace
 
-void RenderSystem::run(World& world, CommandBuffer&, Timestep)
+void RenderSystem::Run(World& world, DeferredOps& deferred_ops, Timestep)
 {
-    Scene& scene = world.scene();
+    auto* scene = world.GetScene();
     EntityHandle cameraHandle{};
-    const CameraComponent* camera = SelectActiveCamera(scene, cameraHandle);
+    const CameraComponent* camera = SelectActiveCamera(*scene, cameraHandle);
     if (!camera)
     {
         CHE_CORE_WARN("RenderSystem: no CameraComponent found, skipping object pass");
@@ -105,7 +105,7 @@ void RenderSystem::run(World& world, CommandBuffer&, Timestep)
     }
 
     const Transform* cameraTransform = &camera->CameraTransform;
-    if (Entity* cameraEntity = scene.TryGetEntity(cameraHandle);
+    if (Entity* cameraEntity = scene->TryGetEntity(cameraHandle);
         cameraEntity && cameraEntity->HasComponent<TransformComponent>())
     {
         cameraTransform = &cameraEntity->GetComponent<TransformComponent>().ObjectTransform;
@@ -141,17 +141,12 @@ void RenderSystem::run(World& world, CommandBuffer&, Timestep)
     lightingUBO.AmbientColor[3] = 0.0f;
 
     int lightCount = 0;
-    scene.ForEach<LightComponent>([&](EntityHandle handle, const UUID&, LightComponent& lightComp) {
+    scene->ForEach<LightComponent, TransformComponent, VisibilityComponent>([&](EntityHandle, const UUID&, LightComponent& lightComp, TransformComponent& transformComp, VisibilityComponent& visibilityComp) {
         if (lightCount >= MaxUBOLights)
             return;
 
-        Entity* entity = scene.TryGetEntity(handle);
-        if (!entity || !entity->HasComponent<VisibilityComponent>() || !entity->GetComponent<VisibilityComponent>().Visible)
+        if (!visibilityComp.Visible)
             return;
-
-        if (!entity->HasComponent<TransformComponent>())
-            return;
-        const auto& transformComp = entity->GetComponent<TransformComponent>();
 
         const Light& light = lightComp.LightData;
         if (light.Type == LightType::None)
@@ -200,15 +195,9 @@ void RenderSystem::run(World& world, CommandBuffer&, Timestep)
     lightingUBO.NumLights = lightCount;
 
     ShaderHandle activeMeshShader{};
-    scene.ForEach<MeshComponent>([&](EntityHandle handle, const UUID&, MeshComponent& meshComp) {
-        Entity* entity = scene.TryGetEntity(handle);
-        if (!entity || !entity->HasComponent<VisibilityComponent>() || !entity->GetComponent<VisibilityComponent>().Visible)
+    scene->ForEach<MeshComponent, TransformComponent, ColorComponent, VisibilityComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp, TransformComponent& transformComp, ColorComponent& colorComp, VisibilityComponent& visibilityComp) {
+        if (!visibilityComp.Visible)
             return;
-
-        if (!entity->HasComponent<TransformComponent>() || !entity->HasComponent<ColorComponent>())
-            return;
-        const auto& transformComp = entity->GetComponent<TransformComponent>();
-        const auto& colorComp = entity->GetComponent<ColorComponent>();
 
         const Transform& transform = transformComp.ObjectTransform;
         const glm::vec4& color = colorComp.Color;

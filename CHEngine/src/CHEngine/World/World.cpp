@@ -5,9 +5,9 @@
 #include "Systems/LifetimeSystem.h"
 #include "Systems/PhysicsSystem.h"
 #include "Systems/RenderSystem.h"
-#include "Systems/TransformDirtySystem.h"
 #include "CHEngine/Physics/PhysicsFacade.h"
 #include "CHEngine/Scene/Entity.h"
+#include "WorldEvents.h"
 
 #include <glm/gtc/quaternion.hpp>
 #include <vector>
@@ -16,154 +16,86 @@ namespace CHEngine
 {
     World::World()
     {
-        registerDefaultSystems();
+        RegisterDefaultSystems();
     }
 
     World::World(Scene* scene)
         : m_Scene(scene)
     {
-        registerDefaultSystems();
+        RegisterDefaultSystems();
         if (m_Scene)
-            RebuildPhysicsRuntime();
+            m_EventBus.Publish<RebuildPhysicsWorldEvent>(SystemPhase::Simulation);
     }
 
-    void World::setScene(Scene* scene)
+    void World::SetScene(Scene* scene)
     {
         if (m_Scene == scene)
             return;
 
-        ClearPhysicsRuntime();
         m_Scene = scene;
-        m_CommandBuffer.clear();
+        m_DeferredOps.Clear();
+        m_EventBus.ClearAll();
+        m_InitializationDispatched = false;
         if (m_Scene)
-            RebuildPhysicsRuntime();
+            PhysicsSystem::RebuildPhysicsRuntime(*this);
+        else
+            PhysicsSystem::ClearPhysicsRuntime(*this);
     }
 
-    void World::setPhysicsWorldDesc(const PhysicsWorldDesc& worldDesc)
+    void World::SetPhysicsWorldDesc(const PhysicsWorldDesc& world_desc)
     {
-        m_PhysicsWorldDesc = worldDesc;
-        RebuildPhysicsRuntime();
+        m_PhysicsWorldDesc = world_desc;
+        m_EventBus.Publish<RebuildPhysicsWorldEvent>(SystemPhase::Simulation);
     }
 
-    Scene& World::scene()
+    Scene* World::GetScene()
     {
-        CHE_CORE_ASSERT(m_Scene, "World::scene called without a bound scene");
-        return *m_Scene;
+        CHE_CORE_ASSERT(m_Scene, "World::GetScene called without a bound scene");
+        return m_Scene;
     }
 
-    const Scene& World::scene() const
+    const Scene* World::GetScene() const
     {
-        CHE_CORE_ASSERT(m_Scene, "World::scene called without a bound scene");
-        return *m_Scene;
+        CHE_CORE_ASSERT(m_Scene, "World::GetScene called without a bound scene");
+        return m_Scene;
     }
 
-    void World::update(Timestep dt)
+    void World::FlushDeferredOps()
+    {
+        if (m_Scene)
+            m_DeferredOps.Flush(m_Scene);
+    }
+
+    void World::Update(Timestep dt)
     {
         if (!m_Scene)
             return;
 
+        if (!m_InitializationDispatched)
+        {
+            m_Scheduler.RunPhase(SystemPhase::Initialization, *this, m_DeferredOps, dt);
+            m_InitializationDispatched = true;
+        }
+
         if (m_Simulating)
-            m_Scheduler.runPhase(SystemPhase::Simulation, *this, m_CommandBuffer, dt);
+            m_Scheduler.RunPhase(SystemPhase::Simulation, *this, m_DeferredOps, dt);
 
         if (m_Active)
-            m_Scheduler.runPhase(SystemPhase::Presentation, *this, m_CommandBuffer, dt);
+            m_Scheduler.RunPhase(SystemPhase::Presentation, *this, m_DeferredOps, dt);
 
-        std::vector<EntityHandle> pendingDestroyHandles;
-        pendingDestroyHandles.reserve(m_CommandBuffer.size());
-        m_CommandBuffer.collectPendingDestroyHandles(*m_Scene, pendingDestroyHandles);
-        for (const EntityHandle handle : pendingDestroyHandles)
-            DestroyRigidBodyRuntime(handle);
-
-        m_CommandBuffer.flush(*m_Scene);
+        FlushDeferredOps();
     }
 
     void World::OnEvent(Event& event)
     {
-        if (!m_Scene)
-            return;
-        m_Scheduler.dispatchEvent(event, *this, m_CommandBuffer);
+        (void)event;
     }
 
-    void World::RebuildPhysicsRuntime()
+    void World::RegisterDefaultSystems()
     {
-        ClearPhysicsRuntime();
-        if (!m_Scene)
-            return;
-
-        IPhysicsWorld* runtimeWorld = PhysicsFacade::CreateWorld(m_PhysicsWorldDesc);
-        if (!runtimeWorld)
-            return;
-        m_PhysicsWorld.reset(runtimeWorld);
-
-        m_Scene->ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID&, RigidBody3DComponent& rigidBody) {
-            auto* entity = m_Scene->TryGetEntity(handle);
-            if (!entity || !entity->HasComponent<TransformComponent>())
-                return;
-            auto& transformComponent = entity->GetComponent<TransformComponent>();
-
-            PhysicsTransform initialTransform{};
-            initialTransform.Position = transformComponent.ObjectTransform.Position;
-            initialTransform.Rotation = glm::quat(glm::radians(transformComponent.ObjectTransform.Rotation));
-            
-            auto bodyDesc = rigidBody.BodyDesc;
-            auto shapeDesc = rigidBody.ShapeDesc;
-            auto* shape = PhysicsFacade::CreateShape(shapeDesc);
-            rigidBody.Shape = shape;
-            rigidBody.Body = m_PhysicsWorld->CreateRigidBody(bodyDesc, shape);
-
-            if (rigidBody.Body)
-                rigidBody.Body->SetTransform(initialTransform);
-        });
-    }
-
-    void World::ClearPhysicsRuntime()
-    {
-        IPhysicsWorld* runtimeWorld = m_PhysicsWorld.get();
-        if (m_Scene)
-        {
-            m_Scene->ForEach<RigidBody3DComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody) {
-                if (runtimeWorld && rigidBody.Body)
-                    runtimeWorld->DestroyRigidBody(rigidBody.Body);
-                rigidBody.Body = nullptr;
-
-                if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
-                    PhysicsFacade::Delete(rigidBody.Shape);
-                rigidBody.Shape = nullptr;
-
-            });
-        }
-
-        if (runtimeWorld)
-            PhysicsFacade::DestroyWorld(runtimeWorld);
-        m_PhysicsWorld.reset(runtimeWorld);
-    }
-
-    void World::DestroyRigidBodyRuntime(EntityHandle handle)
-    {
-        if (!m_Scene)
-            return;
-
-        auto* entity = m_Scene->TryGetEntity(handle);
-        if (!entity || !entity->HasComponent<RigidBody3DComponent>())
-            return;
-
-        auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
-
-        if (m_PhysicsWorld && rigidBody.Body)
-            m_PhysicsWorld->DestroyRigidBody(rigidBody.Body);
-        rigidBody.Body = nullptr;
-
-        if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
-            PhysicsFacade::Delete(rigidBody.Shape);
-        rigidBody.Shape = nullptr;
-    }
-
-    void World::registerDefaultSystems()
-    {
-        //m_Scheduler.emplaceSystem<TransformDirtySystem>();
-        m_Scheduler.emplaceSystem<LifetimeSystem>();
-        m_Scheduler.emplaceSystem<ComponentValidationSystem>();
-        m_Scheduler.emplaceSystem<PhysicsSystem>();
-        m_Scheduler.emplaceSystem<RenderSystem>();
+        m_Scheduler.EmplaceSystem<LifetimeSystem>();
+        m_Scheduler.EmplaceSystem<ComponentValidationSystem>();
+        m_Scheduler.EmplaceSystem<PhysicsSystem>();
+        m_Scheduler.EmplaceSystem<RenderSystem>();
     }
 }

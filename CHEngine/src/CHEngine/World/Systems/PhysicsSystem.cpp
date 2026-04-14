@@ -4,30 +4,28 @@
 #include "CHEngine/Scene/Components.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
+#include "CHEngine/World/WorldEvents.h"
+#include "CHEngine/Physics/PhysicsFacade.h"
+
 
 #include <glm/gtc/quaternion.hpp>
 
 namespace CHEngine {
 
-void PhysicsSystem::run(World& world, CommandBuffer&, Timestep dt)
+void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 {
     if (dt <= 0.0f)
         return;
 
-    IPhysicsWorld* runtimeWorld = world.physicsRuntimeWorld().get();
+    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().get();
     if (!runtimeWorld)
         return;
 
-    Scene& scene = world.scene();
+    auto* scene = world.GetScene();
 
-    scene.ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID&, RigidBody3DComponent& rigidBody) {
+    scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
         if (!rigidBody.Body)
             return;
-
-        Entity* entity = scene.TryGetEntity(handle);
-        if (!entity || !entity->HasComponent<TransformComponent>())
-            return;
-        auto& transformComponent = entity->GetComponent<TransformComponent>();
 
         const PhysicsBodyType bodyType = rigidBody.Body->GetType();
         if (!ShouldWriteToPhysics(rigidBody.SyncMode, bodyType))
@@ -46,14 +44,9 @@ void PhysicsSystem::run(World& world, CommandBuffer&, Timestep dt)
 
     runtimeWorld->StepSimulation(dt);
 
-    scene.ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID&, RigidBody3DComponent& rigidBody) {
+    scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
         if (!rigidBody.Body)
             return;
-
-        Entity* entity = scene.TryGetEntity(handle);
-        if (!entity || !entity->HasComponent<TransformComponent>())
-            return;
-        auto& transformComponent = entity->GetComponent<TransformComponent>();
 
         const PhysicsBodyType bodyType = rigidBody.Body->GetType();
         if (!ShouldReadFromPhysics(rigidBody.SyncMode, bodyType))
@@ -62,6 +55,19 @@ void PhysicsSystem::run(World& world, CommandBuffer&, Timestep dt)
         const PhysicsTransform physicsTransform = rigidBody.Body->GetTransform();
         transformComponent.ObjectTransform.Position = physicsTransform.Position;
         transformComponent.ObjectTransform.Rotation = glm::degrees(glm::eulerAngles(physicsTransform.Rotation));
+    });
+}
+
+void PhysicsSystem::OnPhaseDispatch(World& world, DeferredOps& deferred_ops)
+{
+    world.GetEvents().ConsumePhase<DestroyRigidBodyEvent>(GetPhase(), [&](const DestroyRigidBodyEvent& eventData) {
+        DestroyRigidBody(world, eventData.entityHandle);
+    });
+    world.GetEvents().ConsumePhase<RebuildPhysicsWorldEvent>(GetPhase(), [&](const RebuildPhysicsWorldEvent&) {
+        RebuildPhysicsRuntime(world);
+    });
+    world.GetEvents().ConsumePhase<DestroyPhysicsWorldEvent>(GetPhase(), [&](const DestroyPhysicsWorldEvent&) {
+        ClearPhysicsRuntime(world);
     });
 }
 
@@ -77,6 +83,79 @@ bool PhysicsSystem::ShouldReadFromPhysics(RigidBodySyncMode syncMode, PhysicsBod
     return syncMode == RigidBodySyncMode::ReadFromPhysics
         || syncMode == RigidBodySyncMode::ReadWrite
         || (syncMode == RigidBodySyncMode::Auto && bodyType != PhysicsBodyType::Kinematic);
+}
+
+void PhysicsSystem::RebuildPhysicsRuntime(World& world)
+{
+    ClearPhysicsRuntime(world);
+
+    IPhysicsWorld* runtimeWorld = PhysicsFacade::CreateWorld(world.GetPhysicsWorldDesc());
+    if (!runtimeWorld)
+        return;
+
+    world.GetPhysicsRuntimeWorld().reset(runtimeWorld);
+
+    auto* scene = world.GetScene();
+
+    scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
+        PhysicsTransform initialTransform{};
+        initialTransform.Position = transformComponent.ObjectTransform.Position;
+        initialTransform.Rotation = glm::quat(glm::radians(transformComponent.ObjectTransform.Rotation));
+
+        auto bodyDesc = rigidBody.BodyDesc;
+        auto shapeDesc = rigidBody.ShapeDesc;
+        auto* shape = PhysicsFacade::CreateShape(shapeDesc);
+        rigidBody.Shape = shape;
+        rigidBody.Body = world.GetPhysicsRuntimeWorld()->CreateRigidBody(bodyDesc, shape);
+
+        if (rigidBody.Body)
+            rigidBody.Body->SetTransform(initialTransform);
+        });
+}
+
+void PhysicsSystem::ClearPhysicsRuntime(World& world)
+{
+    // Release ownership before DestroyWorld: the factory deletes the instance;
+    // unique_ptr must not delete the same pointer again.
+    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().release();
+    auto* scene = world.GetScene();
+    if (scene)
+    {
+        scene->ForEach<RigidBody3DComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody) {
+            if (runtimeWorld && rigidBody.Body)
+                runtimeWorld->DestroyRigidBody(rigidBody.Body);
+            rigidBody.Body = nullptr;
+
+            if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
+                PhysicsFacade::Delete(rigidBody.Shape);
+            rigidBody.Shape = nullptr;
+
+            });
+    }
+
+    if (runtimeWorld)
+        PhysicsFacade::DestroyWorld(runtimeWorld);
+}
+
+void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
+{
+    auto* scene = world.GetScene();
+    if (!scene)
+        return;
+
+    auto* entity = scene->TryGetEntity(handle);
+    if (!entity || !entity->HasComponent<RigidBody3DComponent>())
+        return;
+
+    auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
+
+    if (world.GetPhysicsRuntimeWorld() && rigidBody.Body)
+        world.GetPhysicsRuntimeWorld()->DestroyRigidBody(rigidBody.Body);
+    rigidBody.Body = nullptr;
+
+    if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
+        PhysicsFacade::Delete(rigidBody.Shape);
+    rigidBody.Shape = nullptr;
 }
 
 } // namespace CHEngine

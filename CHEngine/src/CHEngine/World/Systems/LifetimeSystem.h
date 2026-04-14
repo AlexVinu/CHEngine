@@ -9,8 +9,8 @@ public:
     explicit LifetimeSystem(uint8_t priority = 20)
         : ISystem(SystemPhase::Simulation, priority) {}
 
-    const char* name() const override { return "LifetimeSystem"; }
-    void run(World& world, CommandBuffer& commands, Timestep dt) override;
+    const char* GetName() const override { return "LifetimeSystem"; }
+    void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
 };
 
 } // namespace CHEngine

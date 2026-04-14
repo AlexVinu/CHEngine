@@ -3,16 +3,19 @@
 
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
+
+#include "CHEngine/World/WorldEvents.h"
+
 #include <boost/uuid/uuid_io.hpp>
 
 namespace CHEngine {
 
-void ComponentValidationSystem::run(World& world, CommandBuffer&, Timestep)
+void ComponentValidationSystem::Run(World& world, DeferredOps& deferred_ops, Timestep)
 {
-    Scene& scene = world.scene();
+    auto* scene = world.GetScene();
     std::vector<EntityHandle> rigidBodiesWithoutTransform;
-    scene.ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID& uuid, RigidBody3DComponent& rigidBody) {
-        Entity* entity = scene.TryGetEntity(handle);
+    scene->ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID& uuid, RigidBody3DComponent& rigidBody) {
+        Entity* entity = scene->TryGetEntity(handle);
         if (!entity || !entity->HasComponent<TransformComponent>()) {
             CHE_CORE_WARN("ComponentValidationSystem: entity {} has RigidBody3DComponent without TransformComponent",
                           boost::uuids::to_string(uuid));
@@ -27,9 +30,8 @@ void ComponentValidationSystem::run(World& world, CommandBuffer&, Timestep)
     });
 
     for (const EntityHandle handle : rigidBodiesWithoutTransform) {
-        world.DestroyRigidBodyRuntime(handle);
-        if (Entity* entity = scene.TryGetEntity(handle))
-            entity->RemoveComponent<RigidBody3DComponent>();
+        world.GetEvents().Publish<DestroyRigidBodyEvent>(SystemPhase::Simulation, DestroyRigidBodyEvent{ handle });
+        deferred_ops.RemoveComponent<RigidBody3DComponent>(handle);
     }
 }
 

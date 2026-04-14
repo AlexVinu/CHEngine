@@ -88,7 +88,7 @@ void SceneViewLayer::RenderScene(CHEngine::Timestep dt)
     }
 
     // Mesh-pass moved to ECS Presentation phase (RenderSystem).
-    m_World.update(dt);
+    m_World.Update(dt);
 
     // ── Unbind FBO — restore default framebuffer ─────────────────────────
     if (fbo) fbo->Unbind();

@@ -2,7 +2,8 @@
 
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Scene/Entity.h>
-
+#include <CHEngine/World/ISystem.h>
+#include <CHEngine/World/WorldEvents.h>
 
 // ============================================================================
 //  Constructor
@@ -37,6 +38,14 @@ SceneViewLayer::SceneViewLayer()
 
     // Восстанавливаем сцену если был рестарт при смене API
     TryRestoreSession();
+}
+
+void SceneViewLayer::FlushSimulationEvents()
+{
+    const bool wasSimulating = m_World.IsSimulating();
+    m_World.SetSimulating(true);
+    m_World.Update(CHEngine::Timestep(0.0f));
+    m_World.SetSimulating(wasSimulating);
 }
 
 // ============================================================================

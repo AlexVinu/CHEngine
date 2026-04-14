@@ -4,111 +4,104 @@
 namespace CHEngine {
 
     namespace {
-        bool PriorityLess(const std::unique_ptr<ISystem>& left, const std::unique_ptr<ISystem>& right)
+        bool PriorityLess(const Scope<ISystem>& left, const Scope<ISystem>& right)
         {
-            return left->priority() < right->priority();
+            return left->GetPriority() < right->GetPriority();
         }
     } // namespace
 
-    ISystem& SystemScheduler::addSystem(std::unique_ptr<ISystem> system)
+    ISystem& SystemScheduler::AddSystem(Scope<ISystem> system)
     {
-        CHE_CORE_ASSERT(system, "SystemScheduler::addSystem expects a valid system instance");
+        CHE_CORE_ASSERT(system, "SystemScheduler::AddSystem expects a valid system instance");
         ISystem* raw = system.get();
-        auto& list = getPhaseList(system->phase());
+        auto& list = GetPhaseList(system->GetPhase());
         list.push_back(std::move(system));
-        sortPhase(raw->phase());
+        SortPhase(raw->GetPhase());
         return *raw;
     }
 
-    bool SystemScheduler::setEnabled(const ISystem& system, bool enabled)
+    bool SystemScheduler::SetEnabled(const ISystem& system, bool enabled)
     {
-        for (auto& phaseList : phases_) {
+        for (auto& phaseList : m_Phases) {
             for (auto& candidate : phaseList) {
                 if (candidate.get() != &system)
                     continue;
-                candidate->setEnabled(enabled);
+                candidate->SetEnabled(enabled);
                 return true;
             }
         }
         return false;
     }
 
-    bool SystemScheduler::setEnabled(std::string_view systemName, bool enabled)
+    bool SystemScheduler::SetEnabled(std::string_view system_name, bool enabled)
     {
-        for (auto& phaseList : phases_) {
+        for (auto& phaseList : m_Phases) {
             for (auto& system : phaseList) {
-                if (systemName != system->name())
+                if (system_name != system->GetName())
                     continue;
-                system->setEnabled(enabled);
+                system->SetEnabled(enabled);
                 return true;
             }
         }
         return false;
     }
 
-    bool SystemScheduler::isEnabled(const ISystem& system) const
+    bool SystemScheduler::IsEnabled(const ISystem& system) const
     {
-        for (const auto& phaseList : phases_) {
+        for (const auto& phaseList : m_Phases) {
             for (const auto& candidate : phaseList) {
                 if (candidate.get() != &system)
                     continue;
-                return candidate->enabled();
+                return candidate->IsEnabled();
             }
         }
         return false;
     }
 
-    bool SystemScheduler::isEnabled(std::string_view systemName) const
+    bool SystemScheduler::IsEnabled(std::string_view system_name) const
     {
-        for (const auto& phaseList : phases_) {
+        for (const auto& phaseList : m_Phases) {
             for (const auto& system : phaseList) {
-                if (systemName != system->name())
+                if (system_name != system->GetName())
                     continue;
-                return system->enabled();
+                return system->IsEnabled();
             }
         }
         return false;
     }
 
-    void SystemScheduler::runPhase(SystemPhase phase, World& world, CommandBuffer& commands, Timestep dt)
+    void SystemScheduler::RunPhase(SystemPhase phase, World& world, DeferredOps& deferred_ops, Timestep dt)
     {
-        auto& list = getPhaseList(phase);
+        auto& list = GetPhaseList(phase);
         for (size_t i = 0; i < list.size(); ++i) {
             ISystem* system = list[i].get();
-            if (!system || !system->enabled())
+            if (!system || !system->IsEnabled())
                 continue;
-            system->run(world, commands, dt);
+            system->Run(world, deferred_ops, dt);
+        }
+
+        world.GetEvents().SwapPhase(phase);
+        for (size_t i = 0; i < list.size(); ++i) {
+            ISystem* system = list[i].get();
+            if (!system || !system->IsEnabled())
+                continue;
+            system->OnPhaseDispatch(world, deferred_ops);
         }
     }
 
-    void SystemScheduler::dispatchEvent(Event& event, World& world, CommandBuffer& commands)
+    void SystemScheduler::SortPhase(SystemPhase phase)
     {
-        for (size_t phaseIndex = 0; phaseIndex < phases_.size(); ++phaseIndex) {
-            auto& list = phases_[phaseIndex];
-            for (size_t i = 0; i < list.size(); ++i) {
-                ISystem* system = list[i].get();
-                if (!system || !system->enabled())
-                    continue;
-                system->onEvent(event, world, commands);
-                if (event.Handled)
-                    return;
-            }
-        }
-    }
-
-    void SystemScheduler::sortPhase(SystemPhase phase)
-    {
-        auto& list = getPhaseList(phase);
+        auto& list = GetPhaseList(phase);
         std::stable_sort(list.begin(), list.end(), PriorityLess);
     }
 
-    std::vector<std::unique_ptr<ISystem>>& SystemScheduler::getPhaseList(SystemPhase phase)
+    std::vector<Scope<ISystem>>& SystemScheduler::GetPhaseList(SystemPhase phase)
     {
-        return phases_[static_cast<size_t>(phase)];
+        return m_Phases[static_cast<size_t>(phase)];
     }
 
-    const std::vector<std::unique_ptr<ISystem>>& SystemScheduler::getPhaseList(SystemPhase phase) const
+    const std::vector<Scope<ISystem>>& SystemScheduler::GetPhaseList(SystemPhase phase) const
     {
-        return phases_[static_cast<size_t>(phase)];
+        return m_Phases[static_cast<size_t>(phase)];
     }
 }

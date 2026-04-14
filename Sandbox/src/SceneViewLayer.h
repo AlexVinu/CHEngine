@@ -93,6 +93,9 @@ private:
     void AutoSaveForRestart();
     void TryRestoreSession();
 
+    // Runs one Simulation-phase tick so queued physics events are consumed (dt may be zero).
+    void FlushSimulationEvents();
+
     static constexpr const char* k_SessionFile      = ".che_session.chscene";
     static constexpr const char* k_SessionStateFile = ".che_session_state";
 

@@ -1,11 +1,12 @@
 #pragma once
+#include <Core.h>
+#include "CheStl/MemoryTypes.h"
 #include <algorithm>
-#include <array>
 #include <memory>
+#include <array>
 #include <string_view>
 #include <vector>
 
-#include "CommandBuffer.h"
 #include "ISystem.h"
 
 namespace CHEngine
@@ -17,28 +18,27 @@ namespace CHEngine
         static constexpr size_t PhaseCount = (size_t)SystemPhase::SIZE;
 
         template<typename T, typename... Args>
-        T& emplaceSystem(Args&&... args) {
+        T& EmplaceSystem(Args&&... args) {
             auto system = std::make_unique<T>(std::forward<Args>(args)...);
             T& ref = *system;
-            addSystem(std::move(system));
+            AddSystem(std::move(system));
             return ref;
         }
 
-        ISystem& addSystem(std::unique_ptr<ISystem> system);
+        ISystem& AddSystem(Scope<ISystem> system);
 
-        bool setEnabled(const ISystem& system, bool enabled);
-        bool setEnabled(std::string_view systemName, bool enabled);
-        bool isEnabled(const ISystem& system) const;
-        bool isEnabled(std::string_view systemName) const;
+        bool SetEnabled(const ISystem& system, bool enabled);
+        bool SetEnabled(std::string_view system_name, bool enabled);
+        bool IsEnabled(const ISystem& system) const;
+        bool IsEnabled(std::string_view system_name) const;
 
-        void runPhase(SystemPhase phase, World& world, CommandBuffer& commands, Timestep dt);
-        void dispatchEvent(Event& event, World& world, CommandBuffer& commands);
+        void RunPhase(SystemPhase phase, World& world, DeferredOps& deferred_ops, Timestep dt);
 
     private:
-        void sortPhase(SystemPhase phase);
-        std::vector<std::unique_ptr<ISystem>>& getPhaseList(SystemPhase phase);
-        const std::vector<std::unique_ptr<ISystem>>& getPhaseList(SystemPhase phase) const;
+        void SortPhase(SystemPhase phase);
+        std::vector<Scope<ISystem>>& GetPhaseList(SystemPhase phase);
+        const std::vector<Scope<ISystem>>& GetPhaseList(SystemPhase phase) const;
 
-        std::array<std::vector<std::unique_ptr<ISystem>>, PhaseCount> phases_;
+        std::array<std::vector<Scope<ISystem>>, PhaseCount> m_Phases;
     };
 }
