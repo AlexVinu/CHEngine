@@ -23,7 +23,7 @@ file(GLOB CHE_BOOST_INCLUDE_DIRS
 )
 
 # Создание динамической библиотеки
-add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES} "src/CHEngine/World/CommandBuffer.h")
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES} ${CHE_HEADERS} ${CHE_VENDOR_SOURCES} "src/CHEngine/World/DeferredOps.cpp")
 
 # Skip precompiled headers for vendor sources and ModelLoader files
 # (они включают tinyobjloader / tinygltf / stb_image с IMPLEMENTATION defines —

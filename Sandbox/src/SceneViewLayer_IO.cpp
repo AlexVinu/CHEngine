@@ -1,13 +1,18 @@
 #include "SceneViewLayer.h"
 
 #include <CHEngine/Render/RenderFacade.h>
+#include <CHEngine/Scene/SceneSerializer.h>
+#include <CHEngine/World/ISystem.h>
+#include <CHEngine/World/WorldEvents.h>
 #include <FileSystem/FileSystem.h>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/nil_generator.hpp>
+#include <boost/uuid/random_generator.hpp>
 
 #include <filesystem>
 #include <sstream>
 #include <cstddef>
+#include <memory>
 
 namespace {
 int HexToNibble(char c)
@@ -62,8 +67,8 @@ void SceneViewLayer::SaveScene()
         "Save Scene", "scene.chscene", filters, 1, ".chscene");
     if (path.empty()) return;
 
-    CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
-    if (serializer.SaveToFile(path)) {
+    CHEngine::SceneSerializer serializer{};
+    if (serializer.SaveToFile(&m_Scene, path)) {
         m_RecentFiles.AddPath(path);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
     }
@@ -83,9 +88,14 @@ void SceneViewLayer::LoadScene(const std::string& path)
     m_UndoStack = UndoStack{};
     m_SelectedObjectID = boost::uuids::nil_uuid();
 
-    CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
+    m_World.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+    FlushSimulationEvents();
+
+    CHEngine::SceneSerializer serializer{};
     auto* resources = CHEngine::Application::Get().GetRenderResources();
-    if (resources && serializer.LoadFromFile(filePath, *resources)) {
+    if (resources && serializer.LoadFromFile(&m_Scene, filePath, *resources, &m_World)) {
+        m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+        FlushSimulationEvents();
         m_RecentFiles.AddPath(filePath);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
     }
@@ -98,8 +108,8 @@ void SceneViewLayer::LoadScene(const std::string& path)
 void SceneViewLayer::AutoSaveForRestart()
 {
     // 1. Сцена (объекты, источники света)
-    CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
-    if (serializer.SaveToFile(k_SessionFile))
+    CHEngine::SceneSerializer serializer{};
+    if (serializer.SaveToFile(&m_Scene, k_SessionFile))
         CHE_CORE_INFO("SceneViewLayer: scene autosaved to {}", k_SessionFile);
     else
         CHE_CORE_WARN("SceneViewLayer: failed to autosave scene");
@@ -145,10 +155,16 @@ void SceneViewLayer::TryRestoreSession()
 {
     // 1. Восстанавливаем сцену
     if (std::filesystem::exists(k_SessionFile)) {
-        CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
+        m_World.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+        FlushSimulationEvents();
+
+        CHEngine::SceneSerializer serializer{};
         auto* resources = CHEngine::Application::Get().GetRenderResources();
-        if (resources && serializer.LoadFromFile(k_SessionFile, *resources))
+        if (resources && serializer.LoadFromFile(&m_Scene, k_SessionFile, *resources, &m_World)) {
+            m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+            FlushSimulationEvents();
             CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
+        }
         else
             CHE_CORE_WARN("SceneViewLayer: failed to restore scene");
         std::filesystem::remove(k_SessionFile);
@@ -242,12 +258,31 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
         }
     }
 
-    auto handle = CHEngine::SceneSpawner::CreateModelEntity(m_Scene, result.name, std::move(result.meshes), filepath);
+    CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
+    const CHEngine::UUID objectID = boost::uuids::random_generator()();
+    deferred_ops->CreateEntityWithUUID(result.name, objectID);
+    auto meshPayload = std::make_shared<std::vector<CHEngine::Mesh>>(std::move(result.meshes));
+    deferred_ops->Enqueue([objectID, meshPayload, filepath](CHEngine::Scene* scene)
+    {
+        CHE_CORE_ASSERT(scene, "ImportModel deferred callback expects valid Scene");
+        const CHEngine::EntityHandle handle = scene->TryGetEntityHandleByUUID(objectID);
+        if (!scene->IsEntityHandleValid(handle))
+            return;
+
+        CHEngine::Entity* entity = scene->TryGetEntity(handle);
+        if (!entity || !entity->HasComponent<CHEngine::MeshComponent>())
+            return;
+
+        auto& meshComponent = entity->GetComponent<CHEngine::MeshComponent>();
+        meshComponent.Meshes = std::move(*meshPayload);
+        meshComponent.SourcePath = filepath;
+    });
+    m_World.Update(CHEngine::Timestep(0.0f));
+    auto handle = m_Scene.TryGetEntityHandleByUUID(objectID);
     auto* entity = m_Scene.TryGetEntity(handle);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
         return;
     entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = centroid;
-    const auto objectID = m_Scene.GetUUID(handle);
     m_SelectedObjectID = objectID;
     m_UndoStack.PushImport(&m_Scene, objectID, &m_SelectedObjectID);
     FocusOnSelected();

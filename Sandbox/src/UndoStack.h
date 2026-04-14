@@ -71,7 +71,7 @@ struct ImportCommand : UndoCommand
     {
         if (*selectedID == objectID)
             *selectedID = boost::uuids::nil_uuid();
-        scene->RemoveObject(objectID);
+        scene->DestroyEntity(objectID);
     }
 };
 

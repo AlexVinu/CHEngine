@@ -9,28 +9,24 @@ namespace CHEngine {
 class RenderResourceManager;
 class World;
 
-class CHENGINE_API SceneSerializer {
-public:
-    explicit SceneSerializer(Scene* scene, World* world = nullptr);
-
+// Responsible for scene serialization; It shouldn`t own any fields
+struct CHENGINE_API SceneSerializer {
     // Saves scene to .chscene JSON file. Returns true on success.
-    bool SaveToFile(const std::string& path);
+    bool SaveToFile(Scene* scene, const std::string& path);
 
     // Loads scene from .chscene JSON file. Needs RenderResourceManager to re-import meshes.
     // Clears the scene first. Returns true on success.
-    bool LoadFromFile(const std::string& path, RenderResourceManager& resources);
+    bool LoadFromFile(Scene* scene, const std::string& path, RenderResourceManager& resources,
+                      World* world = nullptr);
 
     // ── In-memory snapshot (для Play/Stop режима) ─────────────────────────────
     // Сериализует сцену в JSON-объект (без записи на диск).
-    nlohmann::json SerializeToJson();
+    nlohmann::json SerializeToJson(Scene* scene);
 
     // Восстанавливает сцену из JSON-снапшота (без чтения с диска).
     // Аналог LoadFromFile, но источник — память.
-    bool DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources);
-
-private:
-    Scene* m_Scene;
-    World* m_World;
+    bool DeserializeFromJson(Scene* scene, const nlohmann::json& data, RenderResourceManager& resources,
+                             World* world = nullptr);
 };
 
 } // namespace CHEngine

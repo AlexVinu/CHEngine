@@ -9,8 +9,8 @@ public:
     explicit ComponentValidationSystem(uint8_t priority = 30)
         : ISystem(SystemPhase::Simulation, priority) {}
 
-    const char* name() const override { return "ComponentValidationSystem"; }
-    void run(World& world, CommandBuffer& commands, Timestep dt) override;
+    const char* GetName() const override { return "ComponentValidationSystem"; }
+    void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
 };
 
 } // namespace CHEngine

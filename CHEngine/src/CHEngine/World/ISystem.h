@@ -2,7 +2,6 @@
 
 #include <cstdint>
 
-#include "CHEngine/Events/Event.h"
 #include "Timestep.h"
 
 namespace CHEngine
@@ -15,22 +14,24 @@ namespace CHEngine
     };
 
     class World;
-    class CommandBuffer;
+    class DeferredOps;
 
     class ISystem {
     public:
-        ISystem(SystemPhase phase, uint8_t priority, bool enabled = true)
-            : m_Phase(phase), m_Priority(priority), m_Enabled(enabled) {}
+        ISystem(SystemPhase system_phase, uint8_t priority, bool enabled = true)
+            : m_Priority(priority), m_Phase(system_phase), m_Enabled(enabled) {}
         virtual ~ISystem() = default;
 
-        SystemPhase phase() const { return m_Phase; }
-        virtual uint8_t priority() const { return m_Priority; }
-        virtual const char* name() const = 0;
-        virtual void run(World& world, CommandBuffer& commands, Timestep dt) = 0;
-        virtual void onEvent(Event&, World&, CommandBuffer&) {}
+        SystemPhase GetPhase() const { return m_Phase; }
+        virtual uint8_t GetPriority() const { return m_Priority; }
+        virtual const char* GetName() const = 0;
+        virtual void Run(World& world, DeferredOps& deferred_ops, Timestep dt) = 0;
+        virtual void OnPhaseDispatch(World& world, DeferredOps& deferred_ops)
+        {
+        }
 
-        bool enabled() const { return m_Enabled; }
-        void setEnabled(bool value) { m_Enabled = value; }
+        bool IsEnabled() const { return m_Enabled; }
+        void SetEnabled(bool value) { m_Enabled = value; }
 
     private:
         uint8_t m_Priority;

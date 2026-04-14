@@ -1,7 +1,9 @@
 #include "SceneViewLayer.h"
 
-#include <CHEngine/Scene/SceneSerializer.h>
 #include <CHEngine/Render/RenderResourceManager.h>
+#include <CHEngine/Scene/SceneSerializer.h>
+#include <CHEngine/World/ISystem.h>
+#include <CHEngine/World/WorldEvents.h>
 
 // ============================================================================
 //  Play / Pause / Stop logic
@@ -13,16 +15,17 @@ void SceneViewLayer::EnterPlayMode()
         return;
 
     // 1. Сохранить снапшот сцены в память
-    CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
-    m_SceneSnapshot = serializer.SerializeToJson();
+    CHEngine::SceneSerializer serializer{};
+    m_SceneSnapshot = serializer.SerializeToJson(&m_Scene);
     m_HasSnapshot   = true;
 
     // 2. Очистить undo (в Play режиме undo недоступен)
     m_UndoStack.Clear();
 
     // 3. Пересобрать физику и включить симуляцию
-    m_World.RebuildPhysicsRuntime();
-    m_World.setSimulating(true);
+    m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+    FlushSimulationEvents();
+    m_World.SetSimulating(true);
 
     m_EditorState = EditorState::Play;
 }
@@ -33,7 +36,7 @@ void SceneViewLayer::EnterPauseMode()
         return;
 
     // Остановить симуляцию, но рендер (m_Active) продолжается
-    m_World.setSimulating(false);
+    m_World.SetSimulating(false);
 
     m_EditorState = EditorState::Pause;
 }
@@ -43,7 +46,7 @@ void SceneViewLayer::ResumeFromPause()
     if (m_EditorState != EditorState::Pause)
         return;
 
-    m_World.setSimulating(true);
+    m_World.SetSimulating(true);
 
     m_EditorState = EditorState::Play;
 }
@@ -54,8 +57,9 @@ void SceneViewLayer::StopPlayMode()
         return;
 
     // 1. Остановить симуляцию и физику
-    m_World.setSimulating(false);
-    m_World.ClearPhysicsRuntime();
+    m_World.SetSimulating(false);
+    m_World.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+    FlushSimulationEvents();
 
     // 2. Восстановить сцену из снапшота
     if (m_HasSnapshot)
@@ -63,8 +67,10 @@ void SceneViewLayer::StopPlayMode()
         auto* resources = CHEngine::Application::Get().GetRenderResources();
         if (resources)
         {
-            CHEngine::SceneSerializer serializer(&m_Scene, &m_World);
-            serializer.DeserializeFromJson(m_SceneSnapshot, *resources);
+            CHEngine::SceneSerializer serializer{};
+            serializer.DeserializeFromJson(&m_Scene, m_SceneSnapshot, *resources, &m_World);
+            m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+            FlushSimulationEvents();
         }
         m_HasSnapshot  = false;
         m_SceneSnapshot = {};
@@ -82,7 +88,7 @@ void SceneViewLayer::StepOneFrame()
         return;
 
     // Выполнить один кадр симуляции с фиксированным dt
-    m_World.setSimulating(true);
-    m_World.update(CHEngine::Timestep(m_StepDt));
-    m_World.setSimulating(false);
+    m_World.SetSimulating(true);
+    m_World.Update(CHEngine::Timestep(m_StepDt));
+    m_World.SetSimulating(false);
 }

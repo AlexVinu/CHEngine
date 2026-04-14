@@ -10,8 +10,8 @@ public:
     explicit RenderSystem(uint8_t priority = 100)
         : ISystem(SystemPhase::Presentation, priority) {}
 
-    const char* name() const override { return "RenderSystem"; }
-    void run(World& world, CommandBuffer& commands, Timestep dt) override;
+    const char* GetName() const override { return "RenderSystem"; }
+    void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
 };
 
 } // namespace CHEngine

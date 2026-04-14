@@ -13,6 +13,7 @@
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Render/RenderResourceManager.h>
 #include <CHEngine/Scene/Components.h>
+#include <CHEngine/World/DeferredOps.h>
 #include <CHEngine/World/World.h>
 #include "Entity.h"
 #include <Log/Log.h>
@@ -206,30 +207,17 @@ RigidBody3DComponent DeserializeRigidBody(const json& rbj)
 
 } // namespace
 
-SceneSerializer::SceneSerializer(Scene* scene, World* world) : m_Scene(scene), m_World(world) {}
-
-bool SceneSerializer::SaveToFile(const std::string& path) {
+bool SceneSerializer::SaveToFile(Scene* scene, const std::string& path) {
     json j;
     j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
 
-    m_Scene->ForEach<TagComponent>([&](EntityHandle handle, const UUID&, TagComponent& tag) {
-        Entity* entity = m_Scene->TryGetEntity(handle);
-        if (!entity
-            || !entity->HasComponent<IDComponent>()
-            || !entity->HasComponent<TransformComponent>()
-            || !entity->HasComponent<MeshComponent>()
-            || !entity->HasComponent<ColorComponent>()
-            || !entity->HasComponent<VisibilityComponent>())
-            return;
-        auto& idComp = entity->GetComponent<IDComponent>();
-        auto& mesh = entity->GetComponent<MeshComponent>();
-        auto& color = entity->GetComponent<ColorComponent>();
-        auto& visibility = entity->GetComponent<VisibilityComponent>();
-        auto& transform = entity->GetComponent<TransformComponent>().ObjectTransform;
+    scene->ForEach<TagComponent, TransformComponent, MeshComponent, ColorComponent, VisibilityComponent>([&](EntityHandle handle, const UUID& uuid, TagComponent& tag, TransformComponent& transformComp, MeshComponent& mesh, ColorComponent& color, VisibilityComponent& visibility) {
+        Entity* entity = scene->TryGetEntity(handle);
+        auto& transform = transformComp.ObjectTransform;
         json o;
         o["name"]    = tag.Name;
-        o["uuid"]    = boost::uuids::to_string(idComp.Value);
+        o["uuid"]    = boost::uuids::to_string(uuid);
         o["visible"] = visibility.Visible;
         o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
 
@@ -283,7 +271,9 @@ bool SceneSerializer::SaveToFile(const std::string& path) {
     return true;
 }
 
-bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManager& resources) {
+bool SceneSerializer::LoadFromFile(Scene* scene, const std::string& path, RenderResourceManager& resources,
+                                   World* world) {
+    DeferredOps* deferred_ops = world ? &world->GetDeferredOps() : nullptr;
     if (!FileSystem::Exists(path)) {
         CHE_CORE_ERROR("SceneSerializer: cannot read {}", path);
         return false;
@@ -315,14 +305,16 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
     }
 
     // Clear existing scene GPU resources first
-    m_Scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
+    scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
         for (auto& mesh : meshComp.Meshes) {
             if (mesh.GetVertexArray().IsValid())
                 resources.DestroyVertexArray(mesh.GetVertexArray());
         }
         DestroyUniqueMeshTextures(meshComp, resources);
     });
-    m_Scene->Clear();
+    scene->Clear();
+    if (deferred_ops)
+        deferred_ops->Clear();
 
     // Helper: safely read a JSON array of N floats
     auto readFloats = [](const json& arr, size_t count, float* out) -> bool {
@@ -354,6 +346,8 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
         }
 
         EntityHandle handle{};
+        std::vector<Mesh> importedMeshes;
+        bool hasImportedMeshes = false;
 
         if (!meshPath.empty()) {
             // Re-import model from disk
@@ -380,19 +374,22 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
                     }
                 }
 
-                handle = m_Scene->CreateEntity(name, entityUUID);
-                if (auto* entity = m_Scene->TryGetEntity(handle); entity && entity->HasComponent<MeshComponent>()) {
-                    auto* meshComp = &entity->GetComponent<MeshComponent>();
-                    meshComp->Meshes = std::move(result.meshes);
-                    meshComp->SourcePath = meshPath;
-                }
+                importedMeshes = std::move(result.meshes);
+                hasImportedMeshes = true;
             }
         }
 
-        if (!m_Scene->IsEntityHandleValid(handle))
-            handle = m_Scene->CreateEntity(name, entityUUID);
-        auto* obj = m_Scene->TryGetEntity(handle);
+        if (!scene->IsEntityHandleValid(handle))
+            handle = scene->CreateEntity(name, entityUUID);
+        auto* obj = scene->TryGetEntity(handle);
         if (!obj) continue;
+
+        if (hasImportedMeshes && obj->HasComponent<MeshComponent>())
+        {
+            auto* meshComp = &obj->GetComponent<MeshComponent>();
+            meshComp->Meshes = std::move(importedMeshes);
+            meshComp->SourcePath = meshPath;
+        }
 
         auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
         auto& color = obj->GetComponent<ColorComponent>().Color;
@@ -473,21 +470,16 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
 
         if (version >= 3 && o.contains("rigidBody") && o["rigidBody"].is_object()) {
             const RigidBody3DComponent rigidBody = DeserializeRigidBody(o["rigidBody"]);
-            if (obj->HasComponent<RigidBody3DComponent>()) {
-                if (m_World)
-                    m_World->DestroyRigidBodyRuntime(handle);
+            if (obj->HasComponent<RigidBody3DComponent>())
                 obj->RemoveComponent<RigidBody3DComponent>();
-            }
             obj->AddComponent<RigidBody3DComponent>(RigidBody3DComponent{ rigidBody });
         } else if (obj->HasComponent<RigidBody3DComponent>()) {
-            if (m_World)
-                m_World->DestroyRigidBodyRuntime(handle);
             obj->RemoveComponent<RigidBody3DComponent>();
         }
     }
 
-    if (m_World)
-        m_World->RebuildPhysicsRuntime();
+    if (world)
+        world->Update(Timestep(0.0f));
 
     CHE_CORE_INFO("Scene loaded: {}", path);
     return true;
@@ -495,31 +487,19 @@ bool SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManage
 
 // ── In-memory snapshot ────────────────────────────────────────────────────────
 
-nlohmann::json SceneSerializer::SerializeToJson()
+nlohmann::json SceneSerializer::SerializeToJson(Scene* scene)
 {
     json j;
     j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
 
-    m_Scene->ForEach<TagComponent>([&](EntityHandle handle, const UUID&, TagComponent& tag) {
-        Entity* entity = m_Scene->TryGetEntity(handle);
-        if (!entity
-            || !entity->HasComponent<IDComponent>()
-            || !entity->HasComponent<TransformComponent>()
-            || !entity->HasComponent<MeshComponent>()
-            || !entity->HasComponent<ColorComponent>()
-            || !entity->HasComponent<VisibilityComponent>())
-            return;
-
-        auto& idComp     = entity->GetComponent<IDComponent>();
-        auto& mesh       = entity->GetComponent<MeshComponent>();
-        auto& color      = entity->GetComponent<ColorComponent>();
-        auto& visibility = entity->GetComponent<VisibilityComponent>();
-        auto& transform  = entity->GetComponent<TransformComponent>().ObjectTransform;
+    scene->ForEach<TagComponent, TransformComponent, MeshComponent, ColorComponent, VisibilityComponent>([&](EntityHandle handle, const UUID& uuid, TagComponent& tag, TransformComponent& transformComp, MeshComponent& mesh, ColorComponent& color, VisibilityComponent& visibility) {
+        Entity* entity = scene->TryGetEntity(handle);
+        auto& transform = transformComp.ObjectTransform;
 
         json o;
         o["name"]    = tag.Name;
-        o["uuid"]    = boost::uuids::to_string(idComp.Value);
+        o["uuid"]    = boost::uuids::to_string(uuid);
         o["visible"] = visibility.Visible;
         o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
         o["position"] = { transform.Position.x, transform.Position.y, transform.Position.z };
@@ -564,8 +544,10 @@ nlohmann::json SceneSerializer::SerializeToJson()
     return j;
 }
 
-bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources)
+bool SceneSerializer::DeserializeFromJson(Scene* scene, const nlohmann::json& data, RenderResourceManager& resources,
+                                          World* world)
 {
+    DeferredOps* deferred_ops = world ? &world->GetDeferredOps() : nullptr;
     if (!data.is_object() || !data.contains("objects") || !data["objects"].is_array())
         return false;
 
@@ -574,14 +556,16 @@ bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderReso
         return false;
 
     // Очистить GPU-ресурсы текущей сцены
-    m_Scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
+    scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
         for (auto& mesh : meshComp.Meshes) {
             if (mesh.GetVertexArray().IsValid())
                 resources.DestroyVertexArray(mesh.GetVertexArray());
         }
         DestroyUniqueMeshTextures(meshComp, resources);
     });
-    m_Scene->Clear();
+    scene->Clear();
+    if (deferred_ops)
+        deferred_ops->Clear();
 
     auto readFloats = [](const json& arr, size_t count, float* out) -> bool {
         if (!arr.is_array() || arr.size() < count) return false;
@@ -604,6 +588,8 @@ bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderReso
         if (!TryParseUUIDString(o["uuid"].get<std::string>(), entityUUID)) continue;
 
         EntityHandle handle{};
+        std::vector<Mesh> importedMeshes;
+        bool hasImportedMeshes = false;
 
         if (!meshPath.empty()) {
             auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
@@ -626,19 +612,22 @@ bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderReso
                     }
                 }
 
-                handle = m_Scene->CreateEntity(name, entityUUID);
-                if (auto* entity = m_Scene->TryGetEntity(handle); entity && entity->HasComponent<MeshComponent>()) {
-                    auto* meshComp = &entity->GetComponent<MeshComponent>();
-                    meshComp->Meshes    = std::move(result.meshes);
-                    meshComp->SourcePath = meshPath;
-                }
+                importedMeshes = std::move(result.meshes);
+                hasImportedMeshes = true;
             }
         }
 
-        if (!m_Scene->IsEntityHandleValid(handle))
-            handle = m_Scene->CreateEntity(name, entityUUID);
-        auto* obj = m_Scene->TryGetEntity(handle);
+        if (!scene->IsEntityHandleValid(handle))
+            handle = scene->CreateEntity(name, entityUUID);
+        auto* obj = scene->TryGetEntity(handle);
         if (!obj) continue;
+
+        if (hasImportedMeshes && obj->HasComponent<MeshComponent>())
+        {
+            auto* meshComp = &obj->GetComponent<MeshComponent>();
+            meshComp->Meshes = std::move(importedMeshes);
+            meshComp->SourcePath = meshPath;
+        }
 
         auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
         auto& color     = obj->GetComponent<ColorComponent>().Color;
@@ -669,6 +658,16 @@ bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderReso
                     if (arr[mi].is_object())
                         ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat, resources);
             }
+            else if (o.contains("material") && o["material"].is_object())
+            {
+                auto& meshes = meshCompForMat->Meshes;
+                if (!meshes.empty())
+                {
+                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat, resources);
+                    for (size_t i = 1; i < meshes.size(); ++i)
+                        meshes[i].Mat = meshes[0].Mat;
+                }
+            }
         }
 
         if (o.contains("light") && o["light"].is_object()) {
@@ -693,19 +692,16 @@ bool SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderReso
 
         if (version >= 3 && o.contains("rigidBody") && o["rigidBody"].is_object()) {
             const RigidBody3DComponent rigidBody = DeserializeRigidBody(o["rigidBody"]);
-            if (obj->HasComponent<RigidBody3DComponent>()) {
-                if (m_World) m_World->DestroyRigidBodyRuntime(handle);
+            if (obj->HasComponent<RigidBody3DComponent>())
                 obj->RemoveComponent<RigidBody3DComponent>();
-            }
             obj->AddComponent<RigidBody3DComponent>(RigidBody3DComponent{ rigidBody });
         } else if (obj->HasComponent<RigidBody3DComponent>()) {
-            if (m_World) m_World->DestroyRigidBodyRuntime(handle);
             obj->RemoveComponent<RigidBody3DComponent>();
         }
     }
 
-    if (m_World)
-        m_World->RebuildPhysicsRuntime();
+    if (world)
+        world->Update(Timestep(0.0f));
 
     return true;
 }
