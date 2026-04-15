@@ -277,7 +277,9 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
         meshComponent.Meshes = std::move(*meshPayload);
         meshComponent.SourcePath = filepath;
     });
+    // GOVNO POLNOE (ЕСЛИ ЗАБЫЛ - СМОТРИ КОММИТ)
     m_World.Update(CHEngine::Timestep(0.0f));
+
     auto handle = m_Scene.TryGetEntityHandleByUUID(objectID);
     auto* entity = m_Scene.TryGetEntity(handle);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
