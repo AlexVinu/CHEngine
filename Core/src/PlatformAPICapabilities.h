@@ -1,19 +1,13 @@
 #pragma once
 
 #include "RenderData.h"
-#include "BitwiseIterator.h"
 
 namespace CHEngine {
-	using RenderAPIStore = uint8_t;
-
-	struct CHE_CORE_API RenderAPICaps
+	struct CHE_CORE_API RenderModuleResolver
 	{
-		static void Initialize();
-		static void SetFlag(WRenderAPI, bool);
-		static bool IsAvailable(WRenderAPI);
-		static BitwiseRange<WRenderAPI, RenderAPIStore> AllAvailableAPI();
-		static bool HasAnyAPI();
-
-		static ModuleNames GetModuleNames(WRenderAPI api);
+		static bool TryParseRenderAPI(const char* value, ERenderAPI* out_api);
+		static const char* ToConfigName(ERenderAPI api);
+		static ModuleNames GetModuleNames(ERenderAPI api);
+		static bool IsSupportedOnPlatform(ERenderAPI api);
 	};
 }

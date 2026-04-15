@@ -17,28 +17,109 @@
 
 extern CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config);
 
-static bool HasRendererArg(int argc, char** argv)
+static bool StartsWith(const char* value, const char* prefix)
 {
-    for (int i = 1; i < argc; ++i) {
-        if (std::strncmp(argv[i], "--renderer=", 11) == 0)
-            return true;
+    return std::strncmp(value, prefix, std::strlen(prefix)) == 0;
+}
+
+static bool ParseBoolArg(const char* value, bool& out_value)
+{
+    if (std::strcmp(value, "on") == 0 || std::strcmp(value, "true") == 0 || std::strcmp(value, "1") == 0)
+    {
+        out_value = true;
+        return true;
     }
+
+    if (std::strcmp(value, "off") == 0 || std::strcmp(value, "false") == 0 || std::strcmp(value, "0") == 0)
+    {
+        out_value = false;
+        return true;
+    }
+
     return false;
 }
 
-static CHEngine::ERenderAPI ParseRendererArg(int argc, char** argv)
+static bool ParseRendererValue(const char* value, CHEngine::ERenderAPI* out_api)
 {
+    return CHEngine::RenderModuleResolver::TryParseRenderAPI(value, out_api);
+}
+
+static void ParseStartupArgs(int argc, char** argv, CHEngine::ApplicationConfig& config, bool& has_renderer_override)
+{
+    has_renderer_override = false;
+
     for (int i = 1; i < argc; ++i)
     {
-        if (std::strncmp(argv[i], "--renderer=", 11) == 0)
+        const char* arg = argv[i];
+
+        if (StartsWith(arg, "--renderer="))
         {
-            const char* val = argv[i] + 11;
-            if (std::strcmp(val, "vulkan") == 0)  return CHEngine::ERenderAPI::VULKAN;
-            if (std::strcmp(val, "metal") == 0)   return CHEngine::ERenderAPI::METAL;
-            if (std::strcmp(val, "opengl") == 0)  return CHEngine::ERenderAPI::OPENGL;
+            const char* value = arg + std::strlen("--renderer=");
+            CHEngine::ERenderAPI requested = CHEngine::ERenderAPI::OPENGL;
+            if (ParseRendererValue(value, &requested))
+            {
+                has_renderer_override = true;
+                if (CHEngine::RenderModuleResolver::IsSupportedOnPlatform(requested))
+                {
+                    config.RenderAPI = requested;
+                }
+                else
+                {
+                    CHE_CORE_WARN("--renderer={} is not supported on this platform, using OpenGL", value);
+                    config.RenderAPI = CHEngine::ERenderAPI::OPENGL;
+                }
+            }
+            else
+            {
+                CHE_CORE_WARN("Unknown --renderer value '{}', keeping current value", value);
+            }
+            continue;
+        }
+
+        if (StartsWith(arg, "--window-module="))
+        {
+            config.WindowModuleOverride = arg + std::strlen("--window-module=");
+            continue;
+        }
+
+        if (StartsWith(arg, "--renderer-module="))
+        {
+            config.RendererModuleOverride = arg + std::strlen("--renderer-module=");
+            continue;
+        }
+
+        if (StartsWith(arg, "--imgui-module="))
+        {
+            config.ImGuiModuleOverride = arg + std::strlen("--imgui-module=");
+            continue;
+        }
+
+        if (StartsWith(arg, "--physics-module="))
+        {
+            config.PhysicsModuleOverride = arg + std::strlen("--physics-module=");
+            continue;
+        }
+
+        if (StartsWith(arg, "--physics="))
+        {
+            const char* value = arg + std::strlen("--physics=");
+            bool physics_enabled = config.PhysicsEnabled;
+            if (ParseBoolArg(value, physics_enabled))
+            {
+                config.PhysicsEnabled = physics_enabled;
+            }
+            else
+            {
+                CHE_CORE_WARN("Unknown --physics value '{}', expected on|off|true|false|1|0", value);
+            }
+            continue;
+        }
+
+        if (StartsWith(arg, "--"))
+        {
+            CHE_CORE_WARN("Unknown startup argument '{}'", arg);
         }
     }
-    return CHEngine::ERenderAPI::OPENGL;
 }
 
 int main(int argc, char** argv)
@@ -48,33 +129,13 @@ int main(int argc, char** argv)
     CHE_CORE_CRITICAL("WELCOME TO HELL!");
 
     CHEngine::MemorySystem::Initialize();
-    CHEngine::RenderAPICaps::Initialize();
 
     // Приоритет: CLI аргумент > engine.json > дефолт (OpenGL)
     CHEngine::ApplicationConfig config;
-    if (HasRendererArg(argc, argv)) {
-        auto requested = ParseRendererArg(argc, argv);
-        if (CHEngine::RenderAPICaps::IsAvailable(requested)) {
-            config.RenderAPI = requested;
-        } else {
-            CHE_CORE_WARN("--renderer={}: not supported on this platform, using OpenGL",
-                          (int)requested);
-            config.RenderAPI = CHEngine::ERenderAPI::OPENGL;
-        }
-    } else {
+    bool hasRendererOverride = false;
+    ParseStartupArgs(argc, argv, config, hasRendererOverride);
+    if (!hasRendererOverride) {
         config.RenderAPI = CHEngine::EngineConfig::LoadRendererPreference();
-    }
-
-    if (!CHEngine::RenderAPICaps::HasAnyAPI())
-    {
-        CHE_CORE_CRITICAL("Where are no available render api");
-        return 1;
-    }
-
-    if (!CHEngine::RenderAPICaps::IsAvailable(config.RenderAPI))
-    {
-        CHE_CORE_CRITICAL("Render API with code {0} not available; Render set to OpenGL", (int)config.RenderAPI);
-        config.RenderAPI = CHEngine::ERenderAPI::OPENGL;
     }
 
     auto app = CHEngine::CreateApplication(config);

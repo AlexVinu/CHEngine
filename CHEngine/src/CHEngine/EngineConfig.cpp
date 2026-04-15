@@ -9,15 +9,6 @@
 
 namespace CHEngine {
 
-    static const char* ApiToString(ERenderAPI api)
-    {
-        switch (api) {
-        case ERenderAPI::VULKAN:  return "vulkan";
-        case ERenderAPI::METAL:  return "metal";
-        default:                  return "opengl";
-        }
-    }
-
     static ERenderAPI StringToApi(const std::string& s)
     {
         if (s == "vulkan") return ERenderAPI::VULKAN;
@@ -64,25 +55,24 @@ namespace CHEngine {
             j.erase("renderer_pending");
             try {
                 WriteJson(path, j);
-                CHE_CORE_INFO("EngineConfig: pending renderer={} (cleared from config)", ApiToString(pending));
+                CHE_CORE_INFO("EngineConfig: pending renderer={} (cleared from config)", RenderModuleResolver::ToConfigName(pending));
             }
             catch (const std::exception& e) {
                 CHE_CORE_WARN("EngineConfig: failed to clear pending: {}", e.what());
             }
-            // Проверяем платформу: если в конфиге Metal а мы на Windows — fallback
-            if (RenderAPICaps::IsAvailable(pending))
+            if (RenderModuleResolver::IsSupportedOnPlatform(pending))
                 return pending;
             CHE_CORE_WARN("EngineConfig: pending renderer={} not supported on this platform, ignoring",
-                          ApiToString(pending));
+                          RenderModuleResolver::ToConfigName(pending));
         }
 
         if (j.contains("renderer") && j["renderer"].is_string())
         {
             auto api = StringToApi(j["renderer"].get<std::string>());
-            if (RenderAPICaps::IsAvailable(api))
+            if (RenderModuleResolver::IsSupportedOnPlatform(api))
                 return api;
             CHE_CORE_WARN("EngineConfig: saved renderer={} not supported on this platform, falling back to OpenGL",
-                          ApiToString(api));
+                          RenderModuleResolver::ToConfigName(api));
         }
 
         return ERenderAPI::OPENGL;
@@ -96,9 +86,9 @@ namespace CHEngine {
         auto path = GetConfigPath();
         try {
             auto j = ReadJsonSafe(path);
-            j["renderer_pending"] = ApiToString(api);
+            j["renderer_pending"] = RenderModuleResolver::ToConfigName(api);
             WriteJson(path, j);
-            CHE_CORE_INFO("EngineConfig: pending renderer={} saved (will commit on successful start)", ApiToString(api));
+            CHE_CORE_INFO("EngineConfig: pending renderer={} saved (will commit on successful start)", RenderModuleResolver::ToConfigName(api));
         }
         catch (const std::exception& e) {
             CHE_CORE_ERROR("EngineConfig: failed to save pending: {}", e.what());
@@ -110,10 +100,10 @@ namespace CHEngine {
         auto path = GetConfigPath();
         try {
             auto j = ReadJsonSafe(path);
-            j["renderer"] = ApiToString(api);
+            j["renderer"] = RenderModuleResolver::ToConfigName(api);
             j.erase("renderer_pending"); // на случай если остался
             WriteJson(path, j);
-            CHE_CORE_INFO("EngineConfig: committed renderer={}", ApiToString(api));
+            CHE_CORE_INFO("EngineConfig: committed renderer={}", RenderModuleResolver::ToConfigName(api));
         }
         catch (const std::exception& e) {
             CHE_CORE_ERROR("EngineConfig: failed to commit renderer: {}", e.what());

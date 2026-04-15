@@ -26,6 +26,129 @@ namespace CHEngine {
 
 #define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
 
+    namespace
+    {
+        struct StartupModuleSelection
+        {
+            std::string WindowModuleName;
+            std::string RendererModuleName;
+            std::string ImGuiModuleName;
+            std::string PhysicsModuleName;
+        };
+
+        const char* GetDefaultWindowModuleName()
+        {
+#if defined(CHE_PLATFORM_WINDOWS)
+            return "WindowGLFW.dll";
+#elif defined(CHE_PLATFORM_APPLE)
+            return "libWindowGLFW.dylib";
+#else
+            return "libWindowGLFW.so";
+#endif
+        }
+
+        const char* GetDefaultPhysicsModuleName()
+        {
+#if defined(CHE_PLATFORM_WINDOWS)
+            return "PhysicsPhysX.dll";
+#elif defined(CHE_PLATFORM_APPLE)
+            return "libPhysicsPhysX.dylib";
+#else
+            return "libPhysicsPhysX.so";
+#endif
+        }
+
+        bool TryLoadStartupModules(ModuleManager* module_manager,
+                                   const ApplicationConfig& config,
+                                   ERenderAPI render_api,
+                                   StartupModuleSelection* out_selection,
+                                   IWindowFactory** out_window_factory,
+                                   IRenderFactory** out_render_factory,
+                                   IImGuiFactory** out_imgui_factory,
+                                   IPhysicsFactory** out_physics_factory)
+        {
+            if (!module_manager || !out_selection || !out_window_factory || !out_render_factory
+                || !out_imgui_factory || !out_physics_factory)
+                return false;
+
+            const ModuleNames module_names = RenderModuleResolver::GetModuleNames(render_api);
+            if (!module_names.Renderer || !module_names.ImGui)
+            {
+                CHE_CORE_WARN("Render API {} is not supported by platform module mapping", (int)render_api);
+                return false;
+            }
+
+            out_selection->WindowModuleName = config.WindowModuleOverride ? config.WindowModuleOverride : GetDefaultWindowModuleName();
+            out_selection->RendererModuleName = config.RendererModuleOverride ? config.RendererModuleOverride : module_names.Renderer;
+            out_selection->ImGuiModuleName = config.ImGuiModuleOverride ? config.ImGuiModuleOverride : module_names.ImGui;
+            out_selection->PhysicsModuleName = config.PhysicsModuleOverride ? config.PhysicsModuleOverride : GetDefaultPhysicsModuleName();
+
+            if (config.WindowModuleOverride)
+                CHE_CORE_INFO("Window module override: {}", out_selection->WindowModuleName.c_str());
+            if (config.RendererModuleOverride)
+                CHE_CORE_INFO("Renderer module override: {}", out_selection->RendererModuleName.c_str());
+            if (config.ImGuiModuleOverride)
+                CHE_CORE_INFO("ImGui module override: {}", out_selection->ImGuiModuleName.c_str());
+            if (config.PhysicsModuleOverride)
+                CHE_CORE_INFO("Physics module override: {}", out_selection->PhysicsModuleName.c_str());
+
+            const bool window_loaded = module_manager->LoadModule(out_selection->WindowModuleName);
+            const bool renderer_loaded = module_manager->LoadModule(out_selection->RendererModuleName);
+            const bool imgui_loaded = module_manager->LoadModule(out_selection->ImGuiModuleName);
+
+            bool physics_loaded = false;
+            if (config.PhysicsEnabled)
+                physics_loaded = module_manager->LoadModule(out_selection->PhysicsModuleName);
+            else
+                CHE_CORE_INFO("Physics module loading disabled by startup config.");
+
+            *out_window_factory = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
+            *out_render_factory = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
+            *out_imgui_factory = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
+            *out_physics_factory = physics_loaded ? module_manager->GetModule<IPhysicsFactory>(ModuleType::Physics) : nullptr;
+
+            if (!window_loaded || !*out_window_factory)
+            {
+                CHE_CORE_ERROR("Failed to load Window module '{}'", out_selection->WindowModuleName.c_str());
+                module_manager->UnloadAll();
+                return false;
+            }
+            if (!renderer_loaded || !*out_render_factory)
+            {
+                CHE_CORE_ERROR("Failed to load Renderer module '{}'", out_selection->RendererModuleName.c_str());
+                module_manager->UnloadAll();
+                return false;
+            }
+            CHE_CORE_INFO("Running renderer health-check: {}", out_selection->RendererModuleName.c_str());
+            if (!(*out_render_factory)->CheckIsWorking())
+            {
+                CHE_CORE_ERROR("Renderer module '{}' failed CheckIsWorking()", out_selection->RendererModuleName.c_str());
+                module_manager->UnloadAll();
+                return false;
+            }
+            if (!imgui_loaded || !*out_imgui_factory)
+                CHE_CORE_WARN("Failed to load ImGui module '{}'! ImGui will be unavailable.", out_selection->ImGuiModuleName.c_str());
+
+            if (config.PhysicsEnabled && *out_physics_factory)
+            {
+                CHE_CORE_INFO("Running physics health-check: {}", out_selection->PhysicsModuleName.c_str());
+                if (!(*out_physics_factory)->CheckIsWorking())
+                {
+                    CHE_CORE_WARN("Physics module '{}' failed CheckIsWorking(); physics will be disabled.",
+                                  out_selection->PhysicsModuleName.c_str());
+                    *out_physics_factory = nullptr;
+                }
+            }
+            else if (config.PhysicsEnabled)
+            {
+                CHE_CORE_WARN("Failed to load Physics module '{}'! Physics will be unavailable.",
+                              out_selection->PhysicsModuleName.c_str());
+            }
+
+            return true;
+        }
+    }
+
     Application* Application::s_Instance = nullptr;
 
     Application::Application(const ApplicationConfig& config)
@@ -65,76 +188,41 @@ namespace CHEngine {
         }
         s_Instance = this;
 
-        // Проверка работоспособности всех доступных системе рендеров
-        for (auto api : RenderAPICaps::AllAvailableAPI())
+        StartupModuleSelection startup_selection;
+        IRenderFactory* render_factory = nullptr;
+        ERenderAPI selected_api = config.RenderAPI;
+        bool startup_ok = TryLoadStartupModules(m_ModuleManager.get(),
+                                                config,
+                                                selected_api,
+                                                &startup_selection,
+                                                &m_WindowFactory,
+                                                &render_factory,
+                                                &m_ImGuiFactory,
+                                                &m_PhysicsFactory);
+
+        const bool has_render_override = config.RendererModuleOverride || config.ImGuiModuleOverride;
+        if (!startup_ok && !has_render_override && selected_api != ERenderAPI::OPENGL)
         {
-            auto module_name = RenderAPICaps::GetModuleNames(api);
-            bool flag = module_name.Renderer && (m_ModuleManager->LoadModule(module_name.Renderer) &&
-                m_ModuleManager->GetModule<IRenderFactory>(ModuleType::Render)->CheckIsWorking());
-            
-            RenderAPICaps::SetFlag(api, flag);
+            CHE_CORE_WARN("Startup failed for render API {}. Falling back to OpenGL.", (int)selected_api);
+            selected_api = ERenderAPI::OPENGL;
+            startup_ok = TryLoadStartupModules(m_ModuleManager.get(),
+                                               config,
+                                               selected_api,
+                                               &startup_selection,
+                                               &m_WindowFactory,
+                                               &render_factory,
+                                               &m_ImGuiFactory,
+                                               &m_PhysicsFactory);
         }
 
-        m_ModuleManager->UnloadAll();
-
-        CHE_CORE_INFO("ALL AVAILABLE RENDER API ------------------");
-        for (auto api : RenderAPICaps::AllAvailableAPI())
+        if (!startup_ok)
         {
-            CHE_CORE_INFO("RENDER API {}", api.c_str());
-        }
-
-        // ─── 1. Загрузить все 3 модуля ───────────────────────────────────────
-        // Порядок важен: Window → Renderer → ImGui
-        // Имена модулей определяются выбранным ERenderAPI
-
-        auto moduleNames = RenderAPICaps::GetModuleNames(m_RenderAPIType);
-        if (!moduleNames.Renderer) {
-            CHE_CORE_CRITICAL("ERenderAPI {} is not supported on this platform!", (int)m_RenderAPIType);
+            CHE_CORE_CRITICAL("Failed to initialize startup modules.");
             m_Running = false;
             return;
         }
 
-#if defined(CHE_PLATFORM_WINDOWS)
-        m_ModuleManager->LoadModule("WindowGLFW.dll");
-#elif defined(CHE_PLATFORM_APPLE)
-        m_ModuleManager->LoadModule("libWindowGLFW.dylib");
-#else
-        m_ModuleManager->LoadModule("libWindowGLFW.so");
-#endif
-        m_ModuleManager->LoadModule(moduleNames.Renderer);
-        m_ModuleManager->LoadModule(moduleNames.ImGui);
-
-        bool physicsLoaded = false;
-#if defined(CHE_PLATFORM_WINDOWS)
-        physicsLoaded = m_ModuleManager->LoadModule("PhysicsPhysX.dll");
-#elif defined(CHE_PLATFORM_APPLE)
-        physicsLoaded = m_ModuleManager->LoadModule("libPhysicsPhysX.dylib");
-#else
-        physicsLoaded = m_ModuleManager->LoadModule("libPhysicsPhysX.so");
-#endif
-
-        m_WindowFactory = m_ModuleManager->GetModule<IWindowFactory>(ModuleType::Window);
-        auto render_factory = m_ModuleManager->GetModule<IRenderFactory>(ModuleType::Render);
-        m_ImGuiFactory  = m_ModuleManager->GetModule<IImGuiFactory>(ModuleType::ImGui);
-        if (physicsLoaded)
-            m_PhysicsFactory = m_ModuleManager->GetModule<IPhysicsFactory>(ModuleType::Physics);
-
-        if (!m_WindowFactory)
-        {
-            CHE_CORE_CRITICAL("Failed to load Window module! Cannot continue.");
-            m_Running = false;
-            return;
-        }
-        if (!render_factory)
-        {
-            CHE_CORE_CRITICAL("Failed to load Renderer module! Cannot continue.");
-            m_Running = false;
-            return;
-        }
-        if (!m_ImGuiFactory)
-            CHE_CORE_ERROR("Failed to load ImGuiOGL module! ImGui will be unavailable.");
-        if (!m_PhysicsFactory)
-            CHE_CORE_WARN("Failed to load Physics module! Physics will be unavailable.");
+        m_RenderAPIType = selected_api;
 
         // Все модули загружены успешно — фиксируем рендерер как рабочий.
         // Если движок до этой точки крашнулся, renderer_pending уже очищен
@@ -156,26 +244,6 @@ namespace CHEngine {
         // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
         if (m_ImGuiFactory)
             UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
-
-        // ─── 4а. Зарегистрировать hot reload для ImGuiOGL ────────────────────
-        // WindowGLFW и RendererOGL не перезагружаем — они держат GL-контекст
-        if (m_ImGuiFactory) {
-            m_ModuleManager->Watch(ModuleType::ImGui, {
-                // Уничтожить ImGui-слой до выгрузки dylib
-                [this]() {
-                    if (IImGuiLayer* layer = UIFacade::GetLayer(); layer && m_ImGuiFactory)
-                        m_ImGuiFactory->Delete(layer);
-                    UIFacade::SetLayer(nullptr);
-                    m_ImGuiFactory = nullptr;
-                },
-                // Пересоздать после загрузки нового dylib
-                [this](IModuleFactory* factory) {
-                    m_ImGuiFactory = static_cast<IImGuiFactory*>(factory);
-                    if (m_Window)
-                        UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
-                }
-            });
-        }
 
         // ─── 5. Создать рендер-объекты (нужен GLAD / API Init, поэтому после шага 3) ───
         RenderFacade::SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
@@ -262,10 +330,8 @@ namespace CHEngine {
     {
         m_LastFrameTime      = std::chrono::steady_clock::now();
         float shaderPollAcc  = 0.0f;
-        float modulePollAcc  = 0.0f;
 
         constexpr float ShaderPollInterval = 0.5f; // шейдеры — раз в полсекунды
-        constexpr float ModulePollInterval = 1.0f; // модули  — раз в секунду
 
         while (m_Running)
         {
@@ -281,13 +347,6 @@ namespace CHEngine {
             if (shaderPollAcc >= ShaderPollInterval) {
                 shaderPollAcc = 0.0f;
                 m_RenderResources->PollShaders();
-            }
-
-            // ── Module hot reload ────────────────────────────────────────────
-            modulePollAcc += dt;
-            if (modulePollAcc >= ModulePollInterval) {
-                modulePollAcc = 0.0f;
-                m_ModuleManager->Poll();
             }
 
             // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──

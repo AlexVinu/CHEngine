@@ -158,18 +158,8 @@ enum class ModuleType {
 };
 ```
 
-## RenderAPICaps — проверка доступности
+## Render module resolver
 
-Перед загрузкой рендерера движок проверяет доступность:
-
-```cpp
-if (RenderAPICaps::IsSupported(ERenderAPI::METAL)) {
-    // Metal доступен (macOS/iOS)
-}
-
-if (RenderAPICaps::IsSupported(ERenderAPI::VULKAN)) {
-    // Vulkan доступен
-}
-```
-
-Это позволяет EntryPoint предложить пользователю только доступные рендереры.
+Платформенный mapping API -> имена модулей даёт `RenderModuleResolver`.
+В startup-пути финальная валидация рендера делается по факту загрузки модулей
+и вызова `IRenderFactory::CheckIsWorking()`, а не через глобальный capability-store.

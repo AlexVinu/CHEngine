@@ -30,6 +30,11 @@ namespace CHEngine {
     struct CHENGINE_API ApplicationConfig
     {
         ERenderAPI RenderAPI = ERenderAPI::OPENGL;
+        const char* WindowModuleOverride = nullptr;
+        const char* RendererModuleOverride = nullptr;
+        const char* ImGuiModuleOverride = nullptr;
+        const char* PhysicsModuleOverride = nullptr;
+        bool PhysicsEnabled = true;
     };
 
     class CHENGINE_API Application

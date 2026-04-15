@@ -201,7 +201,7 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
         ApiEntry availApis[3];
         int availCount = 0;
         for (auto& e : allApis) {
-            if (CHEngine::RenderAPICaps::IsAvailable(e.api))
+            if (CHEngine::RenderModuleResolver::IsSupportedOnPlatform(e.api))
                 availApis[availCount++] = e;
         }
 
