@@ -1,56 +1,43 @@
-#include "Core.h"
-#include "EngineContext.h"
+#include "PlatformAPICapabilities.h"
+#include <cstring>
 
 namespace CHEngine {
-	constexpr RenderAPIStore GetDefaultRenderAPIStore()
+	bool RenderModuleResolver::TryParseRenderAPI(const char* value, ERenderAPI* out_api)
 	{
-		RenderAPIStore store = 0;
+		if (!value || !out_api)
+			return false;
 
-		store |= BIT((int)ERenderAPI::OPENGL);
-		store |= BIT((int)ERenderAPI::VULKAN);
-
-#ifdef CHE_PLATFORM_WINDOWS
-		store |= BIT((int)ERenderAPI::DIRECTX11);
-		store |= BIT((int)ERenderAPI::DIRECTX12);
-#endif
-
-#ifdef CHE_PLATFORM_APPLE
-		store |= BIT((int)ERenderAPI::METAL);
-#endif
-
-		return store;
+		if (std::strcmp(value, "vulkan") == 0)
+		{
+			*out_api = ERenderAPI::VULKAN;
+			return true;
+		}
+		if (std::strcmp(value, "metal") == 0)
+		{
+			*out_api = ERenderAPI::METAL;
+			return true;
+		}
+		if (std::strcmp(value, "opengl") == 0)
+		{
+			*out_api = ERenderAPI::OPENGL;
+			return true;
+		}
+		return false;
 	}
 
-	void RenderAPICaps::Initialize()
+	const char* RenderModuleResolver::ToConfigName(ERenderAPI api)
 	{
-		static RenderAPIStore store = GetDefaultRenderAPIStore();
-		GetEngineContext().RenderApiStore = &store;
+		switch (api)
+		{
+			case ERenderAPI::VULKAN: return "vulkan";
+			case ERenderAPI::METAL: return "metal";
+			default: return "opengl";
+		}
 	}
 
-	void RenderAPICaps::SetFlag(WRenderAPI api, bool flag)
+	ModuleNames RenderModuleResolver::GetModuleNames(ERenderAPI api)
 	{
-		flag ? *(GetEngineContext().RenderApiStore) |= (BIT((int)api))
-			: *(GetEngineContext().RenderApiStore) &= (~(BIT((int)api)));
-	}
-
-	bool RenderAPICaps::IsAvailable(WRenderAPI api)
-	{
-		return *(GetEngineContext().RenderApiStore) & (BIT((int)api));
-	}
-
-	BitwiseRange<WRenderAPI, RenderAPIStore> RenderAPICaps::AllAvailableAPI()
-	{
-		return BitwiseRange<WRenderAPI, RenderAPIStore>(*(GetEngineContext().RenderApiStore));
-	}
-
-	bool RenderAPICaps::HasAnyAPI()
-	{
-		return (RenderAPIStore)0 | *(GetEngineContext().RenderApiStore);
-	}
-
-	ModuleNames RenderAPICaps::GetModuleNames(WRenderAPI api)
-	{
-		switch (api.GetEnum())
+		switch (api)
 		{
 		case ERenderAPI::OPENGL:
 #if defined(CHE_PLATFORM_WINDOWS)
@@ -80,5 +67,11 @@ namespace CHEngine {
 		default:
 			return { nullptr, nullptr };
 		}
+	}
+
+	bool RenderModuleResolver::IsSupportedOnPlatform(ERenderAPI api)
+	{
+		const ModuleNames module_names = GetModuleNames(api);
+		return module_names.Renderer && module_names.ImGui;
 	}
 }
