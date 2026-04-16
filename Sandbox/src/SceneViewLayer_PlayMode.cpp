@@ -11,55 +11,83 @@
 
 void SceneViewLayer::EnterPlayMode()
 {
-    if (m_EditorState != EditorState::Edit)
+    SceneSession& activeSession = GetActiveSceneSession();
+    if (activeSession.SessionState != SceneSession::State::Edit)
         return;
+
+    CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
+    CHEngine::Scene& editorScene = *activeSession.EditorScene;
+    if (!activeSession.RuntimeWorld)
+        activeSession.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(activeSession.EditorScene.get());
+    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
 
     // 1. Сохранить снапшот сцены в память
     CHEngine::SceneSerializer serializer{};
-    m_SceneSnapshot = serializer.SerializeToJson(&m_Scene);
+    m_SceneSnapshot = serializer.SerializeToJson(&editorScene);
     m_HasSnapshot   = true;
+
+    auto* resources = CHEngine::Application::Get().GetRenderResources();
+    if (resources)
+    {
+        CHEngine::Scope<CHEngine::Scene> runtimeScene = serializer.DeserializeFromJson(m_SceneSnapshot, *resources);
+        if (runtimeScene)
+            GetActiveSceneSession().ActiveScene = CHEngine::CreateRef<CHEngine::Scene>(std::move(*runtimeScene));
+    }
 
     // 2. Очистить undo (в Play режиме undo недоступен)
     m_UndoStack.Clear();
 
     // 3. Пересобрать физику и включить симуляцию
-    m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-    FlushSimulationEvents();
-    m_World.SetSimulating(true);
+    CHE_CORE_ASSERT(GetActiveSceneSession().ActiveScene, "SceneViewLayer: ActiveScene must exist");
+    runtimeWorld.SetScene(GetActiveSceneSession().ActiveScene.get());
+    runtimeWorld.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+    runtimeWorld.Update(CHEngine::Timestep(0.0f));
+    runtimeWorld.SetSimulating(true);
 
-    m_EditorState = EditorState::Play;
+    GetActiveSceneSession().SessionState = SceneSession::State::Play;
 }
 
 void SceneViewLayer::EnterPauseMode()
 {
-    if (m_EditorState != EditorState::Play)
+    SceneSession& activeSession = GetActiveSceneSession();
+    if (activeSession.SessionState != SceneSession::State::Play)
         return;
 
-    // Остановить симуляцию, но рендер (m_Active) продолжается
-    m_World.SetSimulating(false);
+    CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
+    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
 
-    m_EditorState = EditorState::Pause;
+    // Остановить симуляцию, но рендер (m_Active) продолжается
+    runtimeWorld.SetSimulating(false);
+
+    activeSession.SessionState = SceneSession::State::Pause;
 }
 
 void SceneViewLayer::ResumeFromPause()
 {
-    if (m_EditorState != EditorState::Pause)
+    SceneSession& activeSession = GetActiveSceneSession();
+    if (activeSession.SessionState != SceneSession::State::Pause)
         return;
 
-    m_World.SetSimulating(true);
+    CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
+    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+    runtimeWorld.SetSimulating(true);
 
-    m_EditorState = EditorState::Play;
+    activeSession.SessionState = SceneSession::State::Play;
 }
 
 void SceneViewLayer::StopPlayMode()
 {
-    if (m_EditorState == EditorState::Edit)
+    SceneSession& activeSession = GetActiveSceneSession();
+    if (activeSession.SessionState == SceneSession::State::Edit)
         return;
 
+    CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
+    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+
     // 1. Остановить симуляцию и физику
-    m_World.SetSimulating(false);
-    m_World.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-    FlushSimulationEvents();
+    runtimeWorld.SetSimulating(false);
+    runtimeWorld.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+    runtimeWorld.Update(CHEngine::Timestep(0.0f));
 
     // 2. Восстановить сцену из снапшота
     if (m_HasSnapshot)
@@ -68,27 +96,35 @@ void SceneViewLayer::StopPlayMode()
         if (resources)
         {
             CHEngine::SceneSerializer serializer{};
-            serializer.DeserializeFromJson(&m_Scene, m_SceneSnapshot, *resources, &m_World);
-            m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-            FlushSimulationEvents();
+            CHEngine::Scope<CHEngine::Scene> restoredScene = serializer.DeserializeFromJson(m_SceneSnapshot, *resources);
+            if (restoredScene) {
+                activeSession.EditorScene = CHEngine::CreateRef<CHEngine::Scene>(std::move(*restoredScene));
+            }
         }
         m_HasSnapshot  = false;
         m_SceneSnapshot = {};
     }
 
-    // 3. Сбросить выделение (оно могло указывать на удалённую сущность)
-    m_SelectedObjectID = boost::uuids::nil_uuid();
+    activeSession.ActiveScene = activeSession.EditorScene;
+    runtimeWorld.SetScene(activeSession.EditorScene.get());
 
-    m_EditorState = EditorState::Edit;
+    // 3. Сбросить выделение (оно могло указывать на удалённую сущность)
+    activeSession.SelectedEntity = {};
+
+    activeSession.SessionState = SceneSession::State::Edit;
 }
 
 void SceneViewLayer::StepOneFrame()
 {
-    if (m_EditorState != EditorState::Pause)
+    SceneSession& activeSession = GetActiveSceneSession();
+    if (activeSession.SessionState != SceneSession::State::Pause)
         return;
 
+    CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
+    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+
     // Выполнить один кадр симуляции с фиксированным dt
-    m_World.SetSimulating(true);
-    m_World.Update(CHEngine::Timestep(m_StepDt));
-    m_World.SetSimulating(false);
+    runtimeWorld.SetSimulating(true);
+    runtimeWorld.Update(CHEngine::Timestep(m_StepDt));
+    runtimeWorld.SetSimulating(false);
 }

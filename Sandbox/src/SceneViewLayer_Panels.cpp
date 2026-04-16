@@ -19,6 +19,7 @@
 void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
 {
     UIActive::BeginToolbar(pos, size);
+    SceneSession& activeSession = GetActiveSceneSession();
 
     // Vertical-centering helper — nudges each item so its visual centre
     // aligns with the toolbar's horizontal midline.
@@ -87,19 +88,19 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
                 const bool mod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyCtrl;
                 if (mod && ImGui::IsKeyPressed(ImGuiKey_P, false))
                 {
-                    if      (m_EditorState == EditorState::Edit)  EnterPlayMode();
-                    else if (m_EditorState == EditorState::Play)  EnterPauseMode();
-                    else if (m_EditorState == EditorState::Pause) ResumeFromPause();
+                    if      (activeSession.SessionState == SceneSession::State::Edit)  EnterPlayMode();
+                    else if (activeSession.SessionState == SceneSession::State::Play)  EnterPauseMode();
+                    else if (activeSession.SessionState == SceneSession::State::Pause) ResumeFromPause();
                 }
-                if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && m_EditorState != EditorState::Edit)
+                if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && activeSession.SessionState != SceneSession::State::Edit)
                     StopPlayMode();
                 if (mod && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
                     StepOneFrame();
             }
 
-            const bool isEdit  = (m_EditorState == EditorState::Edit);
-            const bool isPlay  = (m_EditorState == EditorState::Play);
-            const bool isPause = (m_EditorState == EditorState::Pause);
+            const bool isEdit  = (activeSession.SessionState == SceneSession::State::Edit);
+            const bool isPlay  = (activeSession.SessionState == SceneSession::State::Play);
+            const bool isPause = (activeSession.SessionState == SceneSession::State::Pause);
 
             // Абсолютное позиционирование по центру окна (независимо от left-flow)
             const float pad    = ImGui::GetStyle().FramePadding.x;
@@ -162,6 +163,47 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
                 StepOneFrame();
             ImGui::EndDisabled();
             if (ImGui::IsItemHovered()) ImGui::SetTooltip("Step one frame  (Cmd+Shift+Right)");
+        }
+
+        // SceneSession switcher (multi-session workflow)
+        {
+            ImGui::SameLine(0, 12);
+            vcenter(ImGui::GetFrameHeight());
+            ImGui::BeginDisabled(m_ActiveSessionIndex == 0);
+            if (ImGui::ArrowButton("##session_prev", ImGuiDir_Left))
+                SetActiveSceneSessionIndex(m_ActiveSessionIndex - 1);
+            ImGui::EndDisabled();
+
+            ImGui::SameLine(0, 4);
+            vcenter(ImGui::GetTextLineHeight());
+            ImGui::Text("Session %u/%u",
+                        static_cast<uint32_t>(m_ActiveSessionIndex + 1),
+                        static_cast<uint32_t>(m_SceneSessions.size()));
+
+            ImGui::SameLine(0, 4);
+            vcenter(ImGui::GetFrameHeight());
+            ImGui::BeginDisabled(m_ActiveSessionIndex + 1 >= m_SceneSessions.size());
+            if (ImGui::ArrowButton("##session_next", ImGuiDir_Right))
+                SetActiveSceneSessionIndex(m_ActiveSessionIndex + 1);
+            ImGui::EndDisabled();
+
+            ImGui::SameLine(0, 4);
+            vcenter(ImGui::GetFrameHeight());
+            if (ImGui::Button("+ Session"))
+            {
+                SceneSession session;
+                session.EditorScene = CHEngine::CreateRef<CHEngine::Scene>();
+                session.ActiveScene = session.EditorScene;
+                session.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(session.EditorScene.get());
+                session.ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
+                if (m_ViewportSize.x > 1.0f && m_ViewportSize.y > 1.0f)
+                    session.ViewportSize = { m_ViewportSize.x, m_ViewportSize.y };
+                else
+                    session.ViewportSize = GetActiveSceneSession().ViewportSize;
+                session.ViewportCamera->SetViewportSize(session.ViewportSize.x, session.ViewportSize.y);
+                m_SceneSessions.push_back(std::move(session));
+                SetActiveSceneSessionIndex(m_SceneSessions.size() - 1);
+            }
         }
 
         // Snap hint
@@ -296,8 +338,10 @@ void SceneViewLayer::DrawToolbar(ImVec2 pos, ImVec2 size)
 void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
     UIActive::BeginPanel("Scene", pos, size, 0, resetSize);
+    SceneSession& activeSession = GetActiveSceneSession();
+    CHEngine::Scene& scene = *activeSession.ActiveScene;
 
-    ImGui::BeginDisabled(m_EditorState != EditorState::Edit);
+    ImGui::BeginDisabled(activeSession.SessionState != SceneSession::State::Edit);
     if (UIActive::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
     {
         std::string path = CHEngine::FileDialog::OpenModelFile();
@@ -311,44 +355,45 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     float halfW = (ImGui::GetContentRegionAvail().x - 4.0f) * 0.5f;
     if (ImGui::Button("+ Dir Light", ImVec2(halfW, 0.0f)))
     {
-        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
         const CHEngine::UUID object_id = boost::uuids::random_generator()();
-        const CHEngine::DeferredEntityHandle deferred_handle = deferred_ops->CreateEntityWithUUID("Directional Light", object_id);
-        deferred_ops->AddComponent<CHEngine::LightComponent>(deferred_handle, CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
-        m_World.Update(CHEngine::Timestep(0.0f));
-        auto handle = m_Scene.TryGetEntityHandleByUUID(object_id);
-        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
-            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
-            m_SelectedObjectID = object_id;
+        const CHEngine::EntityHandle handle = scene.CreateEntity("Directional Light", object_id);
+        if (auto* entity = scene.TryGetEntity(handle); entity)
+        {
+            entity->AddComponent<CHEngine::LightComponent>(
+                CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
+            if (entity->HasComponent<CHEngine::TransformComponent>())
+                entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+            activeSession.SelectedEntity = handle;
         }
     }
     ImGui::SameLine(0, 4);
     if (ImGui::Button("+ Point Light", ImVec2(halfW, 0.0f)))
     {
-        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
         const CHEngine::UUID object_id = boost::uuids::random_generator()();
-        const CHEngine::DeferredEntityHandle deferred_handle = deferred_ops->CreateEntityWithUUID("Point Light", object_id);
-        deferred_ops->AddComponent<CHEngine::LightComponent>(deferred_handle, CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Point } });
-        m_World.Update(CHEngine::Timestep(0.0f));
-        auto handle = m_Scene.TryGetEntityHandleByUUID(object_id);
-        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
-            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
-            m_SelectedObjectID = object_id;
+        const CHEngine::EntityHandle handle = scene.CreateEntity("Point Light", object_id);
+        if (auto* entity = scene.TryGetEntity(handle); entity)
+        {
+            entity->AddComponent<CHEngine::LightComponent>(
+                CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Point } });
+            if (entity->HasComponent<CHEngine::TransformComponent>())
+                entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+            activeSession.SelectedEntity = handle;
         }
     }
     if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
     {
-        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
         const CHEngine::UUID object_id = boost::uuids::random_generator()();
-        const CHEngine::DeferredEntityHandle deferred_handle = deferred_ops->CreateEntityWithUUID("Spot Light", object_id);
-        deferred_ops->AddComponent<CHEngine::LightComponent>(deferred_handle, CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Spot } });
-        m_World.Update(CHEngine::Timestep(0.0f));
-        auto handle = m_Scene.TryGetEntityHandleByUUID(object_id);
-        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
-            auto& tr = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
-            tr.Position = { 0.0f, 5.0f, 0.0f };
-            tr.Rotation = { -90.0f, 0.0f, 0.0f };
-            m_SelectedObjectID = object_id;
+        const CHEngine::EntityHandle handle = scene.CreateEntity("Spot Light", object_id);
+        if (auto* entity = scene.TryGetEntity(handle); entity)
+        {
+            entity->AddComponent<CHEngine::LightComponent>(
+                CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Spot } });
+            if (entity->HasComponent<CHEngine::TransformComponent>()) {
+                auto& tr = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
+                tr.Position = { 0.0f, 5.0f, 0.0f };
+                tr.Rotation = { -90.0f, 0.0f, 0.0f };
+            }
+            activeSession.SelectedEntity = handle;
         }
     }
 
@@ -359,13 +404,20 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
     ImGui::PopStyleColor();
     ImGui::Spacing();
 
+    const bool hideEditorCameraInUI = (activeSession.SessionState == SceneSession::State::Edit)
+        && scene.IsEntityHandleValid(m_EditorCameraEntity);
+    if (hideEditorCameraInUI && activeSession.SelectedEntity == m_EditorCameraEntity)
+        activeSession.SelectedEntity = {};
+
     std::optional<CHEngine::UUID> deleteID;
     size_t objectCount = 0;
-    m_Scene.ForEach<CHEngine::TagComponent>([&](CHEngine::EntityHandle handle,
+    scene.ForEach<CHEngine::TagComponent>([&](CHEngine::EntityHandle handle,
                                                 const CHEngine::UUID& objectID,
                                                 CHEngine::TagComponent& tag) {
+        if (hideEditorCameraInUI && handle == m_EditorCameraEntity)
+            return;
         ++objectCount;
-        bool isSelected = (objectID == m_SelectedObjectID);
+        bool isSelected = (handle == activeSession.SelectedEntity);
         ImGuiTreeNodeFlags flags =
             ImGuiTreeNodeFlags_Leaf         |
             ImGuiTreeNodeFlags_SpanAvailWidth|
@@ -374,7 +426,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
         // Метка типа объекта в иерархии
         const char* icon = "";
-        if (const auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::LightComponent>()) {
+        if (const auto* entity = scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::LightComponent>()) {
             const auto type = entity->GetComponent<CHEngine::LightComponent>().LightData.Type;
             if (type == CHEngine::LightType::Directional) icon = "[D] ";
             else if (type == CHEngine::LightType::Point)  icon = "[P] ";
@@ -386,7 +438,7 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
             "##object", flags, "  %s%s", icon, tag.Name.c_str());
 
         if (ImGui::IsItemClicked())
-            m_SelectedObjectID = objectID;
+            activeSession.SelectedEntity = handle;
 
         if (ImGui::BeginPopupContextItem())
         {
@@ -412,10 +464,12 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 
     if (deleteID.has_value())
     {
-        if (m_SelectedObjectID == deleteID.value()) m_SelectedObjectID = boost::uuids::nil_uuid();
-        CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
-        deferred_ops->DestroyEntityByUUID(deleteID.value());
-        m_World.Update(CHEngine::Timestep(0.0f));
+        if (scene.IsEntityHandleValid(activeSession.SelectedEntity)
+            && scene.GetUUID(activeSession.SelectedEntity) == deleteID.value())
+        {
+            activeSession.SelectedEntity = {};
+        }
+        scene.DestroyEntity(deleteID.value());
     }
 
     UIActive::EndPanel();
@@ -428,9 +482,16 @@ void SceneViewLayer::DrawScenePanel(ImVec2 pos, ImVec2 size, bool resetSize)
 void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
     UIActive::BeginPanel("Properties", pos, size, 0, resetSize);
+    SceneSession& activeSession = GetActiveSceneSession();
+    CHEngine::Scene& scene = *activeSession.ActiveScene;
 
-    auto selectedHandle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
-    if (!m_Scene.IsEntityHandleValid(selectedHandle))
+    const bool hideEditorCameraInUI = (activeSession.SessionState == SceneSession::State::Edit)
+        && scene.IsEntityHandleValid(m_EditorCameraEntity);
+    if (hideEditorCameraInUI && activeSession.SelectedEntity == m_EditorCameraEntity)
+        activeSession.SelectedEntity = {};
+
+    const CHEngine::EntityHandle selectedHandle = activeSession.SelectedEntity;
+    if (!scene.IsEntityHandleValid(selectedHandle))
     {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f,0.686f,0.706f,1.0f));
@@ -440,7 +501,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         return;
     }
 
-    auto* selectedEntity = m_Scene.TryGetEntity(selectedHandle);
+    auto* selectedEntity = scene.TryGetEntity(selectedHandle);
     if (!selectedEntity
         || !selectedEntity->HasComponent<CHEngine::TagComponent>()
         || !selectedEntity->HasComponent<CHEngine::TransformComponent>()
@@ -457,11 +518,11 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     auto& visibility = selectedEntity->GetComponent<CHEngine::VisibilityComponent>();
 
     // В Play/Pause — только чтение (для наблюдения за состоянием)
-    const bool propsReadOnly = (m_EditorState != EditorState::Edit);
+    const bool propsReadOnly = (activeSession.SessionState != SceneSession::State::Edit);
     if (propsReadOnly)
     {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.7f, 0.1f, 1.0f));
-        ImGui::TextUnformatted(m_EditorState == EditorState::Play ? "\xe2\x96\xb6 Play mode — read only"
+        ImGui::TextUnformatted(activeSession.SessionState == SceneSession::State::Play ? "\xe2\x96\xb6 Play mode — read only"
                                                                    : "\xe2\x8f\xb8 Paused — read only");
         ImGui::PopStyleColor();
         ImGui::Spacing();
@@ -493,7 +554,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         if (ImGui::IsItemActivated())
             m_TransformBeforeDrag = transform;
         if (ImGui::IsItemDeactivatedAfterEdit())
-            m_UndoStack.PushTransform(&m_Scene, m_SelectedObjectID, m_TransformBeforeDrag);
+            m_UndoStack.PushTransform(&scene, scene.GetUUID(selectedHandle), m_TransformBeforeDrag);
     };
     row("Position", "##pos", transform.Position, 0.05f);
     row("Rotation", "##rot", transform.Rotation, 0.5f);
@@ -502,7 +563,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     ImGui::Spacing();
     if (ImGui::Button("Reset Transform", ImVec2(-1.0f, 0.0f)))
     {
-        m_UndoStack.PushTransform(&m_Scene, m_SelectedObjectID, transform);
+        m_UndoStack.PushTransform(&scene, scene.GetUUID(selectedHandle), transform);
         transform = {};
     }
 
@@ -514,7 +575,7 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     {
         bool before = visibility.Visible;
         if (UIActive::Toggle("Visible", &visibility.Visible) && visibility.Visible != before)
-            m_UndoStack.PushVisibility(&m_Scene, m_SelectedObjectID, before);
+            m_UndoStack.PushVisibility(&scene, scene.GetUUID(selectedHandle), before);
     }
 
     // ── Текстуры (по одному материалу на сабмеш) ─────────────────────────
@@ -755,11 +816,13 @@ void SceneViewLayer::DrawPropsPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
 {
     UIActive::BeginPanel("Camera", pos, size, 0, resetSize);
+    SceneSession& activeSession = GetActiveSceneSession();
+    CHEngine::EditorCamera& viewportCamera = *activeSession.ViewportCamera;
 
     UIActive::SectionHeader("VIEW");
 
     if (UIActive::PrimaryButton("Perspective", ImVec2(-1.0f, 0.0f)))
-        { SetViewPreset(-90.0f, -15.0f); m_Camera.SetFOV(45.0f); }
+        { SetViewPreset(-90.0f, -15.0f); viewportCamera.SetFOV(45.0f); }
 
     ImGui::Spacing();
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(4, 4));
@@ -805,16 +868,16 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
         return ImGui::DragFloat(id, val, spd, mn, mx, "%.2f");
     };
 
-    float yaw   = m_Camera.GetYaw();
-    float pitch = m_Camera.GetPitch();
-    float fov   = m_Camera.GetFOV();
+    float yaw   = glm::degrees(viewportCamera.GetYaw());
+    float pitch = glm::degrees(viewportCamera.GetPitch());
+    float fov   = viewportCamera.GetFOV();
 
     if (sliderRow("Yaw",   "##yaw",  &yaw,   -180.0f, 180.0f, "%.1f°"))
-        { m_Camera.SetYaw(yaw);     orb = true; }
+        { viewportCamera.SetYaw(glm::radians(yaw));     orb = true; }
     if (sliderRow("Pitch", "##pitch",&pitch,   -89.0f,  89.0f, "%.1f°"))
-        { m_Camera.SetPitch(pitch); orb = true; }
+        { viewportCamera.SetPitch(glm::radians(pitch)); orb = true; }
     if (sliderRow("FOV",   "##fov",  &fov,     10.0f,  120.0f, "%.1f°"))
-        m_Camera.SetFOV(fov);
+        viewportCamera.SetFOV(fov);
     if (dragRow  ("Dist",  "##dist", &m_OrbitDist, 0.1f, 0.3f, 500.0f))
         orb = true;
 
@@ -828,7 +891,7 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     if (ImGui::DragFloat3("##target", glm::value_ptr(m_OrbitTarget), 0.05f))
         ApplyOrbit();
 
-    glm::vec3 cpos = m_Camera.GetPosition();
+    glm::vec3 cpos = viewportCamera.GetPosition();
     ImGui::Spacing();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.357f,0.357f,0.376f,1.0f));
     ImGui::Text("Pos  %.2f  %.2f  %.2f", cpos.x, cpos.y, cpos.z);
@@ -842,9 +905,9 @@ void SceneViewLayer::DrawCameraPanel(ImVec2 pos, ImVec2 size, bool resetSize)
     {
         m_OrbitTarget = { 0.0f, 0.0f, 0.0f };
         m_OrbitDist   = 8.0f;
-        m_Camera.SetYaw(-90.0f);
-        m_Camera.SetPitch(-15.0f);
-        m_Camera.SetFOV(45.0f);
+        viewportCamera.SetYaw(glm::radians(-90.0f));
+        viewportCamera.SetPitch(glm::radians(-15.0f));
+        viewportCamera.SetFOV(45.0f);
         ApplyOrbit();
     }
 

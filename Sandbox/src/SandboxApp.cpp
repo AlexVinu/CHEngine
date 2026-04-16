@@ -17,7 +17,7 @@ public:
 	ExampleLayer()
 		: Layer("Example")
 		, m_TintColor{ 1.0f, 1.0f, 1.0f, 1.0f }
-		, m_Camera(45.0f, 0.1f, 100.0f)
+		, m_Camera(45.0f, 16.0f / 9.0f, 0.1f, 100.0f)
 	{
 	}
 
@@ -37,7 +37,7 @@ public:
 		if (!shader) return;
 
 		// --- CameraUBO ---
-		glm::mat4 vp = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
+		glm::mat4 vp = m_Camera.GetViewProjection();
 		CHEngine::UBOCamera cameraUBO;
 		std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp), 64);
 		shader->SetUniformBlock(CHEngine::EUniformBlock::Camera,
@@ -68,7 +68,10 @@ public:
 		// Update aspect ratio from current window size
 		ImVec2 displaySize = ImGui::GetIO().DisplaySize;
 		if (displaySize.y > 0.0f)
+		{
 			m_AspectRatio = displaySize.x / displaySize.y;
+			m_Camera.SetViewportSize(displaySize.x, displaySize.y);
+		}
 
 		// ---- Debug info ----
 		ImGui::Begin("CHEngine Debug");
@@ -80,8 +83,8 @@ public:
 		ImGui::Begin("Camera");
 
 		glm::vec3 pos = m_Camera.GetPosition();
-		float yaw = m_Camera.GetYaw();
-		float pitch = m_Camera.GetPitch();
+		float yaw = glm::degrees(m_Camera.GetYaw());
+		float pitch = glm::degrees(m_Camera.GetPitch());
 		float fov = m_Camera.GetFOV();
 
 		bool changed = false;
@@ -93,23 +96,23 @@ public:
 		if (changed)
 		{
 			m_Camera.SetPosition(pos);
-			m_Camera.SetYaw(yaw);
-			m_Camera.SetPitch(pitch);
+			m_Camera.SetYaw(glm::radians(yaw));
+			m_Camera.SetPitch(glm::radians(pitch));
 			m_Camera.SetFOV(fov);
 		}
 
 		if (ImGui::Button("Reset camera"))
 		{
 			m_Camera.SetPosition({ 0.0f, 0.0f, 3.0f });
-			m_Camera.SetYaw(-90.0f);
+			m_Camera.SetYaw(glm::radians(-90.0f));
 			m_Camera.SetPitch(0.0f);
 			m_Camera.SetFOV(45.0f);
 		}
 
 		ImGui::Separator();
-		ImGui::Text("Forward: (%.2f, %.2f, %.2f)", m_Camera.GetForward().x,
-			m_Camera.GetForward().y,
-			m_Camera.GetForward().z);
+		ImGui::Text("Forward: (%.2f, %.2f, %.2f)", m_Camera.GetForwardDirection().x,
+			m_Camera.GetForwardDirection().y,
+			m_Camera.GetForwardDirection().z);
 		ImGui::End();
 
 		// ---- Cube ----
@@ -210,7 +213,7 @@ public:
 private:
 	float           m_TintColor[4];
 	float           m_AspectRatio = 16.0f / 9.0f;
-	CHEngine::Camera m_Camera;
+	CHEngine::EditorCamera m_Camera;
 
 	// Rotation state
 	float m_RotX = 0.0f;

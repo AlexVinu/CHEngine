@@ -13,11 +13,10 @@
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Render/RenderResourceManager.h>
 #include <CHEngine/Scene/Components.h>
-#include <CHEngine/World/DeferredOps.h>
-#include <CHEngine/World/World.h>
 #include "Entity.h"
 #include <Log/Log.h>
 #include <glm/glm.hpp>
+#include <filesystem>
 
 using json = nlohmann::json;
 
@@ -205,6 +204,257 @@ RigidBody3DComponent DeserializeRigidBody(const json& rbj)
     return rigidBody;
 }
 
+bool DeserializeSceneData(Scene* scene, const json& data, RenderResourceManager& resources)
+{
+    if (!data.is_object() || !data.contains("objects") || !data["objects"].is_array()) {
+        CHE_CORE_ERROR("SceneSerializer: malformed scene data (missing 'objects' array)");
+        return false;
+    }
+    if (!data.contains("version") || !data["version"].is_number_integer()) {
+        CHE_CORE_ERROR("SceneSerializer: malformed scene data (missing integer 'version')");
+        return false;
+    }
+
+    const int version = data["version"].get<int>();
+    if (version != 2 && version != kSceneFormatVersion) {
+        CHE_CORE_ERROR("SceneSerializer: unsupported scene format version {} (expected 2 or {})",
+            version, kSceneFormatVersion);
+        return false;
+    }
+
+    scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
+        for (auto& mesh : meshComp.Meshes) {
+            if (mesh.GetVertexArray().IsValid())
+                resources.DestroyVertexArray(mesh.GetVertexArray());
+        }
+        DestroyUniqueMeshTextures(meshComp, resources);
+    });
+    scene->Clear();
+
+    auto readFloats = [](const json& arr, size_t count, float* out) -> bool {
+        if (!arr.is_array() || arr.size() < count) return false;
+        for (size_t i = 0; i < count; ++i) {
+            if (!arr[i].is_number()) return false;
+            out[i] = arr[i].get<float>();
+        }
+        return true;
+    };
+
+    for (auto& o : data["objects"]) {
+        if (!o.is_object()) {
+            CHE_CORE_WARN("SceneSerializer: skipping non-object entry in 'objects' array");
+            continue;
+        }
+
+        std::string name = o.value("name", "Object");
+        std::string meshPath = o.value("meshPath", "");
+        if (!o.contains("uuid") || !o["uuid"].is_string()) {
+            CHE_CORE_WARN("SceneSerializer: skipping object '{}' without valid string 'uuid'", name);
+            continue;
+        }
+
+        UUID entityUUID = boost::uuids::nil_uuid();
+        if (!TryParseUUIDString(o["uuid"].get<std::string>(), entityUUID)) {
+            CHE_CORE_WARN("SceneSerializer: skipping object '{}' with invalid uuid", name);
+            continue;
+        }
+
+        EntityHandle handle{};
+        std::vector<Mesh> importedMeshes;
+        bool hasImportedMeshes = false;
+
+        if (!meshPath.empty()) {
+            auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
+            if (result.success && !result.meshes.empty()) {
+                glm::vec3 centroid(0.0f);
+                size_t totalVerts = 0;
+                for (auto& mesh : result.meshes) {
+                    for (const auto& v : mesh.GetVertices()) {
+                        centroid += v.Position;
+                        ++totalVerts;
+                    }
+                }
+                if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
+
+                if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
+                    for (auto& mesh : result.meshes) {
+                        resources.DestroyVertexArray(mesh.GetVertexArray());
+                        auto verts = mesh.GetVertices();
+                        for (auto& v : verts) v.Position -= centroid;
+                        mesh.Build(verts, mesh.GetIndices());
+                    }
+                }
+
+                importedMeshes = std::move(result.meshes);
+                hasImportedMeshes = true;
+            } else {
+                std::string normalizedPath = meshPath;
+                std::filesystem::path fsPath(meshPath);
+                if (!fsPath.empty())
+                    normalizedPath = fsPath.lexically_normal().string();
+
+                CHE_CORE_WARN(
+                    "SceneSerializer: model load failed for entity='{}' uuid={} meshPath='{}' normalized='{}' success={} meshCount={}",
+                    name,
+                    boost::uuids::to_string(entityUUID),
+                    meshPath,
+                    normalizedPath,
+                    result.success,
+                    result.meshes.size());
+            }
+        }
+
+        if (!scene->IsEntityHandleValid(handle))
+            handle = scene->CreateEntity(name, entityUUID);
+        auto* obj = scene->TryGetEntity(handle);
+        if (!obj) continue;
+
+        if (hasImportedMeshes && obj->HasComponent<MeshComponent>())
+        {
+            auto* meshComp = &obj->GetComponent<MeshComponent>();
+            meshComp->Meshes = std::move(importedMeshes);
+            meshComp->SourcePath = meshPath;
+        } else if (!meshPath.empty() && obj->HasComponent<MeshComponent>()) {
+            auto* meshComp = &obj->GetComponent<MeshComponent>();
+            meshComp->SourcePath = meshPath;
+        }
+
+        auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
+        auto& color = obj->GetComponent<ColorComponent>().Color;
+        auto& visible = obj->GetComponent<VisibilityComponent>().Visible;
+
+        float v3[3];
+        if (o.contains("position") && readFloats(o["position"], 3, v3))
+            transform.Position = { v3[0], v3[1], v3[2] };
+
+        if (o.contains("rotation") && readFloats(o["rotation"], 3, v3))
+            transform.Rotation = { v3[0], v3[1], v3[2] };
+
+        if (o.contains("scale") && readFloats(o["scale"], 3, v3))
+            transform.Scale = { v3[0], v3[1], v3[2] };
+
+        float v4[4];
+        if (o.contains("color") && readFloats(o["color"], 4, v4))
+            color = { v4[0], v4[1], v4[2], v4[3] };
+
+        visible = o.value("visible", true);
+
+        if (o.contains("camera") && o["camera"].is_object()) {
+            const auto& cameraJson = o["camera"];
+            if (!obj->HasComponent<CameraComponent>())
+                obj->AddComponent<CameraComponent>(CameraComponent{});
+
+            auto* cameraComp = &obj->GetComponent<CameraComponent>();
+            cameraComp->Primary = cameraJson.value("primary", cameraComp->Primary);
+            cameraComp->FixedAspectRatio = cameraJson.value("fixedAspectRatio", cameraComp->FixedAspectRatio);
+
+            const float defaultAspectRatio = 16.0f / 9.0f;
+            const float serializedAspectRatio = cameraJson.value("aspectRatio", defaultAspectRatio);
+            const float safeAspectRatio = serializedAspectRatio > 0.001f ? serializedAspectRatio : defaultAspectRatio;
+            cameraComp->Camera.SetViewportSize(static_cast<uint32_t>(safeAspectRatio * 1000.0f), 1000u);
+
+            if (cameraJson.contains("projectionType") && cameraJson["projectionType"].is_number_integer()) {
+                const int projectionType = cameraJson["projectionType"].get<int>();
+                cameraComp->Camera.SetProjectionType(static_cast<SceneCamera::ProjectionType>(projectionType));
+
+                if (cameraJson.contains("perspective") && cameraJson["perspective"].is_object()) {
+                    const auto& perspective = cameraJson["perspective"];
+                    cameraComp->Camera.SetPerspectiveVerticalFOV(
+                        perspective.value("verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV()));
+                    cameraComp->Camera.SetPerspectiveNearClip(
+                        perspective.value("nearClip", cameraComp->Camera.GetPerspectiveNearClip()));
+                    cameraComp->Camera.SetPerspectiveFarClip(
+                        perspective.value("farClip", cameraComp->Camera.GetPerspectiveFarClip()));
+                }
+
+                if (cameraJson.contains("orthographic") && cameraJson["orthographic"].is_object()) {
+                    const auto& orthographic = cameraJson["orthographic"];
+                    cameraComp->Camera.SetOrthographicSize(
+                        orthographic.value("size", cameraComp->Camera.GetOrthographicSize()));
+                    cameraComp->Camera.SetOrthographicNearClip(
+                        orthographic.value("nearClip", cameraComp->Camera.GetOrthographicNearClip()));
+                    cameraComp->Camera.SetOrthographicFarClip(
+                        orthographic.value("farClip", cameraComp->Camera.GetOrthographicFarClip()));
+                }
+            } else {
+                // Legacy fallback (v2/v3): migrate old scalar camera fields into SceneCamera.
+                const float legacyFovDegrees = cameraJson.value("fov", 45.0f);
+                const float legacyNearClip = cameraJson.value("nearClip", 0.1f);
+                const float legacyFarClip = cameraJson.value("farClip", 1000.0f);
+                cameraComp->Camera.SetPerspective(
+                    glm::radians(legacyFovDegrees),
+                    legacyNearClip,
+                    legacyFarClip);
+            }
+        }
+
+        if (obj->HasComponent<MeshComponent>())
+        {
+            auto* meshCompForMat = &obj->GetComponent<MeshComponent>();
+            for (auto& meshItem : meshCompForMat->Meshes)
+            {
+                if (!meshItem.Mat)
+                    meshItem.Mat = MaterialInstance::FromBase(
+                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+            }
+
+            if (o.contains("materials") && o["materials"].is_array())
+            {
+                const auto& arr = o["materials"];
+                for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
+                {
+                    if (arr[mi].is_object())
+                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat, resources);
+                }
+            }
+            else if (o.contains("material") && o["material"].is_object())
+            {
+                auto& meshes = meshCompForMat->Meshes;
+                if (!meshes.empty())
+                {
+                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat, resources);
+                    for (size_t i = 1; i < meshes.size(); ++i)
+                        meshes[i].Mat = meshes[0].Mat;
+                }
+            }
+        }
+
+        if (o.contains("light") && o["light"].is_object()) {
+            const auto& lj = o["light"];
+            int typeVal = lj.value("type", -1);
+            if (typeVal < 0 || typeVal > 2) {
+                CHE_CORE_WARN("SceneSerializer: invalid light type {} for '{}', resetting", typeVal, name);
+                typeVal = -1;
+            }
+            Light lightData;
+            lightData.Type = static_cast<LightType>(typeVal);
+            float lc[3];
+            if (lj.contains("color") && readFloats(lj["color"], 3, lc))
+                lightData.Color = { lc[0], lc[1], lc[2] };
+            lightData.Intensity = lj.value("intensity", 1.0f);
+            lightData.Range = lj.value("range", 10.0f);
+            lightData.InnerCone = lj.value("innerCone", 12.5f);
+            lightData.OuterCone = lj.value("outerCone", 17.5f);
+            if (obj->HasComponent<LightComponent>())
+                obj->RemoveComponent<LightComponent>();
+            obj->AddComponent<LightComponent>(LightComponent{ lightData });
+        } else if (obj->HasComponent<LightComponent>()) {
+            obj->RemoveComponent<LightComponent>();
+        }
+
+        if (version >= 3 && o.contains("rigidBody") && o["rigidBody"].is_object()) {
+            const RigidBody3DComponent rigidBody = DeserializeRigidBody(o["rigidBody"]);
+            if (obj->HasComponent<RigidBody3DComponent>())
+                obj->RemoveComponent<RigidBody3DComponent>();
+            obj->AddComponent<RigidBody3DComponent>(RigidBody3DComponent{ rigidBody });
+        } else if (obj->HasComponent<RigidBody3DComponent>()) {
+            obj->RemoveComponent<RigidBody3DComponent>();
+        }
+    }
+
+    return true;
+}
+
 } // namespace
 
 bool SceneSerializer::SaveToFile(Scene* scene, const std::string& path) {
@@ -260,6 +510,26 @@ bool SceneSerializer::SaveToFile(Scene* scene, const std::string& path) {
         if (entity->HasComponent<RigidBody3DComponent>())
             o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
 
+        if (entity->HasComponent<CameraComponent>()) {
+            const auto* cameraComp = &entity->GetComponent<CameraComponent>();
+            json camera;
+            camera["projectionType"] = static_cast<int>(cameraComp->Camera.GetProjectionType());
+            camera["perspective"] = {
+                { "verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV() },
+                { "nearClip", cameraComp->Camera.GetPerspectiveNearClip() },
+                { "farClip", cameraComp->Camera.GetPerspectiveFarClip() }
+            };
+            camera["orthographic"] = {
+                { "size", cameraComp->Camera.GetOrthographicSize() },
+                { "nearClip", cameraComp->Camera.GetOrthographicNearClip() },
+                { "farClip", cameraComp->Camera.GetOrthographicFarClip() }
+            };
+            camera["aspectRatio"] = 16.0f / 9.0f;
+            camera["fixedAspectRatio"] = cameraComp->FixedAspectRatio;
+            camera["primary"] = cameraComp->Primary;
+            o["camera"] = camera;
+        }
+
         j["objects"].push_back(o);
     });
 
@@ -271,12 +541,10 @@ bool SceneSerializer::SaveToFile(Scene* scene, const std::string& path) {
     return true;
 }
 
-bool SceneSerializer::LoadFromFile(Scene* scene, const std::string& path, RenderResourceManager& resources,
-                                   World* world) {
-    DeferredOps* deferred_ops = world ? &world->GetDeferredOps() : nullptr;
+Scope<Scene> SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManager& resources) {
     if (!FileSystem::Exists(path)) {
         CHE_CORE_ERROR("SceneSerializer: cannot read {}", path);
-        return false;
+        return nullptr;
     }
 
     json j;
@@ -285,204 +553,14 @@ bool SceneSerializer::LoadFromFile(Scene* scene, const std::string& path, Render
     }
     catch (const std::exception& e) {
         CHE_CORE_ERROR("SceneSerializer: JSON parse error: {}", e.what());
-        return false;
+        return nullptr;
     }
-
-    // Validate top-level structure
-    if (!j.is_object() || !j.contains("objects") || !j["objects"].is_array()) {
-        CHE_CORE_ERROR("SceneSerializer: malformed scene file (missing 'objects' array)");
-        return false;
-    }
-    if (!j.contains("version") || !j["version"].is_number_integer()) {
-        CHE_CORE_ERROR("SceneSerializer: malformed scene file (missing integer 'version')");
-        return false;
-    }
-    const int version = j["version"].get<int>();
-    if (version != 2 && version != kSceneFormatVersion) {
-        CHE_CORE_ERROR("SceneSerializer: unsupported scene format version {} (expected 2 or {})",
-            version, kSceneFormatVersion);
-        return false;
-    }
-
-    // Clear existing scene GPU resources first
-    scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
-        for (auto& mesh : meshComp.Meshes) {
-            if (mesh.GetVertexArray().IsValid())
-                resources.DestroyVertexArray(mesh.GetVertexArray());
-        }
-        DestroyUniqueMeshTextures(meshComp, resources);
-    });
-    scene->Clear();
-    if (deferred_ops)
-        deferred_ops->Clear();
-
-    // Helper: safely read a JSON array of N floats
-    auto readFloats = [](const json& arr, size_t count, float* out) -> bool {
-        if (!arr.is_array() || arr.size() < count) return false;
-        for (size_t i = 0; i < count; ++i) {
-            if (!arr[i].is_number()) return false;
-            out[i] = arr[i].get<float>();
-        }
-        return true;
-    };
-
-    for (auto& o : j["objects"]) {
-        if (!o.is_object()) {
-            CHE_CORE_WARN("SceneSerializer: skipping non-object entry in 'objects' array");
-            continue;
-        }
-
-        std::string name     = o.value("name", "Object");
-        std::string meshPath = o.value("meshPath", "");
-        if (!o.contains("uuid") || !o["uuid"].is_string()) {
-            CHE_CORE_WARN("SceneSerializer: skipping object '{}' without valid string 'uuid'", name);
-            continue;
-        }
-
-        UUID entityUUID = boost::uuids::nil_uuid();
-        if (!TryParseUUIDString(o["uuid"].get<std::string>(), entityUUID)) {
-            CHE_CORE_WARN("SceneSerializer: skipping object '{}' with invalid uuid", name);
-            continue;
-        }
-
-        EntityHandle handle{};
-        std::vector<Mesh> importedMeshes;
-        bool hasImportedMeshes = false;
-
-        if (!meshPath.empty()) {
-            // Re-import model from disk
-            auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
-            if (result.success) {
-                // Центрируем вершины вокруг геометрического центра — точно как ImportModel.
-                // Без этого позиция модели смещается на величину centroid при каждой загрузке.
-                glm::vec3 centroid(0.0f);
-                size_t totalVerts = 0;
-                for (auto& mesh : result.meshes) {
-                    for (const auto& v : mesh.GetVertices()) {
-                        centroid += v.Position;
-                        ++totalVerts;
-                    }
-                }
-                if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
-
-                if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
-                    for (auto& mesh : result.meshes) {
-                        resources.DestroyVertexArray(mesh.GetVertexArray());
-                        auto verts = mesh.GetVertices();
-                        for (auto& v : verts) v.Position -= centroid;
-                        mesh.Build(verts, mesh.GetIndices());
-                    }
-                }
-
-                importedMeshes = std::move(result.meshes);
-                hasImportedMeshes = true;
-            }
-        }
-
-        if (!scene->IsEntityHandleValid(handle))
-            handle = scene->CreateEntity(name, entityUUID);
-        auto* obj = scene->TryGetEntity(handle);
-        if (!obj) continue;
-
-        if (hasImportedMeshes && obj->HasComponent<MeshComponent>())
-        {
-            auto* meshComp = &obj->GetComponent<MeshComponent>();
-            meshComp->Meshes = std::move(importedMeshes);
-            meshComp->SourcePath = meshPath;
-        }
-
-        auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
-        auto& color = obj->GetComponent<ColorComponent>().Color;
-        auto& visible = obj->GetComponent<VisibilityComponent>().Visible;
-
-        // Restore transform (with validation)
-        float v3[3];
-        if (o.contains("position") && readFloats(o["position"], 3, v3))
-            transform.Position = { v3[0], v3[1], v3[2] };
-
-        if (o.contains("rotation") && readFloats(o["rotation"], 3, v3))
-            transform.Rotation = { v3[0], v3[1], v3[2] };
-
-        if (o.contains("scale") && readFloats(o["scale"], 3, v3))
-            transform.Scale = { v3[0], v3[1], v3[2] };
-
-        float v4[4];
-        if (o.contains("color") && readFloats(o["color"], 4, v4))
-            color = { v4[0], v4[1], v4[2], v4[3] };
-
-        visible = o.value("visible", true);
-
-        // Десериализация материалов: materials[] по сабмешам; v2 material — один на все сабмеши (шаринг ptr)
-        if (obj->HasComponent<MeshComponent>())
-        {
-            auto* meshCompForMat = &obj->GetComponent<MeshComponent>();
-            for (auto& meshItem : meshCompForMat->Meshes)
-            {
-                if (!meshItem.Mat)
-                    meshItem.Mat = MaterialInstance::FromBase(
-                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
-            }
-
-            if (o.contains("materials") && o["materials"].is_array())
-            {
-                const auto& arr = o["materials"];
-                for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
-                {
-                    if (arr[mi].is_object())
-                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat, resources);
-                }
-            }
-            else if (o.contains("material") && o["material"].is_object())
-            {
-                auto& meshes = meshCompForMat->Meshes;
-                if (!meshes.empty())
-                {
-                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat, resources);
-                    for (size_t i = 1; i < meshes.size(); ++i)
-                        meshes[i].Mat = meshes[0].Mat;
-                }
-            }
-        }
-
-        // Десериализация источника света
-        if (o.contains("light") && o["light"].is_object()) {
-            const auto& lj = o["light"];
-            int typeVal = lj.value("type", -1);
-            if (typeVal < 0 || typeVal > 2) {
-                CHE_CORE_WARN("SceneSerializer: invalid light type {} for '{}', resetting", typeVal, name);
-                typeVal = -1;
-            }
-            Light lightData;
-            lightData.Type = static_cast<LightType>(typeVal);
-            float lc[3];
-            if (lj.contains("color") && readFloats(lj["color"], 3, lc))
-                lightData.Color = { lc[0], lc[1], lc[2] };
-            lightData.Intensity = lj.value("intensity", 1.0f);
-            lightData.Range     = lj.value("range", 10.0f);
-            lightData.InnerCone = lj.value("innerCone", 12.5f);
-            lightData.OuterCone = lj.value("outerCone", 17.5f);
-            if (obj->HasComponent<LightComponent>())
-                obj->RemoveComponent<LightComponent>();
-            obj->AddComponent<LightComponent>(LightComponent{ lightData });
-        } else if (obj->HasComponent<LightComponent>()) {
-            obj->RemoveComponent<LightComponent>();
-        }
-
-        if (version >= 3 && o.contains("rigidBody") && o["rigidBody"].is_object()) {
-            const RigidBody3DComponent rigidBody = DeserializeRigidBody(o["rigidBody"]);
-            if (obj->HasComponent<RigidBody3DComponent>())
-                obj->RemoveComponent<RigidBody3DComponent>();
-            obj->AddComponent<RigidBody3DComponent>(RigidBody3DComponent{ rigidBody });
-        } else if (obj->HasComponent<RigidBody3DComponent>()) {
-            obj->RemoveComponent<RigidBody3DComponent>();
-        }
-    }
-
-    if (world)
-        world->Update(Timestep(0.0f));
+    Scope<Scene> loadedScene = std::make_unique<Scene>();
+    if (!DeserializeSceneData(loadedScene.get(), j, resources))
+        return nullptr;
 
     CHE_CORE_INFO("Scene loaded: {}", path);
-    return true;
+    return loadedScene;
 }
 
 // ── In-memory snapshot ────────────────────────────────────────────────────────
@@ -538,172 +616,38 @@ nlohmann::json SceneSerializer::SerializeToJson(Scene* scene)
         if (entity->HasComponent<RigidBody3DComponent>())
             o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
 
+        if (entity->HasComponent<CameraComponent>()) {
+            const auto* cameraComp = &entity->GetComponent<CameraComponent>();
+            json camera;
+            camera["projectionType"] = static_cast<int>(cameraComp->Camera.GetProjectionType());
+            camera["perspective"] = {
+                { "verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV() },
+                { "nearClip", cameraComp->Camera.GetPerspectiveNearClip() },
+                { "farClip", cameraComp->Camera.GetPerspectiveFarClip() }
+            };
+            camera["orthographic"] = {
+                { "size", cameraComp->Camera.GetOrthographicSize() },
+                { "nearClip", cameraComp->Camera.GetOrthographicNearClip() },
+                { "farClip", cameraComp->Camera.GetOrthographicFarClip() }
+            };
+            camera["aspectRatio"] = 16.0f / 9.0f;
+            camera["fixedAspectRatio"] = cameraComp->FixedAspectRatio;
+            camera["primary"] = cameraComp->Primary;
+            o["camera"] = camera;
+        }
+
         j["objects"].push_back(o);
     });
 
     return j;
 }
 
-bool SceneSerializer::DeserializeFromJson(Scene* scene, const nlohmann::json& data, RenderResourceManager& resources,
-                                          World* world)
+Scope<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources)
 {
-    DeferredOps* deferred_ops = world ? &world->GetDeferredOps() : nullptr;
-    if (!data.is_object() || !data.contains("objects") || !data["objects"].is_array())
-        return false;
-
-    const int version = data.value("version", kSceneFormatVersion);
-    if (version != 2 && version != kSceneFormatVersion)
-        return false;
-
-    // Очистить GPU-ресурсы текущей сцены
-    scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
-        for (auto& mesh : meshComp.Meshes) {
-            if (mesh.GetVertexArray().IsValid())
-                resources.DestroyVertexArray(mesh.GetVertexArray());
-        }
-        DestroyUniqueMeshTextures(meshComp, resources);
-    });
-    scene->Clear();
-    if (deferred_ops)
-        deferred_ops->Clear();
-
-    auto readFloats = [](const json& arr, size_t count, float* out) -> bool {
-        if (!arr.is_array() || arr.size() < count) return false;
-        for (size_t i = 0; i < count; ++i) {
-            if (!arr[i].is_number()) return false;
-            out[i] = arr[i].get<float>();
-        }
-        return true;
-    };
-
-    for (auto& o : data["objects"]) {
-        if (!o.is_object()) continue;
-
-        std::string name     = o.value("name", "Object");
-        std::string meshPath = o.value("meshPath", "");
-
-        if (!o.contains("uuid") || !o["uuid"].is_string()) continue;
-
-        UUID entityUUID = boost::uuids::nil_uuid();
-        if (!TryParseUUIDString(o["uuid"].get<std::string>(), entityUUID)) continue;
-
-        EntityHandle handle{};
-        std::vector<Mesh> importedMeshes;
-        bool hasImportedMeshes = false;
-
-        if (!meshPath.empty()) {
-            auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
-            if (result.success) {
-                glm::vec3 centroid(0.0f);
-                size_t totalVerts = 0;
-                for (auto& mesh : result.meshes) {
-                    for (const auto& v : mesh.GetVertices()) {
-                        centroid += v.Position;
-                        ++totalVerts;
-                    }
-                }
-                if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
-                if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
-                    for (auto& mesh : result.meshes) {
-                        resources.DestroyVertexArray(mesh.GetVertexArray());
-                        auto verts = mesh.GetVertices();
-                        for (auto& v : verts) v.Position -= centroid;
-                        mesh.Build(verts, mesh.GetIndices());
-                    }
-                }
-
-                importedMeshes = std::move(result.meshes);
-                hasImportedMeshes = true;
-            }
-        }
-
-        if (!scene->IsEntityHandleValid(handle))
-            handle = scene->CreateEntity(name, entityUUID);
-        auto* obj = scene->TryGetEntity(handle);
-        if (!obj) continue;
-
-        if (hasImportedMeshes && obj->HasComponent<MeshComponent>())
-        {
-            auto* meshComp = &obj->GetComponent<MeshComponent>();
-            meshComp->Meshes = std::move(importedMeshes);
-            meshComp->SourcePath = meshPath;
-        }
-
-        auto& transform = obj->GetComponent<TransformComponent>().ObjectTransform;
-        auto& color     = obj->GetComponent<ColorComponent>().Color;
-        auto& visible   = obj->GetComponent<VisibilityComponent>().Visible;
-
-        float v3[3], v4[4];
-        if (o.contains("position") && readFloats(o["position"], 3, v3))
-            transform.Position = { v3[0], v3[1], v3[2] };
-        if (o.contains("rotation") && readFloats(o["rotation"], 3, v3))
-            transform.Rotation = { v3[0], v3[1], v3[2] };
-        if (o.contains("scale") && readFloats(o["scale"], 3, v3))
-            transform.Scale = { v3[0], v3[1], v3[2] };
-        if (o.contains("color") && readFloats(o["color"], 4, v4))
-            color = { v4[0], v4[1], v4[2], v4[3] };
-
-        visible = o.value("visible", true);
-
-        if (obj->HasComponent<MeshComponent>()) {
-            auto* meshCompForMat = &obj->GetComponent<MeshComponent>();
-            for (auto& meshItem : meshCompForMat->Meshes) {
-                if (!meshItem.Mat)
-                    meshItem.Mat = MaterialInstance::FromBase(
-                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
-            }
-            if (o.contains("materials") && o["materials"].is_array()) {
-                const auto& arr = o["materials"];
-                for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
-                    if (arr[mi].is_object())
-                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat, resources);
-            }
-            else if (o.contains("material") && o["material"].is_object())
-            {
-                auto& meshes = meshCompForMat->Meshes;
-                if (!meshes.empty())
-                {
-                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat, resources);
-                    for (size_t i = 1; i < meshes.size(); ++i)
-                        meshes[i].Mat = meshes[0].Mat;
-                }
-            }
-        }
-
-        if (o.contains("light") && o["light"].is_object()) {
-            const auto& lj = o["light"];
-            int typeVal = lj.value("type", -1);
-            if (typeVal < 0 || typeVal > 2) typeVal = -1;
-            Light lightData;
-            lightData.Type = static_cast<LightType>(typeVal);
-            float lc[3];
-            if (lj.contains("color") && readFloats(lj["color"], 3, lc))
-                lightData.Color = { lc[0], lc[1], lc[2] };
-            lightData.Intensity = lj.value("intensity", 1.0f);
-            lightData.Range     = lj.value("range", 10.0f);
-            lightData.InnerCone = lj.value("innerCone", 12.5f);
-            lightData.OuterCone = lj.value("outerCone", 17.5f);
-            if (obj->HasComponent<LightComponent>())
-                obj->RemoveComponent<LightComponent>();
-            obj->AddComponent<LightComponent>(LightComponent{ lightData });
-        } else if (obj->HasComponent<LightComponent>()) {
-            obj->RemoveComponent<LightComponent>();
-        }
-
-        if (version >= 3 && o.contains("rigidBody") && o["rigidBody"].is_object()) {
-            const RigidBody3DComponent rigidBody = DeserializeRigidBody(o["rigidBody"]);
-            if (obj->HasComponent<RigidBody3DComponent>())
-                obj->RemoveComponent<RigidBody3DComponent>();
-            obj->AddComponent<RigidBody3DComponent>(RigidBody3DComponent{ rigidBody });
-        } else if (obj->HasComponent<RigidBody3DComponent>()) {
-            obj->RemoveComponent<RigidBody3DComponent>();
-        }
-    }
-
-    if (world)
-        world->Update(Timestep(0.0f));
-
-    return true;
+    Scope<Scene> loadedScene = std::make_unique<Scene>();
+    if (!DeserializeSceneData(loadedScene.get(), data, resources))
+        return nullptr;
+    return loadedScene;
 }
 
 } // namespace CHEngine

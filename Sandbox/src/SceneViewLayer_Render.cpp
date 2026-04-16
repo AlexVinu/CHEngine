@@ -50,6 +50,8 @@ void SceneViewLayer::BuildGrid()
 void SceneViewLayer::RenderScene(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
+    SceneSession& activeSession = GetActiveSceneSession();
+    CHEngine::EditorCamera& viewportCamera = *activeSession.ViewportCamera;
 
     // ── Bind FBO — all rendering goes into the offscreen texture ─────────
     auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
@@ -57,14 +59,14 @@ void SceneViewLayer::RenderScene(CHEngine::Timestep dt)
     CHEngine::RenderFacade::Clear();
     // ─────────────────────────────────────────────────────────────────────
 
-    glm::mat4 vp    = m_Camera.GetViewProjectionMatrix(m_AspectRatio);
+    glm::mat4 vp = viewportCamera.GetViewProjection();
     glm::mat4 invVP = glm::inverse(vp);
-    glm::vec3 camPos = m_Camera.GetPosition();
+    glm::vec3 camPos = viewportCamera.GetPosition();
 
-    // ── Заполняем CameraUBO (раз в кадр, для всех шейдеров) ──────────────
-    CHEngine::UBOCamera cameraUBO;
-    std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp),    64);
-    std::memcpy(cameraUBO.InvViewProj,    glm::value_ptr(invVP), 64);
+    // Fill Camera UBO before any Submit(shader, ...) calls (grid pass relies on it).
+    CHEngine::UBOCamera cameraUBO{};
+    std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp), sizeof(cameraUBO.ViewProjection));
+    std::memcpy(cameraUBO.InvViewProj, glm::value_ptr(invVP), sizeof(cameraUBO.InvViewProj));
     cameraUBO.CameraPos[0] = camPos.x;
     cameraUBO.CameraPos[1] = camPos.y;
     cameraUBO.CameraPos[2] = camPos.z;
@@ -87,8 +89,9 @@ void SceneViewLayer::RenderScene(CHEngine::Timestep dt)
         }
     }
 
-    // Mesh-pass moved to ECS Presentation phase (RenderSystem).
-    m_World.Update(dt);
+    // Run active session update while viewport FBO is bound so ECS mesh
+    // presentation lands in the same target as the viewport image.
+    UpdateSceneSession(activeSession, dt);
 
     // ── Unbind FBO — restore default framebuffer ─────────────────────────
     if (fbo) fbo->Unbind();
@@ -102,10 +105,14 @@ void SceneViewLayer::RenderScene(CHEngine::Timestep dt)
 void SceneViewLayer::DrawGizmo()
 {
     // Гизмо недоступен в Play/Pause режиме
-    if (m_EditorState != EditorState::Edit) return;
+    SceneSession& activeSession = GetActiveSceneSession();
+    if (activeSession.SessionState != SceneSession::State::Edit) return;
 
-    auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
-    auto* entity = m_Scene.TryGetEntity(handle);
+    CHEngine::EditorCamera& viewportCamera = *activeSession.ViewportCamera;
+    CHEngine::Scene& scene = *activeSession.ActiveScene;
+    const CHEngine::EntityHandle selectedHandle = activeSession.SelectedEntity;
+    if (!scene.IsEntityHandleValid(selectedHandle)) return;
+    auto* entity = scene.TryGetEntity(selectedHandle);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>()) return;
     auto& selectedTransform = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
 
@@ -114,8 +121,8 @@ void SceneViewLayer::DrawGizmo()
     ImGuiIO& io = ImGui::GetIO();
     ImGuizmo::SetRect(m_ViewportPos.x, m_ViewportPos.y, m_ViewportSize.x, m_ViewportSize.y);
 
-    glm::mat4 view = m_Camera.GetViewMatrix();
-    glm::mat4 proj = m_Camera.GetProjectionMatrix(m_AspectRatio);
+    glm::mat4 view = viewportCamera.GetViewMatrix();
+    glm::mat4 proj = viewportCamera.GetProjectionMatrix();
 
     float t[3], r[3], s[3];
     float mm[16];
@@ -149,7 +156,7 @@ void SceneViewLayer::DrawGizmo()
     }
 
     if (m_GizmoWasUsing && !ImGuizmo::IsUsing())
-        m_UndoStack.PushTransform(&m_Scene, m_SelectedObjectID, m_TransformBeforeDrag);
+        m_UndoStack.PushTransform(&scene, scene.GetUUID(selectedHandle), m_TransformBeforeDrag);
 
     m_GizmoWasUsing = ImGuizmo::IsUsing();
 }
@@ -164,8 +171,10 @@ void SceneViewLayer::DrawOrbitIndicator()
     const float W  = io.DisplaySize.x;
     const float H  = io.DisplaySize.y;
 
-    glm::mat4 view = m_Camera.GetViewMatrix();
-    glm::mat4 proj = m_Camera.GetProjectionMatrix(m_AspectRatio);
+    SceneSession& activeSession = GetActiveSceneSession();
+    CHEngine::EditorCamera& viewportCamera = *activeSession.ViewportCamera;
+    glm::mat4 view = viewportCamera.GetViewMatrix();
+    glm::mat4 proj = viewportCamera.GetProjectionMatrix();
 
     glm::vec4 clip = proj * view * glm::vec4(m_OrbitTarget, 1.0f);
     if (clip.w <= 0.0f) return;

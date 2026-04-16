@@ -4,6 +4,49 @@
 #include <CHEngine/Scene/Entity.h>
 #include <CHEngine/World/ISystem.h>
 #include <CHEngine/World/WorldEvents.h>
+#include <Log/Log.h>
+
+SceneSession& SceneViewLayer::GetOrCreateActiveSession()
+{
+    if (m_SceneSessions.empty())
+    {
+        SceneSession defaultSession;
+        defaultSession.EditorScene = CHEngine::CreateRef<CHEngine::Scene>();
+        defaultSession.ActiveScene = defaultSession.EditorScene;
+        defaultSession.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(defaultSession.EditorScene.get());
+        defaultSession.ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
+        defaultSession.ViewportCamera->SetViewportSize(defaultSession.ViewportSize.x, defaultSession.ViewportSize.y);
+        m_SceneSessions.push_back(std::move(defaultSession));
+        m_ActiveSessionIndex = 0;
+    }
+
+    if (m_ActiveSessionIndex >= m_SceneSessions.size())
+    {
+        CHE_CORE_WARN("SceneViewLayer: active session index {} out of range, clamping",
+                      static_cast<uint32_t>(m_ActiveSessionIndex));
+        m_ActiveSessionIndex = m_SceneSessions.size() - 1;
+    }
+
+    return m_SceneSessions[m_ActiveSessionIndex];
+}
+
+SceneSession& SceneViewLayer::GetActiveSceneSession()
+{
+    return GetOrCreateActiveSession();
+}
+
+const SceneSession& SceneViewLayer::GetActiveSceneSession() const
+{
+    CHE_CORE_ASSERT(!m_SceneSessions.empty(), "SceneViewLayer requires at least one SceneSession");
+    CHE_CORE_ASSERT(m_ActiveSessionIndex < m_SceneSessions.size(), "Active SceneSession index is invalid");
+    return m_SceneSessions[m_ActiveSessionIndex];
+}
+
+void SceneViewLayer::SetActiveSceneSessionIndex(size_t session_index)
+{
+    CHE_CORE_ASSERT(session_index < m_SceneSessions.size(), "Requested SceneSession index is invalid");
+    m_ActiveSessionIndex = session_index;
+}
 
 // ============================================================================
 //  Constructor
@@ -11,9 +54,17 @@
 
 SceneViewLayer::SceneViewLayer()
     : Layer("SceneView")
-    , m_World(&m_Scene)
-    , m_Camera(45.0f, 0.1f, 500.0f)
 {
+    SceneSession defaultSession;
+    defaultSession.EditorScene = CHEngine::CreateRef<CHEngine::Scene>();
+    defaultSession.ActiveScene = defaultSession.EditorScene;
+    defaultSession.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(defaultSession.EditorScene.get());
+    defaultSession.ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
+    defaultSession.ViewportCamera->SetViewportSize(defaultSession.ViewportSize.x, defaultSession.ViewportSize.y);
+    defaultSession.ViewportCamera->SetPitch(glm::radians(-30.0f));
+    m_SceneSessions.push_back(std::move(defaultSession));
+    m_ActiveSessionIndex = 0;
+
     UIActive::SetTheme(AppTheme::RetroOS);
     UIActive::SyncLayout();
 
@@ -31,21 +82,12 @@ SceneViewLayer::SceneViewLayer()
 
     BuildGrid();
     m_Framebuffer = CHEngine::RenderFacade::CreateFramebuffer(1280, 720);
-    m_Camera.SetPitch(-30.0f);   // default: look slightly down so grid is visible
     ApplyOrbit();
 
     m_RecentFiles.LoadFromFile("recent_scenes.txt");
 
     // Восстанавливаем сцену если был рестарт при смене API
     TryRestoreSession();
-}
-
-void SceneViewLayer::FlushSimulationEvents()
-{
-    const bool wasSimulating = m_World.IsSimulating();
-    m_World.SetSimulating(true);
-    m_World.Update(CHEngine::Timestep(0.0f));
-    m_World.SetSimulating(wasSimulating);
 }
 
 // ============================================================================
@@ -55,50 +97,61 @@ void SceneViewLayer::FlushSimulationEvents()
 void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
-    SyncEditorCameraToECS();
+    for (size_t sessionIndex = 0; sessionIndex < m_SceneSessions.size(); ++sessionIndex)
+    {
+        SceneSession& sceneSession = m_SceneSessions[sessionIndex];
+        const bool isActiveSession = (sessionIndex == m_ActiveSessionIndex);
+        sceneSession.RuntimeWorld->SetActive(isActiveSession);
+        if (!isActiveSession)
+            UpdateSceneSession(sceneSession, dt);
+    }
     RenderScene(dt);
 }
 
-void SceneViewLayer::SyncEditorCameraToECS()
+void SceneViewLayer::UpdateSceneSession(SceneSession& scene_session, CHEngine::Timestep dt)
 {
-    if (!m_Scene.IsEntityHandleValid(m_EditorCameraEntity))
+    if (!scene_session.RuntimeWorld)
+        scene_session.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>();
+
+    CHE_CORE_ASSERT(scene_session.EditorScene, "SceneSession must have EditorScene");
+
+    switch (scene_session.SessionState)
     {
-        m_EditorCameraEntity = m_Scene.CreateEntity("EditorCamera");
-        if (auto* entity = m_Scene.TryGetEntity(m_EditorCameraEntity))
-        {
-            if (!entity->HasComponent<CHEngine::CameraComponent>())
-                entity->AddComponent<CHEngine::CameraComponent>(CHEngine::CameraComponent{});
-        }
+    case SceneSession::State::Edit:
+    {
+        scene_session.RuntimeWorld->SetSimulating(false);
+        scene_session.RuntimeWorld->SetActiveCamera(scene_session.ViewportCamera.get());
+        scene_session.RuntimeWorld->Update(dt);
+        break;
     }
 
-    auto* entity = m_Scene.TryGetEntity(m_EditorCameraEntity);
-    if (!entity
-        || !entity->HasComponent<CHEngine::CameraComponent>()
-        || !entity->HasComponent<CHEngine::TransformComponent>())
-        return;
-    auto& cameraComp = entity->GetComponent<CHEngine::CameraComponent>();
-    auto& transformComp = entity->GetComponent<CHEngine::TransformComponent>();
-
-    cameraComp.FOV = m_Camera.GetFOV();
-    cameraComp.NearClip = 0.1f;
-    cameraComp.FarClip = 500.0f;
-    cameraComp.AspectRatio = m_AspectRatio;
-    cameraComp.Active = true;
-    cameraComp.Primary = true;
-
-    CHEngine::Transform cameraTransform = cameraComp.CameraTransform;
-    cameraTransform.Position = m_Camera.GetPosition();
-    cameraTransform.Rotation.x = m_Camera.GetPitch();
-    cameraTransform.Rotation.y = m_Camera.GetYaw();
-    cameraTransform.Rotation.z = 0.0f;
-    cameraTransform.Scale = { 1.0f, 1.0f, 1.0f };
-    cameraComp.CameraTransform = cameraTransform;
-    transformComp.ObjectTransform = cameraTransform;
+    case SceneSession::State::Simulate:
+    {
+        scene_session.RuntimeWorld->SetSimulating(true);
+        scene_session.RuntimeWorld->SetActiveCamera(scene_session.ViewportCamera.get());
+        scene_session.RuntimeWorld->Update(dt);
+        break;
+    }
+    case SceneSession::State::Play:
+    {
+        CHE_CORE_ASSERT(false, "NOT SET");
+        break;
+    }
+    case SceneSession::State::Pause:
+    {
+        CHE_CORE_ASSERT(scene_session.ActiveScene, "SceneSession must have ActiveScene in runtime states");
+        scene_session.RuntimeWorld->SetSimulating(false);
+        scene_session.RuntimeWorld->SetActiveCamera(scene_session.ViewportCamera.get());
+        scene_session.RuntimeWorld->Update(dt);
+        break;
+    }
+    }
 }
 
 void SceneViewLayer::OnEvent(CHEngine::Event& e)
 {
-    m_World.OnEvent(e);
+    // May be set event to every world or one world 
+    // idk
 }
 
 void SceneViewLayer::OnImGuiRender()
@@ -197,6 +250,9 @@ void SceneViewLayer::OnImGuiRender()
                 static_cast<uint32_t>(panelSize.x * fbScale.x),
                 static_cast<uint32_t>(panelSize.y * fbScale.y));
             m_AspectRatio = panelSize.x / panelSize.y;
+            SceneSession& activeSession = GetActiveSceneSession();
+            activeSession.ViewportSize = { panelSize.x, panelSize.y };
+            activeSession.ViewportCamera->SetViewportSize(panelSize.x, panelSize.y);
             resizedThisFrame = true;
         }
 
@@ -219,9 +275,9 @@ void SceneViewLayer::OnImGuiRender()
         DrawGizmo();
 
         // ── Цветная рамка режима воспроизведения ──────────────────────────
-        if (m_EditorState != EditorState::Edit)
+        if (GetActiveSceneSession().SessionState != SceneSession::State::Edit)
         {
-            const ImVec4 col = (m_EditorState == EditorState::Play)
+            const ImVec4 col = (GetActiveSceneSession().SessionState == SceneSession::State::Play)
                 ? ImVec4(0.20f, 0.75f, 0.20f, 0.85f)   // зелёная — Play
                 : ImVec4(0.90f, 0.70f, 0.10f, 0.85f);  // жёлтая  — Pause
             const float  thick = 3.0f;

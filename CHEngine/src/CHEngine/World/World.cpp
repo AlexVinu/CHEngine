@@ -15,6 +15,7 @@
 namespace CHEngine
 {
     World::World()
+        : m_Scene()
     {
         RegisterDefaultSystems();
     }
@@ -32,6 +33,7 @@ namespace CHEngine
         if (m_Scene == scene)
             return;
 
+        CHE_CORE_INFO("World::SetScene rebind requested (hasScene={})", scene != nullptr);
         m_Scene = scene;
         m_DeferredOps.Clear();
         m_EventBus.ClearAll();
@@ -60,12 +62,6 @@ namespace CHEngine
         return m_Scene;
     }
 
-    void World::FlushDeferredOps()
-    {
-        if (m_Scene)
-            m_DeferredOps.Flush(m_Scene);
-    }
-
     void World::Update(Timestep dt)
     {
         if (!m_Scene)
@@ -83,7 +79,7 @@ namespace CHEngine
         if (m_Active)
             m_Scheduler.RunPhase(SystemPhase::Presentation, *this, m_DeferredOps, dt);
 
-        FlushDeferredOps();
+        m_DeferredOps.Flush(m_Scene);
     }
 
     void World::OnEvent(Event& event)

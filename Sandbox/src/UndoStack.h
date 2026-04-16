@@ -65,12 +65,13 @@ struct ImportCommand : UndoCommand
 {
     CHEngine::Scene* scene;
     CHEngine::UUID objectID;
-    CHEngine::UUID* selectedID;   // указатель на m_SelectedObjectID
+    CHEngine::EntityHandle importedEntity;
+    CHEngine::EntityHandle* selectedEntity;   // указатель на SceneSession::SelectedEntity
 
     void Undo() override
     {
-        if (*selectedID == objectID)
-            *selectedID = boost::uuids::nil_uuid();
+        if (selectedEntity && *selectedEntity == importedEntity)
+            *selectedEntity = {};
         scene->DestroyEntity(objectID);
     }
 };
@@ -110,12 +111,16 @@ public:
         Push(std::move(cmd));
     }
 
-    void PushImport(CHEngine::Scene* scene, const CHEngine::UUID& id, CHEngine::UUID* selectedID)
+    void PushImport(CHEngine::Scene* scene,
+                    const CHEngine::UUID& id,
+                    CHEngine::EntityHandle imported_entity,
+                    CHEngine::EntityHandle* selected_entity)
     {
         auto cmd           = std::make_unique<ImportCommand>();
         cmd->scene         = scene;
         cmd->objectID      = id;
-        cmd->selectedID    = selectedID;
+        cmd->importedEntity = imported_entity;
+        cmd->selectedEntity = selected_entity;
         Push(std::move(cmd));
     }
 

@@ -7,6 +7,7 @@
 #include "CHEngine/Mesh/Mesh.h"
 #include "Light.h"
 #include "Transform.h"
+#include "SceneCamera.h"
 #include <Physics/PhysicsTypes.h>
 #include <Physics/IPhysicsBody.h>
 #include <Physics/IPhysicsShape.h>
@@ -63,12 +64,8 @@ namespace CHEngine {
 
     struct CameraComponent
     {
-        Transform CameraTransform;
-        float FOV = 45.0f;
-        float NearClip = 0.1f;
-        float FarClip = 1000.0f;
-        float AspectRatio = 16.0f / 9.0f;
-        bool Active = true;
+        SceneCamera Camera;
+        bool FixedAspectRatio = false;
         bool Primary = true;
     };
 

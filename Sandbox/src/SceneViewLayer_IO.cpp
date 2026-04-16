@@ -2,6 +2,8 @@
 
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Scene/SceneSerializer.h>
+#include <CHEngine/Scene/Components.h>
+#include <CHEngine/Mesh/Material.h>
 #include <CHEngine/World/ISystem.h>
 #include <CHEngine/World/WorldEvents.h>
 #include <FileSystem/FileSystem.h>
@@ -54,6 +56,53 @@ bool TryParseUUIDString(const std::string& input, CHEngine::UUID& outUUID)
     outUUID = parsed;
     return true;
 }
+
+void LogSceneRenderReadiness(CHEngine::Scene* scene)
+{
+    if (!scene)
+        return;
+
+    CHE_CORE_WARN("SceneViewLayer: post-load render readiness audit started");
+
+    scene->ForEach<CHEngine::TagComponent, CHEngine::MeshComponent, CHEngine::VisibilityComponent>(
+        [&](CHEngine::EntityHandle, const CHEngine::UUID& uuid, CHEngine::TagComponent& tag,
+            CHEngine::MeshComponent& meshComponent, CHEngine::VisibilityComponent& visibility)
+        {
+            size_t validVaoCount = 0;
+            size_t validShaderCount = 0;
+
+            for (CHEngine::Mesh& mesh : meshComponent.Meshes)
+            {
+                if (mesh.GetVertexArray().IsValid())
+                    ++validVaoCount;
+
+                if (!mesh.Mat)
+                    mesh.Mat = CHEngine::MaterialInstance::FromBase(
+                        std::make_shared<CHEngine::Material>(CHEngine::RenderFacade::GetDefaultMeshShader()));
+
+                const CHEngine::ShaderHandle shaderHandle = mesh.Mat->GetMaterial()->GetShaderHandle();
+                if (CHEngine::RenderFacade::GetShader(shaderHandle))
+                    ++validShaderCount;
+            }
+
+            const bool canSubmit = visibility.Visible
+                && !meshComponent.Meshes.empty()
+                && validVaoCount > 0
+                && validShaderCount > 0;
+
+            CHE_CORE_WARN(
+                "SceneViewLayer: post-load entity='{}' uuid={} visible={} meshes={} validShaders={} validVaos={} renderSubmitReady={}",
+                tag.Name,
+                boost::uuids::to_string(uuid),
+                visibility.Visible,
+                meshComponent.Meshes.size(),
+                validShaderCount,
+                validVaoCount,
+                canSubmit);
+        });
+
+    CHE_CORE_WARN("SceneViewLayer: post-load render readiness audit finished");
+}
 } // namespace
 
 // ============================================================================
@@ -68,9 +117,27 @@ void SceneViewLayer::SaveScene()
     if (path.empty()) return;
 
     CHEngine::SceneSerializer serializer{};
-    if (serializer.SaveToFile(&m_Scene, path)) {
+    auto scene = GetActiveSceneSession().ActiveScene;
+    CHEngine::EditorCamera& viewportCamera = *GetActiveSceneSession().ViewportCamera;
+    nlohmann::json sceneJson = serializer.SerializeToJson(scene.get());
+
+    const glm::vec3 cameraPosition = viewportCamera.GetPosition();
+    sceneJson["meta"]["editorCamera"] = {
+        { "position", { cameraPosition.x, cameraPosition.y, cameraPosition.z } },
+        { "yaw", glm::degrees(viewportCamera.GetYaw()) },
+        { "pitch", glm::degrees(viewportCamera.GetPitch()) },
+        { "fov", viewportCamera.GetFOV() },
+        { "orbitTarget", { m_OrbitTarget.x, m_OrbitTarget.y, m_OrbitTarget.z } },
+        { "orbitDist", m_OrbitDist },
+        { "followObject", m_FollowObject }
+    };
+
+    if (CHEngine::FileSystem::WriteFileText(path, sceneJson.dump(4))) {
         m_RecentFiles.AddPath(path);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
+        CHE_CORE_INFO("Scene saved: {}", path);
+    } else {
+        CHE_CORE_ERROR("SceneViewLayer: failed to save scene {}", path);
     }
 }
 
@@ -86,18 +153,84 @@ void SceneViewLayer::LoadScene(const std::string& path)
 
     // Clear undo and selection
     m_UndoStack = UndoStack{};
-    m_SelectedObjectID = boost::uuids::nil_uuid();
+    GetActiveSceneSession().SelectedEntity = {};
 
-    m_World.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-    FlushSimulationEvents();
+    SceneSession& activeSession = GetActiveSceneSession();
+    if (!activeSession.RuntimeWorld)
+        activeSession.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(activeSession.EditorScene.get());
+    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+    runtimeWorld.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+    runtimeWorld.Update(CHEngine::Timestep(0.0f));
 
     CHEngine::SceneSerializer serializer{};
     auto* resources = CHEngine::Application::Get().GetRenderResources();
-    if (resources && serializer.LoadFromFile(&m_Scene, filePath, *resources, &m_World)) {
-        m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-        FlushSimulationEvents();
+    if (resources) {
+        const std::string sceneText = CHEngine::FileSystem::ReadFileText(filePath);
+        if (sceneText.empty()) {
+            CHE_CORE_ERROR("SceneViewLayer: cannot read scene {}", filePath);
+            return;
+        }
+
+        nlohmann::json sceneJson;
+        try {
+            sceneJson = nlohmann::json::parse(sceneText);
+        } catch (const std::exception& e) {
+            CHE_CORE_ERROR("SceneViewLayer: JSON parse error for {}: {}", filePath, e.what());
+            return;
+        }
+
+        CHEngine::Scope<CHEngine::Scene> loadedScene = serializer.DeserializeFromJson(sceneJson, *resources);
+        if (!loadedScene)
+            return;
+        GetActiveSceneSession().EditorScene = CHEngine::CreateRef<CHEngine::Scene>(std::move(*loadedScene));
+        GetActiveSceneSession().ActiveScene = GetActiveSceneSession().EditorScene;
+        CHE_CORE_ASSERT(GetActiveSceneSession().EditorScene, "SceneViewLayer: EditorScene must exist");
+        runtimeWorld.SetScene(GetActiveSceneSession().EditorScene.get());
+        LogSceneRenderReadiness(GetActiveSceneSession().EditorScene.get());
+        m_EditorCameraEntity = {};
+
+        auto tryReadVec3 = [](const nlohmann::json& value, glm::vec3* out_vec3) -> bool {
+            if (!out_vec3 || !value.is_array() || value.size() < 3)
+                return false;
+            if (!value[0].is_number() || !value[1].is_number() || !value[2].is_number())
+                return false;
+            out_vec3->x = value[0].get<float>();
+            out_vec3->y = value[1].get<float>();
+            out_vec3->z = value[2].get<float>();
+            return true;
+        };
+
+        if (sceneJson.contains("meta") && sceneJson["meta"].is_object()) {
+            const auto& metaJson = sceneJson["meta"];
+            if (metaJson.contains("editorCamera") && metaJson["editorCamera"].is_object()) {
+                const auto& cameraMeta = metaJson["editorCamera"];
+                CHEngine::EditorCamera& viewportCamera = *GetActiveSceneSession().ViewportCamera;
+                glm::vec3 savedPosition = viewportCamera.GetPosition();
+                glm::vec3 savedOrbitTarget = m_OrbitTarget;
+                bool hasPosition = false;
+                bool hasOrbitTarget = false;
+
+                hasPosition = tryReadVec3(cameraMeta.value("position", nlohmann::json{}), &savedPosition);
+                hasOrbitTarget = tryReadVec3(cameraMeta.value("orbitTarget", nlohmann::json{}), &savedOrbitTarget);
+
+                viewportCamera.SetYaw(glm::radians(cameraMeta.value("yaw", glm::degrees(viewportCamera.GetYaw()))));
+                viewportCamera.SetPitch(glm::radians(cameraMeta.value("pitch", glm::degrees(viewportCamera.GetPitch()))));
+                viewportCamera.SetFOV(cameraMeta.value("fov", viewportCamera.GetFOV()));
+                m_OrbitDist = cameraMeta.value("orbitDist", m_OrbitDist);
+                m_FollowObject = cameraMeta.value("followObject", m_FollowObject);
+
+                if (hasOrbitTarget) {
+                    m_OrbitTarget = savedOrbitTarget;
+                    ApplyOrbit();
+                } else if (hasPosition) {
+                    viewportCamera.SetPosition(savedPosition);
+                }
+            }
+        }
+
         m_RecentFiles.AddPath(filePath);
         m_RecentFiles.SaveToFile("recent_scenes.txt");
+        CHE_CORE_INFO("Scene loaded: {}", filePath);
     }
 }
 
@@ -109,7 +242,11 @@ void SceneViewLayer::AutoSaveForRestart()
 {
     // 1. Сцена (объекты, источники света)
     CHEngine::SceneSerializer serializer{};
-    if (serializer.SaveToFile(&m_Scene, k_SessionFile))
+    SceneSession& activeSession = GetActiveSceneSession();
+    CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
+    CHEngine::Scene& scene = *activeSession.EditorScene;
+    CHEngine::EditorCamera& viewportCamera = *activeSession.ViewportCamera;
+    if (serializer.SaveToFile(&scene, k_SessionFile))
         CHE_CORE_INFO("SceneViewLayer: scene autosaved to {}", k_SessionFile);
     else
         CHE_CORE_WARN("SceneViewLayer: failed to autosave scene");
@@ -117,11 +254,11 @@ void SceneViewLayer::AutoSaveForRestart()
     // 2. Состояние редактора: камера, orbit, выделение
     std::ostringstream oss;
     // Camera
-    glm::vec3 pos = m_Camera.GetPosition();
+    glm::vec3 pos = viewportCamera.GetPosition();
     oss << pos.x        << " " << pos.y         << " " << pos.z << "\n";
-    oss << m_Camera.GetYaw()   << "\n";
-    oss << m_Camera.GetPitch() << "\n";
-    oss << m_Camera.GetFOV()   << "\n";
+    oss << glm::degrees(viewportCamera.GetYaw())   << "\n";
+    oss << glm::degrees(viewportCamera.GetPitch()) << "\n";
+    oss << viewportCamera.GetFOV()   << "\n";
 
     // Orbit
     oss << m_OrbitTarget.x << " " << m_OrbitTarget.y << " " << m_OrbitTarget.z << "\n";
@@ -129,7 +266,10 @@ void SceneViewLayer::AutoSaveForRestart()
     oss << (m_FollowObject ? 1 : 0) << "\n";
 
     // Selected object
-    oss << boost::uuids::to_string(m_SelectedObjectID) << "\n";
+    if (activeSession.ActiveScene && scene.IsEntityHandleValid(activeSession.SelectedEntity))
+        oss << boost::uuids::to_string(scene.GetUUID(activeSession.SelectedEntity)) << "\n";
+    else
+        oss << boost::uuids::to_string(boost::uuids::nil_uuid()) << "\n";
 
     // Window position and size — чтобы новое окно открылось на том же месте
     {
@@ -155,18 +295,30 @@ void SceneViewLayer::TryRestoreSession()
 {
     // 1. Восстанавливаем сцену
     if (std::filesystem::exists(k_SessionFile)) {
-        m_World.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-        FlushSimulationEvents();
+        SceneSession& activeSession = GetActiveSceneSession();
+        if (!activeSession.RuntimeWorld)
+            activeSession.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(activeSession.EditorScene.get());
+        CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+        runtimeWorld.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
+        runtimeWorld.Update(CHEngine::Timestep(0.0f));
 
         CHEngine::SceneSerializer serializer{};
         auto* resources = CHEngine::Application::Get().GetRenderResources();
-        if (resources && serializer.LoadFromFile(&m_Scene, k_SessionFile, *resources, &m_World)) {
-            m_World.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-            FlushSimulationEvents();
-            CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
-        }
-        else
+        if (resources) {
+            CHEngine::Scope<CHEngine::Scene> loadedScene = serializer.LoadFromFile(k_SessionFile, *resources);
+            if (loadedScene) {
+                GetActiveSceneSession().EditorScene = CHEngine::CreateRef<CHEngine::Scene>(std::move(*loadedScene));
+                GetActiveSceneSession().ActiveScene = GetActiveSceneSession().EditorScene;
+                CHE_CORE_ASSERT(GetActiveSceneSession().EditorScene, "SceneViewLayer: EditorScene must exist");
+                runtimeWorld.SetScene(GetActiveSceneSession().EditorScene.get());
+                CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
+            }
+            else {
+                CHE_CORE_WARN("SceneViewLayer: failed to restore scene");
+            }
+        } else {
             CHE_CORE_WARN("SceneViewLayer: failed to restore scene");
+        }
         std::filesystem::remove(k_SessionFile);
     }
 
@@ -183,13 +335,15 @@ void SceneViewLayer::TryRestoreSession()
     // Camera
     glm::vec3 pos{};
     f >> pos.x >> pos.y >> pos.z;
-    m_Camera.SetPosition(pos);
+    SceneSession& activeSession2 = GetActiveSceneSession();
+    CHEngine::EditorCamera& viewportCamera = *activeSession2.ViewportCamera;
+    viewportCamera.SetPosition(pos);
 
     float yaw, pitch, fov;
     f >> yaw >> pitch >> fov;
-    m_Camera.SetYaw(yaw);
-    m_Camera.SetPitch(pitch);
-    m_Camera.SetFOV(fov);
+    viewportCamera.SetYaw(glm::radians(yaw));
+    viewportCamera.SetPitch(glm::radians(pitch));
+    viewportCamera.SetFOV(fov);
 
     // Orbit
     f >> m_OrbitTarget.x >> m_OrbitTarget.y >> m_OrbitTarget.z;
@@ -201,8 +355,13 @@ void SceneViewLayer::TryRestoreSession()
     // Selected object
     std::string selectedUUIDStr;
     f >> selectedUUIDStr;
-    if (!TryParseUUIDString(selectedUUIDStr, m_SelectedObjectID))
-        m_SelectedObjectID = boost::uuids::nil_uuid();
+    {
+        CHEngine::UUID selectedUUID = boost::uuids::nil_uuid();
+        if (TryParseUUIDString(selectedUUIDStr, selectedUUID) && activeSession2.ActiveScene)
+            activeSession2.SelectedEntity = activeSession2.ActiveScene->TryGetEntityHandleByUUID(selectedUUID);
+        else
+            activeSession2.SelectedEntity = {};
+    }
 
     // Восстанавливаем позицию и размер окна
     {
@@ -230,7 +389,12 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
 {
     auto result = CHEngine::ModelLoader::Load(filepath, CHEngine::RenderFacade::GetDefaultMeshShader());
     if (!result.success)
+    {
+        CHE_CORE_ERROR("SceneViewLayer: failed to import model '{}': {}",
+                       filepath,
+                       result.error.empty() ? "unknown loader error" : result.error);
         return;
+    }
 
     // Compute geometric centroid across all meshes so the gizmo
     // snaps to the visual centre of the model.
@@ -258,34 +422,19 @@ void SceneViewLayer::ImportModel(const std::string& filepath)
         }
     }
 
-    CHEngine::DeferredOps* deferred_ops = &m_World.GetDeferredOps();
     const CHEngine::UUID objectID = boost::uuids::random_generator()();
-    deferred_ops->CreateEntityWithUUID(result.name, objectID);
-    auto meshPayload = std::make_shared<std::vector<CHEngine::Mesh>>(std::move(result.meshes));
-    deferred_ops->Enqueue([objectID, meshPayload, filepath](CHEngine::Scene* scene)
-    {
-        CHE_CORE_ASSERT(scene, "ImportModel deferred callback expects valid Scene");
-        const CHEngine::EntityHandle handle = scene->TryGetEntityHandleByUUID(objectID);
-        if (!scene->IsEntityHandleValid(handle))
-            return;
-
-        CHEngine::Entity* entity = scene->TryGetEntity(handle);
-        if (!entity || !entity->HasComponent<CHEngine::MeshComponent>())
-            return;
-
-        auto& meshComponent = entity->GetComponent<CHEngine::MeshComponent>();
-        meshComponent.Meshes = std::move(*meshPayload);
-        meshComponent.SourcePath = filepath;
-    });
-    // GOVNO POLNOE (ЕСЛИ ЗАБЫЛ - СМОТРИ КОММИТ)
-    m_World.Update(CHEngine::Timestep(0.0f));
-
-    auto handle = m_Scene.TryGetEntityHandleByUUID(objectID);
-    auto* entity = m_Scene.TryGetEntity(handle);
-    if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
+    SceneSession& activeSession = GetActiveSceneSession();
+    CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
+    CHEngine::Scene& scene = *activeSession.EditorScene;
+    const CHEngine::EntityHandle handle = scene.CreateEntity(result.name, objectID);
+    auto* entity = scene.TryGetEntity(handle);
+    if (!entity || !entity->HasComponent<CHEngine::TransformComponent>() || !entity->HasComponent<CHEngine::MeshComponent>())
         return;
+    auto& meshComponent = entity->GetComponent<CHEngine::MeshComponent>();
+    meshComponent.Meshes = std::move(result.meshes);
+    meshComponent.SourcePath = filepath;
     entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = centroid;
-    m_SelectedObjectID = objectID;
-    m_UndoStack.PushImport(&m_Scene, objectID, &m_SelectedObjectID);
+    activeSession.SelectedEntity = handle;
+    m_UndoStack.PushImport(&scene, objectID, handle, &activeSession.SelectedEntity);
     FocusOnSelected();
 }

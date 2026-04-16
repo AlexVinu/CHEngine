@@ -15,6 +15,7 @@
 namespace CHEngine
 {
     class Event;
+    class EditorCamera;
 
     // You may not turn this into god class, so less functionality = good
     // It is just provides connection between Scene, Systems, Events and PhysicalWorld(if exists)
@@ -37,6 +38,12 @@ namespace CHEngine
         void SetActive(bool active)  { m_Active = active; }
         bool IsActive()       const  { return m_Active; }
 
+        // WARNING !!!!!!!!!!!!!!!!
+        // SHIT CODE but its necessary
+        void SetActiveCamera(EditorCamera* camera) { m_Camera = camera; } // Set nullptr if you use camera from component
+        EditorCamera* GetActiveCamera() { return m_Camera; }
+        // ---------------------------
+
         void SetPhysicsWorldDesc(const PhysicsWorldDesc& world_desc);
         const PhysicsWorldDesc& GetPhysicsWorldDesc() const { return m_PhysicsWorldDesc; }
         Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() { return m_PhysicsWorld; }
@@ -51,7 +58,6 @@ namespace CHEngine
 
     private:
         void RegisterDefaultSystems();
-        void FlushDeferredOps();
 
     private:
         SystemScheduler m_Scheduler;
@@ -60,6 +66,10 @@ namespace CHEngine
         PhysicsWorldDesc m_PhysicsWorldDesc{};
         Scope<IPhysicsWorld> m_PhysicsWorld;
         Scene* m_Scene      = nullptr;
+        // WARNING !!!!!!!!!!!!!!!!
+        // SHIT CODE but its necessary
+        EditorCamera* m_Camera;
+        // ---------------
         bool   m_Active     = true;   // Presentation phase (рендер)
         bool   m_Simulating = false;  // Simulation phase (физика, логика)
         bool   m_InitializationDispatched = false;
