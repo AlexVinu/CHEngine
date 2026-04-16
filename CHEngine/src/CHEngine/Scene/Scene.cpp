@@ -23,8 +23,40 @@ namespace CHEngine {
 
 	Scene::~Scene() = default;
 
-	Scene::Scene(Scene&&) = default;
-	Scene& Scene::operator=(Scene&&) = default;
+	Scene::Scene(Scene&& other)
+		: m_SceneRegistry(std::move(other.m_SceneRegistry))
+	{
+		if (!m_SceneRegistry)
+		{
+			m_SceneRegistry = std::make_unique<SceneRegistry>();
+			m_SceneRegistry->EntityPool = HandlePool<Entity, EntityTag>([](Entity* ptr) { delete ptr; });
+		}
+
+		m_SceneRegistry->EntityPool.ForEachOccupied([this](Entity* entity) { entity->SetScene(this); });
+
+		other.m_SceneRegistry = std::make_unique<SceneRegistry>();
+		other.m_SceneRegistry->EntityPool = HandlePool<Entity, EntityTag>([](Entity* ptr) { delete ptr; });
+	}
+
+	Scene& Scene::operator=(Scene&& other)
+	{
+		if (this == &other)
+			return *this;
+
+		m_SceneRegistry = std::move(other.m_SceneRegistry);
+		if (!m_SceneRegistry)
+		{
+			m_SceneRegistry = std::make_unique<SceneRegistry>();
+			m_SceneRegistry->EntityPool = HandlePool<Entity, EntityTag>([](Entity* ptr) { delete ptr; });
+		}
+
+		m_SceneRegistry->EntityPool.ForEachOccupied([this](Entity* entity) { entity->SetScene(this); });
+
+		other.m_SceneRegistry = std::make_unique<SceneRegistry>();
+		other.m_SceneRegistry->EntityPool = HandlePool<Entity, EntityTag>([](Entity* ptr) { delete ptr; });
+
+		return *this;
+	}
 
 	EntityHandle Scene::CreateEntity(const std::string& name, const UUID& uuid)
 	{

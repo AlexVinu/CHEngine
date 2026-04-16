@@ -22,21 +22,24 @@ namespace CamCfg {
 
 void SceneViewLayer::ApplyOrbit()
 {
-    glm::vec3 fwd = m_Camera.GetForward();
-    m_Camera.SetPosition(m_OrbitTarget - fwd * m_OrbitDist);
+    CHEngine::EditorCamera& viewportCamera = *GetActiveSceneSession().ViewportCamera;
+    glm::vec3 fwd = viewportCamera.GetForwardDirection();
+    viewportCamera.SetPosition(m_OrbitTarget - fwd * m_OrbitDist);
 }
 
 void SceneViewLayer::SetViewPreset(float yaw, float pitch)
 {
-    m_Camera.SetYaw(yaw);
-    m_Camera.SetPitch(pitch);
+    CHEngine::EditorCamera& viewportCamera = *GetActiveSceneSession().ViewportCamera;
+    viewportCamera.SetYaw(glm::radians(yaw));
+    viewportCamera.SetPitch(glm::radians(pitch));
     ApplyOrbit();
 }
 
 void SceneViewLayer::FocusOnSelected()
 {
-    auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
-    auto* entity = m_Scene.TryGetEntity(handle);
+    auto scene = GetActiveSceneSession().ActiveScene;
+    auto selected_handle = GetActiveSceneSession().SelectedEntity;
+    auto* entity = scene->TryGetEntity(selected_handle);
     if (!entity
         || !entity->HasComponent<CHEngine::TransformComponent>()
         || !entity->HasComponent<CHEngine::MeshComponent>()) return;
@@ -67,6 +70,7 @@ void SceneViewLayer::FocusOnSelected()
 void SceneViewLayer::UpdateCameraInput()
 {
     ImGuiIO& io = ImGui::GetIO();
+    CHEngine::EditorCamera& viewportCamera = *GetActiveSceneSession().ViewportCamera;
 
     if (!m_ViewportHovered) return;
 
@@ -79,7 +83,7 @@ void SceneViewLayer::UpdateCameraInput()
         if (io.KeyCtrl)
         {
             // Ctrl + прокрутка → наклон камеры
-            m_Camera.SetPitch(m_Camera.GetPitch() + io.MouseWheel * CamCfg::ScrollDeg);
+            viewportCamera.SetPitch(viewportCamera.GetPitch() + glm::radians(io.MouseWheel * CamCfg::ScrollDeg));
         }
         else
         {
@@ -101,8 +105,8 @@ void SceneViewLayer::UpdateCameraInput()
 
     if (orbitByRMB || orbitByAltLMB || orbitByMMB)
     {
-        m_Camera.SetYaw  (m_Camera.GetYaw()   - io.MouseDelta.x * CamCfg::OrbitSens);
-        m_Camera.SetPitch(m_Camera.GetPitch() + io.MouseDelta.y * CamCfg::OrbitSens);
+        viewportCamera.SetYaw  (viewportCamera.GetYaw()   - glm::radians(io.MouseDelta.x * CamCfg::OrbitSens));
+        viewportCamera.SetPitch(viewportCamera.GetPitch() + glm::radians(io.MouseDelta.y * CamCfg::OrbitSens));
         ApplyOrbit();
     }
 
@@ -118,22 +122,23 @@ void SceneViewLayer::UpdateCameraInput()
     if (panByAltShift || panByShiftMMB || panByShiftRMB)
     {
         float     panScale = m_OrbitDist * CamCfg::PanScale;
-        glm::vec3 right    = m_Camera.GetRight();
-        glm::vec3 up       = m_Camera.GetUp();
+        glm::vec3 right    = viewportCamera.GetRightDirection();
+        glm::vec3 up       = viewportCamera.GetUpDirection();
         m_OrbitTarget -= right * io.MouseDelta.x * panScale;
         m_OrbitTarget += up    * io.MouseDelta.y * panScale;
         ApplyOrbit();
     }
 
     // ── F → frame selected ───────────────────────────────────────────────────
-    if (CHEngine::Input::IsKeyPressed(CHEngine::Key::F) && m_SelectedObjectID != boost::uuids::nil_uuid())
+    if (CHEngine::Input::IsKeyPressed(CHEngine::Key::F) && GetActiveSceneSession().SelectedEntity.IsValid())
         FocusOnSelected();
 
     // ── Follow mode ──────────────────────────────────────────────────────────
-    if (m_FollowObject && m_SelectedObjectID != boost::uuids::nil_uuid())
+    if (m_FollowObject && GetActiveSceneSession().SelectedEntity.IsValid())
     {
-        auto handle = m_Scene.TryGetEntityHandleByUUID(m_SelectedObjectID);
-        if (auto* entity = m_Scene.TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
+        auto scene = GetActiveSceneSession().ActiveScene;
+        auto handle = GetActiveSceneSession().SelectedEntity;
+        if (auto* entity = scene->TryGetEntity(handle); entity && entity->HasComponent<CHEngine::TransformComponent>()) {
             m_OrbitTarget = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position;
             ApplyOrbit();
         }

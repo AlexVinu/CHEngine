@@ -131,6 +131,30 @@ namespace CHEngine {
 		uint32_t Count() const { return m_Count; }
 		bool     Empty() const { return m_Count == 0; }
 
+		template<typename Fn>
+		void ForEachOccupied(Fn&& fn)
+		{
+			for (auto& slot : m_Slots)
+			{
+				if (!slot.occupied || !slot.ptr)
+					continue;
+
+				fn(slot.ptr);
+			}
+		}
+
+		template<typename Fn>
+		void ForEachOccupied(Fn&& fn) const
+		{
+			for (const auto& slot : m_Slots)
+			{
+				if (!slot.occupied || !slot.ptr)
+					continue;
+
+				fn(slot.ptr);
+			}
+		}
+
 	private:
 		struct Slot
 		{

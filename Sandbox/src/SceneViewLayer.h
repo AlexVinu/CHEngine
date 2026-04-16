@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CHEngine.h>
+#include <CHEngine/SceneSession.h>
 #include <CHEngine/World/World.h>
 #include <ImGuizmo.h>
 #include <nlohmann/json.hpp>
@@ -12,6 +13,8 @@
 #include <boost/uuid/nil_generator.hpp>
 
 #include <string>
+
+using EditorState = SceneSession::State;
 
 // ============================================================================
 //  SceneViewLayer — main 3D editor layer for Sandbox
@@ -33,16 +36,6 @@
 //    F                          → frame selected
 //    Shift + gizmo drag         → snap (1 unit / 45° / 0.1)
 // ============================================================================
-// ============================================================================
-//  Editor state machine
-// ============================================================================
-enum class EditorState : uint8_t
-{
-    Edit,   // Редактор — симуляция не идёт
-    Play,   // Игровой режим — всё работает
-    Pause,  // Пауза — симуляция стоит, рендер идёт
-};
-
 class SceneViewLayer : public CHEngine::Layer
 {
 public:
@@ -53,6 +46,12 @@ public:
     void OnEvent(CHEngine::Event& e) override;
 
 private:
+    SceneSession& GetOrCreateActiveSession();
+    SceneSession& GetActiveSceneSession();
+    const SceneSession& GetActiveSceneSession() const;
+    void SetActiveSceneSessionIndex(size_t session_index);
+
+    void UpdateSceneSession(SceneSession& scene_session, CHEngine::Timestep dt);
     // ── Orbit camera ─────────────────────────────────────────────────────────
     void ApplyOrbit();
     void SetViewPreset(float yaw, float pitch);
@@ -63,7 +62,6 @@ private:
     void BuildGrid();
 
     // ── Rendering ────────────────────────────────────────────────────────────
-    void SyncEditorCameraToECS();
     void RenderScene(CHEngine::Timestep dt);
 
     // ── UI panels ────────────────────────────────────────────────────────────
@@ -94,7 +92,6 @@ private:
     void TryRestoreSession();
 
     // Runs one Simulation-phase tick so queued physics events are consumed (dt may be zero).
-    void FlushSimulationEvents();
 
     static constexpr const char* k_SessionFile      = ".che_session.chscene";
     static constexpr const char* k_SessionStateFile = ".che_session_state";
@@ -103,22 +100,23 @@ private:
     // State
     // =========================================================================
 
-    // Scene
-    CHEngine::Scene             m_Scene;
-    CHEngine::World             m_World;
-    CHEngine::Camera            m_Camera;
+    // Scenes/SceneSessions
+    std::vector<SceneSession> m_SceneSessions;
+    size_t m_ActiveSessionIndex = 0;
+
+    // Cached viewport aspect (used by camera / rendering math)
+    float m_AspectRatio = 1280.0f / 720.0f;
+
+    // Editor-camera entity (hidden in hierarchy while editing)
+    CHEngine::EntityHandle m_EditorCameraEntity{};
+
+    // Play-mode snapshot (editor scene → runtime scene)
+    nlohmann::json m_SceneSnapshot{};
+    bool m_HasSnapshot = false;
+
     CHEngine::ShaderHandle      m_MeshShader;
     CHEngine::ShaderHandle      m_GridShader;
     CHEngine::VertexArrayHandle m_GridVAO;
-
-    // Orbit camera
-    glm::vec3 m_OrbitTarget  = { 0.0f, 0.0f, 0.0f };
-    float     m_OrbitDist    = 8.0f;
-    bool      m_FollowObject = false;
-
-    // Selection & viewport
-    CHEngine::UUID m_SelectedObjectID = boost::uuids::nil_uuid();
-    float     m_AspectRatio      = 16.0f / 9.0f;
 
     // Framebuffer (offscreen render target)
     CHEngine::FramebufferHandle m_Framebuffer;
@@ -136,7 +134,6 @@ private:
     bool m_ShowProfiler  = false;
     bool m_ResetLayout   = false;   // true → snap panel sizes back next frame
 
-
     // Undo
     UndoStack               m_UndoStack;
     CHEngine::Transform     m_TransformBeforeDrag;
@@ -144,15 +141,16 @@ private:
 
     // Recent files
     CHEngine::RecentFiles   m_RecentFiles;
-    CHEngine::EntityHandle  m_EditorCameraEntity{};
+
+    // Camera vars
+    glm::vec3 m_OrbitTarget = { 0.0f, 0.0f, 0.0f };
+    float     m_OrbitDist = 8.0f;
+    bool      m_FollowObject = false;
 
     // Content Browser (bottom panel)
     ContentBrowserPanel     m_ContentBrowser;
     float                   m_ContentBrowserHeight = 200.0f;
 
     // ── Editor state ──────────────────────────────────────────────────────────
-    EditorState             m_EditorState  = EditorState::Edit;
-    nlohmann::json          m_SceneSnapshot;          // Снапшот сцены перед Play
-    bool                    m_HasSnapshot  = false;
     float                   m_StepDt       = 1.0f / 60.0f; // dt для Step-режима
 };

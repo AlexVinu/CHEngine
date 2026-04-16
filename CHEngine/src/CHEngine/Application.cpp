@@ -24,8 +24,6 @@
 
 namespace CHEngine {
 
-#define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
-
     namespace
     {
         struct StartupModuleSelection
@@ -234,7 +232,7 @@ namespace CHEngine {
         // ─── 2. Создать окно ────────────────────────────────────────────────
         ERenderAPI render_api = render_factory->GetRenderApi();
         m_Window = Scope<Window>(Window::Create(m_WindowFactory, render_api));
-        m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
+        m_Window->SetEventCallback([this](Event& e) { OnEvent(e); });
 
         // ─── 3. Инициализировать IRenderApi (GLAD / device / Vulkan), затем IRenderer (только draw) ───
         RendererInitInfo renderInitInfo = m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api);
@@ -260,7 +258,6 @@ namespace CHEngine {
                 CHE_CORE_WARN("Failed to initialize physics facade!");
         }
 
-        m_RuntimeWorlds.emplace_back();
     }
 
     Application::~Application()
@@ -287,18 +284,8 @@ namespace CHEngine {
     void Application::OnEvent(Event& e)
     {
         EventDispatcher dispatcher(e);
-        dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(OnWindowClosed));
-        dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FN(OnWindowResized));
-
-        if (!e.Handled)
-        {
-            for (World& world : m_RuntimeWorlds)
-            {
-                world.OnEvent(e);
-                if (e.Handled)
-                    break;
-            }
-        }
+        dispatcher.Dispatch<WindowCloseEvent>([this](WindowCloseEvent& event) { return OnWindowClosed(event); });
+        dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& event) { return OnWindowResized(event); });
 
         for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
         {
@@ -360,9 +347,6 @@ namespace CHEngine {
 
             for (Layer* layer : m_LayerStack)
                 layer->OnUpdate(dt);
-
-            for (World& world : m_RuntimeWorlds)
-                world.Update(dt);
 
             if (UIFacade::GetLayer())
             {

@@ -20,7 +20,7 @@
 // ================================
 
 // Camera -------------------------
-#include "CHEngine/Camera/Camera.h"
+#include "CHEngine/Camera/EditorCamera.h"
 // ================================
 
 // Mesh & Model Loading -----------
@@ -35,6 +35,7 @@
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/SceneSerializer.h"
 #include "CHEngine/Scene/RecentFiles.h"
+#include "CHEngine/SceneSession.h"
 // ================================
 
 // Input --------------------------

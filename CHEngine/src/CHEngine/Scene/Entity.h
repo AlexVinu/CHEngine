@@ -68,6 +68,13 @@ public:
     bool operator!=(const Entity& other) const { return !(*this == other); }
 
 private:
+	friend Scene;
+
+	void SetScene(Scene* scene)
+	{
+		m_Scene = scene;
+	}
+
     entt::entity m_EnttHandle = entt::null;
     Scene* m_Scene = nullptr;
 };
