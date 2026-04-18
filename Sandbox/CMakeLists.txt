@@ -3,14 +3,20 @@ project(Sandbox LANGUAGES CXX)
 
 message(STATUS "Configuring ${PROJECT_NAME}...")
 
-# Автоматический поиск всех исходных файлов
-file(GLOB_RECURSE SANDBOX_SOURCES
-    "src/*.cpp"
+# Исходники по подпапкам src/ (без рекурсивного ** — совместимо с CMake 3.20)
+file(GLOB_RECURSE SANDBOX_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*/*.cpp"
 )
 
-file(GLOB_RECURSE SANDBOX_HEADERS
-    "src/*.h"
-    "src/*.hpp"
+file(GLOB_RECURSE SANDBOX_HEADERS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*/*.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*.hpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*/*.hpp"
 )
 
 set(SANDBOX_IMGUIZMO_SRC "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImGuizmo/ImGuizmo.cpp")
@@ -28,13 +34,21 @@ if(NOT MSVC)
     )
 endif()
 
-# Директории включения
+# Директории включения (плоские #include "…" внутри Sandbox)
+set(SANDBOX_SRC_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/src")
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CHE_CORE_DIR}
     ${CHE_SRC_DIR}
     ${MODULES_DIR}
     "${CHE_VENDOR_DIR}/spdlog/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImGuizmo"
+    "${SANDBOX_SRC_ROOT}/App"
+    "${SANDBOX_SRC_ROOT}/Core"
+    "${SANDBOX_SRC_ROOT}/Editor"
+    "${SANDBOX_SRC_ROOT}/SceneView"
+    "${SANDBOX_SRC_ROOT}/Play"
+    "${SANDBOX_SRC_ROOT}/UI"
+    "${SANDBOX_SRC_ROOT}/UI/Panels"
 )
 
 # C++ стандарт и настройки

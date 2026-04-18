@@ -15,13 +15,15 @@
 namespace CHEngine
 {
     World::World()
-        : m_Scene()
+        : m_Scene(nullptr)
+        , m_Camera(nullptr)
     {
         RegisterDefaultSystems();
     }
 
     World::World(Scene* scene)
         : m_Scene(scene)
+        , m_Camera(nullptr)
     {
         RegisterDefaultSystems();
         if (m_Scene)

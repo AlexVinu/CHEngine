@@ -35,7 +35,6 @@
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/SceneSerializer.h"
 #include "CHEngine/Scene/RecentFiles.h"
-#include "CHEngine/SceneSession.h"
 // ================================
 
 // Input --------------------------

@@ -226,10 +226,10 @@ private:
 
 };
 
-class Sandbox : public CHEngine::Application
+class SandboxApp : public CHEngine::Application
 {
 public:
-	Sandbox(const CHEngine::ApplicationConfig& config)
+	SandboxApp(const CHEngine::ApplicationConfig& config)
 		: CHEngine::Application(config)
 	{
 		CHEngine::RenderFacade::CreateShaderFromFile(
@@ -250,10 +250,10 @@ public:
 		// PushLayer(new ExampleLayer());
 	}
 
-	~Sandbox() {}
+	~SandboxApp() {}
 };
 
 CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config)
 {
-	return new Sandbox(config);
+	return new SandboxApp(config);
 }
