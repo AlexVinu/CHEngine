@@ -1,7 +1,6 @@
 #pragma once
 #include <Core.h>
 
-#include <filesystem>
 #include <string>
 #include <unordered_map>
 
@@ -36,43 +35,14 @@ namespace CHEngine
 
         bool LoadModule(const std::string& path)
         {
-            std::string shadow;
-
-        #ifdef CHE_PLATFORM_WINDOWS
-            // ─── Shadow copy (только Windows) ─────────────────────────────
-            // Windows блокирует загруженную DLL — нельзя перезаписать.
-            // Копируем файл во временный и загружаем копию.
-            // Оригинал остаётся свободным для перезаписи компилятором.
-            shadow = MakeShadowPath(path);
-            std::error_code ec;
-            std::filesystem::copy_file(
-                path, shadow,
-                std::filesystem::copy_options::overwrite_existing, ec);
-
-            if (ec) {
-                CHE_CORE_ERROR("LoadModule: failed to create shadow copy '{}' -> '{}': {}",
-                               path, shadow, ec.message());
-                return false;
-            }
-        #endif
-
-            // На macOS/Linux загружаем оригинал напрямую — ОС не блокирует
-            // загруженные .so/.dylib, shadow copy не нужна.
-            const std::string& loadPath = shadow.empty() ? path : shadow;
-
-            ModuleHandle handle = Load(loadPath.c_str());
+            ModuleHandle handle = Load(path.c_str());
             if (!handle)
             {
             #if defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
-                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", loadPath, dlerror());
+                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", path, dlerror());
             #else
-                CHE_CORE_ERROR("LoadModule FAILED '{}'", loadPath);
+                CHE_CORE_ERROR("LoadModule FAILED '{}'", path);
             #endif
-                // Удаляем неудачную теневую копию (если она была создана)
-                if (!shadow.empty()) {
-                    std::error_code rmEc;
-                    std::filesystem::remove(shadow, rmEc);
-                }
                 return false;
             }
 
@@ -86,10 +56,6 @@ namespace CHEngine
             {
                 CHE_CORE_ERROR("LoadModule '{}': CreateFactory/DestroyFactory symbol not found", path);
                 Unload(handle);
-                if (!shadow.empty()) {
-                    std::error_code rmEc;
-                    std::filesystem::remove(shadow, rmEc);
-                }
                 return false;
             }
 
@@ -97,15 +63,11 @@ namespace CHEngine
             if (!module) {
                 CHE_CORE_ERROR("LoadModule '{}': CreateFactory() returned null", path);
                 Unload(handle);
-                if (!shadow.empty()) {
-                    std::error_code rmEc;
-                    std::filesystem::remove(shadow, rmEc);
-                }
                 return false;
             }
             ModuleType type = module->GetType();
 
-            m_Modules[type] = { handle, module, destroy, path, shadow };
+            m_Modules[type] = { handle, module, destroy, path };
 
             return true;
         }
@@ -116,11 +78,6 @@ namespace CHEngine
             {
                 data.destroy(data.module);
                 Unload(data.handle);
-                // Удаляем теневую копию после выгрузки
-                if (!data.shadowPath.empty()) {
-                    std::error_code ec;
-                    std::filesystem::remove(data.shadowPath, ec);
-                }
             }
             m_Modules.clear();
         }
@@ -144,21 +101,10 @@ namespace CHEngine
             ModuleHandle    handle;
             IModuleFactory* module;
             DestroyFn       destroy;
-            std::string     path;       // путь к оригинальной dylib
-            std::string     shadowPath; // путь к теневой копии (реально загруженная)
+            std::string     path;
         };
 
         std::unordered_map<ModuleType, ModuleData>           m_Modules;
-
-        // Generate fixed shadow-copy path: module.dll -> module_temp.dll
-        std::string MakeShadowPath(const std::string& originalPath)
-        {
-            std::filesystem::path p(originalPath);
-            std::string stem = p.stem().string();
-            std::string ext  = p.extension().string();
-            auto dir = p.parent_path();
-            return (dir / (stem + "_temp" + ext)).string();
-        }
 
         ModuleHandle Load(const char* path)
         {
