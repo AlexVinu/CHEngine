@@ -13,16 +13,21 @@ namespace SceneViewLayerRender {
 
 void DrawOrbitIndicator(SceneViewLayer& layer)
 {
+    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    if (ctx.SessionState == SceneSession::State::Play || ctx.SessionState == SceneSession::State::Pause)
+        return;
+
     ImGuiIO& io = ImGui::GetIO();
     const float W = io.DisplaySize.x;
     const float H = io.DisplaySize.y;
 
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    CHEngine::EditorCamera& viewportCamera = *ctx.ViewportCamera;
-    glm::mat4 view = viewportCamera.GetViewMatrix();
-    glm::mat4 proj = viewportCamera.GetProjectionMatrix();
+    auto* viewport_camera = ctx.ViewportCamera.get();
+    if (!viewport_camera)
+        return;
+    glm::mat4 view = viewport_camera->GetViewMatrix();
+    glm::mat4 proj = viewport_camera->GetProjectionMatrix();
 
-    glm::vec4 clip = proj * view * glm::vec4(SceneViewLayerAccess::Camera(layer).GetOrbitTarget(), 1.0f);
+    glm::vec4 clip = proj * view * glm::vec4(ctx.m_EditorCameraState.OrbitTarget, 1.0f);
     if (clip.w <= 0.0f)
         return;
 

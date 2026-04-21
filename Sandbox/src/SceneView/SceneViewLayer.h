@@ -4,7 +4,7 @@
 
 #include "ContentBrowserPanel.h"
 #include "CameraPanel.h"
-#include "EditorCamera.h"
+#include "EditorCameraController.h"
 #include "EditorViewport.h"
 #include "EditorWorldContext.h"
 #include "GizmoSystem.h"
@@ -31,7 +31,7 @@ private:
     std::vector<EditorWorldContext> m_Sessions;
     size_t m_ActiveIndex = 0;
 
-    Sandbox::EditorCamera m_Camera;
+    Sandbox::EditorCameraController m_CameraController;
     Sandbox::GizmoSystem m_GizmoSystem;
     Sandbox::EditorViewport m_Viewport;
 

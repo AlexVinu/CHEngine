@@ -12,11 +12,9 @@ namespace CHEngine {
 	class CHENGINE_API EditorCamera : public Camera
 	{
 	public:
-		EditorCamera() = default;
+		EditorCamera();
 		EditorCamera(float fov, float aspectRatio, float nearClip, float farClip);
 
-		inline float GetDistance() const { return m_Distance; }
-		inline void SetDistance(float distance) { m_Distance = distance; }
 		inline float GetFOV() const { return m_FOV; }
 		inline void SetFOV(float fov)
 		{
@@ -53,20 +51,12 @@ namespace CHEngine {
 	private:
 		void UpdateProjection();
 		void UpdateView();
-
-		glm::vec3 CalculatePosition() const;
-
-		std::pair<float, float> PanSpeed() const;
-		float RotationSpeed() const;
-		float ZoomSpeed() const;
 	private:
 		float m_FOV = 45.0f, m_AspectRatio = 1.778f, m_NearClip = 0.1f, m_FarClip = 1000.0f;
 
 		glm::mat4 m_ViewMatrix;
 		glm::vec3 m_Position = { 0.0f, 0.0f, 0.0f };
-		glm::vec3 m_FocalPoint = { 0.0f, 0.0f, 0.0f };
 
-		float m_Distance = 10.0f;
 		float m_Pitch = 0.0f, m_Yaw = 0.0f;
 
 		float m_ViewportWidth = 1280, m_ViewportHeight = 720;

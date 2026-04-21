@@ -1,5 +1,7 @@
 #pragma once
 
+#include "EditorCameraState.h"
+
 #include <CHEngine/Scene/Scene.h>
 #include <glm/glm.hpp>
 
@@ -10,7 +12,7 @@ class Event;
 
 namespace Sandbox {
 
-class EditorCamera
+class EditorCameraController
 {
 public:
     struct InputSnapshot
@@ -36,39 +38,32 @@ public:
     };
 
 public:
-    void ApplyOrbit(CHEngine::EditorCamera* viewport_camera);
+    void ApplyOrbit(CHEngine::EditorCamera* viewport_camera, EditorCameraState& camera_state);
     void UpdateCameraInput(const InputSnapshot& input_snapshot,
                            CHEngine::EditorCamera* viewport_camera,
+                           EditorCameraState& camera_state,
                            CHEngine::Scene* active_scene,
                            CHEngine::EntityHandle selected_entity);
-    void SetViewPreset(float yaw_degrees, float pitch_degrees, CHEngine::EditorCamera* viewport_camera);
-    void FocusOnSelected(CHEngine::EditorCamera* viewport_camera,
-                         CHEngine::Scene* active_scene,
-                         CHEngine::EntityHandle selected_entity);
+    void SetViewPreset(float yaw_degrees,
+                       float pitch_degrees,
+                       CHEngine::EditorCamera* viewport_camera,
+                       EditorCameraState& camera_state);
+    void FocusOnPoint(const glm::vec3& target,
+                      float radius,
+                      CHEngine::EditorCamera* viewport_camera,
+                      EditorCameraState& camera_state);
     void OnEvent(CHEngine::Event& e);
     void OnUpdate(CHEngine::EditorCamera* viewport_camera,
+                  EditorCameraState& camera_state,
                   CHEngine::Scene* active_scene,
                   CHEngine::EntityHandle selected_entity,
-                  bool is_viewport_hovered,
-                  bool is_gizmo_using);
-
-    const glm::vec3& GetOrbitTarget() const { return m_OrbitTarget; }
-    void SetOrbitTarget(const glm::vec3& orbit_target) { m_OrbitTarget = orbit_target; }
-
-    float GetOrbitDist() const { return m_OrbitDist; }
-    void SetOrbitDist(float orbit_dist) { m_OrbitDist = orbit_dist; }
+                  const InputSnapshot& input_snapshot);
 
     float GetAspectRatio() const { return m_AspectRatio; }
     void SetAspectRatio(float aspect_ratio) { m_AspectRatio = aspect_ratio; }
 
-    bool GetFollowObject() const { return m_FollowObject; }
-    void SetFollowObject(bool follow_object) { m_FollowObject = follow_object; }
-
 private:
-    glm::vec3 m_OrbitTarget{ 0.0f, 0.0f, 0.0f };
-    float m_OrbitDist = 8.0f;
     float m_AspectRatio = 1280.0f / 720.0f;
-    bool m_FollowObject = false;
 };
 
 } // namespace Sandbox

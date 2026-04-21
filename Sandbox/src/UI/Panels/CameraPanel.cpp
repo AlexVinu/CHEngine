@@ -1,6 +1,6 @@
 #include "CameraPanel.h"
 
-#include "EditorCamera.h"
+#include "EditorCameraController.h"
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
 
@@ -15,7 +15,13 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
 {
     UIActive::BeginPanel("Camera", pos, size, 0, reset_layout);
     SceneSession& activeSession = host.GetActiveSceneSession();
-    CHEngine::EditorCamera& viewportCamera = *activeSession.ViewportCamera;
+    auto* viewport_camera = activeSession.ViewportCamera.get();
+    if (!viewport_camera)
+    {
+        UIActive::EndPanel();
+        return;
+    }
+    Sandbox::EditorCameraState& cameraState = host.GetActiveSceneSession().m_EditorCameraState;
 
     UIActive::SectionHeader("VIEW");
 
@@ -82,26 +88,26 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
         return ImGui::DragFloat(id, val, spd, mn, mx, "%.2f");
     };
 
-    float yaw = glm::degrees(viewportCamera.GetYaw());
-    float pitch = glm::degrees(viewportCamera.GetPitch());
-    float fov = viewportCamera.GetFOV();
+    float yaw = glm::degrees(viewport_camera->GetYaw());
+    float pitch = glm::degrees(viewport_camera->GetPitch());
+    float fov = viewport_camera->GetFOV();
 
     if (sliderRow("Yaw", "##yaw", &yaw, -180.0f, 180.0f, "%.1f°"))
     {
-        viewportCamera.SetYaw(glm::radians(yaw));
+        viewport_camera->SetYaw(glm::radians(yaw));
         orb = true;
     }
     if (sliderRow("Pitch", "##pitch", &pitch, -89.0f, 89.0f, "%.1f°"))
     {
-        viewportCamera.SetPitch(glm::radians(pitch));
+        viewport_camera->SetPitch(glm::radians(pitch));
         orb = true;
     }
     if (sliderRow("FOV", "##fov", &fov, 10.0f, 120.0f, "%.1f°"))
-        viewportCamera.SetFOV(fov);
-    float orbitDist = host.GetEditorCamera().GetOrbitDist();
+        viewport_camera->SetFOV(fov);
+    float orbitDist = cameraState.OrbitDist;
     if (dragRow("Dist", "##dist", &orbitDist, 0.1f, 0.3f, 500.0f))
     {
-        host.GetEditorCamera().SetOrbitDist(orbitDist);
+        cameraState.OrbitDist = orbitDist;
         orb = true;
     }
 
@@ -113,23 +119,23 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
     ImGui::PopStyleColor();
     ImGui::SameLine(lw);
     ImGui::SetNextItemWidth(-1.0f);
-    glm::vec3 orbitTarget = host.GetEditorCamera().GetOrbitTarget();
+    glm::vec3 orbitTarget = cameraState.OrbitTarget;
     if (ImGui::DragFloat3("##target", glm::value_ptr(orbitTarget), 0.05f))
     {
-        host.GetEditorCamera().SetOrbitTarget(orbitTarget);
+        cameraState.OrbitTarget = orbitTarget;
         host.ApplyOrbit();
     }
 
-    glm::vec3 cpos = viewportCamera.GetPosition();
+    glm::vec3 cpos = viewport_camera->GetPosition();
     ImGui::Spacing();
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.357f, 0.357f, 0.376f, 1.0f));
     ImGui::Text("Pos  %.2f  %.2f  %.2f", cpos.x, cpos.y, cpos.z);
     ImGui::PopStyleColor();
 
     UIActive::SectionHeader("CONTROLS");
-    bool followObject = host.GetEditorCamera().GetFollowObject();
+    bool followObject = cameraState.FollowObject;
     if (UIActive::Toggle("Follow Selected", &followObject))
-        host.GetEditorCamera().SetFollowObject(followObject);
+        cameraState.FollowObject = followObject;
 
     ImGui::Spacing();
     if (UIActive::DestructiveButton("Reset Camera", ImVec2(-1.0f, 0.0f)))

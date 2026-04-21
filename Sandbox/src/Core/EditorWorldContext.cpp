@@ -8,7 +8,7 @@ EditorWorldContext::EditorWorldContext()
 {
 }
 
-void EditorWorldContext::UpdateSimulation(CHEngine::Timestep dt)
+void EditorWorldContext::Update(CHEngine::Timestep dt)
 {
     if (!RuntimeWorld)
     {
@@ -21,27 +21,27 @@ void EditorWorldContext::UpdateSimulation(CHEngine::Timestep dt)
     switch (SessionState)
     {
     case SceneSession::State::Edit:
-        RuntimeWorld->SetSimulating(false);
+        RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
         RuntimeWorld->SetActiveCamera(ViewportCamera.get());
         RuntimeWorld->Update(dt);
         break;
 
     case SceneSession::State::Simulate:
-        RuntimeWorld->SetSimulating(true);
+        RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
         RuntimeWorld->SetActiveCamera(ViewportCamera.get());
         RuntimeWorld->Update(dt);
         break;
 
     case SceneSession::State::Play:
         CHE_CORE_ASSERT(ActiveScene, "EditorWorldContext must have ActiveScene in Play");
-        RuntimeWorld->SetSimulating(true);
+        RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
         RuntimeWorld->SetActiveCamera(nullptr);
         RuntimeWorld->Update(dt);
         break;
 
     case SceneSession::State::Pause:
         CHE_CORE_ASSERT(ActiveScene, "EditorWorldContext must have ActiveScene in Pause");
-        RuntimeWorld->SetSimulating(false);
+        RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
         RuntimeWorld->SetActiveCamera(ViewportCamera.get());
         RuntimeWorld->Update(dt);
         break;

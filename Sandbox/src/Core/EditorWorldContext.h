@@ -2,10 +2,10 @@
 
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
+#include "EditorCameraState.h"
 
 #include <CHEngine.h>
 #include <ImGuizmo.h>
-#include <nlohmann/json.hpp>
 
 /// Per-session editor state: scene/world/camera plus undo, gizmo UI mode, and play snapshot.
 struct EditorWorldContext : public SceneSession
@@ -19,10 +19,6 @@ struct EditorWorldContext : public SceneSession
 
     Sandbox::CommandStack m_CommandStack{};
     CHEngine::Transform m_TransformBeforeDrag{};
-    CHEngine::EntityHandle m_EditorCameraEntity{};
-
-    nlohmann::json m_SceneSnapshot{};
-    bool m_HasSceneSnapshot = false;
 
     ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE;
     ImGuizmo::MODE m_GizmoMode = ImGuizmo::WORLD;
@@ -31,6 +27,7 @@ struct EditorWorldContext : public SceneSession
     bool m_ResetLayout = false;
     float m_ContentBrowserHeight = 200.0f;
     float m_StepDt = 1.0f / 60.0f;
+    Sandbox::EditorCameraState m_EditorCameraState{};
 
-    void UpdateSimulation(CHEngine::Timestep dt);
+    void Update(CHEngine::Timestep dt);
 };

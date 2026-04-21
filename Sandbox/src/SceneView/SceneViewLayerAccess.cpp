@@ -23,9 +23,9 @@ void SceneViewLayerAccess::SetActiveIndex(SceneViewLayer& layer, size_t index)
     layer.m_ActiveIndex = index;
 }
 
-Sandbox::EditorCamera& SceneViewLayerAccess::Camera(SceneViewLayer& layer)
+Sandbox::EditorCameraController& SceneViewLayerAccess::CameraController(SceneViewLayer& layer)
 {
-    return layer.m_Camera;
+    return layer.m_CameraController;
 }
 
 Sandbox::EditorViewport& SceneViewLayerAccess::Viewport(SceneViewLayer& layer)

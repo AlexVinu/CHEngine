@@ -32,9 +32,9 @@ Sandbox::CommandStack& SceneViewLayerHost::GetCommandStack()
     return SceneViewLayerAccess::Active(m_Layer).m_CommandStack;
 }
 
-Sandbox::EditorCamera& SceneViewLayerHost::GetEditorCamera()
+Sandbox::EditorCameraController& SceneViewLayerHost::GetEditorCameraController()
 {
-    return SceneViewLayerAccess::Camera(m_Layer);
+    return SceneViewLayerAccess::CameraController(m_Layer);
 }
 
 Sandbox::EditorViewport& SceneViewLayerHost::GetEditorViewport()
@@ -81,18 +81,15 @@ void SceneViewLayerHost::AddSceneSession()
 {
     EditorWorldContext session;
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(m_Layer);
+    const EditorWorldContext& active = SceneViewLayerAccess::Active(m_Layer);
     if (viewport.GetViewportSize().x > 1.0f && viewport.GetViewportSize().y > 1.0f)
         session.ViewportSize = { viewport.GetViewportSize().x, viewport.GetViewportSize().y };
     else
-        session.ViewportSize = SceneViewLayerAccess::Active(m_Layer).ViewportSize;
+        session.ViewportSize = active.ViewportSize;
     session.ViewportCamera->SetViewportSize(session.ViewportSize.x, session.ViewportSize.y);
+    session.m_EditorCameraState = active.m_EditorCameraState;
     SceneViewLayerAccess::Sessions(m_Layer).push_back(std::move(session));
     SceneViewLayerAccess::SetActiveIndex(m_Layer, SceneViewLayerAccess::Sessions(m_Layer).size() - 1);
-}
-
-CHEngine::EntityHandle& SceneViewLayerHost::GetEditorCameraEntity()
-{
-    return SceneViewLayerAccess::Active(m_Layer).m_EditorCameraEntity;
 }
 
 CHEngine::Transform& SceneViewLayerHost::GetTransformBeforeDrag()
@@ -121,9 +118,9 @@ void SceneViewLayerHost::ResetViewportCamera()
 {
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(m_Layer);
     CHEngine::EditorCamera* viewportCamera = ctx.ViewportCamera.get();
-    Sandbox::EditorCamera& cam = SceneViewLayerAccess::Camera(m_Layer);
-    cam.SetOrbitTarget({ 0.0f, 0.0f, 0.0f });
-    cam.SetOrbitDist(8.0f);
+    Sandbox::EditorCameraState& camera_state = ctx.m_EditorCameraState;
+    camera_state.OrbitTarget = { 0.0f, 0.0f, 0.0f };
+    camera_state.OrbitDist = 8.0f;
     viewportCamera->SetYaw(glm::radians(-90.0f));
     viewportCamera->SetPitch(glm::radians(-15.0f));
     viewportCamera->SetFOV(45.0f);
@@ -133,10 +130,12 @@ void SceneViewLayerHost::ResetViewportCamera()
 void SceneViewLayerHost::AddDirectionalLight()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene& scene = *activeSession.ActiveScene;
+    auto scene_ref = activeSession.ActiveScene;
+    if (!scene_ref)
+        return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
-    const CHEngine::EntityHandle handle = scene.CreateEntity("Directional Light", object_id);
-    if (auto* entity = scene.TryGetEntity(handle); entity)
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Directional Light", object_id);
+    if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
@@ -149,10 +148,12 @@ void SceneViewLayerHost::AddDirectionalLight()
 void SceneViewLayerHost::AddPointLight()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene& scene = *activeSession.ActiveScene;
+    auto scene_ref = activeSession.ActiveScene;
+    if (!scene_ref)
+        return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
-    const CHEngine::EntityHandle handle = scene.CreateEntity("Point Light", object_id);
-    if (auto* entity = scene.TryGetEntity(handle); entity)
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Point Light", object_id);
+    if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Point } });
@@ -165,10 +166,12 @@ void SceneViewLayerHost::AddPointLight()
 void SceneViewLayerHost::AddSpotLight()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene& scene = *activeSession.ActiveScene;
+    auto scene_ref = activeSession.ActiveScene;
+    if (!scene_ref)
+        return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
-    const CHEngine::EntityHandle handle = scene.CreateEntity("Spot Light", object_id);
-    if (auto* entity = scene.TryGetEntity(handle); entity)
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Spot Light", object_id);
+    if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Spot } });
@@ -182,6 +185,17 @@ void SceneViewLayerHost::AddSpotLight()
     }
 }
 
+void SceneViewLayerHost::AddEmptyEntity()
+{
+    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
+    auto scene_ref = activeSession.ActiveScene;
+    if (!scene_ref)
+        return;
+    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity("New Object", object_id);
+    activeSession.SelectedEntity = handle;
+}
+
 void SceneViewLayerHost::SetSelection(CHEngine::EntityHandle handle)
 {
     SceneViewLayerAccess::Active(m_Layer).SelectedEntity = handle;
@@ -190,11 +204,13 @@ void SceneViewLayerHost::SetSelection(CHEngine::EntityHandle handle)
 void SceneViewLayerHost::DestroyEntityByUuid(const CHEngine::UUID& object_id)
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene& scene = *activeSession.ActiveScene;
-    if (scene.IsEntityHandleValid(activeSession.SelectedEntity)
-        && scene.GetUUID(activeSession.SelectedEntity) == object_id)
+    auto scene_ref = activeSession.ActiveScene;
+    if (!scene_ref)
+        return;
+    if (scene_ref->IsEntityHandleValid(activeSession.SelectedEntity)
+        && scene_ref->GetUUID(activeSession.SelectedEntity) == object_id)
         activeSession.SelectedEntity = {};
-    scene.DestroyEntity(object_id);
+    scene_ref->DestroyEntity(object_id);
 }
 
 void SceneViewLayerHost::OnRendererApiSelected(CHEngine::ERenderAPI api)
@@ -227,18 +243,18 @@ void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_ind
     if (!subMesh.Mat)
         subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
             SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
-    CHEngine::MaterialInstance& mat = *subMesh.Mat;
+    auto mat_ref = subMesh.Mat;
     CHEngine::TextureHandle d0, s0;
-    mat.ResolveTextures(d0, s0);
+    mat_ref->ResolveTextures(d0, s0);
     if (d0.IsValid())
         CHEngine::RenderFacade::DestroyTexture(d0);
-    if (mat.m_Material)
+    if (mat_ref->m_Material)
     {
-        mat.m_Material->DiffuseMap = CHEngine::TextureHandle{};
-        mat.m_Material->DiffuseMapPath.clear();
+        mat_ref->m_Material->DiffuseMap = CHEngine::TextureHandle{};
+        mat_ref->m_Material->DiffuseMapPath.clear();
     }
-    mat.DiffuseMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
-    mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? filepath : "";
+    mat_ref->DiffuseMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
+    mat_ref->DiffuseMapPath = mat_ref->DiffuseMap.IsValid() ? filepath : "";
 }
 
 void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index)
@@ -257,17 +273,17 @@ void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_ind
     auto& subMesh = meshComp.Meshes[submesh_index];
     if (!subMesh.Mat)
         return;
-    CHEngine::MaterialInstance& mat = *subMesh.Mat;
+    auto mat_ref = subMesh.Mat;
     CHEngine::TextureHandle d0, s0;
-    mat.ResolveTextures(d0, s0);
+    mat_ref->ResolveTextures(d0, s0);
     if (d0.IsValid())
         CHEngine::RenderFacade::DestroyTexture(d0);
-    mat.DiffuseMap = CHEngine::TextureHandle{};
-    mat.DiffuseMapPath.clear();
-    if (mat.m_Material)
+    mat_ref->DiffuseMap = CHEngine::TextureHandle{};
+    mat_ref->DiffuseMapPath.clear();
+    if (mat_ref->m_Material)
     {
-        mat.m_Material->DiffuseMap = CHEngine::TextureHandle{};
-        mat.m_Material->DiffuseMapPath.clear();
+        mat_ref->m_Material->DiffuseMap = CHEngine::TextureHandle{};
+        mat_ref->m_Material->DiffuseMapPath.clear();
     }
 }
 
@@ -288,18 +304,18 @@ void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_in
     if (!subMesh.Mat)
         subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
             SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
-    CHEngine::MaterialInstance& mat = *subMesh.Mat;
+    auto mat_ref = subMesh.Mat;
     CHEngine::TextureHandle d0, s0;
-    mat.ResolveTextures(d0, s0);
+    mat_ref->ResolveTextures(d0, s0);
     if (s0.IsValid())
         CHEngine::RenderFacade::DestroyTexture(s0);
-    if (mat.m_Material)
+    if (mat_ref->m_Material)
     {
-        mat.m_Material->SpecularMap = CHEngine::TextureHandle{};
-        mat.m_Material->SpecularMapPath.clear();
+        mat_ref->m_Material->SpecularMap = CHEngine::TextureHandle{};
+        mat_ref->m_Material->SpecularMapPath.clear();
     }
-    mat.SpecularMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
-    mat.SpecularMapPath = mat.SpecularMap.IsValid() ? filepath : "";
+    mat_ref->SpecularMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
+    mat_ref->SpecularMapPath = mat_ref->SpecularMap.IsValid() ? filepath : "";
 }
 
 void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_index)
@@ -318,17 +334,17 @@ void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_in
     auto& subMesh = meshComp.Meshes[submesh_index];
     if (!subMesh.Mat)
         return;
-    CHEngine::MaterialInstance& mat = *subMesh.Mat;
+    auto mat_ref = subMesh.Mat;
     CHEngine::TextureHandle d0, s0;
-    mat.ResolveTextures(d0, s0);
+    mat_ref->ResolveTextures(d0, s0);
     if (s0.IsValid())
         CHEngine::RenderFacade::DestroyTexture(s0);
-    mat.SpecularMap = CHEngine::TextureHandle{};
-    mat.SpecularMapPath.clear();
-    if (mat.m_Material)
+    mat_ref->SpecularMap = CHEngine::TextureHandle{};
+    mat_ref->SpecularMapPath.clear();
+    if (mat_ref->m_Material)
     {
-        mat.m_Material->SpecularMap = CHEngine::TextureHandle{};
-        mat.m_Material->SpecularMapPath.clear();
+        mat_ref->m_Material->SpecularMap = CHEngine::TextureHandle{};
+        mat_ref->m_Material->SpecularMapPath.clear();
     }
 }
 
