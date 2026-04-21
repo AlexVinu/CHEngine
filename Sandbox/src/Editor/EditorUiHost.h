@@ -12,7 +12,7 @@
 namespace Sandbox {
 
 class CommandStack;
-class EditorCamera;
+class EditorCameraController;
 class EditorViewport;
 
 /// Host surface for editor UI panels: state accessors and actions (implemented by SceneViewLayerHost).
@@ -23,7 +23,7 @@ public:
 
     virtual EditorWorldContext& GetActiveSceneSession() = 0;
     virtual CommandStack& GetCommandStack() = 0;
-    virtual EditorCamera& GetEditorCamera() = 0;
+    virtual EditorCameraController& GetEditorCameraController() = 0;
     virtual EditorViewport& GetEditorViewport() = 0;
 
     virtual ImGuizmo::OPERATION& GetGizmoOperation() = 0;
@@ -36,7 +36,6 @@ public:
     virtual void SetActiveSessionIndex(size_t session_index) = 0;
     virtual void AddSceneSession() = 0;
 
-    virtual CHEngine::EntityHandle& GetEditorCameraEntity() = 0;
     virtual CHEngine::Transform& GetTransformBeforeDrag() = 0;
 
     virtual void RequestUndo() = 0;
@@ -62,6 +61,7 @@ public:
     virtual void AddDirectionalLight() = 0;
     virtual void AddPointLight() = 0;
     virtual void AddSpotLight() = 0;
+    virtual void AddEmptyEntity() = 0;
     virtual void SetSelection(CHEngine::EntityHandle handle) = 0;
     virtual void DestroyEntityByUuid(const CHEngine::UUID& object_id) = 0;
 

@@ -89,6 +89,28 @@ namespace CHEngine {
         }
     }
 
+    void SystemScheduler::NotifyBegin(SystemPhase phase, World& world, DeferredOps& deferred_ops)
+    {
+        auto& list = GetPhaseList(phase);
+        for (size_t i = 0; i < list.size(); ++i) {
+            ISystem* system = list[i].get();
+            if (!system || !system->IsEnabled())
+                continue;
+            system->OnBegin(world, deferred_ops);
+        }
+    }
+
+    void SystemScheduler::NotifyEnd(SystemPhase phase, World& world, DeferredOps& deferred_ops)
+    {
+        auto& list = GetPhaseList(phase);
+        for (size_t i = 0; i < list.size(); ++i) {
+            ISystem* system = list[i].get();
+            if (!system || !system->IsEnabled())
+                continue;
+            system->OnEnd(world, deferred_ops);
+        }
+    }
+
     void SystemScheduler::SortPhase(SystemPhase phase)
     {
         auto& list = GetPhaseList(phase);

@@ -12,7 +12,7 @@ public:
 
     EditorWorldContext& GetActiveSceneSession() override;
     Sandbox::CommandStack& GetCommandStack() override;
-    Sandbox::EditorCamera& GetEditorCamera() override;
+    Sandbox::EditorCameraController& GetEditorCameraController() override;
     Sandbox::EditorViewport& GetEditorViewport() override;
 
     ImGuizmo::OPERATION& GetGizmoOperation() override;
@@ -25,7 +25,6 @@ public:
     void SetActiveSessionIndex(size_t session_index) override;
     void AddSceneSession() override;
 
-    CHEngine::EntityHandle& GetEditorCameraEntity() override;
     CHEngine::Transform& GetTransformBeforeDrag() override;
 
     void RequestUndo() override;
@@ -51,6 +50,7 @@ public:
     void AddDirectionalLight() override;
     void AddPointLight() override;
     void AddSpotLight() override;
+    void AddEmptyEntity() override;
     void SetSelection(CHEngine::EntityHandle handle) override;
     void DestroyEntityByUuid(const CHEngine::UUID& object_id) override;
 

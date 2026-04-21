@@ -15,7 +15,9 @@ namespace CHEngine
 
     class World;
     class DeferredOps;
-
+    
+    // Systems handles ONLY via world and its parts
+    // Dont use systems outside the world
     class ISystem {
     public:
         ISystem(SystemPhase system_phase, uint8_t priority, bool enabled = true)
@@ -26,9 +28,11 @@ namespace CHEngine
         virtual uint8_t GetPriority() const { return m_Priority; }
         virtual const char* GetName() const = 0;
         virtual void Run(World& world, DeferredOps& deferred_ops, Timestep dt) = 0;
-        virtual void OnPhaseDispatch(World& world, DeferredOps& deferred_ops)
-        {
-        }
+        virtual void OnBegin(World& world, DeferredOps& deferred_ops) { (void)world; (void)deferred_ops; }
+        virtual void OnEnd(World& world, DeferredOps& deferred_ops) { (void)world; (void)deferred_ops; }
+
+        // Unnecessary to redefine
+        virtual void OnPhaseDispatch(World& world, DeferredOps& deferred_ops){}
 
         bool IsEnabled() const { return m_Enabled; }
         void SetEnabled(bool value) { m_Enabled = value; }

@@ -6,6 +6,7 @@
 #include "CHEngine/Camera/EditorCamera.h"
 #include <boost/uuid/nil_generator.hpp>
 
+// Basic structure to store the scene session data
 struct SceneSession
 {
     enum class State

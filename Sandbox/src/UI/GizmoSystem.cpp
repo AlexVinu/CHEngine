@@ -30,18 +30,23 @@ void GizmoSystem::Draw(SceneSession* scene_session,
         return;
 
     if (scene_session->SessionState != SceneSession::State::Edit)
+    {
+        m_GizmoWasUsing = false;
         return;
+    }
 
     if (!scene_session->ViewportCamera || !scene_session->ActiveScene)
         return;
 
-    CHEngine::EditorCamera& viewportCamera = *scene_session->ViewportCamera;
-    CHEngine::Scene& scene = *scene_session->ActiveScene;
+    auto* viewport_camera = scene_session->ViewportCamera.get();
+    auto* scene_ptr = scene_session->ActiveScene.get();
+    if (!viewport_camera || !scene_ptr)
+        return;
     const CHEngine::EntityHandle selectedHandle = scene_session->SelectedEntity;
-    if (!scene.IsEntityHandleValid(selectedHandle))
+    if (!scene_ptr->IsEntityHandleValid(selectedHandle))
         return;
 
-    auto* entity = scene.TryGetEntity(selectedHandle);
+    auto* entity = scene_ptr->TryGetEntity(selectedHandle);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
         return;
 
@@ -52,8 +57,8 @@ void GizmoSystem::Draw(SceneSession* scene_session,
     ImGuiIO& io = ImGui::GetIO();
     ImGuizmo::SetRect(viewport_pos.x, viewport_pos.y, viewport_size.x, viewport_size.y);
 
-    glm::mat4 view = viewportCamera.GetViewMatrix();
-    glm::mat4 proj = viewportCamera.GetProjectionMatrix();
+    glm::mat4 view = viewport_camera->GetViewMatrix();
+    glm::mat4 proj = viewport_camera->GetProjectionMatrix();
 
     float translation[3];
     float rotation[3];
@@ -97,7 +102,7 @@ void GizmoSystem::Draw(SceneSession* scene_session,
     if (m_GizmoWasUsing && !ImGuizmo::IsUsing() && m_CommandStack)
     {
         auto command = CHEngine::MakeScope<SetTransformCommand>(
-            &scene,
+            scene_ptr,
             selectedHandle,
             m_TransformBeforeDrag,
             selectedTransform);

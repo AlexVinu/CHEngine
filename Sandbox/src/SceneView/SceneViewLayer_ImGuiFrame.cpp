@@ -58,7 +58,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         const ImVec2 vpPos = { leftW, L.toolbarH };
         const ImVec2 vpSize = { W - leftW - rightW, vpH };
         viewport.DrawImGui(SceneViewLayerAccess::Gizmo(layer),
-                           SceneViewLayerAccess::Camera(layer),
+                           SceneViewLayerAccess::CameraController(layer),
                            activeCtx,
                            vpPos,
                            vpSize,

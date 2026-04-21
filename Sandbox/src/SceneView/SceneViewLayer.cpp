@@ -12,15 +12,17 @@
 
 namespace {
 
-void TickNonActiveSessions(SceneViewLayer& layer, CHEngine::Timestep dt)
+CHEngine::WorldState ToActiveWorldState(SceneSession::State state)
 {
-    std::vector<EditorWorldContext>& sessions = SceneViewLayerAccess::Sessions(layer);
-    const size_t active = SceneViewLayerAccess::ActiveIndex(layer);
-    for (size_t i = 0; i < sessions.size(); ++i)
+    switch (state)
     {
-        sessions[i].RuntimeWorld->SetActive(i == active);
-        if (i != active)
-            sessions[i].UpdateSimulation(dt);
+    case SceneSession::State::Play:
+    case SceneSession::State::Simulate:
+        return CHEngine::WorldState::Simulating;
+    case SceneSession::State::Pause:
+    case SceneSession::State::Edit:
+    default:
+        return CHEngine::WorldState::Presenting;
     }
 }
 
@@ -33,10 +35,6 @@ SceneViewLayer::SceneViewLayer()
     m_Sessions.emplace_back();
 
     m_GizmoSystem.BindCommandStack(&SceneViewLayerAccess::Active(*this).m_CommandStack);
-    m_Viewport.SetSessionUpdate([](SceneSession* session, CHEngine::Timestep dt) {
-        if (session)
-            static_cast<EditorWorldContext*>(session)->UpdateSimulation(dt);
-    });
 
     UIActive::SetTheme(AppTheme::RetroOS);
     UIActive::SyncLayout();
@@ -49,15 +47,43 @@ SceneViewLayer::SceneViewLayer()
 void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
-    TickNonActiveSessions(*this, dt);
-    EditorWorldContext& active = SceneViewLayerAccess::Active(*this);
-    m_GizmoSystem.BindCommandStack(&active.m_CommandStack);
-    m_Viewport.Render(&active, dt);
+    std::vector<EditorWorldContext>& sessions = SceneViewLayerAccess::Sessions(*this);
+    if (sessions.empty())
+        return;
+
+    const size_t active_index = SceneViewLayerAccess::ActiveIndex(*this);
+    if (active_index >= sessions.size())
+        return;
+
+    for (size_t i = 0; i < sessions.size(); ++i)
+    {
+        if (sessions[i].RuntimeWorld)
+        {
+            CHEngine::WorldState target_state = CHEngine::WorldState::Idle;
+            if (i == active_index)
+                target_state = ToActiveWorldState(sessions[i].SessionState);
+
+            sessions[i].RuntimeWorld->SetState(target_state);
+        }
+    }
+
+    for (size_t i = 0; i < sessions.size(); ++i)
+    {
+        if (i != active_index && sessions[i].RuntimeWorld)
+            sessions[i].RuntimeWorld->Update(dt);
+    }
+
+    EditorWorldContext* active = &sessions[active_index];
+    m_GizmoSystem.BindCommandStack(&active->m_CommandStack);
+    m_Viewport.BeginSceneRender(active);
+    active->Update(dt);
+    m_Viewport.DrawEditorOverlays(active);
+    m_Viewport.EndSceneRender();
 }
 
 void SceneViewLayer::OnEvent(CHEngine::Event& e)
 {
-    m_Camera.OnEvent(e);
+    m_CameraController.OnEvent(e);
     m_GizmoSystem.OnEvent(e);
 }
 

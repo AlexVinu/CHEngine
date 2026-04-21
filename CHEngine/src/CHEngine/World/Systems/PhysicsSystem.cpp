@@ -58,16 +58,23 @@ void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
     });
 }
 
+void PhysicsSystem::OnBegin(World& world, DeferredOps& deferred_ops)
+{
+    RebuildPhysicsRuntime(world);
+}
+
+void PhysicsSystem::OnEnd(World& world, DeferredOps& deferred_ops)
+{
+    ClearPhysicsRuntime(world);
+}
+
 void PhysicsSystem::OnPhaseDispatch(World& world, DeferredOps& deferred_ops)
 {
     world.GetEvents().ConsumePhase<DestroyRigidBodyEvent>(GetPhase(), [&](const DestroyRigidBodyEvent& eventData) {
         DestroyRigidBody(world, eventData.entityHandle);
     });
-    world.GetEvents().ConsumePhase<RebuildPhysicsWorldEvent>(GetPhase(), [&](const RebuildPhysicsWorldEvent&) {
-        RebuildPhysicsRuntime(world);
-    });
-    world.GetEvents().ConsumePhase<DestroyPhysicsWorldEvent>(GetPhase(), [&](const DestroyPhysicsWorldEvent&) {
-        ClearPhysicsRuntime(world);
+    world.GetEvents().ConsumePhase<CreateRigidBodyEvent>(GetPhase(), [&](const CreateRigidBodyEvent& eventData) {
+        CreateRigidBody(world, eventData.entityHandle);
     });
 }
 
@@ -137,8 +144,39 @@ void PhysicsSystem::ClearPhysicsRuntime(World& world)
         PhysicsFacade::DestroyWorld(runtimeWorld);
 }
 
+void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
+{
+    CHE_CORE_INFO("Rigid Body created");
+    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().get();
+    if (!runtimeWorld)
+        return;
+
+    auto* scene = world.GetScene();
+    if (!scene)
+        return;
+
+    auto* entity = scene->TryGetEntity(handle);
+    if (!entity || !entity->HasComponent<RigidBody3DComponent>())
+        return;
+
+    auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
+    auto& transform = entity->GetComponent<TransformComponent>().ObjectTransform;
+
+    PhysicsTransform initialTransform{};
+    initialTransform.Position = transform.Position;
+    initialTransform.Rotation = glm::quat(glm::radians(transform.Rotation));
+
+    auto* shape = PhysicsFacade::CreateShape(rigidBody.ShapeDesc);
+    rigidBody.Shape = shape;
+    rigidBody.Body = runtimeWorld->CreateRigidBody(rigidBody.BodyDesc, shape);
+
+    if (rigidBody.Body)
+        rigidBody.Body->SetTransform(initialTransform);
+}
+
 void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
 {
+    CHE_CORE_INFO("Rigid Body destroyed");
     auto* scene = world.GetScene();
     if (!scene)
         return;

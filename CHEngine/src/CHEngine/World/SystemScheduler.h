@@ -34,6 +34,9 @@ namespace CHEngine
 
         void RunPhase(SystemPhase phase, World& world, DeferredOps& deferred_ops, Timestep dt);
 
+        void NotifyBegin(SystemPhase phase, World& world, DeferredOps& deferred_ops);
+        void NotifyEnd(SystemPhase phase, World& world, DeferredOps& deferred_ops);
+
     private:
         void SortPhase(SystemPhase phase);
         std::vector<Scope<ISystem>>& GetPhaseList(SystemPhase phase);

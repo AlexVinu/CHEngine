@@ -18,8 +18,8 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
     UIActive::BeginPanel("Scene", pos, size, 0, reset_layout);
     SceneSession& activeSession = host.GetActiveSceneSession();
 
-    CHEngine::Scene* scenePtr = activeSession.ActiveScene ? activeSession.ActiveScene.get() : activeSession.EditorScene.get();
-    if (!scenePtr)
+    CHEngine::Scene* scene_ptr = activeSession.ActiveScene ? activeSession.ActiveScene.get() : activeSession.EditorScene.get();
+    if (!scene_ptr)
     {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f, 0.686f, 0.706f, 1.0f));
@@ -28,7 +28,6 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
         UIActive::EndPanel();
         return;
     }
-    CHEngine::Scene& scene = *scenePtr;
 
     ImGui::BeginDisabled(activeSession.SessionState != SceneSession::State::Edit);
     if (UIActive::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
@@ -40,6 +39,8 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
                 [&host, path] { host.ImportModel(path); }, [] {}, false));
         }
     }
+    if (ImGui::Button("+ Empty Entity", ImVec2(-1.0f, 0.0f)))
+        host.AddEmptyEntity();
     ImGui::EndDisabled();
 
     ImGui::Spacing();
@@ -68,17 +69,10 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
     ImGui::PopStyleColor();
     ImGui::Spacing();
 
-    const bool hideEditorCameraInUI = (activeSession.SessionState == SceneSession::State::Edit)
-        && scene.IsEntityHandleValid(host.GetEditorCameraEntity());
-    if (hideEditorCameraInUI && activeSession.SelectedEntity == host.GetEditorCameraEntity())
-        activeSession.SelectedEntity = {};
-
     std::optional<CHEngine::UUID> deleteID;
     size_t objectCount = 0;
-    scene.ForEach<CHEngine::TagComponent>([&](CHEngine::EntityHandle handle, const CHEngine::UUID& objectID,
+    scene_ptr->ForEach<CHEngine::TagComponent>([&](CHEngine::EntityHandle handle, const CHEngine::UUID& objectID,
                                                 CHEngine::TagComponent& tag) {
-        if (hideEditorCameraInUI && handle == host.GetEditorCameraEntity())
-            return;
         ++objectCount;
         bool isSelected = (handle == activeSession.SelectedEntity);
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth
@@ -87,7 +81,7 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
             flags |= ImGuiTreeNodeFlags_Selected;
 
         const char* icon = "";
-        if (const auto* entity = scene.TryGetEntity(handle);
+        if (const auto* entity = scene_ptr->TryGetEntity(handle);
             entity && entity->HasComponent<CHEngine::LightComponent>())
         {
             const auto type = entity->GetComponent<CHEngine::LightComponent>().LightData.Type;
@@ -128,8 +122,19 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
     {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f, 0.686f, 0.706f, 1.0f));
-        ImGui::TextWrapped("No objects in scene.\nImport a model to begin.");
+        ImGui::TextWrapped("No objects in scene.\nUse \"+ Empty Entity\" or \"+ Import Model\" to begin.");
         ImGui::PopStyleColor();
+    }
+
+    if (ImGui::BeginPopupContextWindow("scene_hierarchy_ctx",
+            ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+    {
+        if (activeSession.SessionState == SceneSession::State::Edit)
+        {
+            if (ImGui::MenuItem("Create empty entity"))
+                host.AddEmptyEntity();
+        }
+        ImGui::EndPopup();
     }
 
     if (deleteID.has_value())

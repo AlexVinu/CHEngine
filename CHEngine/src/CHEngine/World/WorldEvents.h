@@ -17,6 +17,11 @@ struct DestroyRigidBodyEvent
     EntityHandle entityHandle{};
 };
 
+struct CreateRigidBodyEvent
+{
+    EntityHandle entityHandle{};
+};
+
 struct EntityExpiredEvent {
     EntityHandle entityHandle{};
 };

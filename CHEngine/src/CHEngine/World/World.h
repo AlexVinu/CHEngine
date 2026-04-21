@@ -16,6 +16,12 @@ namespace CHEngine
 {
     class Event;
     class EditorCamera;
+    enum class WorldState : uint8_t
+    {
+        Idle,
+        Presenting,
+        Simulating
+    };
 
     // You may not turn this into god class, so less functionality = good
     // It is just provides connection between Scene, Systems, Events and PhysicalWorld(if exists)
@@ -33,10 +39,8 @@ namespace CHEngine
         void OnEvent(Event& event);
 
         // ── Play / Pause / Edit mode control ─────────────────────────────────
-        void SetSimulating(bool sim) { m_Simulating = sim; }
-        bool IsSimulating()   const  { return m_Simulating; }
-        void SetActive(bool active)  { m_Active = active; }
-        bool IsActive()       const  { return m_Active; }
+        void SetState(WorldState new_state);
+        WorldState GetState() const { return m_State; }
 
         // WARNING !!!!!!!!!!!!!!!!
         // SHIT CODE but its necessary
@@ -58,8 +62,8 @@ namespace CHEngine
 
     private:
         void RegisterDefaultSystems();
+        void ApplyStateTransition(WorldState new_state);
 
-    private:
         SystemScheduler m_Scheduler;
         DeferredOps m_DeferredOps;
         EventBus m_EventBus;
@@ -70,8 +74,8 @@ namespace CHEngine
         // SHIT CODE but its necessary
         EditorCamera* m_Camera;
         // ---------------
-        bool   m_Active     = true;   // Presentation phase (рендер)
-        bool   m_Simulating = false;  // Simulation phase (физика, логика)
+        WorldState m_State = WorldState::Idle;
+        WorldState m_PendingState = WorldState::Idle;
         bool   m_InitializationDispatched = false;
     };
 }

@@ -36,7 +36,7 @@ void EditorViewport::End()
 {
 }
 
-void EditorViewport::Render(SceneSession* scene_session, CHEngine::Timestep dt)
+void EditorViewport::BeginSceneRender(SceneSession* scene_session)
 {
     CHE_PROFILE_FUNCTION();
     if (!scene_session)
@@ -45,50 +45,70 @@ void EditorViewport::Render(SceneSession* scene_session, CHEngine::Timestep dt)
     if (!scene_session->ViewportCamera)
         scene_session->ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
 
-    CHEngine::EditorCamera& viewportCamera = *scene_session->ViewportCamera;
+    auto* viewport_camera = scene_session->ViewportCamera.get();
+    if (!viewport_camera)
+        return;
 
     auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
     if (fbo)
         fbo->Bind();
     CHEngine::RenderFacade::Clear();
 
-    glm::mat4 vp = viewportCamera.GetViewProjection();
-    glm::mat4 invVP = glm::inverse(vp);
-    glm::vec3 camPos = viewportCamera.GetPosition();
-
-    CHEngine::UBOCamera cameraUBO{};
-    std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp), sizeof(cameraUBO.ViewProjection));
-    std::memcpy(cameraUBO.InvViewProj, glm::value_ptr(invVP), sizeof(cameraUBO.InvViewProj));
-    cameraUBO.CameraPos[0] = camPos.x;
-    cameraUBO.CameraPos[1] = camPos.y;
-    cameraUBO.CameraPos[2] = camPos.z;
-    cameraUBO.CameraPos[3] = 0.0f;
-
-    CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
-
-    if (m_ShowGrid)
+    // During Play, scene/RenderSystem owns the camera UBO; do not apply editor orbit camera here.
+    if (scene_session->SessionState != SceneSession::State::Play)
     {
-        if (m_GridShader.IsValid() && m_GridVAO.IsValid())
-        {
-            CHEngine::RenderFacade::SetBlend(true);
-            CHEngine::RenderFacade::SetDepthWrite(false);
+        glm::mat4 vp = viewport_camera->GetViewProjection();
+        glm::mat4 invVP = glm::inverse(vp);
+        glm::vec3 camPos = viewport_camera->GetPosition();
 
-            CHEngine::RenderFacade::Submit(m_GridShader, m_GridVAO, glm::mat4(1.0f));
+        CHEngine::UBOCamera cameraUBO{};
+        std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp), sizeof(cameraUBO.ViewProjection));
+        std::memcpy(cameraUBO.InvViewProj, glm::value_ptr(invVP), sizeof(cameraUBO.InvViewProj));
+        cameraUBO.CameraPos[0] = camPos.x;
+        cameraUBO.CameraPos[1] = camPos.y;
+        cameraUBO.CameraPos[2] = camPos.z;
+        cameraUBO.CameraPos[3] = 0.0f;
 
-            CHEngine::RenderFacade::SetDepthWrite(true);
-            CHEngine::RenderFacade::SetBlend(false);
-        }
+        CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
     }
 
-    if (m_SessionUpdate)
-        m_SessionUpdate(scene_session, dt);
+}
 
+void EditorViewport::DrawEditorOverlays(SceneSession* scene_session)
+{
+    CHE_PROFILE_FUNCTION();
+    if (!scene_session)
+        return;
+
+    // Editor-only floor grid; hide during Play/Pause so the runtime view matches a game camera.
+    const bool showEditorGrid = m_ShowGrid
+        && (scene_session->SessionState == SceneSession::State::Edit
+            || scene_session->SessionState == SceneSession::State::Simulate);
+    if (!showEditorGrid)
+        return;
+
+    if (m_GridShader.IsValid() && m_GridVAO.IsValid())
+    {
+        CHEngine::RenderFacade::SetBlend(true);
+        CHEngine::RenderFacade::SetDepthWrite(false);
+
+        CHEngine::RenderFacade::Submit(m_GridShader, m_GridVAO, glm::mat4(1.0f));
+
+        CHEngine::RenderFacade::SetDepthWrite(true);
+        CHEngine::RenderFacade::SetBlend(false);
+    }
+}
+
+void EditorViewport::EndSceneRender()
+{
+    CHE_PROFILE_FUNCTION();
+    auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
     if (fbo)
         fbo->Unbind();
 }
 
 void EditorViewport::DrawImGui(GizmoSystem& gizmo,
-                               EditorCamera& editor_camera,
+                               EditorCameraController& camera_controller,
                                SceneSession* scene_session,
                                const ImVec2& vp_pos,
                                const ImVec2& vp_size,
@@ -120,7 +140,7 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
         if (fbo)
             fbo->Resize(static_cast<uint32_t>(panelSize.x * fbScale.x),
                         static_cast<uint32_t>(panelSize.y * fbScale.y));
-        editor_camera.SetAspectRatio(panelSize.x / panelSize.y);
+        camera_controller.SetAspectRatio(panelSize.x / panelSize.y);
         scene_session->ViewportSize = { panelSize.x, panelSize.y };
         if (!scene_session->ViewportCamera)
             scene_session->ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();

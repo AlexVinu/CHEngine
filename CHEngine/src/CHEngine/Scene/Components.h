@@ -81,14 +81,22 @@ namespace CHEngine {
         IPhysicsShape* Shape = nullptr;
     };
 
-    struct TransformDirtyComponent
-    {
-        bool Dirty = true;
-    };
-
     struct LifetimeComponent
     {
         float RemainingSeconds = 0.0f;
         bool DestroyOnExpire = true;
     };
+
+    template<typename... Components>
+    struct ComponentGroup
+    {
+    };
+
+    using CopyableSceneComponents = ComponentGroup<
+        TransformComponent,
+        ColorComponent,
+        VisibilityComponent,
+        LightComponent,
+        CameraComponent,
+        LifetimeComponent>;
 }

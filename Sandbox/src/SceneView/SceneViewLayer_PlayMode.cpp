@@ -3,10 +3,8 @@
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 
-#include <CHEngine/Render/RenderResourceManager.h>
-#include <CHEngine/Scene/SceneSerializer.h>
 #include <CHEngine/World/ISystem.h>
-#include <CHEngine/World/WorldEvents.h>
+#include <CHEngine/World/World.h>
 
 void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
 {
@@ -15,32 +13,26 @@ void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
         return;
 
     CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
-    CHEngine::Scene& editorScene = *activeSession.EditorScene;
+    auto editor_scene_ref = activeSession.EditorScene;
+    if (!editor_scene_ref)
+        return;
+
     if (!activeSession.RuntimeWorld)
         activeSession.RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(activeSession.EditorScene.get());
-    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
 
-    CHEngine::SceneSerializer serializer{};
-    activeSession.m_SceneSnapshot = serializer.SerializeToJson(&editorScene);
-    activeSession.m_HasSceneSnapshot = true;
+    CHEngine::World* runtime_world = activeSession.RuntimeWorld.get();
+    if (!runtime_world)
+        return;
 
-    auto* resources = CHEngine::Application::Get().GetRenderResources();
-    if (resources)
-    {
-        CHEngine::Scope<CHEngine::Scene> runtimeScene = serializer.DeserializeFromJson(activeSession.m_SceneSnapshot, *resources);
-        if (runtimeScene)
-            activeSession.ActiveScene = CHEngine::CreateRef<CHEngine::Scene>(std::move(*runtimeScene));
-    }
+    activeSession.ActiveScene = CHEngine::CreateRef<CHEngine::Scene>(*editor_scene_ref);
     if (!activeSession.ActiveScene)
-        activeSession.ActiveScene = activeSession.EditorScene;
+        return;
 
     activeSession.m_CommandStack.Clear();
 
     CHE_CORE_ASSERT(activeSession.ActiveScene, "SceneViewLayer: ActiveScene must exist");
-    runtimeWorld.SetScene(activeSession.ActiveScene.get());
-    runtimeWorld.GetEvents().Publish<CHEngine::RebuildPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-    runtimeWorld.Update(CHEngine::Timestep(0.0f));
-    runtimeWorld.SetSimulating(true);
+    runtime_world->SetScene(activeSession.ActiveScene.get());
+    runtime_world->SetState(CHEngine::WorldState::Simulating);
 
     activeSession.SessionState = SceneSession::State::Play;
 }
@@ -52,9 +44,11 @@ void SceneViewLayerPlay::EnterPauseMode(SceneViewLayer& layer)
         return;
 
     CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
-    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+    CHEngine::World* runtime_world = activeSession.RuntimeWorld.get();
+    if (!runtime_world)
+        return;
 
-    runtimeWorld.SetSimulating(false);
+    runtime_world->SetState(CHEngine::WorldState::Presenting);
 
     activeSession.SessionState = SceneSession::State::Pause;
 }
@@ -66,8 +60,10 @@ void SceneViewLayerPlay::ResumeFromPause(SceneViewLayer& layer)
         return;
 
     CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
-    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
-    runtimeWorld.SetSimulating(true);
+    CHEngine::World* runtime_world = activeSession.RuntimeWorld.get();
+    if (!runtime_world)
+        return;
+    runtime_world->SetState(CHEngine::WorldState::Simulating);
 
     activeSession.SessionState = SceneSession::State::Play;
 }
@@ -79,31 +75,14 @@ void SceneViewLayerPlay::StopPlayMode(SceneViewLayer& layer)
         return;
 
     CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
-    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+    CHEngine::World* runtime_world = activeSession.RuntimeWorld.get();
+    if (!runtime_world)
+        return;
 
-    runtimeWorld.SetSimulating(false);
-    runtimeWorld.GetEvents().Publish<CHEngine::DestroyPhysicsWorldEvent>(CHEngine::SystemPhase::Simulation);
-    runtimeWorld.Update(CHEngine::Timestep(0.0f));
-
-    if (activeSession.m_HasSceneSnapshot)
-    {
-        auto* resources = CHEngine::Application::Get().GetRenderResources();
-        if (resources)
-        {
-            CHEngine::SceneSerializer serializer{};
-            CHEngine::Scope<CHEngine::Scene> restoredScene
-                = serializer.DeserializeFromJson(activeSession.m_SceneSnapshot, *resources);
-            if (restoredScene)
-            {
-                activeSession.EditorScene = CHEngine::CreateRef<CHEngine::Scene>(std::move(*restoredScene));
-            }
-        }
-        activeSession.m_HasSceneSnapshot = false;
-        activeSession.m_SceneSnapshot = {};
-    }
+    runtime_world->SetState(CHEngine::WorldState::Presenting);
 
     activeSession.ActiveScene = activeSession.EditorScene;
-    runtimeWorld.SetScene(activeSession.EditorScene.get());
+    runtime_world->SetScene(activeSession.EditorScene.get());
 
     activeSession.SelectedEntity = {};
 
@@ -117,9 +96,11 @@ void SceneViewLayerPlay::StepOneFrame(SceneViewLayer& layer)
         return;
 
     CHE_CORE_ASSERT(activeSession.RuntimeWorld, "SceneViewLayer: RuntimeWorld must exist");
-    CHEngine::World& runtimeWorld = *activeSession.RuntimeWorld;
+    CHEngine::World* runtime_world = activeSession.RuntimeWorld.get();
+    if (!runtime_world)
+        return;
 
-    runtimeWorld.SetSimulating(true);
-    runtimeWorld.Update(CHEngine::Timestep(activeSession.m_StepDt));
-    runtimeWorld.SetSimulating(false);
+    runtime_world->SetState(CHEngine::WorldState::Simulating);
+    runtime_world->Update(CHEngine::Timestep(activeSession.m_StepDt));
+    runtime_world->SetState(CHEngine::WorldState::Presenting);
 }

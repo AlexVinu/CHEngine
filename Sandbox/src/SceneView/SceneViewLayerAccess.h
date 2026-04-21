@@ -9,7 +9,7 @@ class SceneViewLayer;
 struct EditorWorldContext;
 
 namespace Sandbox {
-class EditorCamera;
+class EditorCameraController;
 class EditorViewport;
 class GizmoSystem;
 class ToolbarPanel;
@@ -27,7 +27,7 @@ struct SceneViewLayerAccess
     static size_t ActiveIndex(const SceneViewLayer& layer);
     static void SetActiveIndex(SceneViewLayer& layer, size_t index);
 
-    static Sandbox::EditorCamera& Camera(SceneViewLayer& layer);
+    static Sandbox::EditorCameraController& CameraController(SceneViewLayer& layer);
     static Sandbox::EditorViewport& Viewport(SceneViewLayer& layer);
     static Sandbox::GizmoSystem& Gizmo(SceneViewLayer& layer);
     static ContentBrowserPanel& ContentBrowser(SceneViewLayer& layer);
