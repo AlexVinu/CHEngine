@@ -29,7 +29,7 @@ EditorWorldContext& SceneViewLayerHost::GetActiveSceneSession()
 
 Sandbox::CommandStack& SceneViewLayerHost::GetCommandStack()
 {
-    return SceneViewLayerAccess::Active(m_Layer).m_CommandStack;
+    return SceneViewLayerAccess::Active(m_Layer).CommandStack;
 }
 
 Sandbox::EditorCameraController& SceneViewLayerHost::GetEditorCameraController()
@@ -44,22 +44,22 @@ Sandbox::EditorViewport& SceneViewLayerHost::GetEditorViewport()
 
 ImGuizmo::OPERATION& SceneViewLayerHost::GetGizmoOperation()
 {
-    return SceneViewLayerAccess::Active(m_Layer).m_GizmoOperation;
+    return SceneViewLayerAccess::Active(m_Layer).GizmoOperation;
 }
 
 ImGuizmo::MODE& SceneViewLayerHost::GetGizmoMode()
 {
-    return SceneViewLayerAccess::Active(m_Layer).m_GizmoMode;
+    return SceneViewLayerAccess::Active(m_Layer).GizmoMode;
 }
 
 bool& SceneViewLayerHost::GetLocalMode()
 {
-    return SceneViewLayerAccess::Active(m_Layer).m_LocalMode;
+    return SceneViewLayerAccess::Active(m_Layer).LocalMode;
 }
 
 bool& SceneViewLayerHost::GetShowProfiler()
 {
-    return SceneViewLayerAccess::Active(m_Layer).m_ShowProfiler;
+    return SceneViewLayerAccess::Active(m_Layer).ShowProfiler;
 }
 
 std::vector<EditorWorldContext>& SceneViewLayerHost::GetSceneSessions()
@@ -87,21 +87,23 @@ void SceneViewLayerHost::AddSceneSession()
     else
         session.ViewportSize = active.ViewportSize;
     session.ViewportCamera->SetViewportSize(session.ViewportSize.x, session.ViewportSize.y);
-    session.m_EditorCameraState = active.m_EditorCameraState;
+    session.EditorCameraState = active.EditorCameraState;
+    SceneViewLayerAccess::CameraController(m_Layer).ApplyOrbit(
+        session.ViewportCamera.get(), session.EditorCameraState);
     SceneViewLayerAccess::Sessions(m_Layer).push_back(std::move(session));
     SceneViewLayerAccess::SetActiveIndex(m_Layer, SceneViewLayerAccess::Sessions(m_Layer).size() - 1);
 }
 
 CHEngine::Transform& SceneViewLayerHost::GetTransformBeforeDrag()
 {
-    return SceneViewLayerAccess::Active(m_Layer).m_TransformBeforeDrag;
+    return SceneViewLayerAccess::Active(m_Layer).TransformBeforeDrag;
 }
 
 void SceneViewLayerHost::RequestUndo()
 {
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(m_Layer);
-    if (ctx.m_CommandStack.CanUndo())
-        ctx.m_CommandStack.Undo();
+    if (ctx.CommandStack.CanUndo())
+        ctx.CommandStack.Undo();
 }
 
 void SceneViewLayerHost::OpenSceneDialog()
@@ -118,7 +120,7 @@ void SceneViewLayerHost::ResetViewportCamera()
 {
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(m_Layer);
     CHEngine::EditorCamera* viewportCamera = ctx.ViewportCamera.get();
-    Sandbox::EditorCameraState& camera_state = ctx.m_EditorCameraState;
+    Sandbox::EditorCameraState& camera_state = ctx.EditorCameraState;
     camera_state.OrbitTarget = { 0.0f, 0.0f, 0.0f };
     camera_state.OrbitDist = 8.0f;
     viewportCamera->SetYaw(glm::radians(-90.0f));
@@ -130,7 +132,7 @@ void SceneViewLayerHost::ResetViewportCamera()
 void SceneViewLayerHost::AddDirectionalLight()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    auto scene_ref = activeSession.ActiveScene;
+    auto scene_ref = activeSession.EditorScene;
     if (!scene_ref)
         return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
@@ -148,7 +150,7 @@ void SceneViewLayerHost::AddDirectionalLight()
 void SceneViewLayerHost::AddPointLight()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    auto scene_ref = activeSession.ActiveScene;
+    auto scene_ref = activeSession.EditorScene;
     if (!scene_ref)
         return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
@@ -166,7 +168,7 @@ void SceneViewLayerHost::AddPointLight()
 void SceneViewLayerHost::AddSpotLight()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    auto scene_ref = activeSession.ActiveScene;
+    auto scene_ref = activeSession.EditorScene;
     if (!scene_ref)
         return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
@@ -188,7 +190,7 @@ void SceneViewLayerHost::AddSpotLight()
 void SceneViewLayerHost::AddEmptyEntity()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    auto scene_ref = activeSession.ActiveScene;
+    auto scene_ref = activeSession.EditorScene;
     if (!scene_ref)
         return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
@@ -204,7 +206,7 @@ void SceneViewLayerHost::SetSelection(CHEngine::EntityHandle handle)
 void SceneViewLayerHost::DestroyEntityByUuid(const CHEngine::UUID& object_id)
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    auto scene_ref = activeSession.ActiveScene;
+    auto scene_ref = activeSession.EditorScene;
     if (!scene_ref)
         return;
     if (scene_ref->IsEntityHandleValid(activeSession.SelectedEntity)
@@ -229,7 +231,7 @@ void SceneViewLayerHost::ToggleUiTheme()
 void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene* scene = activeSession.ActiveScene.get();
+    CHEngine::Scene* scene = activeSession.EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession.SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))
         return;
@@ -260,7 +262,7 @@ void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_ind
 void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index)
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene* scene = activeSession.ActiveScene.get();
+    CHEngine::Scene* scene = activeSession.EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession.SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))
         return;
@@ -290,7 +292,7 @@ void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_ind
 void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene* scene = activeSession.ActiveScene.get();
+    CHEngine::Scene* scene = activeSession.EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession.SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))
         return;
@@ -321,7 +323,7 @@ void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_in
 void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_index)
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
-    CHEngine::Scene* scene = activeSession.ActiveScene.get();
+    CHEngine::Scene* scene = activeSession.EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession.SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))
         return;
@@ -396,9 +398,4 @@ void SceneViewLayerHost::ResumeFromPause()
 void SceneViewLayerHost::StopPlayMode()
 {
     SceneViewLayerPlay::StopPlayMode(m_Layer);
-}
-
-void SceneViewLayerHost::StepOneFrame()
-{
-    SceneViewLayerPlay::StepOneFrame(m_Layer);
 }

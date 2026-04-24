@@ -42,7 +42,7 @@ public:
     void UpdateCameraInput(const InputSnapshot& input_snapshot,
                            CHEngine::EditorCamera* viewport_camera,
                            EditorCameraState& camera_state,
-                           CHEngine::Scene* active_scene,
+                           CHEngine::Ref<CHEngine::Scene> editor_scene,
                            CHEngine::EntityHandle selected_entity);
     void SetViewPreset(float yaw_degrees,
                        float pitch_degrees,
@@ -55,7 +55,7 @@ public:
     void OnEvent(CHEngine::Event& e);
     void OnUpdate(CHEngine::EditorCamera* viewport_camera,
                   EditorCameraState& camera_state,
-                  CHEngine::Scene* active_scene,
+                  CHEngine::Ref<CHEngine::Scene> editor_scene,
                   CHEngine::EntityHandle selected_entity,
                   const InputSnapshot& input_snapshot);
 

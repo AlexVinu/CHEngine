@@ -36,7 +36,7 @@ namespace CHEngine {
 
     void RenderSystem::Run(World& world, DeferredOps& /*deferred_ops*/, Timestep /*ts*/)
     {
-        auto* scene = world.GetScene();
+        auto scene = world.GetSceneRef();
 
         UBOCamera cameraUBO{};
         if (!ResolveCamera(world, *scene, cameraUBO))

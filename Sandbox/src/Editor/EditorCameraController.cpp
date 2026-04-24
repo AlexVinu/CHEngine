@@ -58,12 +58,9 @@ void EditorCameraController::FocusOnPoint(const glm::vec3& target,
 void EditorCameraController::UpdateCameraInput(const InputSnapshot& input_snapshot,
                                                CHEngine::EditorCamera* viewport_camera,
                                                EditorCameraState& camera_state,
-                                               CHEngine::Scene* active_scene,
+                                               CHEngine::Ref<CHEngine::Scene> editor_scene,
                                                CHEngine::EntityHandle selected_entity)
 {
-    (void)active_scene;
-    (void)selected_entity;
-
     if (!viewport_camera || !input_snapshot.IsViewportHovered)
         return;
 
@@ -118,7 +115,7 @@ void EditorCameraController::OnEvent(CHEngine::Event& e)
 
 void EditorCameraController::OnUpdate(CHEngine::EditorCamera* viewport_camera,
                                       EditorCameraState& camera_state,
-                                      CHEngine::Scene* active_scene,
+                                      CHEngine::Ref<CHEngine::Scene> editor_scene,
                                       CHEngine::EntityHandle selected_entity,
                                       const InputSnapshot& input_snapshot)
 {
@@ -126,11 +123,11 @@ void EditorCameraController::OnUpdate(CHEngine::EditorCamera* viewport_camera,
         || !input_snapshot.IsViewportHovered
         || input_snapshot.IsGizmoUsing
         || !viewport_camera
-        || !active_scene
+        || !editor_scene
         || !selected_entity.IsValid())
         return;
 
-    CHEngine::Entity* entity = active_scene->TryGetEntity(selected_entity);
+    CHEngine::Entity* entity = editor_scene->TryGetEntity(selected_entity);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
         return;
 

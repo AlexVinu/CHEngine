@@ -72,18 +72,18 @@ namespace CHEngine
     struct AddComponentCommand
     {
         DeferredEntityTarget Target;
-        std::function<void(Scene*, EntityHandle)> Apply;
+        std::function<void(Ref<Scene>, EntityHandle)> Apply;
     };
 
     struct RemoveComponentCommand
     {
         DeferredEntityTarget Target;
-        std::function<void(Scene*, EntityHandle)> Apply;
+        std::function<void(Ref<Scene>, EntityHandle)> Apply;
     };
 
     struct CustomCommand
     {
-        std::function<void(Scene*)> Callback;
+        std::function<void(Ref<Scene>)> Callback;
     };
 
     using DeferredCommandRecord = std::variant<CreateEntityCommand, DestroyEntityCommand, AddComponentCommand, RemoveComponentCommand, CustomCommand>;
@@ -93,7 +93,7 @@ namespace CHEngine
         friend class World;
 
     public:
-        using FnOnScene = std::function<void(Scene*)>;
+        using FnOnScene = std::function<void(Ref<Scene>)>;
 
         // Create / destroy operations.
         DeferredEntityHandle CreateEntity(const std::string& name = "Object");
@@ -161,7 +161,7 @@ namespace CHEngine
             AddComponentCommand command{};
             command.Target = target;
             auto tuple_args = std::make_tuple(std::forward<Args>(args)...);
-            command.Apply = [tuple_args = std::move(tuple_args)](Scene* scene, EntityHandle entity_handle) mutable
+            command.Apply = [tuple_args = std::move(tuple_args)](Ref<Scene> scene, EntityHandle entity_handle) mutable
             {
                 Entity* entity = scene->TryGetEntity(entity_handle);
                 if (!entity || entity->HasComponent<T>())
@@ -182,7 +182,7 @@ namespace CHEngine
         {
             RemoveComponentCommand command{};
             command.Target = target;
-            command.Apply = [](Scene* scene, EntityHandle entity_handle)
+            command.Apply = [](Ref<Scene> scene, EntityHandle entity_handle)
             {
                 Entity* entity = scene->TryGetEntity(entity_handle);
                 if (!entity || !entity->HasComponent<T>())
@@ -192,10 +192,10 @@ namespace CHEngine
             m_Commands.emplace_back(std::move(command));
         }
 
-        EntityHandle ResolveTarget(Scene* scene, const DeferredEntityTarget& target, const std::unordered_map<DeferredEntityHandle, EntityHandle>& created_handles) const;
+        EntityHandle ResolveTarget(Ref<Scene> scene, const DeferredEntityTarget& target, const std::unordered_map<DeferredEntityHandle, EntityHandle>& created_handles) const;
         static uint64_t HandleToKey(EntityHandle entity_handle);
 
-        void Flush(Scene* scene);
+        void Flush(Ref<Scene> scene);
 
     private:
         std::vector<DeferredCommandRecord> m_Commands;

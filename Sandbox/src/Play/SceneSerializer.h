@@ -16,10 +16,10 @@ public:
     SceneSerializer();
 
     /// Serializes \p world.GetScene() to \p path (pretty-printed JSON). Updates recent list on success.
-    bool Save(CHEngine::World& world, const std::string& path);
+    bool Save(CHEngine::Ref<CHEngine::Scene> editor_scene, const std::string& path);
 
     /// Loads a scene from \p path. Returns null on failure. Updates recent list on success.
-    CHEngine::Scope<CHEngine::Scene> Load(const std::string& path);
+    CHEngine::Ref<CHEngine::Scene> Load(const std::string& path);
 
     CHEngine::RecentFiles& GetRecentFiles() { return m_RecentFiles; }
     const CHEngine::RecentFiles& GetRecentFiles() const { return m_RecentFiles; }

@@ -7,7 +7,6 @@
 namespace CHEngine
 {
     enum class SystemPhase : uint8_t {
-        Initialization,
         Simulation,
         Presentation,
         SIZE

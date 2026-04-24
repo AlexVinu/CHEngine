@@ -11,7 +11,7 @@ void LifetimeSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
     if (dt <= 0.0f)
         return;
 
-    auto* scene = world.GetScene();
+    auto scene = world.GetSceneRef();
     scene->ForEach<LifetimeComponent>([&](EntityHandle handle, const UUID&, LifetimeComponent& lifetime) {
         if (!lifetime.DestroyOnExpire || lifetime.RemainingSeconds <= 0.0f)
             return;

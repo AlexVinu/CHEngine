@@ -21,7 +21,7 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
         UIActive::EndPanel();
         return;
     }
-    Sandbox::EditorCameraState& cameraState = host.GetActiveSceneSession().m_EditorCameraState;
+    Sandbox::EditorCameraState& cameraState = host.GetActiveSceneSession().EditorCameraState;
 
     UIActive::SectionHeader("VIEW");
 

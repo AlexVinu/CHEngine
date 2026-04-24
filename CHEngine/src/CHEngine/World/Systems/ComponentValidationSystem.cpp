@@ -12,7 +12,7 @@ namespace CHEngine {
 
 void ComponentValidationSystem::Run(World& world, DeferredOps& deferred_ops, Timestep)
 {
-    auto* scene = world.GetScene();
+    auto scene = world.GetSceneRef();
     std::vector<EntityHandle> rigidBodiesWithoutTransform;
     scene->ForEach<RigidBody3DComponent>([&](EntityHandle handle, const UUID& uuid, RigidBody3DComponent& rigidBody) {
         Entity* entity = scene->TryGetEntity(handle);

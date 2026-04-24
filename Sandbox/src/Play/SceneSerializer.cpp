@@ -14,20 +14,13 @@ SceneSerializer::SceneSerializer()
     m_RecentFiles.LoadFromFile(k_RecentScenesListPath);
 }
 
-bool SceneSerializer::Save(CHEngine::World& world, const std::string& path)
+bool SceneSerializer::Save(CHEngine::Ref<CHEngine::Scene> editor_scene, const std::string& path)
 {
     if (path.empty())
         return false;
 
-    CHEngine::Scene* scene = world.GetScene();
-    if (!scene)
-    {
-        CHE_CORE_ERROR("Sandbox::SceneSerializer::Save: World has no scene");
-        return false;
-    }
-
     CHEngine::SceneSerializer engineSerializer{};
-    nlohmann::json sceneJson = engineSerializer.SerializeToJson(scene);
+    nlohmann::json sceneJson = engineSerializer.SerializeToJson(editor_scene);
 
     if (!CHEngine::FileSystem::WriteFileText(path, sceneJson.dump(4)))
     {
@@ -41,7 +34,7 @@ bool SceneSerializer::Save(CHEngine::World& world, const std::string& path)
     return true;
 }
 
-CHEngine::Scope<CHEngine::Scene> SceneSerializer::Load(const std::string& path)
+CHEngine::Ref<CHEngine::Scene> SceneSerializer::Load(const std::string& path)
 {
     if (path.empty())
         return {};
@@ -72,7 +65,7 @@ CHEngine::Scope<CHEngine::Scene> SceneSerializer::Load(const std::string& path)
     }
 
     CHEngine::SceneSerializer engineSerializer{};
-    CHEngine::Scope<CHEngine::Scene> loadedScene = engineSerializer.DeserializeFromJson(sceneJson, *resources_ptr);
+    CHEngine::Ref<CHEngine::Scene> loadedScene = engineSerializer.DeserializeFromJson(sceneJson, *resources_ptr);
     if (!loadedScene)
         return {};
 

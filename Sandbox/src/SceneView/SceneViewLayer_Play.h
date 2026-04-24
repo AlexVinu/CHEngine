@@ -8,6 +8,5 @@ void EnterPlayMode(SceneViewLayer& layer);
 void EnterPauseMode(SceneViewLayer& layer);
 void ResumeFromPause(SceneViewLayer& layer);
 void StopPlayMode(SceneViewLayer& layer);
-void StepOneFrame(SceneViewLayer& layer);
 
 } // namespace SceneViewLayerPlay

@@ -10,31 +10,13 @@
 #include <Log/Log.h>
 #include <Profiler.h>
 
-namespace {
-
-CHEngine::WorldState ToActiveWorldState(SceneSession::State state)
-{
-    switch (state)
-    {
-    case SceneSession::State::Play:
-    case SceneSession::State::Simulate:
-        return CHEngine::WorldState::Simulating;
-    case SceneSession::State::Pause:
-    case SceneSession::State::Edit:
-    default:
-        return CHEngine::WorldState::Presenting;
-    }
-}
-
-} // namespace
-
 SceneViewLayer::SceneViewLayer()
     : Layer("SceneView")
 {
     m_Sessions.reserve(16);
     m_Sessions.emplace_back();
 
-    m_GizmoSystem.BindCommandStack(&SceneViewLayerAccess::Active(*this).m_CommandStack);
+    m_GizmoSystem.BindCommandStack(&SceneViewLayerAccess::Active(*this).CommandStack);
 
     UIActive::SetTheme(AppTheme::RetroOS);
     UIActive::SyncLayout();
@@ -57,24 +39,21 @@ void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
 
     for (size_t i = 0; i < sessions.size(); ++i)
     {
-        if (sessions[i].RuntimeWorld)
+        sessions[i].IsActive = false;
+        if (i == active_index)
         {
-            CHEngine::WorldState target_state = CHEngine::WorldState::Idle;
-            if (i == active_index)
-                target_state = ToActiveWorldState(sessions[i].SessionState);
-
-            sessions[i].RuntimeWorld->SetState(target_state);
+            sessions[i].IsActive = true;
         }
     }
 
     for (size_t i = 0; i < sessions.size(); ++i)
     {
-        if (i != active_index && sessions[i].RuntimeWorld)
-            sessions[i].RuntimeWorld->Update(dt);
+        if (i != active_index)
+            sessions[i].Update(dt);
     }
 
     EditorWorldContext* active = &sessions[active_index];
-    m_GizmoSystem.BindCommandStack(&active->m_CommandStack);
+    m_GizmoSystem.BindCommandStack(&active->CommandStack);
     m_Viewport.BeginSceneRender(active);
     active->Update(dt);
     m_Viewport.DrawEditorOverlays(active);

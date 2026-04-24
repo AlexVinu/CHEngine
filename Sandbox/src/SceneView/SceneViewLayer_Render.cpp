@@ -27,7 +27,7 @@ void DrawOrbitIndicator(SceneViewLayer& layer)
     glm::mat4 view = viewport_camera->GetViewMatrix();
     glm::mat4 proj = viewport_camera->GetProjectionMatrix();
 
-    glm::vec4 clip = proj * view * glm::vec4(ctx.m_EditorCameraState.OrbitTarget, 1.0f);
+    glm::vec4 clip = proj * view * glm::vec4(ctx.EditorCameraState.OrbitTarget, 1.0f);
     if (clip.w <= 0.0f)
         return;
 
