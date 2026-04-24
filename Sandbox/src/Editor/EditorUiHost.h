@@ -44,7 +44,6 @@ public:
     virtual void EnterPauseMode() = 0;
     virtual void ResumeFromPause() = 0;
     virtual void StopPlayMode() = 0;
-    virtual void StepOneFrame() = 0;
 
     virtual void SaveScene() = 0;
     virtual void OpenSceneDialog() = 0;

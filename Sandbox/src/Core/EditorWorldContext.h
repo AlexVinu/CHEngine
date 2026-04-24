@@ -17,17 +17,20 @@ struct EditorWorldContext : public SceneSession
     EditorWorldContext(EditorWorldContext&&) = default;
     EditorWorldContext& operator=(EditorWorldContext&&) = default;
 
-    Sandbox::CommandStack m_CommandStack{};
-    CHEngine::Transform m_TransformBeforeDrag{};
+    Sandbox::CommandStack CommandStack{};
+    CHEngine::Transform TransformBeforeDrag{};
 
-    ImGuizmo::OPERATION m_GizmoOperation = ImGuizmo::TRANSLATE;
-    ImGuizmo::MODE m_GizmoMode = ImGuizmo::WORLD;
-    bool m_LocalMode = false;
-    bool m_ShowProfiler = false;
-    bool m_ResetLayout = false;
-    float m_ContentBrowserHeight = 200.0f;
-    float m_StepDt = 1.0f / 60.0f;
-    Sandbox::EditorCameraState m_EditorCameraState{};
+    ImGuizmo::OPERATION GizmoOperation = ImGuizmo::TRANSLATE;
+    ImGuizmo::MODE GizmoMode = ImGuizmo::WORLD;
+    bool LocalMode = false;
+    bool ShowProfiler = false;
+    bool ResetLayout = false;
+    bool IsActive = false;
+    float ContentBrowserHeight = 200.0f;
+    float StepDt = 1.0f / 60.0f;
+    Sandbox::EditorCameraState EditorCameraState{};
 
     void Update(CHEngine::Timestep dt);
+    void ActivateActiveScene();
+    void ActivateEditorScene();
 };

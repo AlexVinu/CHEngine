@@ -35,18 +35,18 @@ void GizmoSystem::Draw(SceneSession* scene_session,
         return;
     }
 
-    if (!scene_session->ViewportCamera || !scene_session->ActiveScene)
+    if (!scene_session->ViewportCamera || !scene_session->EditorScene)
         return;
 
     auto* viewport_camera = scene_session->ViewportCamera.get();
-    auto* scene_ptr = scene_session->ActiveScene.get();
-    if (!viewport_camera || !scene_ptr)
+    auto scene_ref = scene_session->EditorScene;
+    if (!viewport_camera || !scene_ref)
         return;
     const CHEngine::EntityHandle selectedHandle = scene_session->SelectedEntity;
-    if (!scene_ptr->IsEntityHandleValid(selectedHandle))
+    if (!scene_ref->IsEntityHandleValid(selectedHandle))
         return;
 
-    auto* entity = scene_ptr->TryGetEntity(selectedHandle);
+    auto* entity = scene_ref->TryGetEntity(selectedHandle);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
         return;
 
@@ -102,7 +102,7 @@ void GizmoSystem::Draw(SceneSession* scene_session,
     if (m_GizmoWasUsing && !ImGuizmo::IsUsing() && m_CommandStack)
     {
         auto command = CHEngine::MakeScope<SetTransformCommand>(
-            scene_ptr,
+            scene_ref,
             selectedHandle,
             m_TransformBeforeDrag,
             selectedTransform);

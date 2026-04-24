@@ -33,7 +33,6 @@ public:
     void EnterPauseMode() override;
     void ResumeFromPause() override;
     void StopPlayMode() override;
-    void StepOneFrame() override;
 
     void SaveScene() override;
     void OpenSceneDialog() override;

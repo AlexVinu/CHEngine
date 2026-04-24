@@ -109,11 +109,6 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
                     host.GetCommandStack().Push(
                         CHEngine::MakeScope<CallbackCommand>([&host] { host.StopPlayMode(); }, [] {}, false));
                 }
-                if (mod && ImGui::GetIO().KeyShift && ImGui::IsKeyPressed(ImGuiKey_RightArrow, false))
-                {
-                    host.GetCommandStack().Push(
-                        CHEngine::MakeScope<CallbackCommand>([&host] { host.StepOneFrame(); }, [] {}, false));
-                }
             }
 
             const bool isEdit = (activeSession.SessionState == SceneSession::State::Edit);
@@ -186,13 +181,6 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
             ImGui::SameLine(0, gap);
             vcenter(ImGui::GetFrameHeight());
 
-            ImGui::BeginDisabled(!isPause);
-            if (ImGui::Button("Step##playctrl", ImVec2(stepW, 0)))
-            {
-                host.GetCommandStack().Push(
-                    CHEngine::MakeScope<CallbackCommand>([&host] { host.StepOneFrame(); }, [] {}, false));
-            }
-            ImGui::EndDisabled();
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Step one frame  (Cmd+Shift+Right)");
         }

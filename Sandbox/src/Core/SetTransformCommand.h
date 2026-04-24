@@ -79,7 +79,7 @@ private:
 class SetTransformCommand final : public ICommand
 {
 public:
-    SetTransformCommand(CHEngine::Scene* scene,
+    SetTransformCommand(CHEngine::Ref<CHEngine::Scene> scene,
                         CHEngine::EntityHandle entity_handle,
                         const CHEngine::Transform& before_transform,
                         const CHEngine::Transform& after_transform)
@@ -114,7 +114,7 @@ private:
     }
 
 private:
-    CHEngine::Scene* m_Scene = nullptr;
+    CHEngine::Ref<CHEngine::Scene> m_Scene = nullptr;
     CHEngine::EntityHandle m_EntityHandle{};
     CHEngine::Transform m_BeforeTransform{};
     CHEngine::Transform m_AfterTransform{};
@@ -153,7 +153,7 @@ private:
 class SetVisibilityCommand final : public ICommand
 {
 public:
-    SetVisibilityCommand(CHEngine::Scene* scene,
+    SetVisibilityCommand(CHEngine::Ref<CHEngine::Scene> scene,
                          const CHEngine::UUID& object_id,
                          bool before_visible,
                          bool after_visible)
@@ -180,7 +180,7 @@ private:
     }
 
 private:
-    CHEngine::Scene* m_Scene = nullptr;
+    CHEngine::Ref<CHEngine::Scene> m_Scene = nullptr;
     CHEngine::UUID m_ObjectId{};
     bool m_BeforeVisible = false;
     bool m_AfterVisible = false;

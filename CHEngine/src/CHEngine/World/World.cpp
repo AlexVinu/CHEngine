@@ -21,14 +21,14 @@ namespace CHEngine
         RegisterDefaultSystems();
     }
 
-    World::World(Scene* scene)
+    World::World(Ref<Scene> scene)
         : m_Scene(scene)
         , m_Camera(nullptr)
     {
         RegisterDefaultSystems();
     }
 
-    void World::SetScene(Scene* scene)
+    void World::SetScene(Ref<Scene> scene)
     {
         if (m_Scene == scene)
             return;
@@ -37,9 +37,8 @@ namespace CHEngine
         m_Scene = scene;
         m_DeferredOps.Clear();
         m_EventBus.ClearAll();
-        m_State = WorldState::Idle;
-        m_PendingState = WorldState::Idle;
-        m_InitializationDispatched = false;
+        m_State = WorldState::NONE;
+        m_PendingState = WorldState::NONE;
     }
 
     void World::SetState(WorldState new_state)
@@ -52,38 +51,22 @@ namespace CHEngine
         m_PhysicsWorldDesc = world_desc;
     }
 
-    Scene* World::GetScene()
-    {
-        CHE_CORE_ASSERT(m_Scene, "World::GetScene called without a bound scene");
-        return m_Scene;
-    }
-
-    const Scene* World::GetScene() const
-    {
-        CHE_CORE_ASSERT(m_Scene, "World::GetScene called without a bound scene");
-        return m_Scene;
-    }
-
     void World::Update(Timestep dt)
     {
         if (!m_Scene)
             return;
 
+        // Processing state changes BEFORE everything else
         if (m_PendingState != m_State)
             ApplyStateTransition(m_PendingState);
 
-        if (m_State == WorldState::Simulating && !m_InitializationDispatched)
-        {
-            m_Scheduler.RunPhase(SystemPhase::Initialization, *this, m_DeferredOps, dt);
-            m_InitializationDispatched = true;
-        }
-
-        if (m_State == WorldState::Simulating)
+        if (m_State == WorldState::Simulating || m_State == WorldState::SimulatingWithoutPresenting)
             m_Scheduler.RunPhase(SystemPhase::Simulation, *this, m_DeferredOps, dt);
 
         if (m_State == WorldState::Presenting || m_State == WorldState::Simulating)
             m_Scheduler.RunPhase(SystemPhase::Presentation, *this, m_DeferredOps, dt);
 
+        // Processing deffered operations like components changes/creations/deletions
         m_DeferredOps.Flush(m_Scene);
     }
 
@@ -92,7 +75,7 @@ namespace CHEngine
     if (new_state == m_State)
         return;
 
-    // --- EXIT текущего состояния ---
+    // --- EXIT current state ---
     switch (m_State)
     {
         case WorldState::Simulating:
@@ -102,22 +85,27 @@ namespace CHEngine
         case WorldState::Presenting:
             m_Scheduler.NotifyEnd(SystemPhase::Presentation, *this, m_DeferredOps);
             break;
+        case WorldState::SimulatingWithoutPresenting:
+            m_Scheduler.NotifyEnd(SystemPhase::Simulation, *this, m_DeferredOps);
+            break;
         default:
             break;
     }
 
     m_State = new_state;
 
-    // --- ENTER нового состояния ---
+    // --- ENTER new state ---
     switch (m_State)
     {
         case WorldState::Simulating:
             m_Scheduler.NotifyBegin(SystemPhase::Presentation, *this, m_DeferredOps);
             m_Scheduler.NotifyBegin(SystemPhase::Simulation, *this, m_DeferredOps);
-            m_InitializationDispatched = false;
             break;
         case WorldState::Presenting:
             m_Scheduler.NotifyBegin(SystemPhase::Presentation, *this, m_DeferredOps);
+            break;
+        case WorldState::SimulatingWithoutPresenting:
+            m_Scheduler.NotifyBegin(SystemPhase::Simulation, *this, m_DeferredOps);
             break;
         default:
             break;

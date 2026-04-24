@@ -136,7 +136,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     UIActive::BeginPanel("Properties", pos, size, 0, reset_layout);
     SceneSession& activeSession = host.GetActiveSceneSession();
 
-    CHEngine::Scene* scene_ptr = activeSession.ActiveScene ? activeSession.ActiveScene.get() : activeSession.EditorScene.get();
+    auto scene_ptr = activeSession.EditorScene;
     if (!scene_ptr)
     {
         ImGui::Spacing();

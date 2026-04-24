@@ -32,8 +32,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const float sH = H - L.toolbarH;
 
     EditorWorldContext* activeCtx = &SceneViewLayerAccess::Active(layer);
-    const bool reset = activeCtx->m_ResetLayout;
-    activeCtx->m_ResetLayout = false;
+    const bool reset = activeCtx->ResetLayout;
+    activeCtx->ResetLayout = false;
 
     const ImVec2 tbPos = { 0.0f, 0.0f };
     const ImVec2 tbSize = { W, L.toolbarH };
@@ -45,7 +45,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const ImVec2 camSize = { rightW, sH * (1.0f - L.propsFrac) };
 
     SceneViewLayerAccess::Toolbar(layer).Draw(host, tbPos, tbSize);
-    // Toolbar runs commands immediately (e.g. + Session → push_back may reallocate m_Sessions).
+    // Toolbar runs commands immediately (e.g. + Session → push_back may reallocate Sessions).
     activeCtx = &SceneViewLayerAccess::Active(layer);
 
     SceneViewLayerAccess::Hierarchy(layer).Draw(host, scenePos, sceneSize, reset);
@@ -54,7 +54,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     activeCtx = &SceneViewLayerAccess::Active(layer);
 
     {
-        const float vpH = sH - activeCtx->m_ContentBrowserHeight;
+        const float vpH = sH - activeCtx->ContentBrowserHeight;
         const ImVec2 vpPos = { leftW, L.toolbarH };
         const ImVec2 vpSize = { W - leftW - rightW, vpH };
         viewport.DrawImGui(SceneViewLayerAccess::Gizmo(layer),
@@ -62,14 +62,14 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
                            activeCtx,
                            vpPos,
                            vpSize,
-                           activeCtx->m_GizmoOperation,
-                           activeCtx->m_GizmoMode);
+                           activeCtx->GizmoOperation,
+                           activeCtx->GizmoMode);
     }
 
     {
-        const float bottomY = L.toolbarH + (sH - activeCtx->m_ContentBrowserHeight);
+        const float bottomY = L.toolbarH + (sH - activeCtx->ContentBrowserHeight);
         const ImVec2 browserPos = { leftW, bottomY };
-        const ImVec2 browserSize = { W - leftW - rightW, activeCtx->m_ContentBrowserHeight };
+        const ImVec2 browserSize = { W - leftW - rightW, activeCtx->ContentBrowserHeight };
         std::string action = SceneViewLayerAccess::ContentBrowser(layer).OnImGuiRender(browserPos, browserSize);
         if (!action.empty())
         {

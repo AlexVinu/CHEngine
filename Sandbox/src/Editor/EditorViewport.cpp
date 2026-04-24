@@ -82,8 +82,7 @@ void EditorViewport::DrawEditorOverlays(SceneSession* scene_session)
 
     // Editor-only floor grid; hide during Play/Pause so the runtime view matches a game camera.
     const bool showEditorGrid = m_ShowGrid
-        && (scene_session->SessionState == SceneSession::State::Edit
-            || scene_session->SessionState == SceneSession::State::Simulate);
+        && (scene_session->SessionState == SceneSession::State::Edit);
     if (!showEditorGrid)
         return;
 

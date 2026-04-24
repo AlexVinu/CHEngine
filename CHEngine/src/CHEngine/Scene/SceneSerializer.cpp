@@ -204,7 +204,7 @@ RigidBody3DComponent DeserializeRigidBody(const json& rbj)
     return rigidBody;
 }
 
-bool DeserializeSceneData(Scene* scene, const json& data, RenderResourceManager& resources)
+bool DeserializeSceneData(Ref<Scene> scene, const json& data, RenderResourceManager& resources)
 {
     if (!data.is_object() || !data.contains("objects") || !data["objects"].is_array()) {
         CHE_CORE_ERROR("SceneSerializer: malformed scene data (missing 'objects' array)");
@@ -457,7 +457,7 @@ bool DeserializeSceneData(Scene* scene, const json& data, RenderResourceManager&
 
 } // namespace
 
-bool SceneSerializer::SaveToFile(Scene* scene, const std::string& path) {
+bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
     json j;
     j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
@@ -541,7 +541,7 @@ bool SceneSerializer::SaveToFile(Scene* scene, const std::string& path) {
     return true;
 }
 
-Scope<Scene> SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManager& resources) {
+Ref<Scene> SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManager& resources) {
     if (!FileSystem::Exists(path)) {
         CHE_CORE_ERROR("SceneSerializer: cannot read {}", path);
         return nullptr;
@@ -555,8 +555,8 @@ Scope<Scene> SceneSerializer::LoadFromFile(const std::string& path, RenderResour
         CHE_CORE_ERROR("SceneSerializer: JSON parse error: {}", e.what());
         return nullptr;
     }
-    Scope<Scene> loadedScene = std::make_unique<Scene>();
-    if (!DeserializeSceneData(loadedScene.get(), j, resources))
+    Ref<Scene> loadedScene = MakeRef<Scene>();
+    if (!DeserializeSceneData(loadedScene, j, resources))
         return nullptr;
 
     CHE_CORE_INFO("Scene loaded: {}", path);
@@ -565,7 +565,7 @@ Scope<Scene> SceneSerializer::LoadFromFile(const std::string& path, RenderResour
 
 // ── In-memory snapshot ────────────────────────────────────────────────────────
 
-nlohmann::json SceneSerializer::SerializeToJson(Scene* scene)
+nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
 {
     json j;
     j["version"] = kSceneFormatVersion;
@@ -642,10 +642,10 @@ nlohmann::json SceneSerializer::SerializeToJson(Scene* scene)
     return j;
 }
 
-Scope<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources)
+Ref<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources)
 {
-    Scope<Scene> loadedScene = std::make_unique<Scene>();
-    if (!DeserializeSceneData(loadedScene.get(), data, resources))
+    Ref<Scene> loadedScene = MakeRef<Scene>();
+    if (!DeserializeSceneData(loadedScene, data, resources))
         return nullptr;
     return loadedScene;
 }

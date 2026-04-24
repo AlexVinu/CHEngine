@@ -10,40 +10,54 @@ EditorWorldContext::EditorWorldContext()
 
 void EditorWorldContext::Update(CHEngine::Timestep dt)
 {
-    if (!RuntimeWorld)
-    {
-        CHE_CORE_ASSERT(ActiveScene, "EditorWorldContext must have ActiveScene for RuntimeWorld");
-        RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(ActiveScene.get());
-    }
-
     CHE_CORE_ASSERT(EditorScene, "EditorWorldContext must have EditorScene");
 
     switch (SessionState)
     {
     case SceneSession::State::Edit:
+        if (!IsActive) return;
         RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
-        RuntimeWorld->SetActiveCamera(ViewportCamera.get());
-        RuntimeWorld->Update(dt);
-        break;
-
-    case SceneSession::State::Simulate:
-        RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
         RuntimeWorld->SetActiveCamera(ViewportCamera.get());
         RuntimeWorld->Update(dt);
         break;
 
     case SceneSession::State::Play:
-        CHE_CORE_ASSERT(ActiveScene, "EditorWorldContext must have ActiveScene in Play");
-        RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
-        RuntimeWorld->SetActiveCamera(nullptr);
+        if (IsActive)
+        {
+            RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
+            RuntimeWorld->SetActiveCamera(nullptr);
+        }
+        else
+            RuntimeWorld->SetState(CHEngine::WorldState::SimulatingWithoutPresenting);
+
         RuntimeWorld->Update(dt);
         break;
 
     case SceneSession::State::Pause:
-        CHE_CORE_ASSERT(ActiveScene, "EditorWorldContext must have ActiveScene in Pause");
+        if (!IsActive) return;
         RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
         RuntimeWorld->SetActiveCamera(ViewportCamera.get());
         RuntimeWorld->Update(dt);
         break;
     }
+}
+
+void EditorWorldContext::ActivateActiveScene()
+{
+    CHE_ASSERT(ActiveScene, "THERE ARE NO ACTIVE SCENE");
+    CHE_ASSERT(EditorScene, "THERE ARE NO EDITOR SCENE");
+    CHE_ASSERT(RuntimeWorld, "THERE ARE NO RuntimeWorld");
+
+    *ActiveScene = *EditorScene;
+    RuntimeWorld->SetScene(ActiveScene);
+}
+
+void EditorWorldContext::ActivateEditorScene()
+{
+    CHE_ASSERT(ActiveScene, "THERE ARE NO ACTIVE SCENE");
+    CHE_ASSERT(EditorScene, "THERE ARE NO EDITOR SCENE");
+    CHE_ASSERT(RuntimeWorld, "THERE ARE NO RuntimeWorld");
+
+    *ActiveScene = *EditorScene;
+    RuntimeWorld->SetScene(EditorScene);
 }

@@ -18,9 +18,10 @@ namespace CHEngine
     class EditorCamera;
     enum class WorldState : uint8_t
     {
-        Idle,
+        NONE,
         Presenting,
-        Simulating
+        Simulating,
+        SimulatingWithoutPresenting
     };
 
     // You may not turn this into god class, so less functionality = good
@@ -28,12 +29,11 @@ namespace CHEngine
     class CHENGINE_API World {
     public:
         World();
-        explicit World(Scene* scene);
+        explicit World(Ref<Scene> scene);
 
-        void SetScene(Scene* scene);
+        void SetScene(Ref<Scene> scene);
         bool HasScene() const { return m_Scene != nullptr; }
-        Scene* GetScene();
-        const Scene* GetScene() const;
+        Ref<Scene> GetSceneRef() { return m_Scene; }
 
         void Update(Timestep dt);
         void OnEvent(Event& event);
@@ -53,6 +53,7 @@ namespace CHEngine
         Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() { return m_PhysicsWorld; }
         const Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() const { return m_PhysicsWorld; }
 
+        // Getters 
         SystemScheduler& GetScheduler() { return m_Scheduler; }
         const SystemScheduler& GetScheduler() const { return m_Scheduler; }
         DeferredOps& GetDeferredOps() { return m_DeferredOps; }
@@ -69,13 +70,12 @@ namespace CHEngine
         EventBus m_EventBus;
         PhysicsWorldDesc m_PhysicsWorldDesc{};
         Scope<IPhysicsWorld> m_PhysicsWorld;
-        Scene* m_Scene      = nullptr;
+        Ref<Scene> m_Scene      = nullptr;
         // WARNING !!!!!!!!!!!!!!!!
         // SHIT CODE but its necessary
         EditorCamera* m_Camera;
         // ---------------
-        WorldState m_State = WorldState::Idle;
-        WorldState m_PendingState = WorldState::Idle;
-        bool   m_InitializationDispatched = false;
+        WorldState m_State = WorldState::NONE;
+        WorldState m_PendingState = WorldState::NONE;
     };
 }

@@ -45,7 +45,7 @@ namespace CHEngine
         m_Commands.emplace_back(std::move(command));
     }
 
-    EntityHandle DeferredOps::ResolveTarget(Scene* scene, const DeferredEntityTarget& target, const std::unordered_map<DeferredEntityHandle, EntityHandle>& created_handles) const
+    EntityHandle DeferredOps::ResolveTarget(Ref<Scene> scene, const DeferredEntityTarget& target, const std::unordered_map<DeferredEntityHandle, EntityHandle>& created_handles) const
     {
         if (!scene)
             return {};
@@ -78,7 +78,7 @@ namespace CHEngine
         return (static_cast<uint64_t>(entity_handle.generation) << 32u) | static_cast<uint64_t>(entity_handle.index);
     }
 
-    void DeferredOps::Flush(Scene* scene)
+    void DeferredOps::Flush(Ref<Scene> scene)
     {
         if (!scene)
         {

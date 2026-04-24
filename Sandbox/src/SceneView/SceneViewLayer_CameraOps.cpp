@@ -18,14 +18,14 @@ namespace SceneViewLayerCameraOps {
 void ApplyOrbit(SceneViewLayer& layer)
 {
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    SceneViewLayerAccess::CameraController(layer).ApplyOrbit(ctx.ViewportCamera.get(), ctx.m_EditorCameraState);
+    SceneViewLayerAccess::CameraController(layer).ApplyOrbit(ctx.ViewportCamera.get(), ctx.EditorCameraState);
 }
 
 void SetViewPreset(SceneViewLayer& layer, float yaw_degrees, float pitch_degrees)
 {
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
     SceneViewLayerAccess::CameraController(layer).SetViewPreset(
-        yaw_degrees, pitch_degrees, ctx.ViewportCamera.get(), ctx.m_EditorCameraState);
+        yaw_degrees, pitch_degrees, ctx.ViewportCamera.get(), ctx.EditorCameraState);
 }
 
 void FocusOnSelected(SceneViewLayer& layer)
@@ -33,7 +33,7 @@ void FocusOnSelected(SceneViewLayer& layer)
     constexpr float k_DefaultFocusRadius = 0.5f;
 
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    CHEngine::Scene* active_scene = ctx.ActiveScene.get();
+    auto active_scene = ctx.EditorScene;
     CHEngine::Entity* entity = active_scene ? active_scene->TryGetEntity(ctx.SelectedEntity) : nullptr;
     if (!entity
         || !entity->HasComponent<CHEngine::TransformComponent>()
@@ -56,7 +56,7 @@ void FocusOnSelected(SceneViewLayer& layer)
 
     const float scale_max = std::max({ transform.Scale.x, transform.Scale.y, transform.Scale.z });
     SceneViewLayerAccess::CameraController(layer).FocusOnPoint(
-        transform.Position, max_radius * scale_max, ctx.ViewportCamera.get(), ctx.m_EditorCameraState);
+        transform.Position, max_radius * scale_max, ctx.ViewportCamera.get(), ctx.EditorCameraState);
 }
 
 void UpdateEditorCameraInput(SceneViewLayer& layer)
@@ -88,13 +88,13 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
 
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
     SceneViewLayerAccess::CameraController(layer).UpdateCameraInput(
-        inputSnapshot, ctx.ViewportCamera.get(), ctx.m_EditorCameraState, ctx.ActiveScene.get(), ctx.SelectedEntity);
+        inputSnapshot, ctx.ViewportCamera.get(), ctx.EditorCameraState, ctx.EditorScene, ctx.SelectedEntity);
 
     if (inputSnapshot.IsFocusPressed && ctx.SelectedEntity.IsValid())
         FocusOnSelected(layer);
 
     SceneViewLayerAccess::CameraController(layer).OnUpdate(
-        ctx.ViewportCamera.get(), ctx.m_EditorCameraState, ctx.ActiveScene.get(), ctx.SelectedEntity, inputSnapshot);
+        ctx.ViewportCamera.get(), ctx.EditorCameraState, ctx.EditorScene, ctx.SelectedEntity, inputSnapshot);
 }
 
 void PrepareEditorCameraFrame(SceneViewLayer& layer)

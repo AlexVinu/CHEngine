@@ -21,7 +21,7 @@ void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
     if (!runtimeWorld)
         return;
 
-    auto* scene = world.GetScene();
+    auto scene = world.GetSceneRef();
 
     scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
         if (!rigidBody.Body)
@@ -102,7 +102,7 @@ void PhysicsSystem::RebuildPhysicsRuntime(World& world)
 
     world.GetPhysicsRuntimeWorld().reset(runtimeWorld);
 
-    auto* scene = world.GetScene();
+    auto scene = world.GetSceneRef();
 
     scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
         PhysicsTransform initialTransform{};
@@ -125,7 +125,7 @@ void PhysicsSystem::ClearPhysicsRuntime(World& world)
     // Release ownership before DestroyWorld: the factory deletes the instance;
     // unique_ptr must not delete the same pointer again.
     IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().release();
-    auto* scene = world.GetScene();
+    auto scene = world.GetSceneRef();
     if (scene)
     {
         scene->ForEach<RigidBody3DComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody) {
@@ -151,7 +151,7 @@ void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
     if (!runtimeWorld)
         return;
 
-    auto* scene = world.GetScene();
+    auto scene = world.GetSceneRef();
     if (!scene)
         return;
 
@@ -177,7 +177,7 @@ void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
 void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
 {
     CHE_CORE_INFO("Rigid Body destroyed");
-    auto* scene = world.GetScene();
+    auto scene = world.GetSceneRef();
     if (!scene)
         return;
 
