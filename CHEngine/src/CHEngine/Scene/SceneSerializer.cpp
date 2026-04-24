@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Mesh/ModelLoader.h>
+#include <CHEngine/Mesh/PrimitiveMeshFactory.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Render/RenderResourceManager.h>
 #include <CHEngine/Scene/Components.h>
@@ -264,43 +265,54 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data, RenderResourceMana
         bool hasImportedMeshes = false;
 
         if (!meshPath.empty()) {
-            auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
-            if (result.success && !result.meshes.empty()) {
-                glm::vec3 centroid(0.0f);
-                size_t totalVerts = 0;
-                for (auto& mesh : result.meshes) {
-                    for (const auto& v : mesh.GetVertices()) {
-                        centroid += v.Position;
-                        ++totalVerts;
-                    }
-                }
-                if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
-
-                if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
-                    for (auto& mesh : result.meshes) {
-                        resources.DestroyVertexArray(mesh.GetVertexArray());
-                        auto verts = mesh.GetVertices();
-                        for (auto& v : verts) v.Position -= centroid;
-                        mesh.Build(verts, mesh.GetIndices());
-                    }
-                }
-
-                importedMeshes = std::move(result.meshes);
+            if (meshPath == ":primitive:cube")
+            {
+                Mesh cubeMesh = PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
+                cubeMesh.Mat = MaterialInstance::FromBase(
+                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                importedMeshes.push_back(std::move(cubeMesh));
                 hasImportedMeshes = true;
-            } else {
-                std::string normalizedPath = meshPath;
-                std::filesystem::path fsPath(meshPath);
-                if (!fsPath.empty())
-                    normalizedPath = fsPath.lexically_normal().string();
+            }
+            else
+            {
+                auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
+                if (result.success && !result.meshes.empty()) {
+                    glm::vec3 centroid(0.0f);
+                    size_t totalVerts = 0;
+                    for (auto& mesh : result.meshes) {
+                        for (const auto& v : mesh.GetVertices()) {
+                            centroid += v.Position;
+                            ++totalVerts;
+                        }
+                    }
+                    if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
 
-                CHE_CORE_WARN(
-                    "SceneSerializer: model load failed for entity='{}' uuid={} meshPath='{}' normalized='{}' success={} meshCount={}",
-                    name,
-                    boost::uuids::to_string(entityUUID),
-                    meshPath,
-                    normalizedPath,
-                    result.success,
-                    result.meshes.size());
+                    if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
+                        for (auto& mesh : result.meshes) {
+                            resources.DestroyVertexArray(mesh.GetVertexArray());
+                            auto verts = mesh.GetVertices();
+                            for (auto& v : verts) v.Position -= centroid;
+                            mesh.Build(verts, mesh.GetIndices());
+                        }
+                    }
+
+                    importedMeshes = std::move(result.meshes);
+                    hasImportedMeshes = true;
+                } else {
+                    std::string normalizedPath = meshPath;
+                    std::filesystem::path fsPath(meshPath);
+                    if (!fsPath.empty())
+                        normalizedPath = fsPath.lexically_normal().string();
+
+                    CHE_CORE_WARN(
+                        "SceneSerializer: model load failed for entity='{}' uuid={} meshPath='{}' normalized='{}' success={} meshCount={}",
+                        name,
+                        boost::uuids::to_string(entityUUID),
+                        meshPath,
+                        normalizedPath,
+                        result.success,
+                        result.meshes.size());
+                }
             }
         }
 

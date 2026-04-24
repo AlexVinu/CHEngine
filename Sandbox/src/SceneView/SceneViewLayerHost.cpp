@@ -9,6 +9,7 @@
 #include <CHEngine/Application.h>
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Mesh/Material.h>
+#include <CHEngine/Mesh/PrimitiveMeshFactory.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Scene/Components.h>
 
@@ -185,6 +186,34 @@ void SceneViewLayerHost::AddSpotLight()
         }
         activeSession.SelectedEntity = handle;
     }
+}
+
+void SceneViewLayerHost::AddCubePrimitive()
+{
+    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
+    auto scene_ref = activeSession.EditorScene;
+    if (!scene_ref)
+        return;
+
+    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Cube", object_id);
+    auto* entity = scene_ref->TryGetEntity(handle);
+    if (!entity)
+        return;
+
+    if (!entity->HasComponent<CHEngine::MeshComponent>())
+        entity->AddComponent<CHEngine::MeshComponent>(CHEngine::MeshComponent{});
+
+    auto& mesh_component = entity->GetComponent<CHEngine::MeshComponent>();
+    mesh_component.Meshes.clear();
+
+    CHEngine::Mesh cube_mesh = CHEngine::PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
+    cube_mesh.Mat = CHEngine::MaterialInstance::FromBase(
+        std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
+    mesh_component.Meshes.push_back(std::move(cube_mesh));
+    mesh_component.SourcePath = ":primitive:cube";
+
+    activeSession.SelectedEntity = handle;
 }
 
 void SceneViewLayerHost::AddEmptyEntity()

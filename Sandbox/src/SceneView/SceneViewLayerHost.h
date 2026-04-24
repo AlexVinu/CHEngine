@@ -49,6 +49,7 @@ public:
     void AddDirectionalLight() override;
     void AddPointLight() override;
     void AddSpotLight() override;
+    void AddCubePrimitive() override;
     void AddEmptyEntity() override;
     void SetSelection(CHEngine::EntityHandle handle) override;
     void DestroyEntityByUuid(const CHEngine::UUID& object_id) override;

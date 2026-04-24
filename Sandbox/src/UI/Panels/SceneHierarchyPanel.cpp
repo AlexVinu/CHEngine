@@ -41,6 +41,11 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
     }
     if (ImGui::Button("+ Empty Entity", ImVec2(-1.0f, 0.0f)))
         host.AddEmptyEntity();
+    if (ImGui::Button("+ Cube", ImVec2(-1.0f, 0.0f)))
+    {
+        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            [&host] { host.AddCubePrimitive(); }, [] {}, false));
+    }
     ImGui::EndDisabled();
 
     ImGui::Spacing();
