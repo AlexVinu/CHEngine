@@ -10,8 +10,7 @@ namespace CHEngine
 
 	LayerStack::~LayerStack()
 	{
-		for (Layer* layer : m_Layers)
-			delete layer;
+		Clear();
 	}
 
 	void LayerStack::PushLayer(Layer* layer)
@@ -30,8 +29,12 @@ namespace CHEngine
 		auto it = std::find(m_Layers.begin(), m_Layers.end(), layer);
 		if (it != m_Layers.end())
 		{
+			const bool was_before_insert = it < m_LayerInsert;
+			(*it)->OnDetach();
+			delete *it;
 			m_Layers.erase(it);
-			m_LayerInsert--;
+			if (was_before_insert)
+				--m_LayerInsert;
 		}
 	}
 
@@ -40,7 +43,21 @@ namespace CHEngine
 		auto it = std::find(m_Layers.begin(), m_Layers.end(), overlay);
 		if (it != m_Layers.end())
 		{
+			(*it)->OnDetach();
+			delete *it;
 			m_Layers.erase(it);
 		}
+	}
+
+	void LayerStack::Clear()
+	{
+		for (Layer* layer : m_Layers)
+		{
+			layer->OnDetach();
+			delete layer;
+		}
+
+		m_Layers.clear();
+		m_LayerInsert = m_Layers.begin();
 	}
 }

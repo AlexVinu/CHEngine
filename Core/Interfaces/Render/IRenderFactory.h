@@ -22,7 +22,10 @@ namespace CHEngine {
         virtual IVertexBuffer* CreateVertexBuffer(float* verticies, uint32_t size) = 0;
         virtual IIndexBuffer*  CreateIndexBuffer(uint32_t* indices, uint32_t count) = 0;
         virtual IVertexArray*  CreateVertexArray() = 0;
-        virtual IShader*       CreateShader(const String& vertexSrc, const String& fragmentSrc) = 0;
+        virtual IShader*       CreateShader(const String& slangSource,
+                                            const String& vertEntry  = String("vertMain"),
+                                            const String& fragEntry  = String("fragMain"),
+                                            const String& sourcePath = String()) = 0;
         virtual IRenderApi*    CreateRenderAPI() = 0;
 
         virtual IRenderer* CreateRenderer(IRenderApi* api) = 0;

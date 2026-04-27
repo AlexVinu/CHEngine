@@ -29,13 +29,15 @@ namespace CHEngine {
 	using FramebufferHandle = Handle<FramebufferTag>;
 
 	// Metadata stored for every named shader (enables hot-reload and manager UI).
+	// One Slang file → vertex + fragment entry points.
 	struct ShaderEntry
 	{
-		String      name;
-		String      vertPath;
-		String      fragPath;
+		String       name;
+		String       slangPath;
+		String       vertEntry;
+		String       fragEntry;
 		ShaderHandle handle;
-		bool        valid = false;
+		bool         valid = false;
 	};
 
 	class CHENGINE_API RenderResourceManager
@@ -46,12 +48,19 @@ namespace CHEngine {
 		void Init(IRenderFactory* factory);
 
 		// Unnamed — creates a shader without registering it in the shader list.
-		ShaderHandle CreateShader(const String& vertexSrc, const String& fragmentSrc);
+		// sourcePath (optional) is forwarded to the backend so Slang can resolve
+		// `import` directives relative to the file's directory.
+		ShaderHandle CreateShader(const String& slangSource,
+		                          const String& vertEntry  = String("vertMain"),
+		                          const String& fragEntry  = String("fragMain"),
+		                          const String& sourcePath = String());
 
-		// Creates a shader from files and registers it for hot-reload / manager UI.
+		// Creates a shader from a single .slang file and registers it for
+		// hot-reload / manager UI.
 		ShaderHandle CreateShaderFromFile(const String& name,
-		                                  const String& vertexPath,
-		                                  const String& fragmentPath);
+		                                  const String& slangPath,
+		                                  const String& vertEntry = String("vertMain"),
+		                                  const String& fragEntry = String("fragMain"));
 
 		VertexArrayHandle CreateVertexArray();
 		// Creates the single active IRenderApi, calls Init(init_info). Idempotent.

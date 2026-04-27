@@ -79,6 +79,8 @@ namespace CHEngine {
 
         IPhysicsBody* Body = nullptr;
         IPhysicsShape* Shape = nullptr;
+
+        bool SynchronisedTransform = true;
     };
 
     struct LifetimeComponent

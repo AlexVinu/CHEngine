@@ -4,6 +4,7 @@
 
 #include <Log/Log.h>
 #include <Render/IBuffer.h>
+#include <SlangBackend/SlangBackend.h>
 
 #import <Metal/Metal.h>
 
@@ -15,9 +16,12 @@
 namespace CHModules
 {
 
-// ─── Compile MSL source ─────────────────────────────────────────────────────
+// ─── Compile .slang → MSL → MTLLibrary ──────────────────────────────────────
 
-bool ShaderMTL::CompileSource(const CHEngine::String& source)
+bool ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
+                             const CHEngine::String& vertEntry,
+                             const CHEngine::String& fragEntry,
+                             const CHEngine::String& sourcePath)
 {
     id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
     if (!device) {
@@ -25,7 +29,23 @@ bool ShaderMTL::CompileSource(const CHEngine::String& source)
         return false;
     }
 
-    NSString* src = [NSString stringWithUTF8String:source.c_str()];
+    SlangBackend* backend = SlangBackend::GetForApi(CHEngine::ERenderAPI::METAL);
+    if (!backend) {
+        CHE_CORE_ERROR("ShaderMTL: SlangBackend unavailable for Metal");
+        return false;
+    }
+
+    CompiledShader compiled = backend->Compile(slangSource, vertEntry, fragEntry, sourcePath);
+    if (!compiled.valid) {
+        CHE_CORE_ERROR("ShaderMTL: Slang compilation failed:\n{}", compiled.errorLog);
+        return false;
+    }
+
+    // Slang выдаёт одну MSL-строку на программу — обе записи содержат тот же текст.
+    std::string mslSource(reinterpret_cast<const char*>(compiled.vertexCode.data()),
+                          compiled.vertexCode.size());
+
+    NSString* src = [NSString stringWithUTF8String:mslSource.c_str()];
     NSError* error = nil;
 
     id<MTLLibrary> library = [device newLibraryWithSource:src options:nil error:&error];
@@ -35,16 +55,18 @@ bool ShaderMTL::CompileSource(const CHEngine::String& source)
         return false;
     }
 
-    id<MTLFunction> vertFunc = [library newFunctionWithName:@"vertexMain"];
-    id<MTLFunction> fragFunc = [library newFunctionWithName:@"fragmentMain"];
+    NSString* vertName = [NSString stringWithUTF8String:vertEntry.c_str()];
+    NSString* fragName = [NSString stringWithUTF8String:fragEntry.c_str()];
+    id<MTLFunction> vertFunc = [library newFunctionWithName:vertName];
+    id<MTLFunction> fragFunc = [library newFunctionWithName:fragName];
 
     if (!vertFunc) {
-        CHE_CORE_ERROR("ShaderMTL: 'vertexMain' function not found in MSL source");
+        CHE_CORE_ERROR("ShaderMTL: vertex entry '{}' not found in MSL", vertEntry.c_str());
         [library release];
         return false;
     }
     if (!fragFunc) {
-        CHE_CORE_ERROR("ShaderMTL: 'fragmentMain' function not found in MSL source");
+        CHE_CORE_ERROR("ShaderMTL: fragment entry '{}' not found in MSL", fragEntry.c_str());
         [vertFunc release];
         [library release];
         return false;
@@ -69,10 +91,12 @@ bool ShaderMTL::CompileSource(const CHEngine::String& source)
 
 // ─── Constructor / Destructor ───────────────────────────────────────────────
 
-ShaderMTL::ShaderMTL(const CHEngine::String& vertexSrc, const CHEngine::String& /*fragmentSrc*/)
+ShaderMTL::ShaderMTL(const CHEngine::String& slangSource,
+                     const CHEngine::String& vertEntry,
+                     const CHEngine::String& fragEntry,
+                     const CHEngine::String& sourcePath)
 {
-    // For Metal, vertexSrc contains the full .metal source
-    if (!CompileSource(vertexSrc)) {
+    if (!CompileSlang(slangSource, vertEntry, fragEntry, sourcePath)) {
         CHE_CORE_ERROR("ShaderMTL: failed to compile shader");
     }
 }
@@ -103,9 +127,12 @@ void ShaderMTL::Unbind() const
 
 // ─── Reload ─────────────────────────────────────────────────────────────────
 
-bool ShaderMTL::Reload(const CHEngine::String& vertexSrc, const CHEngine::String& /*fragmentSrc*/)
+bool ShaderMTL::Reload(const CHEngine::String& slangSource,
+                       const CHEngine::String& vertEntry,
+                       const CHEngine::String& fragEntry,
+                       const CHEngine::String& sourcePath)
 {
-    return CompileSource(vertexSrc);
+    return CompileSlang(slangSource, vertEntry, fragEntry, sourcePath);
 }
 
 // ─── Pipeline State ─────────────────────────────────────────────────────────

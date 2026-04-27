@@ -77,6 +77,12 @@ add_subdirectory(${GLAD_VENDOR_DIR})
 add_subdirectory(Core)      # Ядро
 add_subdirectory(CHEngine)  # Основной движок
 
+# SlangBackend — общий wrapper над Slang. Линкуется PRIVATE только render-модулями;
+# движок и Core про slang не знают. Подключаем до render-модулей.
+if(CHE_BUILD_OPENGL OR CHE_BUILD_VULKAN OR CHE_BUILD_METAL)
+    add_subdirectory(${MODULES_DIR}/Rendering/Common/SlangBackend)
+endif()
+
 if(CHE_BUILD_OPENGL)
     add_subdirectory(${MODULES_DIR}/Rendering/RendererOGL)
     add_subdirectory(${MODULES_DIR}/Window/WindowGLFW)

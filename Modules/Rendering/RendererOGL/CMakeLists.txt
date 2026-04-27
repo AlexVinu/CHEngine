@@ -60,6 +60,7 @@ target_link_libraries(${PROJECT_NAME}
         glad
         OpenGL::GL
         glm
+        SlangBackend
 )
 
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD

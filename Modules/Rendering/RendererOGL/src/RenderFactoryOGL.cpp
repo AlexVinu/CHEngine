@@ -25,9 +25,12 @@ namespace CHModules
         return CreateImpl<VertexArrayOGL>();
     }
 
-    CHEngine::IShader* RenderFactoryOGL::CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
+    CHEngine::IShader* RenderFactoryOGL::CreateShader(const CHEngine::String& slangSource,
+                                                      const CHEngine::String& vertEntry,
+                                                      const CHEngine::String& fragEntry,
+                                                      const CHEngine::String& sourcePath)
     {
-        return CreateImpl<ShaderOGL>(vertexSrc, fragmentSrc);
+        return CreateImpl<ShaderOGL>(slangSource, vertEntry, fragEntry, sourcePath);
     }
 
     CHEngine::IRenderApi* RenderFactoryOGL::CreateRenderAPI()

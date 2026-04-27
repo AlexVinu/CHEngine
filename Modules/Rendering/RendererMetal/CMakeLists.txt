@@ -40,6 +40,7 @@ target_link_libraries(${PROJECT_NAME}
         CHEngine_CORE
         glfw
         glm
+        SlangBackend
         "-framework Metal"
         "-framework QuartzCore"
         "-framework Cocoa"

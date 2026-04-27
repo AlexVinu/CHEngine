@@ -55,64 +55,60 @@ namespace CHEngine {
 	}
 
 	ShaderHandle RenderResourceManager::CreateShaderFromFile(const String& name,
-	                                                         const String& vertexPath,
-	                                                         const String& fragmentPath)
+	                                                         const String& slangPath,
+	                                                         const String& vertEntry,
+	                                                         const String& fragEntry)
 	{
-		String vertexSrc, fragmentSrc;
+		String slangSource = ReadTextFile(slangPath);
 
-		if (m_Factory && m_Factory->GetRenderApi() == ERenderAPI::METAL)
-		{
-			// Metal: derive .metal path from vertex shader path
-			// e.g. "shaders/basic.vert" → "shaders/basic.metal"
-			std::string path(vertexPath.c_str());
-			auto dot = path.rfind('.');
-			if (dot != std::string::npos)
-				path = path.substr(0, dot) + ".metal";
-			String metalSrc = ReadTextFile(String(path.c_str()));
-			vertexSrc   = metalSrc;
-			fragmentSrc = metalSrc; // ShaderMTL uses first arg only
-		}
-		else
-		{
-			vertexSrc   = ReadTextFile(vertexPath);
-			fragmentSrc = ReadTextFile(fragmentPath);
-		}
+		bool valid = (slangSource.size() > 0);
 
-		bool valid = (vertexSrc.size() > 0 && fragmentSrc.size() > 0);
+		// Pass an absolute path so Slang resolves `import` directives relative
+		// to the .slang file's directory regardless of the current working dir.
+		String absPath;
+		{
+			std::error_code ec;
+			auto fs_abs = std::filesystem::absolute(std::filesystem::path(slangPath.c_str()), ec);
+			absPath = ec ? slangPath : String(fs_abs.string().c_str());
+		}
 
 		ShaderHandle handle = ShaderHandle::Invalid();
 		if (valid)
 		{
-			handle = CreateShader(vertexSrc, fragmentSrc);
+			handle = CreateShader(slangSource, vertEntry, fragEntry, absPath);
 			valid  = handle.IsValid();
 		}
 
 		if (valid)
-			CHE_CORE_INFO("Loaded shader '{0}': '{1}' + '{2}'", name.c_str(), vertexPath.c_str(), fragmentPath.c_str());
+			CHE_CORE_INFO("Loaded shader '{0}': '{1}'", name.c_str(), slangPath.c_str());
 		else
-			CHE_CORE_ERROR("RenderResourceManager: failed to load shader '{0}'", name.c_str());
+			CHE_CORE_ERROR("RenderResourceManager: failed to load shader '{0}' from '{1}'",
+			               name.c_str(), slangPath.c_str());
 
 		ShaderEntry entry;
-		entry.name     = name;
-		entry.vertPath = vertexPath;
-		entry.fragPath = fragmentPath;
-		entry.handle   = handle;
-		entry.valid    = valid;
+		entry.name      = name;
+		entry.slangPath = slangPath;
+		entry.vertEntry = vertEntry;
+		entry.fragEntry = fragEntry;
+		entry.handle    = handle;
+		entry.valid     = valid;
 		m_ShaderEntries.push_back(std::move(entry));
 
-		// Автоматически регистрируем шейдер для hot reload
+		// Автоматически регистрируем шейдер для hot reload — один файл .slang
 		if (valid) {
 			auto reloadFn = [this, handle](const std::filesystem::path&) { ReloadShader(handle); };
-			m_ShaderWatcher.Watch(std::filesystem::path(vertexPath.c_str()),   reloadFn);
-			m_ShaderWatcher.Watch(std::filesystem::path(fragmentPath.c_str()), reloadFn);
+			m_ShaderWatcher.Watch(std::filesystem::path(slangPath.c_str()), reloadFn);
 		}
 
 		return handle;
 	}
 
-	ShaderHandle RenderResourceManager::CreateShader(const String& vertexSrc, const String& fragmentSrc)
+	ShaderHandle RenderResourceManager::CreateShader(const String& slangSource,
+	                                                 const String& vertEntry,
+	                                                 const String& fragEntry,
+	                                                 const String& sourcePath)
 	{
-		IShader* shader = m_Factory->CreateShader(vertexSrc, fragmentSrc);
+		IShader* shader = m_Factory->CreateShader(slangSource, vertEntry, fragEntry, sourcePath);
 		if (!shader)
 		{
 			CHE_CORE_ERROR("RenderResourceManager: failed to create shader");
@@ -139,12 +135,12 @@ namespace CHEngine {
 			return false;
 		}
 
-		String vertexSrc   = ReadTextFile(entry->vertPath);
-		String fragmentSrc = ReadTextFile(entry->fragPath);
+		String slangSource = ReadTextFile(entry->slangPath);
 
-		if (vertexSrc.size() == 0 || fragmentSrc.size() == 0)
+		if (slangSource.size() == 0)
 		{
-			CHE_CORE_ERROR("ReloadShader: could not read files for '{0}'", entry->name.c_str());
+			CHE_CORE_ERROR("ReloadShader: could not read '{0}' for '{1}'",
+			               entry->slangPath.c_str(), entry->name.c_str());
 			entry->valid = false;
 			return false;
 		}
@@ -157,7 +153,14 @@ namespace CHEngine {
 			return false;
 		}
 
-		bool success = shader->Reload(vertexSrc, fragmentSrc);
+		String absPath;
+		{
+			std::error_code ec;
+			auto fs_abs = std::filesystem::absolute(std::filesystem::path(entry->slangPath.c_str()), ec);
+			absPath = ec ? entry->slangPath : String(fs_abs.string().c_str());
+		}
+
+		bool success = shader->Reload(slangSource, entry->vertEntry, entry->fragEntry, absPath);
 		entry->valid = success;
 
 		if (success)

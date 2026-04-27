@@ -6,6 +6,7 @@
 
 #include <CHEngine/Camera/EditorCamera.h>
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/matrix.hpp>
 #include <cstring>
 
 namespace Sandbox {
@@ -14,14 +15,12 @@ EditorViewport::EditorViewport()
 {
     m_MeshShader = CHEngine::RenderFacade::CreateShaderFromFile(
         CHEngine::String("Mesh"),
-        CHEngine::String("shaders/mesh.vert"),
-        CHEngine::String("shaders/mesh.frag"));
+        CHEngine::String("shaders/mesh.slang"));
     CHEngine::RenderFacade::SetDefaultMeshShader(m_MeshShader);
 
     m_GridShader = CHEngine::RenderFacade::CreateShaderFromFile(
         CHEngine::String("Grid"),
-        CHEngine::String("shaders/grid.vert"),
-        CHEngine::String("shaders/grid.frag"));
+        CHEngine::String("shaders/grid.slang"));
 
     BuildGrid();
     m_Framebuffer = CHEngine::RenderFacade::CreateFramebuffer(1280, 720);
@@ -62,8 +61,8 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
         glm::vec3 camPos = viewport_camera->GetPosition();
 
         CHEngine::UBOCamera cameraUBO{};
-        std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp), sizeof(cameraUBO.ViewProjection));
-        std::memcpy(cameraUBO.InvViewProj, glm::value_ptr(invVP), sizeof(cameraUBO.InvViewProj));
+        std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp),    sizeof(cameraUBO.ViewProjection));
+        std::memcpy(cameraUBO.InvViewProj,    glm::value_ptr(invVP), sizeof(cameraUBO.InvViewProj));
         cameraUBO.CameraPos[0] = camPos.x;
         cameraUBO.CameraPos[1] = camPos.y;
         cameraUBO.CameraPos[2] = camPos.z;

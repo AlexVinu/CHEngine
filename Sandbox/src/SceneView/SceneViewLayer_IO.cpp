@@ -450,10 +450,13 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     auto* entity = scene_ref->TryGetEntity(handle);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>() || !entity->HasComponent<CHEngine::MeshComponent>())
         return;
-    auto& meshComponent = entity->GetComponent<CHEngine::MeshComponent>();
-    meshComponent.Meshes = std::move(result.meshes);
-    meshComponent.SourcePath = filepath;
-    entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = centroid;
+    entity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
+        mesh_component.Meshes = std::move(result.meshes);
+        mesh_component.SourcePath = filepath;
+    });
+    entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {
+        transform_component.ObjectTransform.Position = centroid;
+    });
     activeSession.SelectedEntity = handle;
     activeSession.CommandStack.Push(CHEngine::MakeScope<Sandbox::CallbackCommand>(
         []() {},

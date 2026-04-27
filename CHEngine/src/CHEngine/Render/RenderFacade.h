@@ -31,10 +31,13 @@ namespace CHEngine
 		static void DrawLines(VertexArrayHandle vertexArray);
 
 		// Resource creation
-		static ShaderHandle CreateShader(const String& vertexSrc, const String& fragmentSrc);
+		static ShaderHandle CreateShader(const String& slangSource,
+		                                 const String& vertEntry = String("vertMain"),
+		                                 const String& fragEntry = String("fragMain"));
 		static ShaderHandle CreateShaderFromFile(const String& name,
-		                                         const String& vertexPath,
-		                                         const String& fragmentPath);
+		                                         const String& slangPath,
+		                                         const String& vertEntry = String("vertMain"),
+		                                         const String& fragEntry = String("fragMain"));
 		static VertexArrayHandle CreateVertexArray();
 		static TextureHandle CreateTexture(const uint8_t* data, uint32_t width,
 		                                    uint32_t height, uint32_t channels);

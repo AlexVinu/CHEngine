@@ -153,16 +153,19 @@ namespace CHEngine
 		SubmitLines(vertexArray, glm::mat4(1.0f));
 	}
 
-	ShaderHandle RenderFacade::CreateShader(const String& vertexSrc, const String& fragmentSrc)
+	ShaderHandle RenderFacade::CreateShader(const String& slangSource,
+	                                        const String& vertEntry,
+	                                        const String& fragEntry)
 	{
-		return GetRenderResources()->CreateShader(vertexSrc, fragmentSrc);
+		return GetRenderResources()->CreateShader(slangSource, vertEntry, fragEntry);
 	}
 
 	ShaderHandle RenderFacade::CreateShaderFromFile(const String& name,
-	                                                  const String& vertexPath,
-	                                                  const String& fragmentPath)
+	                                                const String& slangPath,
+	                                                const String& vertEntry,
+	                                                const String& fragEntry)
 	{
-		return GetRenderResources()->CreateShaderFromFile(name, vertexPath, fragmentPath);
+		return GetRenderResources()->CreateShaderFromFile(name, slangPath, vertEntry, fragEntry);
 	}
 
 	VertexArrayHandle RenderFacade::CreateVertexArray()

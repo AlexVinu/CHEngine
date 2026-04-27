@@ -25,9 +25,12 @@ namespace CHModules
         return CreateImpl<VertexArrayVK>();
     }
 
-    CHEngine::IShader* RenderFactoryVK::CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
+    CHEngine::IShader* RenderFactoryVK::CreateShader(const CHEngine::String& slangSource,
+                                                     const CHEngine::String& vertEntry,
+                                                     const CHEngine::String& fragEntry,
+                                                     const CHEngine::String& sourcePath)
     {
-        return CreateImpl<ShaderVK>(vertexSrc, fragmentSrc);
+        return CreateImpl<ShaderVK>(slangSource, vertEntry, fragEntry, sourcePath);
     }
 
     CHEngine::IRenderApi* RenderFactoryVK::CreateRenderAPI()

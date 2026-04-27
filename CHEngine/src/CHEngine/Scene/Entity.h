@@ -37,6 +37,14 @@ public:
 		return m_Scene->m_SceneRegistry->Registry.get<T>(m_EnttHandle);
 	}
 
+	template<typename T, typename Func>
+	T& PatchComponent(Func&& func)
+	{
+		CHE_CORE_ASSERT(m_Scene, "Entity has no owning scene");
+		CHE_CORE_ASSERT(IsValid(), "Entity is not tracked by owning scene");
+		return m_Scene->m_SceneRegistry->Registry.patch<T>(m_EnttHandle, std::forward<Func>(func));
+	}
+
 	template<typename T>
 	bool HasComponent() const
 	{

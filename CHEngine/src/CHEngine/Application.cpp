@@ -189,6 +189,7 @@ namespace CHEngine {
         StartupModuleSelection startup_selection;
         IRenderFactory* render_factory = nullptr;
         ERenderAPI selected_api = config.RenderAPI;
+        CHE_CORE_INFO("Startup Modules");
         bool startup_ok = TryLoadStartupModules(m_ModuleManager.get(),
                                                 config,
                                                 selected_api,
@@ -220,6 +221,8 @@ namespace CHEngine {
             return;
         }
 
+        CHE_CORE_INFO("Startup succeded");
+
         m_RenderAPIType = selected_api;
 
         // Все модули загружены успешно — фиксируем рендерер как рабочий.
@@ -248,8 +251,7 @@ namespace CHEngine {
 
         m_Shader = m_RenderResources->CreateShaderFromFile(
             String("Basic"),
-            String("shaders/basic.vert"),
-            String("shaders/basic.frag")
+            String("shaders/basic.slang")
         );
 
         if (m_PhysicsFactory)
@@ -262,6 +264,8 @@ namespace CHEngine {
 
     Application::~Application()
     {
+        m_LayerStack.Clear();
+
         if (IImGuiLayer* layer = UIFacade::GetLayer(); layer && m_ImGuiFactory)
             m_ImGuiFactory->Delete(layer);
         UIFacade::SetLayer(nullptr);

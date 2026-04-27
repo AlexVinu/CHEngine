@@ -20,8 +20,11 @@ namespace CHModules
     CHEngine::IVertexArray* RenderFactoryMTL::CreateVertexArray()
     { return CreateImpl<VertexArrayMTL>(); }
 
-    CHEngine::IShader* RenderFactoryMTL::CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
-    { return CreateImpl<ShaderMTL>(vertexSrc, fragmentSrc); }
+    CHEngine::IShader* RenderFactoryMTL::CreateShader(const CHEngine::String& slangSource,
+                                                      const CHEngine::String& vertEntry,
+                                                      const CHEngine::String& fragEntry,
+                                                      const CHEngine::String& sourcePath)
+    { return CreateImpl<ShaderMTL>(slangSource, vertEntry, fragEntry, sourcePath); }
 
     CHEngine::IRenderApi* RenderFactoryMTL::CreateRenderAPI()
     { return CreateImpl<RenderApiMTL>(); }

@@ -14,9 +14,14 @@ namespace CHEngine {
 		virtual void Bind() const = 0;
 		virtual void Unbind() const = 0;
 
-		// Recompile shader in-place from new source strings.
+		// Recompile shader in-place from a Slang source. Vertex/fragment entry
+		// point names default to "vertMain"/"fragMain". sourcePath (optional)
+		// is the on-disk path of the source — used to resolve `import` directives.
 		// Returns true on success; on failure the old program remains active.
-		virtual bool Reload(const String& vertexSrc, const String& fragmentSrc) = 0;
+		virtual bool Reload(const String& slangSource,
+		                    const String& vertEntry  = String("vertMain"),
+		                    const String& fragEntry  = String("fragMain"),
+		                    const String& sourcePath = String()) = 0;
 
 		// --- Uniform Buffer Objects ---
 		// Заполняем структуру (UBOCamera / UBOObject / UBOLighting / UBOMaterial),

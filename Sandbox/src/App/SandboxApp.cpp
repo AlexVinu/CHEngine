@@ -8,6 +8,7 @@
 
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/matrix.hpp>
 #include <string>
 #include <cstring>
 
@@ -234,13 +235,11 @@ public:
 	{
 		CHEngine::RenderFacade::CreateShaderFromFile(
 			CHEngine::String("Flat"),
-			CHEngine::String("shaders/flat.vert"),
-			CHEngine::String("shaders/flat.frag")
+			CHEngine::String("shaders/flat.slang")
 		);
 		CHEngine::RenderFacade::CreateShaderFromFile(
 			CHEngine::String("Neon"),
-			CHEngine::String("shaders/neon.vert"),
-			CHEngine::String("shaders/neon.frag")
+			CHEngine::String("shaders/neon.slang")
 		);
 
 		// Scene editor (default)

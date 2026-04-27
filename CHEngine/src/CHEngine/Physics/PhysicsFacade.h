@@ -17,10 +17,6 @@ namespace CHEngine
         static IPhysicsWorld* CreateWorld(const PhysicsWorldDesc& worldDesc = {});
         static void DestroyWorld(IPhysicsWorld* world);
 
-        //static bool CreateRigidBodyRuntime(IPhysicsWorld* world,
-        //                                   RigidBody3DComponent& rigidBody,
-        //                                   const PhysicsTransform& initialTransform);
-        //static void DestroyRigidBodyRuntime(IPhysicsWorld* world, RigidBody3DComponent& rigidBody);
         static IPhysicsShape* CreateShape(const CHEngine::PhysicsColliderShapeDesc& shapeDesc);
         static void Delete(IPhysicsShape* shape);
     private:

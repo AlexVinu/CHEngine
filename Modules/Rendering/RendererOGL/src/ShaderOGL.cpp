@@ -3,58 +3,79 @@
 
 #include <Render/UniformBlocks.h>
 
+#include <SlangBackend/SlangBackend.h>
+
 #include <glad/glad.h>
 
-#include <algorithm>
+#include <string>
+#include <vector>
 
 namespace CHModules
 {
 
-	// ---------------------------------------------------------------------------
-	// Static helper: compile + link a GLSL program.
-	// Returns the program ID on success, 0 on failure.
-	// ---------------------------------------------------------------------------
-	GLuint ShaderOGL::CompileProgram(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
+	namespace
 	{
-		// ---- vertex shader ----
-		GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-		const GLchar* source = vertexSrc.c_str();
-		glShaderSource(vertexShader, 1, &source, 0);
-		glCompileShader(vertexShader);
-
-		GLint isCompiled = 0;
-		glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &isCompiled);
-		if (isCompiled == GL_FALSE)
+		// Compile one GLSL stage. Returns the GL shader id, or 0 on failure.
+		GLuint CompileStage(GLenum stage, const std::string& source, const char* stageName)
 		{
-			GLint maxLength = 0;
-			glGetShaderiv(vertexShader, GL_INFO_LOG_LENGTH, &maxLength);
-			std::vector<GLchar> infoLog(maxLength);
-			glGetShaderInfoLog(vertexShader, maxLength, &maxLength, infoLog.data());
-			glDeleteShader(vertexShader);
-			CHE_CORE_ERROR("Vertex shader compilation failed: {0}", infoLog.data());
+			GLuint shader = glCreateShader(stage);
+			const GLchar* src = source.c_str();
+			const GLint len = static_cast<GLint>(source.size());
+			glShaderSource(shader, 1, &src, &len);
+			glCompileShader(shader);
+
+			GLint isCompiled = 0;
+			glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
+			if (isCompiled == GL_FALSE)
+			{
+				GLint maxLength = 0;
+				glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
+				std::vector<GLchar> infoLog(maxLength);
+				glGetShaderInfoLog(shader, maxLength, &maxLength, infoLog.data());
+				glDeleteShader(shader);
+				CHE_CORE_ERROR("ShaderOGL: {0} compilation failed: {1}", stageName, infoLog.data());
+				return 0;
+			}
+			return shader;
+		}
+	}
+
+	GLuint ShaderOGL::CompileSlangProgram(const CHEngine::String& slangSource,
+	                                      const CHEngine::String& vertEntry,
+	                                      const CHEngine::String& fragEntry,
+	                                      const CHEngine::String& sourcePath)
+	{
+		SlangBackend* backend = SlangBackend::GetForApi(CHEngine::ERenderAPI::OPENGL);
+		if (!backend)
+		{
+			CHE_CORE_ERROR("ShaderOGL: SlangBackend unavailable for OpenGL");
 			return 0;
 		}
 
-		// ---- fragment shader ----
-		GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-		source = fragmentSrc.c_str();
-		glShaderSource(fragmentShader, 1, &source, 0);
-		glCompileShader(fragmentShader);
-
-		glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &isCompiled);
-		if (isCompiled == GL_FALSE)
+		CompiledShader compiled = backend->Compile(slangSource, vertEntry, fragEntry, sourcePath);
+		if (!compiled.valid)
 		{
-			GLint maxLength = 0;
-			glGetShaderiv(fragmentShader, GL_INFO_LOG_LENGTH, &maxLength);
-			std::vector<GLchar> infoLog(maxLength);
-			glGetShaderInfoLog(fragmentShader, maxLength, &maxLength, infoLog.data());
-			glDeleteShader(fragmentShader);
-			glDeleteShader(vertexShader);
-			CHE_CORE_ERROR("Fragment shader compilation failed: {0}", infoLog.data());
+			CHE_CORE_ERROR("ShaderOGL: Slang compilation failed:\n{0}", compiled.errorLog);
 			return 0;
 		}
 
-		// ---- link program ----
+		// Slang выдаёт GLSL как текст без терминирующего нуля — берём как есть по размеру.
+		std::string vertGlsl(reinterpret_cast<const char*>(compiled.vertexCode.data()),
+		                     compiled.vertexCode.size());
+		std::string fragGlsl(reinterpret_cast<const char*>(compiled.fragmentCode.data()),
+		                     compiled.fragmentCode.size());
+
+		GLuint vertexShader = CompileStage(GL_VERTEX_SHADER, vertGlsl, "vertex");
+		if (!vertexShader)
+			return 0;
+
+		GLuint fragmentShader = CompileStage(GL_FRAGMENT_SHADER, fragGlsl, "fragment");
+		if (!fragmentShader)
+		{
+			glDeleteShader(vertexShader);
+			return 0;
+		}
+
 		GLuint program = glCreateProgram();
 		glAttachShader(program, vertexShader);
 		glAttachShader(program, fragmentShader);
@@ -71,7 +92,7 @@ namespace CHModules
 			glDeleteProgram(program);
 			glDeleteShader(fragmentShader);
 			glDeleteShader(vertexShader);
-			CHE_CORE_ERROR("Shader link failed: {0}", infoLog.data());
+			CHE_CORE_ERROR("ShaderOGL: link failed: {0}", infoLog.data());
 			return 0;
 		}
 
@@ -83,34 +104,38 @@ namespace CHModules
 		return program;
 	}
 
-	// ---------------------------------------------------------------------------
-	// Привязка UBO uniform block → binding point
-	// ---------------------------------------------------------------------------
 	void ShaderOGL::BindUBOBlocks()
 	{
-		struct BlockBinding { const char* name; GLuint binding; };
+		// Slang mangles ConstantBuffer<CameraUBO> to "block_CameraUBO_0" etc.
+		// We try both the plain name (for any future non-Slang path) and the
+		// Slang-mangled name so the binding is always established correctly.
+		struct BlockBinding { const char* names[2]; GLuint binding; };
 		static const BlockBinding blocks[] = {
-			{ "CameraUBO",    0 },
-			{ "ObjectUBO",    1 },
-			{ "LightingUBO",  2 },
-			{ "MaterialUBO",  3 },
+			{ { "CameraUBO",   "block_CameraUBO_0"   }, 0 },
+			{ { "ObjectUBO",   "block_ObjectUBO_0"   }, 1 },
+			{ { "LightingUBO", "block_LightingUBO_0" }, 2 },
+			{ { "MaterialUBO", "block_MaterialUBO_0" }, 3 },
 		};
 
 		for (const auto& b : blocks) {
-			GLuint idx = glGetUniformBlockIndex(m_RendererID, b.name);
-			if (idx != GL_INVALID_INDEX)
-				glUniformBlockBinding(m_RendererID, idx, b.binding);
+			for (const char* name : b.names) {
+				GLuint idx = glGetUniformBlockIndex(m_RendererID, name);
+				if (idx != GL_INVALID_INDEX) {
+					glUniformBlockBinding(m_RendererID, idx, b.binding);
+					break;
+				}
+			}
 		}
 	}
 
-	// ---------------------------------------------------------------------------
-
-	ShaderOGL::ShaderOGL(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
+	ShaderOGL::ShaderOGL(const CHEngine::String& slangSource,
+	                     const CHEngine::String& vertEntry,
+	                     const CHEngine::String& fragEntry,
+	                     const CHEngine::String& sourcePath)
 	{
-		m_RendererID = CompileProgram(vertexSrc, fragmentSrc);
+		m_RendererID = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
 		CHE_CORE_ASSERT(m_RendererID, "ShaderOGL: failed to compile/link shader");
 
-		// Создаём UBO-буферы
 		glGenBuffers(UBO_COUNT, m_UBOs);
 
 		const uint32_t uboSizes[UBO_COUNT] = {
@@ -126,7 +151,6 @@ namespace CHModules
 		}
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
-		// Связываем uniform blocks с binding points
 		BindUBOBlocks();
 	}
 
@@ -146,23 +170,21 @@ namespace CHModules
 		glUseProgram(0);
 	}
 
-	bool ShaderOGL::Reload(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
+	bool ShaderOGL::Reload(const CHEngine::String& slangSource,
+	                       const CHEngine::String& vertEntry,
+	                       const CHEngine::String& fragEntry,
+	                       const CHEngine::String& sourcePath)
 	{
-		GLuint newProgram = CompileProgram(vertexSrc, fragmentSrc);
+		GLuint newProgram = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
 		if (!newProgram)
 			return false;
 
 		glDeleteProgram(m_RendererID);
 		m_RendererID = newProgram;
 
-		// Повторно связываем UBO blocks для нового program
 		BindUBOBlocks();
 		return true;
 	}
-
-	// ---------------------------------------------------------------------------
-	// UBO — обновление данных и привязка к binding point
-	// ---------------------------------------------------------------------------
 
 	void ShaderOGL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size)
 	{
@@ -174,10 +196,6 @@ namespace CHModules
 		glBindBufferBase(GL_UNIFORM_BUFFER, binding, m_UBOs[binding]);
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	}
-
-	// ---------------------------------------------------------------------------
-	// SetInt — для привязки текстурных sampler'ов (sampler нельзя в UBO)
-	// ---------------------------------------------------------------------------
 
 	void ShaderOGL::SetInt(const CHEngine::String& name, int value)
 	{

@@ -67,7 +67,7 @@ namespace CHEngine
             m_Scheduler.RunPhase(SystemPhase::Presentation, *this, m_DeferredOps, dt);
 
         // Processing deffered operations like components changes/creations/deletions
-        m_DeferredOps.Flush(m_Scene);
+        m_DeferredOps.Flush(*this, m_Scene);
     }
 
     void World::ApplyStateTransition(WorldState new_state)

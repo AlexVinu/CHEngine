@@ -36,7 +36,7 @@ namespace CHModules
 
         CHEngine::UBOObject objectUBO;
         const glm::mat4 normalMat = glm::transpose(glm::inverse(transform));
-        std::memcpy(objectUBO.Transform, glm::value_ptr(transform), sizeof(objectUBO.Transform));
+        std::memcpy(objectUBO.Transform,    glm::value_ptr(transform), sizeof(objectUBO.Transform));
         std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), sizeof(objectUBO.NormalMatrix));
 
         shader->SetUniformBlock(CHEngine::EUniformBlock::Object, &objectUBO, sizeof(objectUBO));

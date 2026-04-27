@@ -13,12 +13,18 @@ namespace CHModules
     class ShaderMTL : public CHEngine::IShader
     {
     public:
-        ShaderMTL(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc);
+        ShaderMTL(const CHEngine::String& slangSource,
+                  const CHEngine::String& vertEntry,
+                  const CHEngine::String& fragEntry,
+                  const CHEngine::String& sourcePath = CHEngine::String());
         ~ShaderMTL() override;
 
         void Bind() const override;
         void Unbind() const override;
-        bool Reload(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
+        bool Reload(const CHEngine::String& slangSource,
+                    const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
+                    const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
+                    const CHEngine::String& sourcePath = CHEngine::String()) override;
 
         // --- UBO ---
         void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
@@ -36,7 +42,10 @@ namespace CHModules
         void FlushUniforms(void* encoder) const;
 
     private:
-        bool CompileSource(const CHEngine::String& source);
+        bool CompileSlang(const CHEngine::String& slangSource,
+                          const CHEngine::String& vertEntry,
+                          const CHEngine::String& fragEntry,
+                          const CHEngine::String& sourcePath);
 
         void* m_Library      = nullptr;  // id<MTLLibrary>
         void* m_VertexFunc   = nullptr;  // id<MTLFunction>
