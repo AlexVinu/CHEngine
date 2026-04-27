@@ -16,7 +16,7 @@
 #include <entt/entt.hpp>
 
 // Scene is a container of entities
-// You must not add here another functionality except providing access to entities
+// You must not add here another functionality except entities stuff 
 
 namespace CHEngine {
 
@@ -58,7 +58,11 @@ public:
 private:
 	friend Entity;
 	void InitializeRegistry();
+	void InitSignals();
 	void CloneFrom(const Scene& source);
+
+	// On signals
+	void OnTransformUpdate(entt::registry& reg, entt::entity e);
 
 	struct SceneRegistry {
 		entt::registry Registry;

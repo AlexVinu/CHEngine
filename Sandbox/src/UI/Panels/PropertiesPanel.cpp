@@ -230,8 +230,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
             std::strncpy(nameBuf, tag.Name.c_str(), sizeof(nameBuf));
             nameBuf[sizeof(nameBuf) - 1] = '\0';
             ImGui::SetNextItemWidth(-1.0f);
-            if (ImGui::InputText("##nameTagComp", nameBuf, sizeof(nameBuf)))
-                tag.Name = nameBuf;
+            if (ImGui::InputText("##nameTagComp", nameBuf, sizeof(nameBuf)) && tag.Name != nameBuf)
+            {
+                selectedEntity->PatchComponent<CHEngine::TagComponent>(
+                    [&](CHEngine::TagComponent& tag_component) { tag_component.Name = nameBuf; });
+            }
         });
 
     DrawComponent<CHEngine::TransformComponent>("Transform",
@@ -242,31 +245,45 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         selectedEntity,
         "Transform",
         [&](CHEngine::TransformComponent& tc) {
-            CHEngine::Transform& transform = tc.ObjectTransform;
             auto row = [&](const char* label, const char* id, glm::vec3& vec, float speed, float mn = -FLT_MAX, float mx = FLT_MAX) {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted(label);
                 ImGui::PopStyleColor();
                 ImGui::SameLine(labelW);
                 ImGui::SetNextItemWidth(-1.0f);
-                ImGui::DragFloat3(id, glm::value_ptr(vec), speed, mn, mx);
+                if (ImGui::DragFloat3(id, glm::value_ptr(vec), speed, mn, mx))
+                {
+                    selectedEntity->PatchComponent<CHEngine::TransformComponent>(
+                        [&](CHEngine::TransformComponent& transform_component) {
+                            transform_component.ObjectTransform = tc.ObjectTransform;
+                            if (std::strcmp(id, "##posTr") == 0)
+                                transform_component.ObjectTransform.Position = vec;
+                            else if (std::strcmp(id, "##rotTr") == 0)
+                                transform_component.ObjectTransform.Rotation = vec;
+                            else if (std::strcmp(id, "##sclTr") == 0)
+                                transform_component.ObjectTransform.Scale = vec;
+                        });
+                }
                 if (ImGui::IsItemActivated())
-                    host.GetTransformBeforeDrag() = transform;
+                    host.GetTransformBeforeDrag() = tc.ObjectTransform;
                 if (ImGui::IsItemDeactivatedAfterEdit())
                 {
-                    CHEngine::Transform after = transform;
+                    CHEngine::Transform after = selectedEntity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
                     host.GetCommandStack().Push(CHEngine::MakeScope<SetTransformCommand>(
                         scene_ptr, selectedHandle, host.GetTransformBeforeDrag(), after));
                 }
             };
-            row("Position", "##posTr", transform.Position, 0.05f);
-            row("Rotation", "##rotTr", transform.Rotation, 0.5f);
-            row("Scale", "##sclTr", transform.Scale, 0.01f, 0.001f, 1000.0f);
+            glm::vec3 position = tc.ObjectTransform.Position;
+            glm::vec3 rotation = tc.ObjectTransform.Rotation;
+            glm::vec3 scale = tc.ObjectTransform.Scale;
+            row("Position", "##posTr", position, 0.05f);
+            row("Rotation", "##rotTr", rotation, 0.5f);
+            row("Scale", "##sclTr", scale, 0.01f, 0.001f, 1000.0f);
 
             ImGui::Spacing();
             if (ImGui::Button("Reset Transform##resetTr", ImVec2(-1.0f, 0.0f)))
             {
-                CHEngine::Transform before = transform;
+                CHEngine::Transform before = tc.ObjectTransform;
                 host.GetCommandStack().Push(CHEngine::MakeScope<SetTransformCommand>(
                     scene_ptr, selectedHandle, before, CHEngine::Transform{}));
             }
@@ -280,8 +297,13 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         selectedEntity,
         "Color",
         [&](CHEngine::ColorComponent& colorComp) {
+            glm::vec4 color = colorComp.Color;
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::ColorEdit4("##colorComp", glm::value_ptr(colorComp.Color));
+            if (ImGui::ColorEdit4("##colorComp", glm::value_ptr(color)))
+            {
+                selectedEntity->PatchComponent<CHEngine::ColorComponent>(
+                    [&](CHEngine::ColorComponent& color_component) { color_component.Color = color; });
+            }
             ImGui::Spacing();
         });
 
@@ -294,10 +316,13 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         "Visibility",
         [&](CHEngine::VisibilityComponent& visibility) {
             bool before = visibility.Visible;
-            if (UIActive::Toggle("Visible##visComp", &visibility.Visible) && visibility.Visible != before)
+            bool visible = visibility.Visible;
+            if (UIActive::Toggle("Visible##visComp", &visible) && visible != before)
             {
+                selectedEntity->PatchComponent<CHEngine::VisibilityComponent>(
+                    [&](CHEngine::VisibilityComponent& visibility_component) { visibility_component.Visible = visible; });
                 host.GetCommandStack().Push(CHEngine::MakeScope<SetVisibilityCommand>(
-                    scene_ptr, scene_ptr->GetUUID(selectedHandle), before, visibility.Visible));
+                    scene_ptr, scene_ptr->GetUUID(selectedHandle), before, visible));
             }
             ImGui::Spacing();
         });
@@ -319,8 +344,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::PopStyleColor();
                 ImGui::SameLine(labelW);
                 ImGui::SetNextItemWidth(-1.0f);
-                if (ImGui::InputText("##meshSourcePathMesh", pathBuf, sizeof(pathBuf)))
-                    meshComp.SourcePath = pathBuf;
+                if (ImGui::InputText("##meshSourcePathMesh", pathBuf, sizeof(pathBuf)) && meshComp.SourcePath != pathBuf)
+                {
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>(
+                        [&](CHEngine::MeshComponent& mesh_component) { mesh_component.SourcePath = pathBuf; });
+                }
                 ImGui::Spacing();
             }
 
@@ -337,9 +365,15 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
 
                 auto& subMesh = meshComp.Meshes[mi];
                 if (!subMesh.Mat)
-                    subMesh.Mat = CHEngine::MaterialInstance::FromBase(
-                        std::make_shared<CHEngine::Material>(host.GetEditorViewport().GetMeshShader()));
-                auto mat_ref = subMesh.Mat;
+                {
+                    const size_t submeshIndex = mi;
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
+                        auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
+                        patchSubMesh.Mat = CHEngine::MaterialInstance::FromBase(
+                            std::make_shared<CHEngine::Material>(host.GetEditorViewport().GetMeshShader()));
+                    });
+                }
+                auto mat_ref = selectedEntity->GetComponent<CHEngine::MeshComponent>().Meshes[mi].Mat;
 
                 ImGui::Spacing();
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
@@ -435,14 +469,34 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::PopStyleColor();
                 ImGui::SameLine(labelW);
                 ImGui::SetNextItemWidth(-1.0f);
-                ImGui::DragFloat("##shinMesh", &mat_ref->Shininess, 0.5f, 1.0f, 256.0f, "%.1f");
+                float shininess = mat_ref->Shininess;
+                if (ImGui::DragFloat("##shinMesh", &shininess, 0.5f, 1.0f, 256.0f, "%.1f"))
+                {
+                    const size_t submeshIndex = mi;
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>(
+                        [&](CHEngine::MeshComponent& mesh_component) {
+                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
+                            if (patchSubMesh.Mat)
+                                patchSubMesh.Mat->Shininess = shininess;
+                        });
+                }
 
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("Specular scale");
                 ImGui::PopStyleColor();
                 ImGui::SameLine(labelW);
                 ImGui::SetNextItemWidth(-1.0f);
-                ImGui::DragFloat("##specScaleMesh", &mat_ref->SpecularScale, 0.02f, 0.0f, 4.0f, "%.2f");
+                float specularScale = mat_ref->SpecularScale;
+                if (ImGui::DragFloat("##specScaleMesh", &specularScale, 0.02f, 0.0f, 4.0f, "%.2f"))
+                {
+                    const size_t submeshIndex = mi;
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>(
+                        [&](CHEngine::MeshComponent& mesh_component) {
+                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
+                            if (patchSubMesh.Mat)
+                                patchSubMesh.Mat->SpecularScale = specularScale;
+                        });
+                }
 
                 ImGui::PopID();
             }
@@ -456,13 +510,21 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         selectedEntity,
         "Light",
         [&](CHEngine::LightComponent& lightComp) {
-            CHEngine::Light& lightData = lightComp.LightData;
+            const CHEngine::Light lightData = lightComp.LightData;
 
             const char* lightTypes[] = { "None", "Directional", "Point", "Spot" };
             int ltIdx = LightTypeToComboIndex(lightData.Type);
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::Combo("##lightTypeLt", &ltIdx, lightTypes, 4))
-                lightData.Type = ComboIndexToLightType(ltIdx);
+            {
+                const CHEngine::LightType nextType = ComboIndexToLightType(ltIdx);
+                if (nextType != lightData.Type)
+                {
+                    selectedEntity->PatchComponent<CHEngine::LightComponent>([&](CHEngine::LightComponent& light_component) {
+                        light_component.LightData.Type = nextType;
+                    });
+                }
+            }
 
             if (lightData.Type != CHEngine::LightType::None)
             {
@@ -472,14 +534,26 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::PopStyleColor();
                 ImGui::SameLine(labelW);
                 ImGui::SetNextItemWidth(-1.0f);
-                ImGui::ColorEdit3("##lightColorLt", glm::value_ptr(lightData.Color));
+                glm::vec3 lightColor = lightData.Color;
+                if (ImGui::ColorEdit3("##lightColorLt", glm::value_ptr(lightColor)))
+                {
+                    selectedEntity->PatchComponent<CHEngine::LightComponent>([&](CHEngine::LightComponent& light_component) {
+                        light_component.LightData.Color = lightColor;
+                    });
+                }
 
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("Intensity");
                 ImGui::PopStyleColor();
                 ImGui::SameLine(labelW);
                 ImGui::SetNextItemWidth(-1.0f);
-                ImGui::DragFloat("##lightIntensityLt", &lightData.Intensity, 0.05f, 0.0f, 100.0f, "%.2f");
+                float intensity = lightData.Intensity;
+                if (ImGui::DragFloat("##lightIntensityLt", &intensity, 0.05f, 0.0f, 100.0f, "%.2f"))
+                {
+                    selectedEntity->PatchComponent<CHEngine::LightComponent>([&](CHEngine::LightComponent& light_component) {
+                        light_component.LightData.Intensity = intensity;
+                    });
+                }
 
                 if (lightData.Type != CHEngine::LightType::Directional)
                 {
@@ -488,7 +562,12 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                     ImGui::PopStyleColor();
                     ImGui::SameLine(labelW);
                     ImGui::SetNextItemWidth(-1.0f);
-                    ImGui::DragFloat("##lightRangeLt", &lightData.Range, 0.1f, 0.1f, 1000.0f, "%.1f");
+                    float range = lightData.Range;
+                    if (ImGui::DragFloat("##lightRangeLt", &range, 0.1f, 0.1f, 1000.0f, "%.1f"))
+                    {
+                        selectedEntity->PatchComponent<CHEngine::LightComponent>(
+                            [&](CHEngine::LightComponent& light_component) { light_component.LightData.Range = range; });
+                    }
                 }
 
                 if (lightData.Type == CHEngine::LightType::Spot)
@@ -498,14 +577,28 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                     ImGui::PopStyleColor();
                     ImGui::SameLine(labelW);
                     ImGui::SetNextItemWidth(-1.0f);
-                    ImGui::DragFloat("##lightInnerLt", &lightData.InnerCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
+                    float innerCone = lightData.InnerCone;
+                    if (ImGui::DragFloat("##lightInnerLt", &innerCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0"))
+                    {
+                        selectedEntity->PatchComponent<CHEngine::LightComponent>(
+                            [&](CHEngine::LightComponent& light_component) {
+                                light_component.LightData.InnerCone = innerCone;
+                            });
+                    }
 
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                     ImGui::TextUnformatted("Outer");
                     ImGui::PopStyleColor();
                     ImGui::SameLine(labelW);
                     ImGui::SetNextItemWidth(-1.0f);
-                    ImGui::DragFloat("##lightOuterLt", &lightData.OuterCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0");
+                    float outerCone = lightData.OuterCone;
+                    if (ImGui::DragFloat("##lightOuterLt", &outerCone, 0.5f, 0.0f, 89.0f, "%.1f\xc2\xb0"))
+                    {
+                        selectedEntity->PatchComponent<CHEngine::LightComponent>(
+                            [&](CHEngine::LightComponent& light_component) {
+                                light_component.LightData.OuterCone = outerCone;
+                            });
+                    }
                 }
 
                 ImGui::Spacing();
@@ -520,23 +613,45 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         selectedEntity,
         "Camera",
         [&](CHEngine::CameraComponent& camComp) {
-            CHEngine::SceneCamera& cam = camComp.Camera;
+            const CHEngine::SceneCamera& cam = camComp.Camera;
 
             const uint32_t vw = std::max(1u, static_cast<uint32_t>(activeSession.ViewportSize.x));
             const uint32_t vh = std::max(1u, static_cast<uint32_t>(activeSession.ViewportSize.y));
-            auto syncViewport = [&] { cam.SetViewportSize(vw, vh); };
+            auto syncViewport = [&] {
+                selectedEntity->PatchComponent<CHEngine::CameraComponent>([&](CHEngine::CameraComponent& camera_component) {
+                    camera_component.Camera.SetViewportSize(vw, vh);
+                });
+            };
 
-            if (ImGui::Checkbox("Primary##camPrim", &camComp.Primary))
+            bool primary = camComp.Primary;
+            if (ImGui::Checkbox("Primary##camPrim", &primary))
+            {
+                selectedEntity->PatchComponent<CHEngine::CameraComponent>([&](CHEngine::CameraComponent& camera_component) {
+                    camera_component.Primary = primary;
+                    camera_component.Camera.SetViewportSize(vw, vh);
+                });
                 syncViewport();
-            ImGui::Checkbox("Fixed aspect ratio##camFixAsp", &camComp.FixedAspectRatio);
+            }
+            bool fixedAspectRatio = camComp.FixedAspectRatio;
+            if (ImGui::Checkbox("Fixed aspect ratio##camFixAsp", &fixedAspectRatio))
+            {
+                selectedEntity->PatchComponent<CHEngine::CameraComponent>([&](CHEngine::CameraComponent& camera_component) {
+                    camera_component.FixedAspectRatio = fixedAspectRatio;
+                });
+            }
 
             const char* projNames[] = { "Perspective", "Orthographic" };
             int projIdx = cam.GetProjectionType() == CHEngine::SceneCamera::ProjectionType::Perspective ? 0 : 1;
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::Combo("##camProjCam", &projIdx, projNames, 2))
             {
-                cam.SetProjectionType(projIdx == 0 ? CHEngine::SceneCamera::ProjectionType::Perspective
-                                                   : CHEngine::SceneCamera::ProjectionType::Orthographic);
+                const auto projectionType = projIdx == 0 ? CHEngine::SceneCamera::ProjectionType::Perspective
+                                                         : CHEngine::SceneCamera::ProjectionType::Orthographic;
+                selectedEntity->PatchComponent<CHEngine::CameraComponent>(
+                    [&](CHEngine::CameraComponent& camera_component) {
+                        camera_component.Camera.SetProjectionType(projectionType);
+                        camera_component.Camera.SetViewportSize(vw, vh);
+                    });
                 syncViewport();
             }
 
@@ -550,7 +665,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::SetNextItemWidth(-1.0f);
                 if (ImGui::DragFloat("##camFovCam", &fovDeg, 0.25f, 1.0f, 120.0f, "%.1f"))
                 {
-                    cam.SetPerspectiveVerticalFOV(glm::radians(fovDeg));
+                    selectedEntity->PatchComponent<CHEngine::CameraComponent>(
+                        [&](CHEngine::CameraComponent& camera_component) {
+                            camera_component.Camera.SetPerspectiveVerticalFOV(glm::radians(fovDeg));
+                            camera_component.Camera.SetViewportSize(vw, vh);
+                        });
                     syncViewport();
                 }
 
@@ -563,7 +682,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::SetNextItemWidth(-1.0f);
                 if (ImGui::DragFloat("##camPNearCam", &pn, 0.01f, 0.001f, pf * 0.999f, "%.3f"))
                 {
-                    cam.SetPerspectiveNearClip(pn);
+                    selectedEntity->PatchComponent<CHEngine::CameraComponent>(
+                        [&](CHEngine::CameraComponent& camera_component) {
+                            camera_component.Camera.SetPerspectiveNearClip(pn);
+                            camera_component.Camera.SetViewportSize(vw, vh);
+                        });
                     syncViewport();
                 }
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
@@ -573,7 +696,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::SetNextItemWidth(-1.0f);
                 if (ImGui::DragFloat("##camPFarCam", &pf, 1.0f, pn * 1.001f, 100000.0f, "%.1f"))
                 {
-                    cam.SetPerspectiveFarClip(pf);
+                    selectedEntity->PatchComponent<CHEngine::CameraComponent>(
+                        [&](CHEngine::CameraComponent& camera_component) {
+                            camera_component.Camera.SetPerspectiveFarClip(pf);
+                            camera_component.Camera.SetViewportSize(vw, vh);
+                        });
                     syncViewport();
                 }
             }
@@ -587,7 +714,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::SetNextItemWidth(-1.0f);
                 if (ImGui::DragFloat("##camOrthoSizeCam", &orthoSize, 0.05f, 0.01f, 10000.0f, "%.2f"))
                 {
-                    cam.SetOrthographicSize(orthoSize);
+                    selectedEntity->PatchComponent<CHEngine::CameraComponent>(
+                        [&](CHEngine::CameraComponent& camera_component) {
+                            camera_component.Camera.SetOrthographicSize(orthoSize);
+                            camera_component.Camera.SetViewportSize(vw, vh);
+                        });
                     syncViewport();
                 }
 
@@ -600,7 +731,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::SetNextItemWidth(-1.0f);
                 if (ImGui::DragFloat("##camONearCam", &on, 0.01f, -10000.0f, of - 0.001f, "%.3f"))
                 {
-                    cam.SetOrthographicNearClip(on);
+                    selectedEntity->PatchComponent<CHEngine::CameraComponent>(
+                        [&](CHEngine::CameraComponent& camera_component) {
+                            camera_component.Camera.SetOrthographicNearClip(on);
+                            camera_component.Camera.SetViewportSize(vw, vh);
+                        });
                     syncViewport();
                 }
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
@@ -610,7 +745,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 ImGui::SetNextItemWidth(-1.0f);
                 if (ImGui::DragFloat("##camOFarCam", &of, 0.01f, on + 0.001f, 10000.0f, "%.3f"))
                 {
-                    cam.SetOrthographicFarClip(of);
+                    selectedEntity->PatchComponent<CHEngine::CameraComponent>(
+                        [&](CHEngine::CameraComponent& camera_component) {
+                            camera_component.Camera.SetOrthographicFarClip(of);
+                            camera_component.Camera.SetViewportSize(vw, vh);
+                        });
                     syncViewport();
                 }
             }
@@ -631,84 +770,176 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
             int bt = static_cast<int>(rb.BodyDesc.Type);
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::Combo("##rbBodyTypeRb", &bt, bodyTypes, 3))
-                rb.BodyDesc.Type = static_cast<CHEngine::PhysicsBodyType>(bt);
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.BodyDesc.Type = static_cast<CHEngine::PhysicsBodyType>(bt);
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Mass");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbMassRb", &rb.BodyDesc.Mass, 0.05f, 0.001f, 100000.0f, "%.3f");
+            float mass = rb.BodyDesc.Mass;
+            if (ImGui::DragFloat("##rbMassRb", &mass, 0.05f, 0.001f, 100000.0f, "%.3f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) { rigidbody_component.BodyDesc.Mass = mass; });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Linear damp");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbLinDampRb", &rb.BodyDesc.LinearDamping, 0.01f, 0.0f, 100.0f, "%.3f");
+            float linearDamping = rb.BodyDesc.LinearDamping;
+            if (ImGui::DragFloat("##rbLinDampRb", &linearDamping, 0.01f, 0.0f, 100.0f, "%.3f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.BodyDesc.LinearDamping = linearDamping;
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Angular damp");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbAngDampRb", &rb.BodyDesc.AngularDamping, 0.01f, 0.0f, 100.0f, "%.3f");
+            float angularDamping = rb.BodyDesc.AngularDamping;
+            if (ImGui::DragFloat("##rbAngDampRb", &angularDamping, 0.01f, 0.0f, 100.0f, "%.3f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.BodyDesc.AngularDamping = angularDamping;
+                    });
+            }
 
-            ImGui::Checkbox("Gravity##rbGravRb", &rb.BodyDesc.EnableGravity);
+            bool enableGravity = rb.BodyDesc.EnableGravity;
+            if (ImGui::Checkbox("Gravity##rbGravRb", &enableGravity))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.BodyDesc.EnableGravity = enableGravity;
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Friction (s)");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbFricSRb", &rb.BodyDesc.StaticFriction, 0.01f, 0.0f, 2.0f, "%.2f");
+            float staticFriction = rb.BodyDesc.StaticFriction;
+            if (ImGui::DragFloat("##rbFricSRb", &staticFriction, 0.01f, 0.0f, 2.0f, "%.2f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.BodyDesc.StaticFriction = staticFriction;
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Friction (d)");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbFricDRb", &rb.BodyDesc.DynamicFriction, 0.01f, 0.0f, 2.0f, "%.2f");
+            float dynamicFriction = rb.BodyDesc.DynamicFriction;
+            if (ImGui::DragFloat("##rbFricDRb", &dynamicFriction, 0.01f, 0.0f, 2.0f, "%.2f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.BodyDesc.DynamicFriction = dynamicFriction;
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Restitution");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbRestRb", &rb.BodyDesc.Restitution, 0.01f, 0.0f, 2.0f, "%.2f");
+            float restitution = rb.BodyDesc.Restitution;
+            if (ImGui::DragFloat("##rbRestRb", &restitution, 0.01f, 0.0f, 2.0f, "%.2f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.BodyDesc.Restitution = restitution;
+                    });
+            }
 
             const char* syncModes[] = { "Auto", "Read from physics", "Write to physics", "Read / write" };
             int sm = static_cast<int>(rb.SyncMode);
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::Combo("##rbSyncRb", &sm, syncModes, 4))
-                rb.SyncMode = static_cast<CHEngine::RigidBodySyncMode>(sm);
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.SyncMode = static_cast<CHEngine::RigidBodySyncMode>(sm);
+                    });
+            }
 
             const char* shapeTypes[] = { "Box", "Sphere", "Capsule" };
             int st = static_cast<int>(rb.ShapeDesc.Type);
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::Combo("##rbShapeRb", &st, shapeTypes, 3))
-                rb.ShapeDesc.Type = static_cast<CHEngine::PhysicsColliderShapeType>(st);
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.ShapeDesc.Type = static_cast<CHEngine::PhysicsColliderShapeType>(st);
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Half extents");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat3("##rbHalfExtRb", glm::value_ptr(rb.ShapeDesc.HalfExtents), 0.01f, 0.001f, 1000.0f);
+            glm::vec3 halfExtents = rb.ShapeDesc.HalfExtents;
+            if (ImGui::DragFloat3("##rbHalfExtRb", glm::value_ptr(halfExtents), 0.01f, 0.001f, 1000.0f))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.ShapeDesc.HalfExtents = halfExtents;
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Radius");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbRadiusRb", &rb.ShapeDesc.Radius, 0.01f, 0.001f, 1000.0f, "%.3f");
+            float radius = rb.ShapeDesc.Radius;
+            if (ImGui::DragFloat("##rbRadiusRb", &radius, 0.01f, 0.001f, 1000.0f, "%.3f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.ShapeDesc.Radius = radius;
+                    });
+            }
 
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
             ImGui::TextUnformatted("Half height");
             ImGui::PopStyleColor();
             ImGui::SameLine(labelW);
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##rbHalfHRb", &rb.ShapeDesc.HalfHeight, 0.01f, 0.001f, 1000.0f, "%.3f");
+            float halfHeight = rb.ShapeDesc.HalfHeight;
+            if (ImGui::DragFloat("##rbHalfHRb", &halfHeight, 0.01f, 0.001f, 1000.0f, "%.3f"))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.ShapeDesc.HalfHeight = halfHeight;
+                    });
+            }
+
+            bool synchronisedTransform = rb.SynchronisedTransform;
+            if (ImGui::Checkbox("Synchronise transform##rbSyncTransformRb", &synchronisedTransform))
+            {
+                selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
+                    [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
+                        rigidbody_component.SynchronisedTransform = synchronisedTransform;
+                    });
+            }
 
             ImGui::Spacing();
         });
@@ -721,9 +952,23 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         selectedEntity,
         "Lifetime",
         [&](CHEngine::LifetimeComponent& life) {
+            float remainingSeconds = life.RemainingSeconds;
             ImGui::SetNextItemWidth(-1.0f);
-            ImGui::DragFloat("##lifeRemainLf", &life.RemainingSeconds, 0.05f, 0.0f, 1.0e6f, "%.2f s");
-            ImGui::Checkbox("Destroy on expire##lifeDestLf", &life.DestroyOnExpire);
+            if (ImGui::DragFloat("##lifeRemainLf", &remainingSeconds, 0.05f, 0.0f, 1.0e6f, "%.2f s"))
+            {
+                selectedEntity->PatchComponent<CHEngine::LifetimeComponent>(
+                    [&](CHEngine::LifetimeComponent& lifetime_component) {
+                        lifetime_component.RemainingSeconds = remainingSeconds;
+                    });
+            }
+            bool destroyOnExpire = life.DestroyOnExpire;
+            if (ImGui::Checkbox("Destroy on expire##lifeDestLf", &destroyOnExpire))
+            {
+                selectedEntity->PatchComponent<CHEngine::LifetimeComponent>(
+                    [&](CHEngine::LifetimeComponent& lifetime_component) {
+                        lifetime_component.DestroyOnExpire = destroyOnExpire;
+                    });
+            }
             ImGui::Spacing();
         });
 

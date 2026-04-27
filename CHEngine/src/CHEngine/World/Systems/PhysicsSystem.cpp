@@ -8,6 +8,7 @@
 #include "CHEngine/Physics/PhysicsFacade.h"
 
 
+#include <algorithm>
 #include <glm/gtc/quaternion.hpp>
 
 namespace CHEngine {
@@ -61,10 +62,24 @@ void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 void PhysicsSystem::OnBegin(World& world, DeferredOps& deferred_ops)
 {
     RebuildPhysicsRuntime(world);
+    m_RigidBodyAddedHookToken = deferred_ops.SubscribeOnComponentAdded<RigidBody3DComponent>(&PhysicsSystem::CreateRigidBody);
+    m_RigidBodyRemovedHookToken = deferred_ops.SubscribeOnComponentRemoved<RigidBody3DComponent>(&PhysicsSystem::DestroyRigidBody);
 }
 
 void PhysicsSystem::OnEnd(World& world, DeferredOps& deferred_ops)
 {
+    if (m_RigidBodyAddedHookToken != 0)
+    {
+        deferred_ops.Unsubscribe(m_RigidBodyAddedHookToken);
+        m_RigidBodyAddedHookToken = 0;
+    }
+
+    if (m_RigidBodyRemovedHookToken != 0)
+    {
+        deferred_ops.Unsubscribe(m_RigidBodyRemovedHookToken);
+        m_RigidBodyRemovedHookToken = 0;
+    }
+
     ClearPhysicsRuntime(world);
 }
 
@@ -146,7 +161,6 @@ void PhysicsSystem::ClearPhysicsRuntime(World& world)
 
 void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
 {
-    CHE_CORE_INFO("Rigid Body created");
     IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().get();
     if (!runtimeWorld)
         return;
@@ -176,7 +190,6 @@ void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
 
 void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
 {
-    CHE_CORE_INFO("Rigid Body destroyed");
     auto scene = world.GetSceneRef();
     if (!scene)
         return;
@@ -195,5 +208,4 @@ void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
         PhysicsFacade::Delete(rigidBody.Shape);
     rigidBody.Shape = nullptr;
 }
-
 } // namespace CHEngine

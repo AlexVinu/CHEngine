@@ -89,11 +89,12 @@ namespace CHEngine {
 	Scene::Scene()
 	{
 		InitializeRegistry();
+		InitSignals();
 	}
 
 	Scene::Scene(const Scene& other)
+		:Scene()
 	{
-		InitializeRegistry();
 		CloneFrom(other);
 	}
 
@@ -110,6 +111,7 @@ namespace CHEngine {
 		m_SceneRegistry->EntityPool.ForEachOccupied([this](Entity* entity) { entity->SetScene(this); });
 
 		other.InitializeRegistry();
+		other.InitSignals();
 	}
 
 	Scene& Scene::operator=(const Scene& other)
@@ -118,6 +120,7 @@ namespace CHEngine {
 			return *this;
 
 		InitializeRegistry();
+		InitSignals();
 		CloneFrom(other);
 		return *this;
 	}
@@ -136,6 +139,7 @@ namespace CHEngine {
 		m_SceneRegistry->EntityPool.ForEachOccupied([this](Entity* entity) { entity->SetScene(this); });
 
 		other.InitializeRegistry();
+		other.InitSignals();
 
 		return *this;
 	}
@@ -144,6 +148,12 @@ namespace CHEngine {
 	{
 		m_SceneRegistry = std::make_unique<SceneRegistry>();
 		m_SceneRegistry->EntityPool = HandlePool<Entity, EntityTag>([](Entity* ptr) { delete ptr; });
+	}
+
+	void Scene::InitSignals()
+	{
+		auto& reg = m_SceneRegistry->Registry;
+		reg.on_update<TransformComponent>().connect<&Scene::OnTransformUpdate>(this);
 	}
 
 	void Scene::CloneFrom(const Scene& source)
@@ -293,4 +303,52 @@ namespace CHEngine {
 		return it->second;
 	}
 
+	namespace
+	{
+		PhysicsColliderShapeDesc BuildScaledShapeDesc(const PhysicsColliderShapeDesc& base_shape_desc, const Transform& transform)
+		{
+			PhysicsColliderShapeDesc scaledShapeDesc = base_shape_desc;
+			const glm::vec3 absScale = glm::abs(transform.Scale);
+			const float maxAxisAbsScale = std::max(absScale.x, std::max(absScale.y, absScale.z));
+
+			switch (scaledShapeDesc.Type)
+			{
+			case PhysicsColliderShapeType::Box:
+				scaledShapeDesc.HalfExtents = absScale;
+				break;
+			case PhysicsColliderShapeType::Sphere:
+				scaledShapeDesc.Radius = maxAxisAbsScale;
+				break;
+			case PhysicsColliderShapeType::Capsule:
+				scaledShapeDesc.Radius = maxAxisAbsScale;
+				scaledShapeDesc.HalfHeight = maxAxisAbsScale;
+				break;
+			default:
+				break;
+			}
+
+			return scaledShapeDesc;
+		}
+	}
+
+	// On Signals
+	void Scene::OnTransformUpdate(entt::registry& reg, entt::entity e)
+	{
+		if (!reg.all_of<TransformComponent, RigidBody3DComponent>(e)) return;
+
+		auto& tc = reg.get<TransformComponent>(e);
+		auto& rb = reg.get<RigidBody3DComponent>(e);
+
+		if (rb.SynchronisedTransform)
+		{
+			PhysicsTransform physTransform;
+			physTransform.Position = tc.ObjectTransform.Position;
+			physTransform.Rotation = glm::quat(glm::radians(tc.ObjectTransform.Rotation));
+
+			const auto scaledDesc = BuildScaledShapeDesc(rb.ShapeDesc, tc.ObjectTransform);
+			
+			rb.ShapeDesc = scaledDesc;
+			rb.BodyDesc.Transform = physTransform;
+		}
+	}
 } // namespace CHEngine

@@ -11,7 +11,10 @@ namespace CHModules
 	class ShaderOGL : public CHEngine::IShader
 	{
 	public:
-		ShaderOGL(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc);
+		ShaderOGL(const CHEngine::String& slangSource,
+		          const CHEngine::String& vertEntry,
+		          const CHEngine::String& fragEntry,
+		          const CHEngine::String& sourcePath = CHEngine::String());
 		virtual ~ShaderOGL();
 
 		ShaderOGL(const ShaderOGL&) = delete;
@@ -22,7 +25,10 @@ namespace CHModules
 
 		virtual void Bind() const override;
 		virtual void Unbind() const override;
-		virtual bool Reload(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
+		virtual bool Reload(const CHEngine::String& slangSource,
+		                    const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
+		                    const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
+		                    const CHEngine::String& sourcePath = CHEngine::String()) override;
 
 		// --- UBO ---
 		virtual void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
@@ -31,8 +37,12 @@ namespace CHModules
 		virtual void SetInt(const CHEngine::String& name, int value) override;
 
 	private:
-		// Compiles and links a program; returns program ID on success, 0 on failure.
-		static GLuint CompileProgram(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc);
+		// Compile a .slang source through SlangBackend (→ GLSL) and link a GL program.
+		// Returns the program ID on success, 0 on failure.
+		static GLuint CompileSlangProgram(const CHEngine::String& slangSource,
+		                                  const CHEngine::String& vertEntry,
+		                                  const CHEngine::String& fragEntry,
+		                                  const CHEngine::String& sourcePath);
 
 		// Привязка UBO block indices к binding points после компиляции/перекомпиляции
 		void BindUBOBlocks();

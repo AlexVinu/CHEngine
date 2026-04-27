@@ -50,7 +50,8 @@ void GizmoSystem::Draw(SceneSession* scene_session,
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
         return;
 
-    auto& selectedTransform = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
+    const CHEngine::Transform selectedTransform =
+        entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
 
     ImGuizmo::SetOrthographic(false);
     ImGuizmo::SetDrawlist();
@@ -94,9 +95,11 @@ void GizmoSystem::Draw(SceneSession* scene_session,
     if (ImGuizmo::IsUsing())
     {
         ImGuizmo::DecomposeMatrixToComponents(matrix, translation, rotation, scale);
-        selectedTransform.Position = { translation[0], translation[1], translation[2] };
-        selectedTransform.Rotation = { rotation[0], rotation[1], rotation[2] };
-        selectedTransform.Scale = { scale[0], scale[1], scale[2] };
+        entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {
+            transform_component.ObjectTransform.Position = { translation[0], translation[1], translation[2] };
+            transform_component.ObjectTransform.Rotation = { rotation[0], rotation[1], rotation[2] };
+            transform_component.ObjectTransform.Scale = { scale[0], scale[1], scale[2] };
+        });
     }
 
     if (m_GizmoWasUsing && !ImGuizmo::IsUsing() && m_CommandStack)
@@ -105,7 +108,7 @@ void GizmoSystem::Draw(SceneSession* scene_session,
             scene_ref,
             selectedHandle,
             m_TransformBeforeDrag,
-            selectedTransform);
+            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform);
         m_CommandStack->Push(std::move(command));
     }
 

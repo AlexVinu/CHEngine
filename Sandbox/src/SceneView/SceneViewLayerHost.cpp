@@ -143,7 +143,11 @@ void SceneViewLayerHost::AddDirectionalLight()
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
         if (entity->HasComponent<CHEngine::TransformComponent>())
-            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+        {
+            entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
+                transform_component.ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+            });
+        }
         activeSession.SelectedEntity = handle;
     }
 }
@@ -161,7 +165,11 @@ void SceneViewLayerHost::AddPointLight()
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Point } });
         if (entity->HasComponent<CHEngine::TransformComponent>())
-            entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+        {
+            entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
+                transform_component.ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+            });
+        }
         activeSession.SelectedEntity = handle;
     }
 }
@@ -180,9 +188,10 @@ void SceneViewLayerHost::AddSpotLight()
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Spot } });
         if (entity->HasComponent<CHEngine::TransformComponent>())
         {
-            auto& tr = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
-            tr.Position = { 0.0f, 5.0f, 0.0f };
-            tr.Rotation = { -90.0f, 0.0f, 0.0f };
+            entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
+                transform_component.ObjectTransform.Position = { 0.0f, 5.0f, 0.0f };
+                transform_component.ObjectTransform.Rotation = { -90.0f, 0.0f, 0.0f };
+            });
         }
         activeSession.SelectedEntity = handle;
     }
@@ -204,14 +213,15 @@ void SceneViewLayerHost::AddCubePrimitive()
     if (!entity->HasComponent<CHEngine::MeshComponent>())
         entity->AddComponent<CHEngine::MeshComponent>(CHEngine::MeshComponent{});
 
-    auto& mesh_component = entity->GetComponent<CHEngine::MeshComponent>();
-    mesh_component.Meshes.clear();
-
     CHEngine::Mesh cube_mesh = CHEngine::PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
     cube_mesh.Mat = CHEngine::MaterialInstance::FromBase(
         std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
-    mesh_component.Meshes.push_back(std::move(cube_mesh));
-    mesh_component.SourcePath = ":primitive:cube";
+    entity->PatchComponent<CHEngine::MeshComponent>(
+        [cube_mesh = std::move(cube_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
+            mesh_component.Meshes.clear();
+            mesh_component.Meshes.push_back(std::move(cube_mesh));
+            mesh_component.SourcePath = ":primitive:cube";
+        });
 
     activeSession.SelectedEntity = handle;
 }
@@ -267,25 +277,27 @@ void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_ind
     auto* selectedEntity = scene->TryGetEntity(selectedHandle);
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
-    auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
+    const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
     if (submesh_index >= meshComp.Meshes.size())
         return;
-    auto& subMesh = meshComp.Meshes[submesh_index];
-    if (!subMesh.Mat)
-        subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
-            SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
-    auto mat_ref = subMesh.Mat;
-    CHEngine::TextureHandle d0, s0;
-    mat_ref->ResolveTextures(d0, s0);
-    if (d0.IsValid())
-        CHEngine::RenderFacade::DestroyTexture(d0);
-    if (mat_ref->m_Material)
-    {
-        mat_ref->m_Material->DiffuseMap = CHEngine::TextureHandle{};
-        mat_ref->m_Material->DiffuseMapPath.clear();
-    }
-    mat_ref->DiffuseMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
-    mat_ref->DiffuseMapPath = mat_ref->DiffuseMap.IsValid() ? filepath : "";
+    selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
+        auto& subMesh = mesh_component.Meshes[submesh_index];
+        if (!subMesh.Mat)
+            subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
+                SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
+        auto mat_ref = subMesh.Mat;
+        CHEngine::TextureHandle d0, s0;
+        mat_ref->ResolveTextures(d0, s0);
+        if (d0.IsValid())
+            CHEngine::RenderFacade::DestroyTexture(d0);
+        if (mat_ref->m_Material)
+        {
+            mat_ref->m_Material->DiffuseMap = CHEngine::TextureHandle{};
+            mat_ref->m_Material->DiffuseMapPath.clear();
+        }
+        mat_ref->DiffuseMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
+        mat_ref->DiffuseMapPath = mat_ref->DiffuseMap.IsValid() ? filepath : "";
+    });
 }
 
 void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index)
@@ -298,24 +310,26 @@ void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_ind
     auto* selectedEntity = scene->TryGetEntity(selectedHandle);
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
-    auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
+    const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
     if (submesh_index >= meshComp.Meshes.size())
         return;
-    auto& subMesh = meshComp.Meshes[submesh_index];
-    if (!subMesh.Mat)
-        return;
-    auto mat_ref = subMesh.Mat;
-    CHEngine::TextureHandle d0, s0;
-    mat_ref->ResolveTextures(d0, s0);
-    if (d0.IsValid())
-        CHEngine::RenderFacade::DestroyTexture(d0);
-    mat_ref->DiffuseMap = CHEngine::TextureHandle{};
-    mat_ref->DiffuseMapPath.clear();
-    if (mat_ref->m_Material)
-    {
-        mat_ref->m_Material->DiffuseMap = CHEngine::TextureHandle{};
-        mat_ref->m_Material->DiffuseMapPath.clear();
-    }
+    selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
+        auto& subMesh = mesh_component.Meshes[submesh_index];
+        if (!subMesh.Mat)
+            return;
+        auto mat_ref = subMesh.Mat;
+        CHEngine::TextureHandle d0, s0;
+        mat_ref->ResolveTextures(d0, s0);
+        if (d0.IsValid())
+            CHEngine::RenderFacade::DestroyTexture(d0);
+        mat_ref->DiffuseMap = CHEngine::TextureHandle{};
+        mat_ref->DiffuseMapPath.clear();
+        if (mat_ref->m_Material)
+        {
+            mat_ref->m_Material->DiffuseMap = CHEngine::TextureHandle{};
+            mat_ref->m_Material->DiffuseMapPath.clear();
+        }
+    });
 }
 
 void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)
@@ -328,25 +342,27 @@ void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_in
     auto* selectedEntity = scene->TryGetEntity(selectedHandle);
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
-    auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
+    const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
     if (submesh_index >= meshComp.Meshes.size())
         return;
-    auto& subMesh = meshComp.Meshes[submesh_index];
-    if (!subMesh.Mat)
-        subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
-            SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
-    auto mat_ref = subMesh.Mat;
-    CHEngine::TextureHandle d0, s0;
-    mat_ref->ResolveTextures(d0, s0);
-    if (s0.IsValid())
-        CHEngine::RenderFacade::DestroyTexture(s0);
-    if (mat_ref->m_Material)
-    {
-        mat_ref->m_Material->SpecularMap = CHEngine::TextureHandle{};
-        mat_ref->m_Material->SpecularMapPath.clear();
-    }
-    mat_ref->SpecularMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
-    mat_ref->SpecularMapPath = mat_ref->SpecularMap.IsValid() ? filepath : "";
+    selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
+        auto& subMesh = mesh_component.Meshes[submesh_index];
+        if (!subMesh.Mat)
+            subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
+                SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
+        auto mat_ref = subMesh.Mat;
+        CHEngine::TextureHandle d0, s0;
+        mat_ref->ResolveTextures(d0, s0);
+        if (s0.IsValid())
+            CHEngine::RenderFacade::DestroyTexture(s0);
+        if (mat_ref->m_Material)
+        {
+            mat_ref->m_Material->SpecularMap = CHEngine::TextureHandle{};
+            mat_ref->m_Material->SpecularMapPath.clear();
+        }
+        mat_ref->SpecularMap = CHEngine::RenderFacade::CreateTextureFromFile(filepath);
+        mat_ref->SpecularMapPath = mat_ref->SpecularMap.IsValid() ? filepath : "";
+    });
 }
 
 void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_index)
@@ -359,24 +375,26 @@ void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_in
     auto* selectedEntity = scene->TryGetEntity(selectedHandle);
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
-    auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
+    const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
     if (submesh_index >= meshComp.Meshes.size())
         return;
-    auto& subMesh = meshComp.Meshes[submesh_index];
-    if (!subMesh.Mat)
-        return;
-    auto mat_ref = subMesh.Mat;
-    CHEngine::TextureHandle d0, s0;
-    mat_ref->ResolveTextures(d0, s0);
-    if (s0.IsValid())
-        CHEngine::RenderFacade::DestroyTexture(s0);
-    mat_ref->SpecularMap = CHEngine::TextureHandle{};
-    mat_ref->SpecularMapPath.clear();
-    if (mat_ref->m_Material)
-    {
-        mat_ref->m_Material->SpecularMap = CHEngine::TextureHandle{};
-        mat_ref->m_Material->SpecularMapPath.clear();
-    }
+    selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
+        auto& subMesh = mesh_component.Meshes[submesh_index];
+        if (!subMesh.Mat)
+            return;
+        auto mat_ref = subMesh.Mat;
+        CHEngine::TextureHandle d0, s0;
+        mat_ref->ResolveTextures(d0, s0);
+        if (s0.IsValid())
+            CHEngine::RenderFacade::DestroyTexture(s0);
+        mat_ref->SpecularMap = CHEngine::TextureHandle{};
+        mat_ref->SpecularMapPath.clear();
+        if (mat_ref->m_Material)
+        {
+            mat_ref->m_Material->SpecularMap = CHEngine::TextureHandle{};
+            mat_ref->m_Material->SpecularMapPath.clear();
+        }
+    });
 }
 
 void SceneViewLayerHost::SaveScene()

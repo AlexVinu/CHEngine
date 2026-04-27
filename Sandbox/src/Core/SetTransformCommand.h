@@ -110,7 +110,10 @@ private:
         if (!entity || !entity->HasComponent<CHEngine::TransformComponent>())
             return;
 
-        entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform = transform;
+        entity->PatchComponent<CHEngine::TransformComponent>(
+            [&](CHEngine::TransformComponent& transform_component) {
+                transform_component.ObjectTransform = transform;
+            });
     }
 
 private:
@@ -176,7 +179,10 @@ private:
         auto* entity = m_Scene->TryGetEntity(handle);
         if (!entity || !entity->HasComponent<CHEngine::VisibilityComponent>())
             return;
-        entity->GetComponent<CHEngine::VisibilityComponent>().Visible = visible;
+        entity->PatchComponent<CHEngine::VisibilityComponent>(
+            [&](CHEngine::VisibilityComponent& visibility_component) {
+                visibility_component.Visible = visible;
+            });
     }
 
 private:

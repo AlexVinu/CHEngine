@@ -19,7 +19,7 @@ struct SceneSession
     SceneSession()
     {
         EditorScene = CHEngine::CreateRef<CHEngine::Scene>();
-        ActiveScene = EditorScene;
+        ActiveScene = CHEngine::CreateRef<CHEngine::Scene>();
         RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(EditorScene);
         ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
         ViewportCamera->SetViewportSize(ViewportSize.x, ViewportSize.y);

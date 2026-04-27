@@ -1,10 +1,25 @@
 #include "chepch.h"
 #include "DeferredOps.h"
 
+#include <cstdint>
 #include <unordered_set>
 
 namespace CHEngine
 {
+    namespace
+    {
+        constexpr uint64_t kHookEventAdded = 0xA11Du;
+        constexpr uint64_t kHookEventRemoved = 0xB22Eu;
+
+        uint64_t MixHookKey(size_t component_hash, uint64_t event_kind, uint64_t function_key)
+        {
+            uint64_t result = static_cast<uint64_t>(component_hash);
+            result ^= event_kind + 0x9e3779b97f4a7c15ULL + (result << 6u) + (result >> 2u);
+            result ^= function_key + 0x9e3779b97f4a7c15ULL + (result << 6u) + (result >> 2u);
+            return result;
+        }
+    }
+
     DeferredEntityHandle DeferredOps::CreateEntity(const std::string& name)
     {
         CreateEntityCommand command{};
@@ -78,7 +93,108 @@ namespace CHEngine
         return (static_cast<uint64_t>(entity_handle.generation) << 32u) | static_cast<uint64_t>(entity_handle.index);
     }
 
-    void DeferredOps::Flush(Ref<Scene> scene)
+    DeferredOps::HookToken DeferredOps::SubscribeOnComponentAdded(std::type_index component_type, ComponentAddedFn fn)
+    {
+        if (!fn)
+            return 0;
+
+        const uint64_t function_key = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(fn));
+        const uint64_t dedup_key = MixHookKey(component_type.hash_code(), kHookEventAdded, function_key);
+        const auto existing_it = m_DedupTokenByKey.find(dedup_key);
+        if (existing_it != m_DedupTokenByKey.end())
+            return existing_it->second;
+
+        const HookToken token = m_NextHookToken++;
+        ComponentHookBinding binding{};
+        binding.Token = token;
+        binding.ComponentType = component_type;
+        binding.DedupKey = dedup_key;
+        binding.AddedFn = fn;
+        m_HookIndexByToken.emplace(token, m_ComponentHooks.size());
+        m_DedupTokenByKey.emplace(dedup_key, token);
+        m_ComponentHooks.emplace_back(binding);
+        return token;
+    }
+
+    DeferredOps::HookToken DeferredOps::SubscribeOnComponentRemoved(std::type_index component_type, ComponentRemovedFn fn)
+    {
+        if (!fn)
+            return 0;
+
+        const uint64_t function_key = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(fn));
+        const uint64_t dedup_key = MixHookKey(component_type.hash_code(), kHookEventRemoved, function_key);
+        const auto existing_it = m_DedupTokenByKey.find(dedup_key);
+        if (existing_it != m_DedupTokenByKey.end())
+            return existing_it->second;
+
+        const HookToken token = m_NextHookToken++;
+        ComponentHookBinding binding{};
+        binding.Token = token;
+        binding.ComponentType = component_type;
+        binding.DedupKey = dedup_key;
+        binding.RemovedFn = fn;
+        m_HookIndexByToken.emplace(token, m_ComponentHooks.size());
+        m_DedupTokenByKey.emplace(dedup_key, token);
+        m_ComponentHooks.emplace_back(binding);
+        return token;
+    }
+
+    bool DeferredOps::Unsubscribe(HookToken token)
+    {
+        const auto token_it = m_HookIndexByToken.find(token);
+        if (token_it == m_HookIndexByToken.end())
+            return false;
+
+        const size_t remove_index = token_it->second;
+        if (remove_index >= m_ComponentHooks.size())
+            return false;
+
+        const ComponentHookBinding removed = m_ComponentHooks[remove_index];
+        m_DedupTokenByKey.erase(removed.DedupKey);
+        m_HookIndexByToken.erase(token_it);
+
+        const size_t last_index = m_ComponentHooks.size() - 1;
+        if (remove_index != last_index)
+        {
+            m_ComponentHooks[remove_index] = m_ComponentHooks[last_index];
+            m_HookIndexByToken[m_ComponentHooks[remove_index].Token] = remove_index;
+        }
+
+        m_ComponentHooks.pop_back();
+        return true;
+    }
+
+    void DeferredOps::DispatchOnComponentAdded(std::type_index component_type, World& world, EntityHandle entity_handle)
+    {
+        std::vector<ComponentAddedFn> callbacks;
+        callbacks.reserve(m_ComponentHooks.size());
+
+        for (const ComponentHookBinding& binding : m_ComponentHooks)
+        {
+            if (binding.ComponentType == component_type && binding.AddedFn)
+                callbacks.emplace_back(binding.AddedFn);
+        }
+
+        for (ComponentAddedFn callback : callbacks)
+            callback(world, entity_handle);
+    }
+
+    void DeferredOps::DispatchOnComponentRemoved(std::type_index component_type, World& world, EntityHandle entity_handle)
+    {
+        std::vector<ComponentRemovedFn> callbacks;
+        callbacks.reserve(m_ComponentHooks.size());
+
+        for (const ComponentHookBinding& binding : m_ComponentHooks)
+        {
+            if (binding.ComponentType == component_type && binding.RemovedFn)
+                callbacks.emplace_back(binding.RemovedFn);
+        }
+
+        for (ComponentRemovedFn callback : callbacks)
+            callback(world, entity_handle);
+    }
+
+    void DeferredOps::Flush(World& world, Ref<Scene> scene)
     {
         if (!scene)
         {
@@ -135,7 +251,7 @@ namespace CHEngine
                     continue;
                 if (pending_destroy_keys.contains(HandleToKey(entity_handle)))
                     continue;
-                add_command->Apply(scene, entity_handle);
+                add_command->Apply(world, scene, entity_handle);
                 continue;
             }
 
@@ -146,7 +262,7 @@ namespace CHEngine
                     continue;
                 if (pending_destroy_keys.contains(HandleToKey(entity_handle)))
                     continue;
-                remove_command->Apply(scene, entity_handle);
+                remove_command->Apply(world, scene, entity_handle);
                 continue;
             }
 

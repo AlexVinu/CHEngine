@@ -9,7 +9,10 @@ namespace CHModules
         CHEngine::IVertexBuffer* CreateVertexBuffer(float* verticies, uint32_t size) override;
         CHEngine::IIndexBuffer*  CreateIndexBuffer(uint32_t* indices, uint32_t count) override;
         CHEngine::IVertexArray*  CreateVertexArray() override;
-        CHEngine::IShader*       CreateShader(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc) override;
+        CHEngine::IShader*       CreateShader(const CHEngine::String& slangSource,
+                                               const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
+                                               const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
+                                               const CHEngine::String& sourcePath = CHEngine::String()) override;
         CHEngine::IRenderApi*    CreateRenderAPI() override;
 
         CHEngine::IRenderer* CreateRenderer(CHEngine::IRenderApi* api) override;

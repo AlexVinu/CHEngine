@@ -106,7 +106,7 @@ endif()
 # Подключаемые библиотеки
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
-        CHEngine_CORE imgui glm 
+        CHEngine_CORE imgui glm
 )
 
 # Линковка dl на Unix

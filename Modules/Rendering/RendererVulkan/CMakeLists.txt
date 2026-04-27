@@ -47,6 +47,7 @@ target_link_libraries(${PROJECT_NAME}
         Vulkan::Vulkan
         glfw
         glm
+        SlangBackend
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

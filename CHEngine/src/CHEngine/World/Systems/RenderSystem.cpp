@@ -11,6 +11,7 @@
 #include <Render/UniformBlocks.h>
 
 #include <glm/gtc/matrix_transform.hpp>
+#include <glm/matrix.hpp>
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #define GLM_ENABLE_EXPERIMENTAL
@@ -90,8 +91,12 @@ namespace CHEngine {
             pos = t.Position;
         }
 
-        std::memcpy(out.ViewProjection, glm::value_ptr(view_proj), sizeof(out.ViewProjection));
-        std::memcpy(out.InvViewProj, glm::value_ptr(inv_view_proj), sizeof(out.InvViewProj));
+        // Slang emits `v*M` and reads matrices via `layout(row_major) uniform;`.
+        // GLM stores column-major. The two row/column flips cancel out, so the
+        // matrix arrives in the shader effectively as `M`, giving the correct
+        // M*v result вЂ” no transpose needed at the C++ side.
+        std::memcpy(out.ViewProjection, glm::value_ptr(view_proj),     sizeof(out.ViewProjection));
+        std::memcpy(out.InvViewProj,    glm::value_ptr(inv_view_proj), sizeof(out.InvViewProj));
         out.CameraPos[0] = pos.x;
         out.CameraPos[1] = pos.y;
         out.CameraPos[2] = pos.z;
@@ -174,7 +179,7 @@ namespace CHEngine {
                 ++lightCount;
             });
 
-        // Fallback — дефолтный направленный свет если источников нет
+        // Fallback пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ
         if (lightCount == 0)
         {
             UBOLightData& L = out.Lights[0];
@@ -216,7 +221,7 @@ namespace CHEngine {
                 const glm::mat4 normalMat = glm::transpose(glm::inverse(model));
 
                 UBOObject objectUBO{};
-                std::memcpy(objectUBO.Transform, glm::value_ptr(model), sizeof(objectUBO.Transform));
+                std::memcpy(objectUBO.Transform,    glm::value_ptr(model),     sizeof(objectUBO.Transform));
                 std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), sizeof(objectUBO.NormalMatrix));
                 objectUBO.Color[0] = color.r;
                 objectUBO.Color[1] = color.g;
@@ -245,9 +250,11 @@ namespace CHEngine {
                     shader->SetUniformBlock(EUniformBlock::Object, &objectUBO, sizeof(objectUBO));
                     mesh.Mat->ApplyMaterial();
 
+                    // Р¦Р•Р›Р¬ - РµРґРёРЅС‹Р№ СЃР°Р±РјРёС‚(С€РµР№РґРµСЂ, РІР°Рѕ, РіР»Рј РІРµРєС‚РѕСЂ)
+                    // РЎР’РЇР—РђРќРќР«Р• Р¤РђР™Р›Р« - СЂРµРЅРґРµСЂ С„Р°СЃР°Рґ, СЂРµРЅРґРµСЂРµСЂС‹, СЂРµРЅРґРµСЂ Р°РїРё
                     const VertexArrayHandle vao = mesh.GetVertexArray();
                     if (vao.IsValid())
-                        RenderFacade::Submit(vao, model);
+                        RenderFacade::Submit(shaderHandle, vao, model);
                 }
             });
     }
