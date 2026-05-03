@@ -177,6 +177,10 @@ void* ShaderMTL::GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
     if (it != m_PipelineCache.end())
         return it->second;
 
+    // Slang assigns ConstantBuffers at [[buffer(0)]], [[buffer(1)]], etc.
+    // To avoid collision, vertex data is placed at [[buffer(10)]].
+    static constexpr int kVertexBufferIndex = 10;
+
     // Build vertex descriptor
     MTLVertexDescriptor* vertDesc = [[MTLVertexDescriptor alloc] init];
     uint32_t attrIdx = 0;
@@ -184,12 +188,12 @@ void* ShaderMTL::GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
     {
         vertDesc.attributes[attrIdx].format      = ShaderDataTypeToMTLFormat(elem.Type);
         vertDesc.attributes[attrIdx].offset      = elem.Offset;
-        vertDesc.attributes[attrIdx].bufferIndex = 0;
+        vertDesc.attributes[attrIdx].bufferIndex = kVertexBufferIndex;
         attrIdx++;
     }
-    vertDesc.layouts[0].stride       = layout.GetStride();
-    vertDesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-    vertDesc.layouts[0].stepRate     = 1;
+    vertDesc.layouts[kVertexBufferIndex].stride       = layout.GetStride();
+    vertDesc.layouts[kVertexBufferIndex].stepFunction = MTLVertexStepFunctionPerVertex;
+    vertDesc.layouts[kVertexBufferIndex].stepRate     = 1;
 
     // Create pipeline descriptor
     MTLRenderPipelineDescriptor* desc = [[MTLRenderPipelineDescriptor alloc] init];
@@ -234,19 +238,17 @@ void ShaderMTL::FlushUniforms(void* encoderPtr) const
 {
     id<MTLRenderCommandEncoder> encoder = (id<MTLRenderCommandEncoder>)encoderPtr;
 
-    // buffer(1) = CameraUBO — vertex + fragment
-    [encoder setVertexBytes:&m_Camera   length:sizeof(CHEngine::UBOCamera)   atIndex:1];
-    [encoder setFragmentBytes:&m_Camera length:sizeof(CHEngine::UBOCamera)   atIndex:1];
+    // Slang assigns ConstantBuffers starting at [[buffer(0)]]:
+    // buffer(0) = CameraUBO, buffer(1) = ObjectUBO,
+    // buffer(2) = LightingUBO, buffer(3) = MaterialUBO
+    [encoder setVertexBytes:&m_Camera     length:sizeof(CHEngine::UBOCamera)   atIndex:0];
+    [encoder setFragmentBytes:&m_Camera   length:sizeof(CHEngine::UBOCamera)   atIndex:0];
 
-    // buffer(2) = ObjectUBO — vertex + fragment
-    [encoder setVertexBytes:&m_Object   length:sizeof(CHEngine::UBOObject)   atIndex:2];
-    [encoder setFragmentBytes:&m_Object length:sizeof(CHEngine::UBOObject)   atIndex:2];
+    [encoder setVertexBytes:&m_Object     length:sizeof(CHEngine::UBOObject)   atIndex:1];
+    [encoder setFragmentBytes:&m_Object   length:sizeof(CHEngine::UBOObject)   atIndex:1];
 
-    // buffer(3) = LightingUBO — fragment only
-    [encoder setFragmentBytes:&m_Lighting length:sizeof(CHEngine::UBOLighting) atIndex:3];
-
-    // buffer(4) = MaterialUBO — fragment only
-    [encoder setFragmentBytes:&m_Material length:sizeof(CHEngine::UBOMaterial) atIndex:4];
+    [encoder setFragmentBytes:&m_Lighting length:sizeof(CHEngine::UBOLighting) atIndex:2];
+    [encoder setFragmentBytes:&m_Material length:sizeof(CHEngine::UBOMaterial) atIndex:3];
 }
 
 // ─── Uniform Block setter ───────────────────────────────────────────────────

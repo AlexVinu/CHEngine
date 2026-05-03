@@ -51,6 +51,35 @@ namespace CHModules
 			return out;
 		}
 
+		// Slang emits different varying names per stage for the same semantic:
+		//   vertex "out":  entryPointParam_vertMain_<BaseName>
+		//   fragment "in": input_<BaseName>
+		// OpenGL requires the names to match for interface linking.
+		// This renames both to "v_<BaseName>" so they agree.
+		static void NormalizeGlslVaryings(std::string& vertGlsl, std::string& fragGlsl)
+		{
+			// Collect all base names from "out ... entryPointParam_vertMain_BASE" in vertex
+			std::regex outRe(R"(\bout [\w]+ entryPointParam_vertMain_(\w+)\b)");
+			std::vector<std::string> bases;
+			{
+				auto begin = std::sregex_iterator(vertGlsl.begin(), vertGlsl.end(), outRe);
+				for (auto it = begin; it != std::sregex_iterator(); ++it)
+					bases.push_back((*it)[1].str());
+			}
+
+			for (const auto& base : bases)
+			{
+				const std::string newName = "v_" + base;
+				const std::string vertOld = "entryPointParam_vertMain_" + base;
+				const std::string fragOld = "input_" + base;
+
+				vertGlsl = std::regex_replace(vertGlsl,
+					std::regex("\\b" + vertOld + "\\b"), newName);
+				fragGlsl = std::regex_replace(fragGlsl,
+					std::regex("\\b" + fragOld + "\\b"), newName);
+			}
+		}
+
 		// Compile one GLSL stage. Returns the GL shader id, or 0 on failure.
 		GLuint CompileStage(GLenum stage, const std::string& source, const char* stageName)
 		{
@@ -101,7 +130,13 @@ namespace CHModules
 		std::string fragGlsl(reinterpret_cast<const char*>(compiled.fragmentCode.data()),
 		                     compiled.fragmentCode.size());
 
-		// macOS: OpenGL 4.1 maximum — patch away 4.5+ constructs
+		// Slang generates mismatched varying names between stages:
+		//   vertex out: "entryPointParam_vertMain_Color_0"
+		//   fragment in: "input_Color_0"
+		// OpenGL requires them to match by name (especially on macOS 4.1).
+		// Rename both to "v_Color_0" so the stages link correctly.
+		NormalizeGlslVaryings(vertGlsl, fragGlsl);
+
 #if defined(CHE_PLATFORM_APPLE)
 		vertGlsl = PatchGlslForGL41(vertGlsl);
 		fragGlsl = PatchGlslForGL41(fragGlsl);
@@ -176,7 +211,8 @@ namespace CHModules
 	                     const CHEngine::String& sourcePath)
 	{
 		m_RendererID = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
-		CHE_CORE_ASSERT(m_RendererID, "ShaderOGL: failed to compile/link shader");
+		if (!m_RendererID)
+			CHE_CORE_ERROR("ShaderOGL: failed to compile/link shader — will render nothing");
 
 		glGenBuffers(UBO_COUNT, m_UBOs);
 

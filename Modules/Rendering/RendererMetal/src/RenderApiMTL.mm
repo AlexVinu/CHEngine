@@ -163,7 +163,7 @@ void RenderApiMTL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
         if (mtlVB && mtlVB->GetNativeBuffer()) {
             [encoder setVertexBuffer:(id<MTLBuffer>)mtlVB->GetNativeBuffer()
                               offset:0
-                             atIndex:0];
+                             atIndex:10]; // slot 10: above ConstantBuffer slots 0-3
         }
     }
 
@@ -217,7 +217,7 @@ void RenderApiMTL::DrawLines(const CHEngine::IVertexArray* vertexArray)
         if (mtlVB && mtlVB->GetNativeBuffer()) {
             [encoder setVertexBuffer:(id<MTLBuffer>)mtlVB->GetNativeBuffer()
                               offset:0
-                             atIndex:0];
+                             atIndex:10]; // slot 10: above ConstantBuffer slots 0-3
         }
     }
 
