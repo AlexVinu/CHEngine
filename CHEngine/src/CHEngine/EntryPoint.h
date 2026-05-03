@@ -2,6 +2,7 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <vector>
 #include "EngineConfig.h"
 
 #if defined(CHE_PLATFORM_APPLE)
@@ -145,6 +146,14 @@ int main(int argc, char** argv)
     delete app;
 
     if (restart) {
+        // Strip --renderer= from argv so the restarted process reads renderer_pending
+        // from engine.json instead of being locked to the CLI-specified renderer.
+        std::vector<char*> newArgv;
+        for (int i = 0; i < argc; ++i)
+            if (!StartsWith(argv[i], "--renderer="))
+                newArgv.push_back(argv[i]);
+        newArgv.push_back(nullptr);
+
         // argv[0] может быть относительным, а Application меняет cwd —
         // нужен абсолютный путь к executable.
 #if defined(CHE_PLATFORM_APPLE)
@@ -153,8 +162,7 @@ int main(int argc, char** argv)
         if (_NSGetExecutablePath(exePath, &exeSize) == 0) {
             char* resolved = realpath(exePath, nullptr);
             if (resolved) {
-                execv(resolved, argv);
-                // execv возвращается только при ошибке — процесс не заменён
+                execv(resolved, newArgv.data());
                 perror("execv failed");
                 free(resolved);
                 return 1;
@@ -167,14 +175,14 @@ int main(int argc, char** argv)
         ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
         if (len > 0) {
             exePath[len] = '\0';
-            execv(exePath, argv);
+            execv(exePath, newArgv.data());
         }
         perror("execv failed");
         return 1;
 #elif defined(CHE_PLATFORM_WINDOWS)
         char exePath[MAX_PATH];
         if (GetModuleFileNameA(nullptr, exePath, MAX_PATH) > 0) {
-            _execv(exePath, argv);
+            _execv(exePath, newArgv.data());
         }
         return 1;
 #endif

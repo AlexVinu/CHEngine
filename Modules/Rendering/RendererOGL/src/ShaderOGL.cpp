@@ -28,11 +28,11 @@ namespace CHModules
 				std::regex(R"(#version[ \t]+\d+([ \t]+\w+)?)"),
 				"#version 410 core");
 
-			// 2. Remove global matrix-layout qualifiers introduced in GLSL 4.2:
-			//    "layout(row_major) uniform;"  "layout(row_major) buffer;"
-			//    "layout(column_major) uniform;" etc.
+			// 2. Remove only "layout(...) buffer;" (requires GLSL 4.30+, not available in 4.10).
+			//    Keep "layout(row_major) uniform;" — valid since GLSL 1.40 and REQUIRED because
+			//    Slang generates row-major matrix access patterns to match this qualifier.
 			out = std::regex_replace(out,
-				std::regex(R"(layout\s*\(\s*(row_major|column_major)\s*\)\s*(uniform|buffer)\s*;[^\n]*)"),
+				std::regex(R"(layout\s*\(\s*(row_major|column_major)\s*\)\s*buffer\s*;[^\n]*)"),
 				"");
 
 			// 3. Remove standalone "layout(binding = N)" lines that Slang emits on a
