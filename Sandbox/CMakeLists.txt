@@ -100,12 +100,20 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/${PROJECT_NAME}"
 )
 
+# Отслеживаем slang-шейдеры как зависимости — при их изменении POST_BUILD запустится
+file(GLOB_RECURSE SANDBOX_SHADERS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/shaders/*.slang"
+)
+target_sources(${PROJECT_NAME} PRIVATE ${SANDBOX_SHADERS})
+set_source_files_properties(${SANDBOX_SHADERS} PROPERTIES HEADER_FILE_ONLY TRUE)
+
 # Копируем шейдеры в директорию с исполняемым файлом
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         "${CMAKE_CURRENT_SOURCE_DIR}/shaders"
         "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/${PROJECT_NAME}/shaders"
     COMMENT "Copying shaders to output directory"
+    DEPENDS ${SANDBOX_SHADERS}
 )
 
 # Копируем ассеты (шрифты и т.д.)

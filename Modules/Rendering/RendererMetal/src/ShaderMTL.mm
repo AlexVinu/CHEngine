@@ -55,10 +55,18 @@ bool ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
         return false;
     }
 
-    NSString* vertName = [NSString stringWithUTF8String:vertEntry.c_str()];
-    NSString* fragName = [NSString stringWithUTF8String:fragEntry.c_str()];
-    id<MTLFunction> vertFunc = [library newFunctionWithName:vertName];
-    id<MTLFunction> fragFunc = [library newFunctionWithName:fragName];
+    // Slang appends _0 to entry point names in MSL output — try exact name first,
+    // then fall back to the _0-suffixed variant.
+    auto findMTLFunc = [&library](const char* name) -> id<MTLFunction> {
+        NSString* exact = [NSString stringWithUTF8String:name];
+        id<MTLFunction> f = [library newFunctionWithName:exact];
+        if (f) return f;
+        NSString* suffixed = [NSString stringWithFormat:@"%s_0", name];
+        return [library newFunctionWithName:suffixed];
+    };
+
+    id<MTLFunction> vertFunc = findMTLFunc(vertEntry.c_str());
+    id<MTLFunction> fragFunc = findMTLFunc(fragEntry.c_str());
 
     if (!vertFunc) {
         CHE_CORE_ERROR("ShaderMTL: vertex entry '{}' not found in MSL", vertEntry.c_str());

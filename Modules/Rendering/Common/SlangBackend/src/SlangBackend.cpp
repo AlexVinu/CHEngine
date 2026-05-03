@@ -24,11 +24,11 @@ namespace CHModules
             switch (api)
             {
                 case CHEngine::ERenderAPI::OPENGL:
-                    return { SLANG_GLSL,   "glsl_420", true };
+                    return { SLANG_GLSL,   "glsl_410", true };
                 case CHEngine::ERenderAPI::VULKAN:
                     return { SLANG_SPIRV,  "spirv_1_5", true };
                 case CHEngine::ERenderAPI::METAL:
-                    return { SLANG_METAL,  "metal", true };
+                    return { SLANG_METAL,  "metal_3_2", true };
                 case CHEngine::ERenderAPI::DIRECTX12:
                     return { SLANG_HLSL,   "sm_6_0", true };
                 case CHEngine::ERenderAPI::DIRECTX11:
@@ -148,8 +148,31 @@ namespace CHModules
 
                 ReflectParams(linked->getLayout(), result);
 
-                ExtractEntryPoint(linked, 0, result.vertexCode, result.errorLog);
-                ExtractEntryPoint(linked, 1, result.fragmentCode, result.errorLog);
+                if (m_Api == CHEngine::ERenderAPI::METAL)
+                {
+                    // Metal MSL: both stages live in one library — use getTargetCode
+                    // so the output contains vertex + fragment functions together.
+                    // Store in vertexCode; ShaderMTL only reads that field.
+                    Slang::ComPtr<slang::IBlob> blob, diag;
+                    const SlangResult hr = linked->getTargetCode(0, blob.writeRef(), diag.writeRef());
+                    if (SLANG_SUCCEEDED(hr) && blob)
+                    {
+                        const uint8_t* p = static_cast<const uint8_t*>(blob->getBufferPointer());
+                        result.vertexCode.assign(p, p + blob->getBufferSize());
+                        result.fragmentCode = result.vertexCode; // same source
+                    }
+                    else
+                    {
+                        result.errorLog = diag
+                            ? static_cast<const char*>(diag->getBufferPointer())
+                            : "Slang Metal: getTargetCode failed";
+                    }
+                }
+                else
+                {
+                    ExtractEntryPoint(linked, 0, result.vertexCode, result.errorLog);
+                    ExtractEntryPoint(linked, 1, result.fragmentCode, result.errorLog);
+                }
 
                 result.valid = !result.vertexCode.empty() && !result.fragmentCode.empty();
                 return result;

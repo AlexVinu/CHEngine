@@ -9,12 +9,48 @@
 
 #include <string>
 #include <vector>
+#include <regex>
 
 namespace CHModules
 {
 
 	namespace
 	{
+		// macOS OpenGL supports only 4.1 (GLSL 410). Slang always outputs GLSL 450+
+		// with several 4.2+ constructs. This patches them to be 410-compatible.
+		// Binding points are set programmatically via glUniformBlockBinding / glUniform1i.
+		static std::string PatchGlslForGL41(const std::string& glsl)
+		{
+			std::string out = glsl;
+
+			// 1. Downgrade version directive (stay on the same line, don't cross \n)
+			out = std::regex_replace(out,
+				std::regex(R"(#version[ \t]+\d+([ \t]+\w+)?)"),
+				"#version 410 core");
+
+			// 2. Remove global matrix-layout qualifiers introduced in GLSL 4.2:
+			//    "layout(row_major) uniform;"  "layout(row_major) buffer;"
+			//    "layout(column_major) uniform;" etc.
+			out = std::regex_replace(out,
+				std::regex(R"(layout\s*\(\s*(row_major|column_major)\s*\)\s*(uniform|buffer)\s*;[^\n]*)"),
+				"");
+
+			// 3. Remove standalone "layout(binding = N)" lines that Slang emits on a
+			//    separate line right before "layout(std140) uniform Block { ... }".
+			out = std::regex_replace(out,
+				std::regex(R"([ \t]*layout\s*\(\s*binding\s*=\s*\d+\s*\)[ \t]*\n)"),
+				"");
+
+			// 4. Remove "binding = N" when mixed into another layout() on the same line:
+			//    "layout(std140, binding = 0)" → "layout(std140)"
+			out = std::regex_replace(out,
+				std::regex(R"(,\s*binding\s*=\s*\d+)"), "");
+			out = std::regex_replace(out,
+				std::regex(R"(\bbinding\s*=\s*\d+\s*,\s*)"), "");
+
+			return out;
+		}
+
 		// Compile one GLSL stage. Returns the GL shader id, or 0 on failure.
 		GLuint CompileStage(GLenum stage, const std::string& source, const char* stageName)
 		{
@@ -64,6 +100,12 @@ namespace CHModules
 		                     compiled.vertexCode.size());
 		std::string fragGlsl(reinterpret_cast<const char*>(compiled.fragmentCode.data()),
 		                     compiled.fragmentCode.size());
+
+		// macOS: OpenGL 4.1 maximum — patch away 4.5+ constructs
+#if defined(CHE_PLATFORM_APPLE)
+		vertGlsl = PatchGlslForGL41(vertGlsl);
+		fragGlsl = PatchGlslForGL41(fragGlsl);
+#endif
 
 		GLuint vertexShader = CompileStage(GL_VERTEX_SHADER, vertGlsl, "vertex");
 		if (!vertexShader)

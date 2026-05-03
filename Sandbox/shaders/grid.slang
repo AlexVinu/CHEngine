@@ -26,7 +26,7 @@ VSOut vertMain(VSIn input)
 float gridLine(float2 xz, float cellSize)
 {
     float2 coord = xz / cellSize;
-    float2 d     = max(fwidth(coord), float2(0.001, 0.001));
+    float2 d     = max(float2(fwidth(coord.x), fwidth(coord.y)), float2(0.001, 0.001));
     float2 f     = abs(frac(coord - 0.5) - 0.5) / d;
     return 1.0 - clamp(min(f.x, f.y), 0.0, 1.0);
 }
@@ -42,9 +42,9 @@ float4 fragMain(VSOut input) : SV_Target
 
     // Ray → Y=0 plane intersection
     float denom = farP.y - nearP.y;
-    if (abs(denom) < 1e-6) discard;
+    if (abs(denom) < 1e-6) return float4(0, 0, 0, 0);
     float t = -nearP.y / denom;
-    if (t < 0.0) discard;
+    if (t < 0.0) return float4(0, 0, 0, 0);
 
     float3 world = nearP + t * (farP - nearP);
     float2 xz    = world.xz;
@@ -56,7 +56,7 @@ float4 fragMain(VSOut input) : SV_Target
 
     float dist = length(world.xz - camera.CameraPos.xz);
     float fade = 1.0 - smoothstep(fadeNear, fadeFar, dist);
-    if (fade < 0.001) discard;
+    if (fade < 0.001) return float4(0, 0, 0, 0);
 
     // Three LOD levels
     float d1fade = 1.0 - smoothstep(camH * 1.5,  camH * 4.0,  dist);
@@ -78,7 +78,7 @@ float4 fragMain(VSOut input) : SV_Target
     color = lerp(color, float3(0.20, 0.40, 0.90), za);
     alpha = max(alpha, max(xa, za) * fade);
 
-    if (alpha < 0.002) discard;
+    if (alpha < 0.002) return float4(0, 0, 0, 0);
 
     return float4(color, alpha);
 }
