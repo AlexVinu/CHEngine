@@ -21,6 +21,7 @@ namespace CHModules
                                           uint32_t height, uint32_t channels) override;
 
         CHEngine::IFramebuffer* CreateFramebuffer(uint32_t width, uint32_t height) override;
+        std::unique_ptr<CHEngine::IFrameGraphBackend> CreateFrameGraphBackend() override;
 
         void Delete(CHEngine::IVertexBuffer* ptr) override;
         void Delete(CHEngine::IIndexBuffer*  ptr) override;

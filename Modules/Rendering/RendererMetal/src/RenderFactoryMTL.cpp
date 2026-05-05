@@ -8,6 +8,7 @@
 #include "FramebufferMTL.h"
 #include "RendererMTL.h"
 #include "RenderApiMTL.h"
+#include "FrameGraphBackendMTL.h"
 
 namespace CHModules
 {
@@ -40,6 +41,9 @@ namespace CHModules
 
     CHEngine::IFramebuffer* RenderFactoryMTL::CreateFramebuffer(uint32_t width, uint32_t height)
     { return new FramebufferMTL(width, height); }
+
+    std::unique_ptr<CHEngine::IFrameGraphBackend> RenderFactoryMTL::CreateFrameGraphBackend()
+    { return std::make_unique<FrameGraphBackendMTL>(); }
 
     void RenderFactoryMTL::Delete(CHEngine::IVertexBuffer* ptr) { DestroyImpl(static_cast<VertexBufferMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IIndexBuffer*  ptr) { DestroyImpl(static_cast<IndexBufferMTL*>(ptr)); }
