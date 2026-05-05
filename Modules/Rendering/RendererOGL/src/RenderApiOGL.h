@@ -1,28 +1,34 @@
 #pragma once
 
-#include "Render/IRenderApi.h"
+#include "Render/Core/RenderAPI.h"
 
 namespace CHModules {
-	class RendererApiOGL : public CHEngine::IRenderApi
-	{
-	public:
-		RendererApiOGL();
-		~RendererApiOGL() override = default;
+    class RendererApiOGL
+    {
+    public:
+        RendererApiOGL();
+        ~RendererApiOGL() = default;
 
-		void Init(const CHEngine::RendererInitInfo& init_info) override;
-		void Shutdown() override;
+        void Init(const CHEngine::RendererInitInfo& init_info);
+        void Shutdown();
 
-		void SetClearColor(float r, float g, float b, float a) override;
-		void Clear() override;
+        void SetClearColor(float r, float g, float b, float a);
+        void Clear();
 
-		void SetViewport(uint32_t width, uint32_t height) override;
-		void SetBlend(bool enable) override;
-		void SetDepthWrite(bool enable) override;
+        void SetViewport(uint32_t width, uint32_t height);
+        void SetBlend(bool enable);
+        void SetDepthWrite(bool enable);
 
-		void DrawIndexed(const CHEngine::IVertexArray* vertexArray) override;
-		void DrawLines(const CHEngine::IVertexArray* vertexArray) override;
+        void DrawFullscreenTriangle();
+        void BindTextureSlot(uint32_t texID, uint32_t slot);
 
-	private:
-		float m_ClearR = 0.1f, m_ClearG = 0.1f, m_ClearB = 0.1f, m_ClearA = 1.0f;
-	};
+        // Cached GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT. Filled by Init().
+        uint32_t GetUniformBufferOffsetAlignment() const { return m_UBOAlignment; }
+
+    private:
+        float  m_ClearR = 0.1f, m_ClearG = 0.1f, m_ClearB = 0.1f, m_ClearA = 1.0f;
+        uint32_t m_FullscreenVAO = 0;
+        uint32_t m_FullscreenVBO = 0;
+        uint32_t m_UBOAlignment = 256; // safe default; replaced by Init()
+    };
 }

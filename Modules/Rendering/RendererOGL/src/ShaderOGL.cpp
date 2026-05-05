@@ -119,13 +119,64 @@ namespace CHModules
 
 		for (const auto& b : blocks) {
 			for (const char* name : b.names) {
-				GLuint idx = glGetUniformBlockIndex(m_RendererID, name);
+				GLuint idx = glGetUniformBlockIndex(m_ProgramID, name);
 				if (idx != GL_INVALID_INDEX) {
-					glUniformBlockBinding(m_RendererID, idx, b.binding);
+					glUniformBlockBinding(m_ProgramID, idx, b.binding);
 					break;
 				}
 			}
 		}
+
+		BindSamplerUnits();
+	}
+
+	void ShaderOGL::BindSamplerUnits()
+	{
+		// Slang emits GLSL samplers with target-assigned binding indices that
+		// don't necessarily match texture unit 0,1,2,... in declaration order.
+		// Enumerate active sampler uniforms post-link and explicitly assign
+		// each one to a sequential texture unit, so callers can simply bind
+		// textures to GL_TEXTUREN where N is the declaration order.
+
+		GLint activeUniforms = 0;
+		glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORMS, &activeUniforms);
+		if (activeUniforms <= 0)
+			return;
+
+		GLint maxNameLen = 0;
+		glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxNameLen);
+		if (maxNameLen <= 0)
+			return;
+
+		std::vector<char> nameBuf(static_cast<size_t>(maxNameLen));
+		glUseProgram(m_ProgramID); // glUniform1i operates on the currently bound program
+
+		uint32_t samplerUnit = 0;
+		for (GLint i = 0; i < activeUniforms; ++i) {
+			GLsizei len  = 0;
+			GLint   size = 0;
+			GLenum  type = 0;
+			glGetActiveUniform(m_ProgramID, static_cast<GLuint>(i),
+			                   maxNameLen, &len, &size, &type, nameBuf.data());
+
+			const bool isSampler =
+				type == GL_SAMPLER_2D            || type == GL_SAMPLER_2D_ARRAY ||
+				type == GL_SAMPLER_2D_SHADOW     || type == GL_SAMPLER_CUBE     ||
+				type == GL_SAMPLER_CUBE_SHADOW   || type == GL_SAMPLER_3D       ||
+				type == GL_INT_SAMPLER_2D        || type == GL_UNSIGNED_INT_SAMPLER_2D;
+
+			if (!isSampler)
+				continue;
+
+			GLint loc = glGetUniformLocation(m_ProgramID, nameBuf.data());
+			if (loc == -1)
+				continue;
+
+			glUniform1i(loc, static_cast<GLint>(samplerUnit));
+			++samplerUnit;
+		}
+
+		glUseProgram(0);
 	}
 
 	ShaderOGL::ShaderOGL(const CHEngine::String& slangSource,
@@ -133,10 +184,10 @@ namespace CHModules
 	                     const CHEngine::String& fragEntry,
 	                     const CHEngine::String& sourcePath)
 	{
-		m_RendererID = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
-		CHE_CORE_ASSERT(m_RendererID, "ShaderOGL: failed to compile/link shader");
+		m_ProgramID = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
+		CHE_CORE_ASSERT(m_ProgramID, "ShaderOGL: failed to compile/link shader");
 
-		glGenBuffers(UBO_COUNT, m_UBOs);
+		glGenBuffers(UBO_COUNT, m_UBOs.data());
 
 		const uint32_t uboSizes[UBO_COUNT] = {
 			static_cast<uint32_t>(sizeof(CHEngine::UBOCamera)),
@@ -156,13 +207,13 @@ namespace CHModules
 
 	ShaderOGL::~ShaderOGL()
 	{
-		glDeleteBuffers(UBO_COUNT, m_UBOs);
-		glDeleteProgram(m_RendererID);
+		glDeleteBuffers(UBO_COUNT, m_UBOs.data());
+		glDeleteProgram(m_ProgramID);
 	}
 
 	void ShaderOGL::Bind() const
 	{
-		glUseProgram(m_RendererID);
+		glUseProgram(m_ProgramID);
 	}
 
 	void ShaderOGL::Unbind() const
@@ -179,8 +230,8 @@ namespace CHModules
 		if (!newProgram)
 			return false;
 
-		glDeleteProgram(m_RendererID);
-		m_RendererID = newProgram;
+		glDeleteProgram(m_ProgramID);
+		m_ProgramID = newProgram;
 
 		BindUBOBlocks();
 		return true;
@@ -199,7 +250,7 @@ namespace CHModules
 
 	void ShaderOGL::SetInt(const CHEngine::String& name, int value)
 	{
-		GLint location = glGetUniformLocation(m_RendererID, name.c_str());
+		GLint location = glGetUniformLocation(m_ProgramID, name.c_str());
 		if (location == -1) return;
 		glUniform1i(location, value);
 	}

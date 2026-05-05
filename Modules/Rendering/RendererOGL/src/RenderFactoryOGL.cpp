@@ -1,113 +1,205 @@
 #include "RenderFactoryOGL.h"
-#include "IsRenderAvailable.h"
+#include "FrameGraphBackendOGL.h"
 
-#include "BufferOGL.h"
-#include "VertexArrayOGL.h"
-#include "ShaderOGL.h"
-#include "TextureOGL.h"
-#include "RendererOGL.h"
-#include "RenderApiOGL.h"
+#include <glad/glad.h>
+#include <algorithm>
+#include <cstring>
+#include <stdexcept>
 
-namespace CHModules
-{
-    CHEngine::IVertexBuffer* RenderFactoryOGL::CreateVertexBuffer(float* verticies, uint32_t size)
+namespace CHModules {
+
+    // ============================================================
+    // Buffer
+    // ============================================================
+
+    CHEngine::BufferHandle RenderFactoryOGL::CreateBuffer(
+        uint64_t size,
+        CHEngine::BufferUsage usage,
+        CHEngine::MemoryType memory,
+        std::span<const std::byte> initialData,
+        const CHEngine::String& debugName)
     {
-        return CreateImpl<VertexBufferOGL>(verticies, size);
+        auto* buf = new BufferOGL(size, usage, memory, initialData, debugName);
+        return Buffers.Add(buf);
     }
 
-    CHEngine::IIndexBuffer* RenderFactoryOGL::CreateIndexBuffer(uint32_t* indices, uint32_t count)
+    void RenderFactoryOGL::Delete(CHEngine::BufferHandle handle)
     {
-        return CreateImpl<IndexBufferOGL>(indices, count);
+        if (auto* ptr = Buffers.Get(handle))
+            delete ptr;
+        Buffers.Remove(handle);
     }
 
-    CHEngine::IVertexArray* RenderFactoryOGL::CreateVertexArray()
+    // ============================================================
+    // Shader
+    // ============================================================
+
+    CHEngine::ShaderHandle RenderFactoryOGL::CreateShader(
+        const CHEngine::String& slangSource,
+        const CHEngine::String& vertEntry,
+        const CHEngine::String& fragEntry,
+        const CHEngine::String& sourcePath)
     {
-        return CreateImpl<VertexArrayOGL>();
+        auto* shader = new ShaderOGL(slangSource, vertEntry, fragEntry, sourcePath);
+        return Shaders.Add(shader);
     }
 
-    CHEngine::IShader* RenderFactoryOGL::CreateShader(const CHEngine::String& slangSource,
-                                                      const CHEngine::String& vertEntry,
-                                                      const CHEngine::String& fragEntry,
-                                                      const CHEngine::String& sourcePath)
+    void RenderFactoryOGL::Delete(CHEngine::ShaderHandle handle)
     {
-        return CreateImpl<ShaderOGL>(slangSource, vertEntry, fragEntry, sourcePath);
+        if (auto* ptr = Shaders.Get(handle))
+            delete ptr;
+        Shaders.Remove(handle);
     }
 
-    CHEngine::IRenderApi* RenderFactoryOGL::CreateRenderAPI()
+    // ============================================================
+    // Texture
+    // ============================================================
+
+    CHEngine::TextureHandle RenderFactoryOGL::CreateTexture(
+        const uint8_t* data,
+        uint32_t width,
+        uint32_t height,
+        uint32_t channels,
+        uint32_t mipLevels,
+        uint32_t arrayLayers,
+        CHEngine::TextureFormat format,
+        CHEngine::TextureType type,
+        CHEngine::TextureUsage usage,
+        CHEngine::MemoryType memory,
+        const char* debugName)
     {
-        return CreateImpl<RendererApiOGL>();
+        auto* tex = new TextureOGL(data, width, height, channels,
+                                   mipLevels, arrayLayers,
+                                   format, type, usage, memory,
+                                   debugName);
+        return Textures.Add(tex);
     }
 
-    CHEngine::IRenderer* RenderFactoryOGL::CreateRenderer(CHEngine::IRenderApi* api)
+    void RenderFactoryOGL::Delete(CHEngine::TextureHandle handle)
     {
-        return CreateImpl<RendererOGL>(api);
+        if (auto* ptr = Textures.Get(handle))
+            delete ptr;
+        Textures.Remove(handle);
     }
 
-    CHEngine::ModuleType RenderFactoryOGL::GetType() const
+    uint64_t RenderFactoryOGL::GetTextureNativeID(CHEngine::TextureHandle h)
     {
-        return CHEngine::ModuleType::Render;
+        TextureOGL* tex = Textures.Get(h);
+        return tex ? static_cast<uint64_t>(tex->GetRendererID()) : 0u;
     }
 
-    CHEngine::ERenderAPI RenderFactoryOGL::GetRenderApi()
+    // ============================================================
+    // Buffer update
+    // ============================================================
+
+    void RenderFactoryOGL::UpdateBuffer(CHEngine::BufferHandle h,
+                                        std::span<const std::byte> data,
+                                        uint64_t offset)
     {
-        return CHEngine::ERenderAPI::OPENGL;
+        BufferOGL* buf = Buffers.Get(h);
+        if (buf)
+            buf->UpdateData(data, offset);
     }
+
+    // ============================================================
+    // Shader hot-reload
+    // ============================================================
+
+    bool RenderFactoryOGL::ReloadShader(CHEngine::ShaderHandle h,
+                                        const CHEngine::String& slangSource,
+                                        const CHEngine::String& vertEntry,
+                                        const CHEngine::String& fragEntry,
+                                        const CHEngine::String& sourcePath)
+    {
+        ShaderOGL* shader = Shaders.Get(h);
+        if (!shader) return false;
+        bool ok = shader->Reload(slangSource, vertEntry, fragEntry, sourcePath);
+
+        // PSO invalidation: rebuild all pipelines that depend on this shader.
+        if (ok)
+        {
+            auto it = m_ShaderToPipelines.find(h.index);
+            if (it != m_ShaderToPipelines.end())
+            {
+                for (CHEngine::PipelineHandle ph : it->second)
+                {
+                    PipelineOGL* pip = Pipelines.Get(ph);
+                    if (pip)
+                        pip->Rebuild(pip->GetDesc()); // re-apply with same desc (new shader)
+                }
+            }
+        }
+        return ok;
+    }
+
+    // ============================================================
+    // Pipeline
+    // ============================================================
+
+    CHEngine::PipelineHandle RenderFactoryOGL::CreatePipeline(CHEngine::PipelineDesc desc)
+    {
+        auto* pip = new PipelineOGL(desc);
+        CHEngine::PipelineHandle handle = Pipelines.Add(pip);
+
+        // Register reverse index for PSO invalidation on shader reload.
+        if (desc.Shader.IsValid())
+            m_ShaderToPipelines[desc.Shader.index].push_back(handle);
+
+        return handle;
+    }
+
+    void RenderFactoryOGL::Delete(CHEngine::PipelineHandle handle)
+    {
+        PipelineOGL* pip = Pipelines.Get(handle);
+        if (pip)
+        {
+            // Remove from reverse index.
+            CHEngine::ShaderHandle sh = pip->GetShaderHandle();
+            if (sh.IsValid())
+            {
+                auto it = m_ShaderToPipelines.find(sh.index);
+                if (it != m_ShaderToPipelines.end())
+                {
+                    auto& vec = it->second;
+                    vec.erase(std::remove(vec.begin(), vec.end(), handle), vec.end());
+                    if (vec.empty())
+                        m_ShaderToPipelines.erase(it);
+                }
+            }
+            delete pip;
+        }
+        Pipelines.Remove(handle);
+    }
+
+    // ============================================================
+    // Frame-graph backend
+    // ============================================================
+
+    std::unique_ptr<CHEngine::IFrameGraphBackend> RenderFactoryOGL::CreateFrameGraphBackend()
+    {
+        return std::make_unique<FrameGraphBackendOGL>(*this);
+    }
+
+    // ============================================================
+    // Utility
+    // ============================================================
 
     bool RenderFactoryOGL::CheckIsWorking()
     {
         return CHModules::CheckIsWorking();
     }
 
-    void RenderFactoryOGL::Delete(CHEngine::IVertexBuffer* ptr)
+    void RenderFactoryOGL::Init(const CHEngine::RendererInitInfo& init)
     {
-        DestroyImpl(static_cast<VertexBufferOGL*>(ptr));
+        Api.Init(init);
+        m_UBOOffsetAlignment = Api.GetUniformBufferOffsetAlignment();
     }
 
-    void RenderFactoryOGL::Delete(CHEngine::IIndexBuffer* ptr)
+    void RenderFactoryOGL::Shutdown()
     {
-        DestroyImpl(static_cast<IndexBufferOGL*>(ptr));
+        Api.Shutdown();
     }
 
-    void RenderFactoryOGL::Delete(CHEngine::IVertexArray* ptr)
-    {
-        DestroyImpl(static_cast<VertexArrayOGL*>(ptr));
-    }
-
-    void RenderFactoryOGL::Delete(CHEngine::IShader* ptr)
-    {
-        DestroyImpl(static_cast<ShaderOGL*>(ptr));
-    }
-
-    void RenderFactoryOGL::Delete(CHEngine::IRenderApi* ptr)
-    {
-        DestroyImpl(static_cast<RendererApiOGL*>(ptr));
-    }
-
-    void RenderFactoryOGL::Delete(CHEngine::IRenderer* ptr)
-    {
-        DestroyImpl(static_cast<RendererOGL*>(ptr));
-    }
-
-    CHEngine::ITexture* RenderFactoryOGL::CreateTexture(const uint8_t* data, uint32_t width,
-                                                         uint32_t height, uint32_t channels)
-    {
-        return CreateImpl<TextureOGL>(data, width, height, channels);
-    }
-
-    void RenderFactoryOGL::Delete(CHEngine::ITexture* ptr)
-    {
-        DestroyImpl(static_cast<TextureOGL*>(ptr));
-    }
-
-    CHEngine::IFramebuffer* RenderFactoryOGL::CreateFramebuffer(uint32_t width, uint32_t height)
-    {
-        return new FramebufferOGL(width, height);
-    }
-
-    void RenderFactoryOGL::Delete(CHEngine::IFramebuffer* ptr)
-    {
-        delete static_cast<FramebufferOGL*>(ptr);
-    }
-}
+} // namespace CHModules
 
 IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryOGL)

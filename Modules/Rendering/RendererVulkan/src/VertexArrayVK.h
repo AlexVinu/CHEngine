@@ -10,9 +10,6 @@ namespace CHModules {
         VertexArrayVK();
         ~VertexArrayVK() override;
 
-        void Bind() const override;
-        void Unbind() const override;
-
         void AddVertexBuffer(const CHEngine::Ref<CHEngine::IVertexBuffer>& vertexBuffer) override;
         void SetIndexBuffer(const CHEngine::Ref<CHEngine::IIndexBuffer>& indexBuffer) override;
 

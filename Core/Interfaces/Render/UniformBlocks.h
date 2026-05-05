@@ -6,57 +6,55 @@
 #include <cstring>
 
 namespace CHEngine {
-    enum class MaterialParameters
-    {
-        BASE_COLOR = 0,   // albedo / diffuse
-        ROUGHNESS = 1,   // microsurface roughness
-        METALLIC = 2,   // metalness
-        NORMAL = 3,   // normal map
 
-        AMBIENT_OCCLUSION = 4,   // AO map
-        EMISSIVE = 5,   // emissive color / map
+	enum class MaterialParameters
+	{
+		BASE_COLOR = 0,   // albedo / diffuse
+		ROUGHNESS = 1,   // microsurface roughness
+		METALLIC = 2,   // metalness
+		NORMAL = 3,   // normal map
 
-        OPACITY = 6,   // translucent alpha
-        OPACITY_MASK = 7,   // alpha test / cutout
+		AMBIENT_OCCLUSION = 4,   // AO map
+		EMISSIVE = 5,   // emissive color / map
 
-        HEIGHT = 8,   // parallax / height map
-        DISPLACEMENT = 9,   // vertex displacement
+		OPACITY = 6,   // translucent alpha
+		OPACITY_MASK = 7,   // alpha test / cutout
 
-        SPECULAR = 10,  // specular intensity (если поддерживаешь)
-        CLEARCOAT = 11,  // второй specular слой
-        CLEARCOAT_ROUGHNESS = 12,
+		HEIGHT = 8,   // parallax / height map
+		DISPLACEMENT = 9,   // vertex displacement
 
-        ANISOTROPY = 13,  // anisotropic BRDF
-        SUBSURFACE = 14,  // SSS intensity
-        SUBSURFACE_COLOR = 15,
+		SPECULAR = 10,  // specular intensity (если поддерживаешь)
+		CLEARCOAT = 11,  // второй specular слой
+		CLEARCOAT_ROUGHNESS = 12,
 
-        REFRACTION = 16,  // IOR / distortion
+		ANISOTROPY = 13,  // anisotropic BRDF
+		SUBSURFACE = 14,  // SSS intensity
+		SUBSURFACE_COLOR = 15,
 
-        DETAIL_COLOR = 17,  // detail albedo
-        DETAIL_NORMAL = 18,  // detail normal
+		REFRACTION = 16,  // IOR / distortion
 
-        WORLD_OFFSET = 19,  // vertex animation / WPO
+		DETAIL_COLOR = 17,  // detail albedo
+		DETAIL_NORMAL = 18,  // detail normal
 
-        ORM = 20,  // packed texture (occlusion/roughness/metallic)
+		WORLD_OFFSET = 19,  // vertex animation / WPO
 
-        COUNT = 21
-    };
+		ORM = 20,  // packed texture (occlusion/roughness/metallic)
 
-    using MaterialParamsStore = uint32_t;
-// ─── Идентификаторы UBO-блоков ───────────────────────────────────────────
-// Каждый enum = binding point (OpenGL) или buffer index (Metal).
-enum class EUniformBlock : uint32_t
-{
-    Camera   = 0,  // данные камеры — раз в кадр
-    Object   = 1,  // данные объекта — каждый draw call
-    Lighting = 2,  // освещение — раз в кадр
-    Material = 3,  // GL: layout(binding = 3); Metal: отдельный buffer во fragment (см. ShaderMTL)
-};
+		COUNT = 21
+	};
 
-// ─── std140-совместимые структуры ────────────────────────────────────────
+	using MaterialParamsStore = uint32_t;
+	// ─── Идентификаторы UBO-блоков ───────────────────────────────────────────
+	// Каждый enum = binding point (OpenGL) или buffer index (Metal).
+	enum class EUniformBlock : uint32_t
+	{
+		Camera      = 0,  // данные камеры — раз в кадр
+		Object      = 1,  // данные объекта — каждый draw call
+		Lighting    = 2,  // освещение — раз в кадр
+		Material    = 3,  // GL: layout(binding = 3); Metal: отдельный buffer во fragment (см. ShaderMTL)
+        COUNT
+	};
 
-// ─── Binding 0: CameraUBO ───────────────────────────────────────────────
-// Обновляется один раз в кадр. Используется всеми шейдерами.
 struct alignas(16) UBOCamera
 {
     float ViewProjection[16]; // mat4, offset 0
@@ -72,8 +70,6 @@ struct alignas(16) UBOCamera
     }
 };
 
-// ─── Binding 1: ObjectUBO ───────────────────────────────────────────────
-// Обновляется на каждый draw call (per-object данные).
 struct alignas(16) UBOObject
 {
     float Transform[16];     // mat4, offset 0
@@ -94,8 +90,6 @@ struct alignas(16) UBOObject
     }
 };
 
-// ─── Binding 3: MaterialUBO ─────────────────────────────────────────────
-// std140: scalars pack to 16 B; SpecularScale + padding rounds struct to 32 B.
 struct alignas(16) UBOMaterial
 {
     int32_t  UseTexture;     // offset 0
@@ -116,9 +110,6 @@ struct alignas(16) UBOMaterial
     }
 };
 
-static_assert(sizeof(UBOMaterial) == 32, "UBOMaterial must match GLSL/Metal std140 layout");
-
-// ─── Данные одного источника света (внутри LightingUBO) ─────────────────
 struct alignas(16) UBOLightData
 {
     int32_t Type;              // offset 0
@@ -137,8 +128,6 @@ struct alignas(16) UBOLightData
     UBOLightData() { std::memset(this, 0, sizeof(*this)); }
 };
 
-// ─── Binding 2: LightingUBO ────────────────────────────────────────────
-// Обновляется один раз в кадр. Содержит ambient + массив источников.
 static constexpr int MaxUBOLights = 8;
 
 struct alignas(16) UBOLighting

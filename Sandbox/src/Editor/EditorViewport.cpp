@@ -23,7 +23,6 @@ EditorViewport::EditorViewport()
         CHEngine::String("shaders/grid.slang"));
 
     BuildGrid();
-    m_Framebuffer = CHEngine::RenderFacade::CreateFramebuffer(1280, 720);
 }
 
 void EditorViewport::Begin()
@@ -48,15 +47,17 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
     if (!viewport_camera)
         return;
 
-    auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
-    if (fbo)
-        fbo->Bind();
-    CHEngine::RenderFacade::Clear();
+    {
+        ImVec2 fbScale = ImGui::GetIO().DisplayFramebufferScale;
+        const uint32_t vpW = static_cast<uint32_t>(m_ViewportSize.x * fbScale.x);
+        const uint32_t vpH = static_cast<uint32_t>(m_ViewportSize.y * fbScale.y);
+        if (vpW > 0 && vpH > 0)
+            CHEngine::RenderFacade::SetViewportSize(vpW, vpH);
+    }
 
-    // During Play, scene/RenderSystem owns the camera UBO; do not apply editor orbit camera here.
     if (scene_session->SessionState != SceneSession::State::Play)
     {
-        glm::mat4 vp = viewport_camera->GetViewProjection();
+        glm::mat4 vp    = viewport_camera->GetViewProjection();
         glm::mat4 invVP = glm::inverse(vp);
         glm::vec3 camPos = viewport_camera->GetPosition();
 
@@ -70,39 +71,17 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
 
         CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
     }
-
 }
 
-void EditorViewport::DrawEditorOverlays(SceneSession* scene_session)
+void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
 {
-    CHE_PROFILE_FUNCTION();
-    if (!scene_session)
-        return;
-
-    // Editor-only floor grid; hide during Play/Pause so the runtime view matches a game camera.
-    const bool showEditorGrid = m_ShowGrid
-        && (scene_session->SessionState == SceneSession::State::Edit);
-    if (!showEditorGrid)
-        return;
-
-    if (m_GridShader.IsValid() && m_GridVAO.IsValid())
-    {
-        CHEngine::RenderFacade::SetBlend(true);
-        CHEngine::RenderFacade::SetDepthWrite(false);
-
-        CHEngine::RenderFacade::Submit(m_GridShader, m_GridVAO, glm::mat4(1.0f));
-
-        CHEngine::RenderFacade::SetDepthWrite(true);
-        CHEngine::RenderFacade::SetBlend(false);
-    }
+    // TODO: register editor grid pass after Phase 6 (frame graph backend implemented).
+    (void)scene_session;
 }
 
 void EditorViewport::EndSceneRender()
 {
     CHE_PROFILE_FUNCTION();
-    auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
-    if (fbo)
-        fbo->Unbind();
 }
 
 void EditorViewport::DrawImGui(GizmoSystem& gizmo,
@@ -128,32 +107,32 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
 
     ImVec2 panelSize = ImGui::GetContentRegionAvail();
 
-    bool resizedThisFrame = false;
     if (panelSize.x > 1.0f && panelSize.y > 1.0f
         && (panelSize.x != m_ViewportSize.x || panelSize.y != m_ViewportSize.y))
     {
         m_ViewportSize = panelSize;
+
         ImVec2 fbScale = ImGui::GetIO().DisplayFramebufferScale;
-        auto* fbo = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
-        if (fbo)
-            fbo->Resize(static_cast<uint32_t>(panelSize.x * fbScale.x),
-                        static_cast<uint32_t>(panelSize.y * fbScale.y));
+        const uint32_t newW = static_cast<uint32_t>(panelSize.x * fbScale.x);
+        const uint32_t newH = static_cast<uint32_t>(panelSize.y * fbScale.y);
+        CHEngine::RenderFacade::SetViewportSize(newW, newH);
+
         camera_controller.SetAspectRatio(panelSize.x / panelSize.y);
         scene_session->ViewportSize = { panelSize.x, panelSize.y };
         if (!scene_session->ViewportCamera)
             scene_session->ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
         scene_session->ViewportCamera->SetViewportSize(panelSize.x, panelSize.y);
-        resizedThisFrame = true;
     }
 
-    auto* fbo2 = CHEngine::RenderFacade::GetFramebuffer(m_Framebuffer);
-    if (fbo2 && !resizedThisFrame)
+    // Display viewport output texture in ImGui.
+    const uint32_t colorTexID = CHEngine::RenderFacade::GetViewportColorTexID();
+    if (colorTexID != 0)
     {
-        void* nativeTex = fbo2->GetNativeColorAttachment();
         const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
         ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
         ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
-        ImGui::Image((ImTextureID)nativeTex, panelSize, uv0, uv1);
+        ImGui::Image(static_cast<ImTextureID>(colorTexID),
+                     panelSize, uv0, uv1);
     }
 
     gizmo.Draw(scene_session, gizmo_operation, gizmo_mode, m_ViewportPos, m_ViewportSize);
@@ -175,27 +154,8 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
 
 void EditorViewport::BuildGrid()
 {
-    float verts[] = {
-        -1.0f, -1.0f,
-        1.0f, -1.0f,
-        1.0f, 1.0f,
-        -1.0f, 1.0f,
-    };
-    uint32_t indices[] = { 0, 1, 2, 0, 2, 3 };
-
-    m_GridVAO = CHEngine::RenderFacade::CreateVertexArray();
-    auto* vao = CHEngine::RenderFacade::GetVertexArray(m_GridVAO);
-    if (!vao)
-        return;
-
-    auto vb = CHEngine::RenderFacade::CreateVertexBuffer(verts, static_cast<uint32_t>(sizeof(verts)));
-    CHEngine::BufferLayout layout = {
-        { CHEngine::ShaderDataType::Float2, "a_NDC" },
-    };
-    vb->SetLayout(layout);
-    vao->AddVertexBuffer(vb);
-    auto ib = CHEngine::RenderFacade::CreateIndexBuffer(indices, 6u);
-    vao->SetIndexBuffer(ib);
+    // TODO: rebuild grid using new handle-based VertexArray after Phase 6.
+    // For now grid rendering is disabled (RegisterEditorPasses is a no-op).
 }
 
 } // namespace Sandbox

@@ -5,8 +5,6 @@ namespace CHModules
     VertexArrayVK::VertexArrayVK() {}
     VertexArrayVK::~VertexArrayVK() {}
 
-    void VertexArrayVK::Bind() const {}
-    void VertexArrayVK::Unbind() const {}
 
     void VertexArrayVK::AddVertexBuffer(const CHEngine::Ref<CHEngine::IVertexBuffer>& vertexBuffer)
     {

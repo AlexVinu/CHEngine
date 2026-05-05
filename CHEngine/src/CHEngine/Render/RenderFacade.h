@@ -1,73 +1,105 @@
 #pragma once
 
 #include "Core.h"
-#include "RenderResourceManager.h"
+#include "Render/IRenderFactory.h"
+#include "Render/Graph/IRenderGraph.h"
+#include "Render/IFrameGraphBackend.h"
+#include "Render/UniformBlocks.h"
+#include <CheStl/Vector.h>
 
-#include <glm/mat4x4.hpp>
+#include <string>
+#include <vector>
+#include <memory>
 
 namespace CHEngine
 {
-	class CHENGINE_API RenderFacade
-	{
-	public:
-		static void InitRenderer(const RendererInitInfo& init_info);
-		// Frame commands
-		static void SetClearColor(float r, float g, float b, float a);
-		static void Clear();
-		static void SetViewport(uint32_t width, uint32_t height);
-		static void SetBlend(bool enable);
-		static void SetDepthWrite(bool enable);
-		static void BeginFrame();
-		static void EndFrame();
+    class BasicFrameGraphFrontend;
 
-		static void BeginScene();
-		static void EndScene();
-		static void SetSceneCamera(const UBOCamera& camera);
-		static void Submit(ShaderHandle shader, VertexArrayHandle vertexArray, const glm::mat4& transform);
-		static void Submit(VertexArrayHandle vertexArray, const glm::mat4& transform);
-		static void SubmitLines(VertexArrayHandle vertexArray, const glm::mat4& transform);
+    // Metadata for each named shader (hot-reload and Shader Manager panel).
+    struct CHENGINE_API ShaderEntry
+    {
+        String       name;
+        String       slangPath;
+        String       vertEntry;
+        String       fragEntry;
+        ShaderHandle handle;
+        bool         valid = false;
+    };
 
-		static void DrawIndexed(VertexArrayHandle vertexArray);
-		static void DrawLines(VertexArrayHandle vertexArray);
+    class CHENGINE_API RenderFacade
+    {
+    public:
+        // ── Lifecycle ────────────────────────────────────────────────────────
+        static void InitRenderer(const RendererInitInfo& init);
+        static void Shutdown();
 
-		// Resource creation
-		static ShaderHandle CreateShader(const String& slangSource,
-		                                 const String& vertEntry = String("vertMain"),
-		                                 const String& fragEntry = String("fragMain"));
-		static ShaderHandle CreateShaderFromFile(const String& name,
-		                                         const String& slangPath,
-		                                         const String& vertEntry = String("vertMain"),
-		                                         const String& fragEntry = String("fragMain"));
-		static VertexArrayHandle CreateVertexArray();
-		static TextureHandle CreateTexture(const uint8_t* data, uint32_t width,
-		                                    uint32_t height, uint32_t channels);
-		static TextureHandle CreateTextureFromFile(const std::string& path);
-		static FramebufferHandle CreateFramebuffer(uint32_t width, uint32_t height);
-		static Ref<IVertexBuffer> CreateVertexBuffer(float* vertices, uint32_t size);
-		static Ref<IIndexBuffer>  CreateIndexBuffer(uint32_t* indices, uint32_t count);
+        // ── Per-frame ────────────────────────────────────────────────────────
+        static void BeginFrame();
+        static void EndFrame();
 
-		// Resource access
-		static IShader*       GetShader(ShaderHandle h);
-		static IVertexArray* GetVertexArray(VertexArrayHandle h);
-		static ITexture*     GetTexture(TextureHandle h);
-		static IFramebuffer* GetFramebuffer(FramebufferHandle h);
-		static IRenderApi*   GetRenderAPI();
+        // ── Frame graph (no-op stub until Phase 3) ───────────────────────────
+        static void          BeginFrameGraph();
+        static IRenderGraph& GetFrameGraph();
+        static void          EndFrameGraph();
 
-		static void SetDefaultMeshShader(ShaderHandle h);
-		static ShaderHandle GetDefaultMeshShader();
+        // ── Resource creation ─────────────────────────────────────────────────
+        static ShaderHandle  CreateShader(const String& slangSource,
+                                          const String& vert = String("vertMain"),
+                                          const String& frag = String("fragMain"),
+                                          const String& sourcePath = String());
 
-		// Resource destroy
-		static void DestroyShader(ShaderHandle h);
-		static void DestroyVertexArray(VertexArrayHandle h);
-		static void DestroyTexture(TextureHandle h);
-		static void DestroyFramebuffer(FramebufferHandle h);
+        static ShaderHandle  CreateShaderFromFile(const String& name,
+                                                  const String& slangPath,
+                                                  const String& vert = String("vertMain"),
+                                                  const String& frag = String("fragMain"));
 
-	private:
-		RenderFacade() = delete;
-		~RenderFacade() = delete;
-		RenderFacade(const RenderFacade&) = delete;
-		RenderFacade& operator=(const RenderFacade&) = delete;
-		RenderFacade(RenderFacade&&) = delete;
-		RenderFacade& operator=(RenderFacade&&) = delete;
-	};
+        static TextureHandle CreateTexture(const uint8_t* data, uint32_t w, uint32_t h,
+                                           uint32_t channels);
+        static TextureHandle CreateTextureFromFile(const std::string& path);
+
+        // ── Resource destruction ──────────────────────────────────────────────
+        static void DestroyShader(ShaderHandle h);
+        static void DestroyTexture(TextureHandle h);
+
+        // ── Low-level factory access ──────────────────────────────────────────
+        static IRenderFactory* GetRenderFactory();
+
+        // ── Viewport ─────────────────────────────────────────────────────────
+        static void          SetViewportSize(uint32_t w, uint32_t h);
+        static uint32_t      GetViewportWidth();
+        static uint32_t      GetViewportHeight();
+
+        // Final viewport color output as a TextureHandle, set by FG after Execute.
+        // Sandbox/EditorViewport reads it for ImGui::Image.
+        static void          SetViewportOutputTexture(TextureHandle h);
+        static TextureHandle GetViewportOutputTexture();
+        // Native texture ID (e.g. GLuint) — for ImGui::Image. Returns 0 if unset.
+        static uint32_t      GetViewportColorTexID();
+
+        // ── Default mesh shader ───────────────────────────────────────────────
+        static void         SetDefaultMeshShader(ShaderHandle h);
+        static ShaderHandle GetDefaultMeshShader();
+
+        // ── Per-frame scene camera ────────────────────────────────────────────
+        static void             SetSceneCamera(const UBOCamera& cam);
+        static const UBOCamera& GetSceneCamera();
+        static bool             HasSceneCamera();
+        static void             InvalidateSceneCamera();
+
+        // ── Legacy viewport viewport ──────────────────────────────────────────
+        static void     SetViewport(uint32_t w, uint32_t h);
+
+        // ── Shader hot-reload ─────────────────────────────────────────────────
+        static void PollShaders();
+        static bool ReloadShader(ShaderHandle h);
+        static const std::vector<ShaderEntry>& GetShaderEntries();
+
+    private:
+        RenderFacade() = delete;
+        ~RenderFacade() = delete;
+        RenderFacade(const RenderFacade&) = delete;
+        RenderFacade& operator=(const RenderFacade&) = delete;
+        RenderFacade(RenderFacade&&) = delete;
+        RenderFacade& operator=(RenderFacade&&) = delete;
+    };
 }

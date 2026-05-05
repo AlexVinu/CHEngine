@@ -2,8 +2,6 @@
 
 #include "Material.h"
 
-#include <Render/IShader.h>
-#include <Render/ITexture.h>
 #include <Render/UniformBlocks.h>
 
 #include "CHEngine/Render/RenderFacade.h"
@@ -107,37 +105,11 @@ void MaterialInstance::FillUBOMaterial(UBOMaterial& out) const
 
 void MaterialInstance::ApplyMaterial() const
 {
-    IShader* shader = RenderFacade::GetShader(m_Material->ShaderHandler);
-    if (!shader)
-        return;
-
-    UBOMaterial materialUBO;
-    FillUBOMaterial(materialUBO);
-
-    TextureHandle d, s;
-    ResolveTextures(d, s);
-
-    ITexture* diffTex = d.IsValid() ? RenderFacade::GetTexture(d) : nullptr;
-    ITexture* specTex = s.IsValid() ? RenderFacade::GetTexture(s) : nullptr;
-
-    if (diffTex)
-    {
-        diffTex->Bind(0);
-        shader->SetInt(String("u_DiffuseTexture"), 0);
-    }
-
-    if (specTex)
-    {
-        specTex->Bind(1);
-        shader->SetInt(String("u_SpecularMap"), 1);
-    }
-
-    shader->SetUniformBlock(EUniformBlock::Material, &materialUBO, sizeof(materialUBO));
-
-    if (diffTex)
-        diffTex->Unbind();
-    if (specTex)
-        specTex->Unbind();
+    // TODO (Phase 6): material binding moves into the declarative MainColorPass:
+    //   - PassDesc lists (shader, vertexBuffer, indexBuffer, uniformBuffers, textureBindings)
+    //   - Backend FG binds them when executing the pass.
+    // For now this is a no-op so the engine boots. UBOMaterial is still computed
+    // through FillUBOMaterial() for any caller that wants the data.
 }
 
 } // namespace CHEngine

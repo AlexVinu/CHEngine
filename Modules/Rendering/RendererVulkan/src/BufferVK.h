@@ -10,9 +10,6 @@ namespace CHModules
         VertexBufferVK(float* vertices, uint32_t size);
         ~VertexBufferVK() override;
 
-        void Bind() const override;
-        void Unbind() const override;
-
         const CHEngine::BufferLayout& GetLayout() const override;
         void SetLayout(const CHEngine::BufferLayout& layout) override;
 
@@ -27,8 +24,6 @@ namespace CHModules
         IndexBufferVK(uint32_t* indices, uint32_t count);
         ~IndexBufferVK() override;
 
-        void Bind() const override;
-        void Unbind() const override;
         uint32_t GetCount() const override;
 
     private:

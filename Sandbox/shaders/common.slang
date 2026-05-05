@@ -1,5 +1,3 @@
-// Общие UBO-структуры. std140-совместимые: ровно те же offset'ы, что и
-// CHEngine::UBOCamera/UBOObject/UBOLighting/UBOMaterial в C++ (UniformBlocks.h).
 
 struct CameraUBO
 {

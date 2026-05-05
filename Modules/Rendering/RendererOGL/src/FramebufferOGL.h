@@ -1,23 +1,24 @@
 #pragma once
 
-#include "Render/IFramebuffer.h"
 #include <glad/glad.h>
 #include <algorithm>
+#include "Render/Core/RenderAPI.h"
 
 namespace CHModules {
 
-class FramebufferOGL : public CHEngine::IFramebuffer {
+class FramebufferOGL {
 public:
-    FramebufferOGL(uint32_t width, uint32_t height);
+    FramebufferOGL(uint32_t width, uint32_t height,
+                   CHEngine::FramebufferColorFormat colorFormat = CHEngine::FramebufferColorFormat::RGBA8);
     ~FramebufferOGL();
 
-    void Bind()   const override;
-    void Unbind() const override;
-    void Resize(uint32_t width, uint32_t height) override;
+    void Bind()   const ;
+    void Unbind() const ;
+    void Resize(uint32_t width, uint32_t height) ;
 
-    uint32_t GetColorAttachmentID() const override { return m_ColorAttachment; }
-    uint32_t GetWidth()  const override { return m_Width; }
-    uint32_t GetHeight() const override { return m_Height; }
+    uint32_t GetColorAttachmentID() const  { return m_ColorAttachment; }
+    uint32_t GetWidth()  const  { return m_Width; }
+    uint32_t GetHeight() const  { return m_Height; }
 
 private:
     void CreateAttachments();
@@ -28,6 +29,7 @@ private:
     GLuint   m_DepthAttachment = 0;
     uint32_t m_Width  = 0;
     uint32_t m_Height = 0;
+    CHEngine::FramebufferColorFormat m_ColorFormat = CHEngine::FramebufferColorFormat::RGBA8;
 };
 
 } // namespace CHModules

@@ -57,15 +57,8 @@ CHEngine::Ref<CHEngine::Scene> SceneSerializer::Load(const std::string& path)
         return {};
     }
 
-    auto* resources_ptr = CHEngine::Application::Get().GetRenderResources();
-    if (!resources_ptr)
-    {
-        CHE_CORE_ERROR("Sandbox::SceneSerializer::Load: no render resources");
-        return {};
-    }
-
     CHEngine::SceneSerializer engineSerializer{};
-    CHEngine::Ref<CHEngine::Scene> loadedScene = engineSerializer.DeserializeFromJson(sceneJson, *resources_ptr);
+    CHEngine::Ref<CHEngine::Scene> loadedScene = engineSerializer.DeserializeFromJson(sceneJson);
     if (!loadedScene)
         return {};
 

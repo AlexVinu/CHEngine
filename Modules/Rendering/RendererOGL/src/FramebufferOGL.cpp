@@ -4,8 +4,11 @@
 
 namespace CHModules {
 
-FramebufferOGL::FramebufferOGL(uint32_t width, uint32_t height)
-    : m_Width(std::max(width, 1u)), m_Height(std::max(height, 1u))
+FramebufferOGL::FramebufferOGL(uint32_t width, uint32_t height,
+                               CHEngine::FramebufferColorFormat colorFormat)
+    : m_Width(std::max(width, 1u))
+    , m_Height(std::max(height, 1u))
+    , m_ColorFormat(colorFormat)
 {
     glGenFramebuffers(1, &m_RendererID);
     CreateAttachments();
@@ -21,11 +24,16 @@ void FramebufferOGL::CreateAttachments()
 {
     glBindFramebuffer(GL_FRAMEBUFFER, m_RendererID);
 
-    // Color attachment — RGBA8 texture
+    // Color attachment — format depends on m_ColorFormat.
+    const GLint  internalFmt = (m_ColorFormat == CHEngine::FramebufferColorFormat::RGBA16F)
+                                   ? GL_RGBA16F : GL_RGBA8;
+    const GLenum pixelType   = (m_ColorFormat == CHEngine::FramebufferColorFormat::RGBA16F)
+                                   ? GL_FLOAT : GL_UNSIGNED_BYTE;
+
     glGenTextures(1, &m_ColorAttachment);
     glBindTexture(GL_TEXTURE_2D, m_ColorAttachment);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA8, (GLsizei)m_Width, (GLsizei)m_Height, 0,
-                 GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glTexImage2D(GL_TEXTURE_2D, 0, internalFmt, (GLsizei)m_Width, (GLsizei)m_Height, 0,
+                 GL_RGBA, pixelType, nullptr);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);

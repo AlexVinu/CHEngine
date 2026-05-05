@@ -13,7 +13,4 @@ namespace CHModules {
         // TODO: vkDestroyImageView, vkDestroyImage, vkDestroySampler, vkFreeMemory
     }
 
-    void TextureVK::Bind(uint32_t /*slot*/) const {}
-    void TextureVK::Unbind() const {}
-
 }

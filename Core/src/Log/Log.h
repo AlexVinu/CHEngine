@@ -47,9 +47,11 @@ namespace CHEngine {
 	#else
 		#define CHE_DEBUGBREAK() __builtin_trap()
 	#endif
-	#define CHE_ASSERT(x, ...) {if(!(x)) {CHE_ERROR("Assertion Failed: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); } }
+	#define CHE_ASSERT(x, ...)		{if(!(x)) {CHE_ERROR("Assertion Failed: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); } }
 	#define CHE_CORE_ASSERT(x, ...) {if(!(x)) {CHE_CORE_ERROR("Assertion Failed: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); } }
+	#define CHE_FATAL(...) {CHE_ERROR("Fatal: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); }
 #else
-	#define CHE_ASSERT(x, ...)
-	#define CHE_CORE_ASSERT(x, ...)
+	#define CHE_ASSERT(x, ...)		
+	#define CHE_CORE_ASSERT(x, ...) 
+	#define CHE_FATAL(...) {CHE_ERROR("Fatal: {0}", __VA_ARGS__); std::abort(); }
 #endif

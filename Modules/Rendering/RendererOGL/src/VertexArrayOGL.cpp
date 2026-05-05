@@ -1,139 +1,119 @@
 #include <chepch.h>
 #include "VertexArrayOGL.h"
+#include "BufferOGL.h"
 
-#include <Profiler.h>
-#include <glad/glad.h>
+#include <Log/Log.h>
 
-namespace CHModules
-{
-	static GLenum ShaderDataTypeToOpenGLBaseType(CHEngine::ShaderDataType type)
-	{
-		switch (type)
-		{
-		case CHEngine::ShaderDataType::Float:    return GL_FLOAT;
-		case CHEngine::ShaderDataType::Float2:   return GL_FLOAT;
-		case CHEngine::ShaderDataType::Float3:   return GL_FLOAT;
-		case CHEngine::ShaderDataType::Float4:   return GL_FLOAT;
-		case CHEngine::ShaderDataType::Mat3:     return GL_FLOAT;
-		case CHEngine::ShaderDataType::Mat4:     return GL_FLOAT;
-		case CHEngine::ShaderDataType::Int:      return GL_INT;
-		case CHEngine::ShaderDataType::Int2:     return GL_INT;
-		case CHEngine::ShaderDataType::Int3:     return GL_INT;
-		case CHEngine::ShaderDataType::Int4:     return GL_INT;
-		case CHEngine::ShaderDataType::Bool:     return GL_BOOL;
-		}
+namespace CHModules {
 
-		CHE_CORE_ASSERT(false, "Unknown ShaderDataType!");
-		return 0;
-	}
+    namespace {
 
-	VertexArrayOGL::VertexArrayOGL()
-	{
+        struct GLAttribInfo {
+            GLenum    type;
+            GLint     components;
+            GLboolean normalized;
+        };
 
-		glGenVertexArrays(1, &m_RendererID);
-	}
+        GLAttribInfo GetGLAttribInfo(CHEngine::VertexFormat fmt)
+        {
+            using VF = CHEngine::VertexFormat;
+            switch (fmt)
+            {
+            case VF::Float:        return { GL_FLOAT,         1, GL_FALSE };
+            case VF::Float2:       return { GL_FLOAT,         2, GL_FALSE };
+            case VF::Float3:       return { GL_FLOAT,         3, GL_FALSE };
+            case VF::Float4:       return { GL_FLOAT,         4, GL_FALSE };
+            case VF::Int:          return { GL_INT,           1, GL_FALSE };
+            case VF::Int2:         return { GL_INT,           2, GL_FALSE };
+            case VF::Int3:         return { GL_INT,           3, GL_FALSE };
+            case VF::Int4:         return { GL_INT,           4, GL_FALSE };
+            case VF::UInt:         return { GL_UNSIGNED_INT,  1, GL_FALSE };
+            case VF::UInt2:        return { GL_UNSIGNED_INT,  2, GL_FALSE };
+            case VF::UInt3:        return { GL_UNSIGNED_INT,  3, GL_FALSE };
+            case VF::UInt4:        return { GL_UNSIGNED_INT,  4, GL_FALSE };
+            case VF::UByte4:       return { GL_UNSIGNED_BYTE, 4, GL_FALSE };
+            case VF::UByte4_Norm:  return { GL_UNSIGNED_BYTE, 4, GL_TRUE  };
+            default:
+                CHE_CORE_WARN("VertexArrayOGL: unsupported VertexFormat {}", (int)fmt);
+                return { GL_FLOAT, 1, GL_FALSE };
+            }
+        }
 
-	VertexArrayOGL::~VertexArrayOGL()
-	{
+    } // anonymous namespace
 
-		glDeleteVertexArrays(1, &m_RendererID);
-	}
+    VertexArrayOGL::VertexArrayOGL(const CHEngine::VertexInputLayout& layout,
+                                   BufferOGL* vertexBuffer,
+                                   BufferOGL* indexBuffer,
+                                   CHEngine::IndexFormat indexFormat,
+                                   uint32_t indexCount)
+        : m_VertexBuffer(vertexBuffer)
+        , m_IndexBuffer(indexBuffer)
+        , m_IndexFormat(indexFormat)
+        , m_IndexCount(indexCount)
+    {
+        glGenVertexArrays(1, &m_VAO);
+        glBindVertexArray(m_VAO);
 
-	void VertexArrayOGL::Bind() const
-	{
+        if (m_VertexBuffer)
+        {
+            glBindBuffer(GL_ARRAY_BUFFER, m_VertexBuffer->GetID());
 
-		glBindVertexArray(m_RendererID);
-	}
+            uint32_t attribIndex = 0;
+            for (const auto& attr : layout.Attributes)
+            {
+                const uint32_t slotIdx = (attr.Slot < static_cast<uint32_t>(layout.Strides.size()))
+                                             ? attr.Slot : 0u;
+                const uint32_t stride  = layout.Strides.empty() ? 0u : layout.Strides[slotIdx];
 
-	void VertexArrayOGL::Unbind() const
-	{
+                GLAttribInfo info = GetGLAttribInfo(attr.Format);
 
-		glBindVertexArray(0);
-	}
+                glEnableVertexAttribArray(attribIndex);
 
-	void VertexArrayOGL::AddVertexBuffer(const CHEngine::Ref<CHEngine::IVertexBuffer>& vertexBuffer)
-	{
+                if (info.type == GL_INT || info.type == GL_UNSIGNED_INT)
+                {
+                    glVertexAttribIPointer(attribIndex,
+                                          info.components,
+                                          info.type,
+                                          static_cast<GLsizei>(stride),
+                                          reinterpret_cast<const void*>(static_cast<uintptr_t>(attr.Offset)));
+                }
+                else
+                {
+                    glVertexAttribPointer(attribIndex,
+                                         info.components,
+                                         info.type,
+                                         info.normalized,
+                                         static_cast<GLsizei>(stride),
+                                         reinterpret_cast<const void*>(static_cast<uintptr_t>(attr.Offset)));
+                }
 
-		CHE_CORE_ASSERT(vertexBuffer->GetLayout().GetElements().size(), "Vertex Buffer has no layout!");
+                ++attribIndex;
+            }
+        }
 
-		glBindVertexArray(m_RendererID);
-		vertexBuffer->Bind();
+        if (m_IndexBuffer)
+            glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_IndexBuffer->GetID());
 
-		const auto& layout = vertexBuffer->GetLayout();
-		for (const auto& element : layout)
-		{
-			switch (element.Type)
-			{
-			case CHEngine::ShaderDataType::Float:
-			case CHEngine::ShaderDataType::Float2:
-			case CHEngine::ShaderDataType::Float3:
-			case CHEngine::ShaderDataType::Float4:
-			{
-				glEnableVertexAttribArray(m_VertexBufferIndex);
-				glVertexAttribPointer(m_VertexBufferIndex,
-					element.GetComponentCount(),
-					ShaderDataTypeToOpenGLBaseType(element.Type),
-					element.Normalized ? GL_TRUE : GL_FALSE,
-					layout.GetStride(),
-					(const void*)element.Offset);
-				m_VertexBufferIndex++;
-				break;
-			}
-			case CHEngine::ShaderDataType::Int:
-			case CHEngine::ShaderDataType::Int2:
-			case CHEngine::ShaderDataType::Int3:
-			case CHEngine::ShaderDataType::Int4:
-			case CHEngine::ShaderDataType::Bool:
-			{
-				glEnableVertexAttribArray(m_VertexBufferIndex);
-				glVertexAttribIPointer(m_VertexBufferIndex,
-					element.GetComponentCount(),
-					ShaderDataTypeToOpenGLBaseType(element.Type),
-					layout.GetStride(),
-					(const void*)element.Offset);
-				m_VertexBufferIndex++;
-				break;
-			}
-			case CHEngine::ShaderDataType::Mat3:
-			case CHEngine::ShaderDataType::Mat4:
-			{
-				uint8_t count = element.GetComponentCount();
-				for (uint8_t i = 0; i < count; i++)
-				{
-					glEnableVertexAttribArray(m_VertexBufferIndex);
-					glVertexAttribPointer(m_VertexBufferIndex,
-						count,
-						ShaderDataTypeToOpenGLBaseType(element.Type),
-						element.Normalized ? GL_TRUE : GL_FALSE,
-						layout.GetStride(),
-						(const void*)(element.Offset + sizeof(float) * count * i));
-					glVertexAttribDivisor(m_VertexBufferIndex, 1);
-					m_VertexBufferIndex++;
-				}
-				break;
-			}
-			default:
-				CHE_CORE_ASSERT(false, "Unknown ShaderDataType!");
-			}
-		}
+        glBindVertexArray(0);
+    }
 
-		m_VertexBuffers.push_back(vertexBuffer);
-	}
+    VertexArrayOGL::~VertexArrayOGL()
+    {
+        if (m_VAO)
+        {
+            glDeleteVertexArrays(1, &m_VAO);
+            m_VAO = 0;
+        }
+    }
 
-	void VertexArrayOGL::SetIndexBuffer(const CHEngine::Ref<CHEngine::IIndexBuffer>& indexBuffer)
-	{
+    void VertexArrayOGL::Bind() const
+    {
+        glBindVertexArray(m_VAO);
+    }
 
-		glBindVertexArray(m_RendererID);
-		indexBuffer->Bind();
+    void VertexArrayOGL::Unbind() const
+    {
+        glBindVertexArray(0);
+    }
 
-		m_IndexBuffer = indexBuffer;
-	}
-	const CHEngine::Vector<CHEngine::Ref<CHEngine::IVertexBuffer>>& VertexArrayOGL::GetVertexBuffers() const
-	{
-		return m_VertexBuffers;
-	}
-	const CHEngine::Ref<CHEngine::IIndexBuffer>& VertexArrayOGL::GetIndexBuffer() const
-	{
-		return m_IndexBuffer;
-	}
-}
+} // namespace CHModules

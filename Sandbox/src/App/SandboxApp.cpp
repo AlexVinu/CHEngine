@@ -24,7 +24,6 @@ public:
 
 	void OnUpdate(CHEngine::Timestep dt) override
 	{
-
 		// --- Auto-rotate ---
 		if (m_AutoRotate)
 		{
@@ -33,35 +32,11 @@ public:
 			m_RotZ += m_SpeedZ * dt;
 		}
 
-		auto& app = CHEngine::Application::Get();
-		auto* shader = CHEngine::RenderFacade::GetShader(app.GetActiveShader());
-		if (!shader) return;
-
-		// --- CameraUBO ---
-		glm::mat4 vp = m_Camera.GetViewProjection();
-		CHEngine::UBOCamera cameraUBO;
-		std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp), 64);
-		shader->SetUniformBlock(CHEngine::EUniformBlock::Camera,
-		                        &cameraUBO, sizeof(cameraUBO));
-
-		// --- ObjectUBO ---
-		glm::mat4 transform = glm::mat4(1.0f);
-		transform = glm::rotate(transform, glm::radians(m_RotX), glm::vec3(1.0f, 0.0f, 0.0f));
-		transform = glm::rotate(transform, glm::radians(m_RotY), glm::vec3(0.0f, 1.0f, 0.0f));
-		transform = glm::rotate(transform, glm::radians(m_RotZ), glm::vec3(0.0f, 0.0f, 1.0f));
-
-		CHEngine::UBOObject objectUBO;
-		std::memcpy(objectUBO.Transform, glm::value_ptr(transform), 64);
-		objectUBO.Color[0] = m_TintColor[0];
-		objectUBO.Color[1] = m_TintColor[1];
-		objectUBO.Color[2] = m_TintColor[2];
-		objectUBO.Color[3] = m_TintColor[3];
-		shader->SetUniformBlock(CHEngine::EUniformBlock::Object,
-		                        &objectUBO, sizeof(objectUBO));
-
-		CHEngine::UBOMaterial materialUBO;
-		shader->SetUniformBlock(CHEngine::EUniformBlock::Material,
-		                        &materialUBO, sizeof(materialUBO));
+		// TODO (Phase 6): submit cube draw via the new declarative frame graph.
+		// The previous immediate-mode UBO binding (RenderFacade::GetShader +
+		// shader->SetUniformBlock) was removed because the engine now talks to
+		// GPU resources through handles + descriptors only. The cube will be
+		// re-introduced as a PassDesc once MainColorPass lands.
 	}
 
 	void OnImGuiRender() override
@@ -150,8 +125,7 @@ public:
 		ImGui::Begin("Shader Manager");
 
 		auto& app = CHEngine::Application::Get();
-		auto* res = app.GetRenderResources();
-		const auto& entries = res->GetShaderEntries();
+		const auto& entries = CHEngine::RenderFacade::GetShaderEntries();
 		CHEngine::ShaderHandle activeShader = app.GetActiveShader();
 
 		const char* activeName = "(unknown)";
@@ -189,7 +163,7 @@ public:
 
 			ImGui::SameLine();
 			if (ImGui::Button(("Reload##reload" + std::to_string(i)).c_str(), ImVec2(60, 0)))
-				res->ReloadShader(e.handle);
+				CHEngine::RenderFacade::ReloadShader(e.handle);
 		}
 
 		ImGui::End();

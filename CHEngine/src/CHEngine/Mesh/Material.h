@@ -5,7 +5,8 @@
 #include <memory>
 #include <string>
 
-#include "CHEngine/Render/RenderResourceManager.h"
+#include "Render/Handles.h"
+#include "Render/Core/RenderTypes.h"
 
 namespace CHEngine {
 /// Базовый материал ассета: только свои поля, без MaterialInstance.

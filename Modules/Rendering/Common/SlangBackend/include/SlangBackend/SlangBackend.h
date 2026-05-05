@@ -43,13 +43,15 @@ namespace CHModules
     public:
         virtual ~SlangBackend() = default;
 
+        bool Init(CHEngine::ERenderAPI api);
+
         // sourcePath: optional full path of the source file. When provided,
         // Slang uses its directory to resolve `import` directives.
         virtual CompiledShader Compile(
             const CHEngine::String& source,
             const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
             const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-            const CHEngine::String& sourcePath = CHEngine::String()) = 0;
+            const CHEngine::String& sourcePath = CHEngine::String());
 
         static SlangBackend* GetForApi(CHEngine::ERenderAPI api);
         static void Shutdown();

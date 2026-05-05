@@ -1,257 +1,373 @@
 #include "chepch.h"
 
 #include "RenderFacade.h"
-
 #include "CHEngine/Application.h"
-#include "Render/IRenderer.h"
+#include "CHEngine/Render/FrameGraph/BasicFrameGraphFrontend.h"
+#include "CHEngine/Utils/FileWatcher.h"
+#include "FileSystem/FileSystem.h"
+
+#include <stb_image.h>
+#include <filesystem>
 
 namespace CHEngine
 {
-	RenderResourceManager* GetRenderResources()
-	{
-		CHE_ASSERT(CHEngine::Application::Get().GetRenderResources(), "RENDER RESOURCES NOT INITIALIZED");
-		return CHEngine::Application::Get().GetRenderResources();
-	}
+    // ── Viewport ──────────────────────────────────────────────────────────────
+    static uint32_t s_ViewportW = 1280u;
+    static uint32_t s_ViewportH = 720u;
 
-	IRenderApi* GetActiveRenderAPI()
-	{
-		auto* res = GetRenderResources();
-		IRenderApi* api = res->GetRenderAPI();
-		CHE_ASSERT(api, "RENDER API NOT INITIALIZED");
-		return api;
-	}
+    // ── Viewport output texture (set by FG after Execute) ─────────────────────
+    static TextureHandle s_ViewportOutputTex;
 
-	IRenderer* GetActiveRenderer()
-	{
-		auto* res = GetRenderResources();
-		IRenderer* renderer = res->GetRenderer();
-		CHE_ASSERT(renderer, "RENDER API NOT INITIALIZED");
-		return renderer;
-	}
-}
+    // ── Frame graph ───────────────────────────────────────────────────────────
+    static std::unique_ptr<BasicFrameGraphFrontend>  s_Graph;
+    static std::unique_ptr<CHEngine::IFrameGraphBackend> s_GraphBackend;
+    static bool s_GraphActive = false;
+
+    // ── Default mesh shader ───────────────────────────────────────────────────
+    static ShaderHandle s_DefaultMeshShader;
+
+    // ── Per-frame scene camera ────────────────────────────────────────────────
+    static UBOCamera s_SceneCamera{};
+    static bool      s_SceneCameraValid = false;
+
+    // ── Shader hot-reload data ────────────────────────────────────────────────
+    static std::vector<ShaderEntry> s_ShaderEntries;
+    static FileWatcher              s_ShaderWatcher;
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
+    static IRenderFactory* GetFactory()
+    {
+        return Application::Get().GetRenderFactory();
+    }
+
+    static String ReadTextFile(const String& path)
+    {
+        const std::filesystem::path fsPath(path.c_str());
+        if (!FileSystem::Exists(fsPath))
+        {
+            CHE_CORE_ERROR("RenderFacade: cannot open file '{}'", path.c_str());
+            return {};
+        }
+        return String(FileSystem::ReadFileText(fsPath).c_str());
+    }
+
+    static bool ReloadShaderInternal(ShaderHandle h)
+    {
+        ShaderEntry* entry = nullptr;
+        for (ShaderEntry& e : s_ShaderEntries)
+        {
+            if (e.handle == h) { entry = &e; break; }
+        }
+        if (!entry) return false;
+
+        String src = ReadTextFile(entry->slangPath);
+        if (src.empty()) { entry->valid = false; return false; }
+
+        IRenderFactory* factory = GetFactory();
+        if (!factory) return false;
+
+        String absPath;
+        {
+            std::error_code ec;
+            auto fs_abs = std::filesystem::absolute(std::filesystem::path(entry->slangPath.c_str()), ec);
+            absPath = ec ? entry->slangPath : String(fs_abs.string().c_str());
+        }
+
+        bool ok = factory->ReloadShader(h, src, entry->vertEntry, entry->fragEntry, absPath);
+        entry->valid = ok;
+
+        if (ok)
+            CHE_CORE_INFO("Reloaded shader '{}'", entry->name.c_str());
+        else
+            CHE_CORE_ERROR("Shader reload failed for '{}' — keeping old program", entry->name.c_str());
+
+        return ok;
+    }
+
+} // namespace CHEngine
 
 namespace CHEngine
 {
-	void RenderFacade::InitRenderer(const RendererInitInfo& init_info)
-	{
-		CHE_ASSERT(CHEngine::Application::Get().GetRenderResources(), "RENDER RESOURCES NOT INITIALIZED");
-		GetRenderResources()->InitRenderer(init_info);
-	}
-	void RenderFacade::SetClearColor(float r, float g, float b, float a)
-	{
-		IRenderApi* api = GetActiveRenderAPI();
-		api->SetClearColor(r, g, b, a);
-	}
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-	void RenderFacade::Clear()
-	{
-		IRenderApi* api = GetActiveRenderAPI();
-		api->Clear();
-	}
+    void RenderFacade::InitRenderer(const RendererInitInfo& init)
+    {
+        IRenderFactory* f = GetFactory();
+        if (!f) {
+            CHE_CORE_CRITICAL("RenderFacade::InitRenderer — no factory available");
+            return;
+        }
+        f->Init(init);
+        CHE_CORE_INFO("RenderFacade::InitRenderer succeeded");
+    }
 
-	void RenderFacade::SetViewport(uint32_t width, uint32_t height)
-	{
-		IRenderApi* api = GetActiveRenderAPI();
-		api->SetViewport(width, height);
-	}
+    void RenderFacade::Shutdown()
+    {
+        s_Graph.reset();
+        s_GraphBackend.reset();
+        s_ShaderWatcher.Clear();
+        s_ShaderEntries.clear();
+        s_SceneCameraValid = false;
+        s_ViewportOutputTex = {};
+        if (IRenderFactory* f = GetFactory())
+            f->Shutdown();
+    }
 
-	void RenderFacade::SetBlend(bool enable)
-	{
-		IRenderApi* api = GetActiveRenderAPI();
-		api->SetBlend(enable);
-	}
+    // ── Per-frame ─────────────────────────────────────────────────────────────
 
-	void RenderFacade::SetDepthWrite(bool enable)
-	{
-		IRenderApi* api = GetActiveRenderAPI();
-		api->SetDepthWrite(enable);
-	}
+    void RenderFacade::BeginFrame()
+    {
+        s_SceneCameraValid = false;
+    }
 
-	void RenderFacade::BeginFrame()
-	{
-		GetRenderResources()->InvalidateSceneCameraForFrame();
-		GetActiveRenderAPI()->BeginFrame();
-	}
+    void RenderFacade::EndFrame()
+    {
+        // Swap buffers is handled by Window::OnUpdate.
+    }
 
-	void RenderFacade::EndFrame()
-	{
-		GetActiveRenderAPI()->EndFrame();
-	}
+    // ── Frame graph ───────────────────────────────────────────────────────────
 
-	void RenderFacade::BeginScene()
-	{
-		IRenderer* renderer = GetActiveRenderer();
-		CHE_ASSERT(renderer, "RENDERER NOT INITIALIZED");
-		renderer->BeginScene();
-	}
+    void RenderFacade::BeginFrameGraph()
+    {
+        if (!s_Graph)
+            s_Graph = std::make_unique<BasicFrameGraphFrontend>();
 
-	void RenderFacade::EndScene()
-	{
-		IRenderer* renderer = GetActiveRenderer();
-		CHE_ASSERT(renderer, "RENDERER NOT INITIALIZED");
-		renderer->EndScene();
-	}
+        s_Graph->Reset();
+        s_GraphActive = true;
+    }
 
-	void RenderFacade::SetSceneCamera(const UBOCamera& camera)
-	{
-		GetRenderResources()->SetSceneCamera(camera);
-	}
+    IRenderGraph& RenderFacade::GetFrameGraph()
+    {
+        CHE_ASSERT(s_Graph && s_GraphActive,
+                   "RenderFacade::GetFrameGraph called outside BeginFrameGraph/EndFrameGraph");
+        return *s_Graph;
+    }
 
-	void RenderFacade::Submit(ShaderHandle shader, VertexArrayHandle vertexArray, const glm::mat4& transform)
-	{
-		CHE_ASSERT(shader.IsValid(), "SHADER HANDLE IS INVALID");
-		CHE_ASSERT(vertexArray.IsValid(), "VERTEX ARRAY HANDLE IS INVALID");
+    void RenderFacade::EndFrameGraph()
+    {
+        if (!s_Graph || !s_GraphActive)
+        {
+            CHE_CORE_WARN("RenderFacade::EndFrameGraph called without matching BeginFrameGraph");
+            return;
+        }
 
-		auto* res = GetRenderResources();
-		CHE_ASSERT(res->HasSceneCamera(), "SetSceneCamera must be called before Submit(shader, ...)");
+        s_Graph->Compile();
 
-		IShader* sh = res->Get(shader);
-		IVertexArray* vao = res->Get(vertexArray);
-		CHE_ASSERT(sh, "SHADER NOT FOUND");
-		CHE_ASSERT(vao, "VERTEX ARRAY NOT FOUND");
+        // Lazy-create backend on first use.
+        if (!s_GraphBackend)
+        {
+            IRenderFactory* f = GetFactory();
+            if (f)
+                s_GraphBackend = f->CreateFrameGraphBackend();
+        }
 
-		IRenderer* renderer = GetActiveRenderer();
-		CHE_ASSERT(renderer, "RENDERER NOT INITIALIZED");
-		renderer->Submit(sh, vao, transform, res->GetSceneCamera());
-	}
+        if (s_GraphBackend)
+            s_Graph->Execute(*s_GraphBackend);
 
-	void RenderFacade::Submit(VertexArrayHandle vertexArray, const glm::mat4& transform)
-	{
-		CHE_ASSERT(vertexArray.IsValid(), "VERTEX ARRAY HANDLE IS INVALID");
+        s_GraphActive = false;
+    }
 
-		auto* res = GetRenderResources();
-		IRenderer* renderer = GetActiveRenderer();
-		CHE_ASSERT(renderer, "RENDERER NOT INITIALIZED");
+    // ── Resource creation ─────────────────────────────────────────────────────
 
-		IVertexArray* vao = res->Get(vertexArray);
-		CHE_ASSERT(vao, "VERTEX ARRAY NOT FOUND");
+    ShaderHandle RenderFacade::CreateShader(const String& slangSource,
+                                            const String& vert,
+                                            const String& frag,
+                                            const String& sourcePath)
+    {
+        IRenderFactory* f = GetFactory();
+        if (!f) return ShaderHandle::Invalid();
+        return f->CreateShader(slangSource, vert, frag, sourcePath);
+    }
 
-		renderer->Submit(vao, transform);
-	}
+    ShaderHandle RenderFacade::CreateShaderFromFile(const String& name,
+                                                    const String& slangPath,
+                                                    const String& vert,
+                                                    const String& frag)
+    {
+        String src = ReadTextFile(slangPath);
+        const bool hasSource = !src.empty();
 
-	void RenderFacade::SubmitLines(VertexArrayHandle vertexArray, const glm::mat4& transform)
-	{
-		CHE_ASSERT(vertexArray.IsValid(), "VERTEX ARRAY HANDLE IS INVALID");
+        String absPath;
+        if (hasSource)
+        {
+            std::error_code ec;
+            auto fs_abs = std::filesystem::absolute(std::filesystem::path(slangPath.c_str()), ec);
+            absPath = ec ? slangPath : String(fs_abs.string().c_str());
+        }
 
-		auto* res = GetRenderResources();
-		IRenderer* renderer = GetActiveRenderer();
-		CHE_ASSERT(renderer, "RENDERER NOT INITIALIZED");
+        ShaderHandle handle = ShaderHandle::Invalid();
+        if (hasSource)
+            handle = CreateShader(src, vert, frag, absPath);
 
-		IVertexArray* vao = res->Get(vertexArray);
-		CHE_ASSERT(vao, "VERTEX ARRAY NOT FOUND");
+        const bool valid = handle.IsValid();
+        if (valid)
+            CHE_CORE_INFO("Loaded shader '{}': '{}'", name.c_str(), slangPath.c_str());
+        else
+            CHE_CORE_ERROR("RenderFacade: failed to load shader '{}' from '{}'",
+                           name.c_str(), slangPath.c_str());
 
-		renderer->SubmitLines(vao, transform);
-	}
+        ShaderEntry entry;
+        entry.name      = name;
+        entry.slangPath = slangPath;
+        entry.vertEntry = vert;
+        entry.fragEntry = frag;
+        entry.handle    = handle;
+        entry.valid     = valid;
+        s_ShaderEntries.push_back(std::move(entry));
 
-	void RenderFacade::DrawIndexed(VertexArrayHandle vertexArray)
-	{
-		Submit(vertexArray, glm::mat4(1.0f));
-	}
+        if (valid)
+        {
+            auto reload = [handle](const std::filesystem::path&) { ReloadShaderInternal(handle); };
+            s_ShaderWatcher.Watch(std::filesystem::path(slangPath.c_str()), reload);
+        }
 
-	void RenderFacade::DrawLines(VertexArrayHandle vertexArray)
-	{
-		SubmitLines(vertexArray, glm::mat4(1.0f));
-	}
+        return handle;
+    }
 
-	ShaderHandle RenderFacade::CreateShader(const String& slangSource,
-	                                        const String& vertEntry,
-	                                        const String& fragEntry)
-	{
-		return GetRenderResources()->CreateShader(slangSource, vertEntry, fragEntry);
-	}
+    TextureHandle RenderFacade::CreateTexture(const uint8_t* data, uint32_t w, uint32_t h,
+                                              uint32_t channels)
+    {
+        IRenderFactory* f = GetFactory();
+        if (!f) return TextureHandle::Invalid();
+        return f->CreateTexture(data, w, h, channels,
+                                0, 1,
+                                TextureFormat::RGBA8_UNORM,
+                                TextureType::Texture2D,
+                                TextureUsage::ShaderResource,
+                                MemoryType::GpuOnly,
+                                "texture");
+    }
 
-	ShaderHandle RenderFacade::CreateShaderFromFile(const String& name,
-	                                                const String& slangPath,
-	                                                const String& vertEntry,
-	                                                const String& fragEntry)
-	{
-		return GetRenderResources()->CreateShaderFromFile(name, slangPath, vertEntry, fragEntry);
-	}
+    TextureHandle RenderFacade::CreateTextureFromFile(const std::string& path)
+    {
+        int w = 0, h = 0, channels = 0;
+        stbi_set_flip_vertically_on_load(1);
+        uint8_t* data = stbi_load(path.c_str(), &w, &h, &channels, 0);
+        if (!data)
+        {
+            CHE_CORE_ERROR("RenderFacade: failed to load texture '{}'", path.c_str());
+            return TextureHandle::Invalid();
+        }
+        TextureHandle handle = CreateTexture(data, static_cast<uint32_t>(w),
+                                             static_cast<uint32_t>(h),
+                                             static_cast<uint32_t>(channels));
+        stbi_image_free(data);
+        return handle;
+    }
 
-	VertexArrayHandle RenderFacade::CreateVertexArray()
-	{
-		return GetRenderResources()->CreateVertexArray();
-	}
+    // ── Resource destruction ──────────────────────────────────────────────────
 
-	TextureHandle RenderFacade::CreateTexture(const uint8_t* data, uint32_t width,
-	                                           uint32_t height, uint32_t channels)
-	{
-		return GetRenderResources()->CreateTexture(data, width, height, channels);
-	}
+    void RenderFacade::DestroyShader(ShaderHandle h)
+    {
+        if (!h.IsValid()) return;
+        // Remove from hot-reload list.
+        auto it = std::find_if(s_ShaderEntries.begin(), s_ShaderEntries.end(),
+                               [h](const ShaderEntry& e) { return e.handle == h; });
+        if (it != s_ShaderEntries.end())
+            s_ShaderEntries.erase(it);
 
-	TextureHandle RenderFacade::CreateTextureFromFile(const std::string& path)
-	{
-		return GetRenderResources()->CreateTextureFromFile(path);
-	}
+        IRenderFactory* f = GetFactory();
+        if (f) f->Delete(h);
+    }
 
-	FramebufferHandle RenderFacade::CreateFramebuffer(uint32_t width, uint32_t height)
-	{
-		return GetRenderResources()->CreateFramebuffer(width, height);
-	}
+    void RenderFacade::DestroyTexture(TextureHandle h)
+    {
+        if (!h.IsValid()) return;
+        IRenderFactory* f = GetFactory();
+        if (f) f->Delete(h);
+    }
 
-	Ref<IVertexBuffer> RenderFacade::CreateVertexBuffer(float* vertices, uint32_t size)
-	{
-		return GetRenderResources()->CreateVertexBuffer(vertices, size);
-	}
+    // ── Factory access ────────────────────────────────────────────────────────
 
-	Ref<IIndexBuffer> RenderFacade::CreateIndexBuffer(uint32_t* indices, uint32_t count)
-	{
-		return GetRenderResources()->CreateIndexBuffer(indices, count);
-	}
+    IRenderFactory* RenderFacade::GetRenderFactory()
+    {
+        return GetFactory();
+    }
 
-	IShader* RenderFacade::GetShader(ShaderHandle h)
-	{
-		return GetRenderResources()->Get(h);
-	}
+    // ── Viewport ─────────────────────────────────────────────────────────────
 
-	IVertexArray* RenderFacade::GetVertexArray(VertexArrayHandle h)
-	{
-		return GetRenderResources()->Get(h);
-	}
+    void RenderFacade::SetViewportSize(uint32_t w, uint32_t h)
+    {
+        if (w > 0) s_ViewportW = w;
+        if (h > 0) s_ViewportH = h;
+    }
 
-	ITexture* RenderFacade::GetTexture(TextureHandle h)
-	{
-		return GetRenderResources()->Get(h);
-	}
+    uint32_t RenderFacade::GetViewportWidth()  { return s_ViewportW; }
+    uint32_t RenderFacade::GetViewportHeight() { return s_ViewportH; }
 
-	IFramebuffer* RenderFacade::GetFramebuffer(FramebufferHandle h)
-	{
-		return GetRenderResources()->Get(h);
-	}
+    void RenderFacade::SetViewport(uint32_t w, uint32_t h)
+    {
+        SetViewportSize(w, h);
+    }
 
-	IRenderApi* RenderFacade::GetRenderAPI()
-	{
-		return GetActiveRenderAPI();
-	}
+    void RenderFacade::SetViewportOutputTexture(TextureHandle h)
+    {
+        s_ViewportOutputTex = h;
+    }
 
-	void RenderFacade::SetDefaultMeshShader(ShaderHandle h)
-	{
-		GetRenderResources()->SetDefaultMeshShader(h);
-	}
+    TextureHandle RenderFacade::GetViewportOutputTexture()
+    {
+        return s_ViewportOutputTex;
+    }
 
-	ShaderHandle RenderFacade::GetDefaultMeshShader()
-	{
-		return GetRenderResources()->GetDefaultMeshShader();
-	}
+    uint32_t RenderFacade::GetViewportColorTexID()
+    {
+        if (!s_ViewportOutputTex.IsValid()) return 0;
+        IRenderFactory* f = GetFactory();
+        if (!f) return 0;
+        return static_cast<uint32_t>(f->GetTextureNativeID(s_ViewportOutputTex));
+    }
 
-	void RenderFacade::DestroyShader(ShaderHandle h)
-	{
-		GetRenderResources()->DestroyShader(h);
-	}
+    // ── Default mesh shader ───────────────────────────────────────────────────
 
-	void RenderFacade::DestroyVertexArray(VertexArrayHandle h)
-	{
-		GetRenderResources()->DestroyVertexArray(h);
-	}
+    void RenderFacade::SetDefaultMeshShader(ShaderHandle h)
+    {
+        s_DefaultMeshShader = h;
+    }
 
-	void RenderFacade::DestroyTexture(TextureHandle h)
-	{
-		GetRenderResources()->DestroyTexture(h);
-	}
+    ShaderHandle RenderFacade::GetDefaultMeshShader()
+    {
+        return s_DefaultMeshShader;
+    }
 
-	void RenderFacade::DestroyFramebuffer(FramebufferHandle h)
-	{
-		GetRenderResources()->DestroyFramebuffer(h);
-	}
+    // ── Scene camera ──────────────────────────────────────────────────────────
 
-}
+    void RenderFacade::SetSceneCamera(const UBOCamera& cam)
+    {
+        s_SceneCamera      = cam;
+        s_SceneCameraValid = true;
+    }
+
+    const UBOCamera& RenderFacade::GetSceneCamera()
+    {
+        return s_SceneCamera;
+    }
+
+    bool RenderFacade::HasSceneCamera()
+    {
+        return s_SceneCameraValid;
+    }
+
+    void RenderFacade::InvalidateSceneCamera()
+    {
+        s_SceneCameraValid = false;
+    }
+
+    // ── Shader hot-reload ─────────────────────────────────────────────────────
+
+    void RenderFacade::PollShaders()
+    {
+        s_ShaderWatcher.Poll();
+    }
+
+    bool RenderFacade::ReloadShader(ShaderHandle h)
+    {
+        return ReloadShaderInternal(h);
+    }
+
+    const std::vector<ShaderEntry>& RenderFacade::GetShaderEntries()
+    {
+        return s_ShaderEntries;
+    }
+
+} // namespace CHEngine

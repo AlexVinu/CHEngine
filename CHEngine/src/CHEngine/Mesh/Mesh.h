@@ -7,6 +7,8 @@
 #include <cstdint>
 
 #include "CHEngine/Render/RenderFacade.h"
+#include "Render/Core/RenderTypes.h"
+#include "Render/Pipeline/VertexLayout.h"
 #include "Material.h"
 
 namespace CHEngine {
@@ -17,6 +19,10 @@ namespace CHEngine {
 		glm::vec2 TexCoords;
 		glm::vec3 Color;
 	};
+
+	// Standard mesh vertex input layout (pos3 + normal3 + uv2 + color3 = 11 floats).
+	// Used by all engine-built meshes; future Phase 3 will move this into PipelineDesc.
+	const VertexInputLayout& GetStandardMeshLayout();
 
 	class CHENGINE_API Mesh
 	{
@@ -32,9 +38,11 @@ namespace CHEngine {
 		void Build(const std::vector<Vertex>& vertices,
 		           const std::vector<uint32_t>& indices);
 
-		VertexArrayHandle GetVertexArray() const { return m_VertexArray; }
-		uint32_t GetIndexCount() const { return m_IndexCount; }
-		bool IsValid() const { return m_IndexCount > 0; }
+		BufferHandle GetVertexBuffer() const { return m_VertexBuffer; }
+		BufferHandle GetIndexBuffer()  const { return m_IndexBuffer; }
+		IndexFormat  GetIndexFormat()  const { return IndexFormat::UInt32; }
+		uint32_t     GetIndexCount()   const { return m_IndexCount; }
+		bool         IsValid()         const { return m_IndexCount > 0; }
 
 		const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
 		const std::vector<uint32_t>& GetIndices() const { return m_Indices; }
@@ -42,8 +50,9 @@ namespace CHEngine {
 		Ref<MaterialInstance> Mat;
 
 	private:
-		VertexArrayHandle m_VertexArray;
-		uint32_t m_IndexCount = 0;
+		BufferHandle m_VertexBuffer;
+		BufferHandle m_IndexBuffer;
+		uint32_t     m_IndexCount = 0;
 
 		std::vector<Vertex> m_Vertices;
 		std::vector<uint32_t> m_Indices;

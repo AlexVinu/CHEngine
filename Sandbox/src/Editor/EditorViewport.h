@@ -24,8 +24,10 @@ public:
 
     /// Starts scene rendering into the viewport framebuffer (bind + clear + camera setup).
     void BeginSceneRender(SceneSession* scene_session);
-    /// Draws editor-only viewport overlays (e.g. grid), no simulation updates.
-    void DrawEditorOverlays(SceneSession* scene_session);
+    /// Registers editor-only render passes (grid) into the frame graph.
+    /// Must be called AFTER RenderSystem has registered MainColor + Tonemap passes
+    /// so the grid pass writes to the LDR viewport-output target.
+    void RegisterEditorPasses(SceneSession* scene_session);
     /// Completes scene rendering into the viewport framebuffer (unbind).
     void EndSceneRender();
 
@@ -51,8 +53,12 @@ private:
 private:
     CHEngine::ShaderHandle m_MeshShader{};
     CHEngine::ShaderHandle m_GridShader{};
-    CHEngine::VertexArrayHandle m_GridVAO{};
-    CHEngine::FramebufferHandle m_Framebuffer{};
+    // Grid mesh buffers — populated by BuildGrid() in Phase 6.
+    CHEngine::BufferHandle m_GridVB{};
+    CHEngine::BufferHandle m_GridIB{};
+    uint32_t               m_GridIndexCount = 0;
+    // Viewport output texture is owned by the frame graph and read via
+    // RenderFacade::GetViewportColorTexID() for ImGui::Image.
 
     ImVec2 m_ViewportPos{ 0.0f, 0.0f };
     ImVec2 m_ViewportSize{ 1280.0f, 720.0f };

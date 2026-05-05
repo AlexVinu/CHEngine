@@ -12,7 +12,7 @@
 #include <CHEngine/Mesh/ModelLoader.h>
 #include <CHEngine/Mesh/PrimitiveMeshFactory.h>
 #include <CHEngine/Render/RenderFacade.h>
-#include <CHEngine/Render/RenderResourceManager.h>
+
 #include <CHEngine/Scene/Components.h>
 #include "Entity.h"
 #include <Log/Log.h>
@@ -66,7 +66,7 @@ bool TryParseUUIDString(const std::string& input, UUID& outUUID)
     return true;
 }
 
-static void DestroyTexturesForInstance(MaterialInstance* p, RenderResourceManager& resources,
+static void DestroyTexturesForInstance(MaterialInstance* p,
                                        std::unordered_set<Material*>& baseDiffuseDestroyed,
                                        std::unordered_set<Material*>& baseSpecDestroyed)
 {
@@ -76,26 +76,26 @@ static void DestroyTexturesForInstance(MaterialInstance* p, RenderResourceManage
     if (d.IsValid())
     {
         if (p->DiffuseMap.IsValid())
-            resources.DestroyTexture(d);
+            RenderFacade::DestroyTexture(d);
         else if (p->m_Material && p->m_Material->DiffuseMap.IsValid())
         {
             if (baseDiffuseDestroyed.insert(p->m_Material.get()).second)
-                resources.DestroyTexture(d);
+                RenderFacade::DestroyTexture(d);
         }
     }
     if (s.IsValid())
     {
         if (p->SpecularMap.IsValid())
-            resources.DestroyTexture(s);
+            RenderFacade::DestroyTexture(s);
         else if (p->m_Material && p->m_Material->SpecularMap.IsValid())
         {
             if (baseSpecDestroyed.insert(p->m_Material.get()).second)
-                resources.DestroyTexture(s);
+                RenderFacade::DestroyTexture(s);
         }
     }
 }
 
-void DestroyUniqueMeshTextures(MeshComponent& meshComp, RenderResourceManager& resources)
+void DestroyUniqueMeshTextures(MeshComponent& meshComp)
 {
     std::unordered_set<MaterialInstance*> seenInst;
     std::unordered_set<Material*> baseDiffuseDestroyed;
@@ -108,11 +108,11 @@ void DestroyUniqueMeshTextures(MeshComponent& meshComp, RenderResourceManager& r
         MaterialInstance* p = mesh.Mat.get();
         if (!seenInst.insert(p).second)
             continue;
-        DestroyTexturesForInstance(p, resources, baseDiffuseDestroyed, baseSpecDestroyed);
+        DestroyTexturesForInstance(p, baseDiffuseDestroyed, baseSpecDestroyed);
     }
 }
 
-void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat, RenderResourceManager& resources)
+void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
 {
     mat.Shininess     = mj.value("shininess", 32.0f);
     mat.SpecularScale = mj.value("specularScale", 1.0f);
@@ -123,13 +123,13 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat, RenderResource
         TextureHandle oldD, oldS;
         mat.ResolveTextures(oldD, oldS);
         if (oldD.IsValid())
-            resources.DestroyTexture(oldD);
+            RenderFacade::DestroyTexture(oldD);
         if (mat.m_Material)
         {
             mat.m_Material->DiffuseMap = TextureHandle{};
             mat.m_Material->DiffuseMapPath.clear();
         }
-        mat.DiffuseMap     = resources.CreateTextureFromFile(diffPath);
+        mat.DiffuseMap     = RenderFacade::CreateTextureFromFile(diffPath);
         mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
     }
 
@@ -139,13 +139,13 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat, RenderResource
         TextureHandle oldD, oldS;
         mat.ResolveTextures(oldD, oldS);
         if (oldS.IsValid())
-            resources.DestroyTexture(oldS);
+            RenderFacade::DestroyTexture(oldS);
         if (mat.m_Material)
         {
             mat.m_Material->SpecularMap = TextureHandle{};
             mat.m_Material->SpecularMapPath.clear();
         }
-        mat.SpecularMap     = resources.CreateTextureFromFile(specPath);
+        mat.SpecularMap     = RenderFacade::CreateTextureFromFile(specPath);
         mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
     }
 }
@@ -205,7 +205,7 @@ RigidBody3DComponent DeserializeRigidBody(const json& rbj)
     return rigidBody;
 }
 
-bool DeserializeSceneData(Ref<Scene> scene, const json& data, RenderResourceManager& resources)
+bool DeserializeSceneData(Ref<Scene> scene, const json& data)
 {
     if (!data.is_object() || !data.contains("objects") || !data["objects"].is_array()) {
         CHE_CORE_ERROR("SceneSerializer: malformed scene data (missing 'objects' array)");
@@ -224,11 +224,9 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data, RenderResourceMana
     }
 
     scene->ForEach<MeshComponent>([&](EntityHandle, const UUID&, MeshComponent& meshComp) {
-        for (auto& mesh : meshComp.Meshes) {
-            if (mesh.GetVertexArray().IsValid())
-                resources.DestroyVertexArray(mesh.GetVertexArray());
-        }
-        DestroyUniqueMeshTextures(meshComp, resources);
+        // Mesh buffers are released by Mesh's destructor when MeshComponent is cleared.
+        // TODO (Phase 6): explicit factory->Delete(BufferHandle) once Mesh tracks ownership.
+        DestroyUniqueMeshTextures(meshComp);
     });
     scene->Clear();
 
@@ -289,7 +287,8 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data, RenderResourceMana
 
                     if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
                         for (auto& mesh : result.meshes) {
-                            resources.DestroyVertexArray(mesh.GetVertexArray());
+                            // Old VBO/IBO are leaked here until shutdown — acceptable in this
+                            // transitional phase; will be fixed when Mesh tracks buffer ownership.
                             auto verts = mesh.GetVertices();
                             for (auto& v : verts) v.Position -= centroid;
                             mesh.Build(verts, mesh.GetIndices());
@@ -416,7 +415,7 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data, RenderResourceMana
                 for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
                 {
                     if (arr[mi].is_object())
-                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat, resources);
+                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat);
                 }
             }
             else if (o.contains("material") && o["material"].is_object())
@@ -424,7 +423,7 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data, RenderResourceMana
                 auto& meshes = meshCompForMat->Meshes;
                 if (!meshes.empty())
                 {
-                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat, resources);
+                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat);
                     for (size_t i = 1; i < meshes.size(); ++i)
                         meshes[i].Mat = meshes[0].Mat;
                 }
@@ -553,7 +552,7 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
     return true;
 }
 
-Ref<Scene> SceneSerializer::LoadFromFile(const std::string& path, RenderResourceManager& resources) {
+Ref<Scene> SceneSerializer::LoadFromFile(const std::string& path) {
     if (!FileSystem::Exists(path)) {
         CHE_CORE_ERROR("SceneSerializer: cannot read {}", path);
         return nullptr;
@@ -568,7 +567,7 @@ Ref<Scene> SceneSerializer::LoadFromFile(const std::string& path, RenderResource
         return nullptr;
     }
     Ref<Scene> loadedScene = MakeRef<Scene>();
-    if (!DeserializeSceneData(loadedScene, j, resources))
+    if (!DeserializeSceneData(loadedScene, j))
         return nullptr;
 
     CHE_CORE_INFO("Scene loaded: {}", path);
@@ -654,10 +653,10 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
     return j;
 }
 
-Ref<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& data, RenderResourceManager& resources)
+Ref<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& data)
 {
     Ref<Scene> loadedScene = MakeRef<Scene>();
-    if (!DeserializeSceneData(loadedScene, data, resources))
+    if (!DeserializeSceneData(loadedScene, data))
         return nullptr;
     return loadedScene;
 }

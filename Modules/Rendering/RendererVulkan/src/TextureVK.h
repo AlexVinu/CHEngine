@@ -10,9 +10,6 @@ namespace CHModules {
         TextureVK(const uint8_t* data, uint32_t width, uint32_t height, uint32_t channels);
         ~TextureVK() override;
 
-        void Bind(uint32_t slot = 0) const override;
-        void Unbind() const override;
-
         uint32_t GetWidth()  const override { return m_Width; }
         uint32_t GetHeight() const override { return m_Height; }
 

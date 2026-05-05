@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Render/IRenderApi.h"
+#include "Render/Core/RenderAPI.h"
 
 namespace CHEngine {
     class IImGuiLayer {
@@ -9,8 +9,8 @@ namespace CHEngine {
         virtual void Begin() = 0;
         virtual void End() = 0;
 
-        /// Передать нативный рендер-контекст (Metal: Device/CmdBuf/Encoder).
-        /// OpenGL — не использует.
+        /// Pass native render context (Metal: Device/CmdBuf/Encoder).
+        /// OpenGL — not used.
         virtual void SetRenderContext(const RenderContextInfo& /*ctx*/) {}
     };
 }

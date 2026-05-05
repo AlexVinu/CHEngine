@@ -1,21 +1,22 @@
 #pragma once
 
-#include <Render/IShader.h>
-
 #include <CheStl/String.h>
 
+#include "Render/UniformBlocks.h"
+
 #include <glad/glad.h>
+#include <array>
 
 namespace CHModules
 {
-	class ShaderOGL : public CHEngine::IShader
+	class ShaderOGL
 	{
 	public:
 		ShaderOGL(const CHEngine::String& slangSource,
 		          const CHEngine::String& vertEntry,
 		          const CHEngine::String& fragEntry,
 		          const CHEngine::String& sourcePath = CHEngine::String());
-		virtual ~ShaderOGL();
+		 ~ShaderOGL();
 
 		ShaderOGL(const ShaderOGL&) = delete;
 		ShaderOGL& operator=(const ShaderOGL&) = delete;
@@ -23,20 +24,21 @@ namespace CHModules
 		ShaderOGL(ShaderOGL&& other) = delete;
 		ShaderOGL& operator=(ShaderOGL&& other) = delete;
 
-		virtual void Bind() const override;
-		virtual void Unbind() const override;
-		virtual bool Reload(const CHEngine::String& slangSource,
+		 void Bind() const;
+		 void Unbind() const;
+
+		 bool Reload(const CHEngine::String& slangSource,
 		                    const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
 		                    const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-		                    const CHEngine::String& sourcePath = CHEngine::String()) override;
+		                    const CHEngine::String& sourcePath = CHEngine::String()) ;
 
-		// --- UBO ---
-		virtual void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
+		 void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size);
 
 		// --- Sampler binding ---
-		virtual void SetInt(const CHEngine::String& name, int value) override;
+		 void SetInt(const CHEngine::String& name, int value) ;
 
 	private:
+		GLuint m_ProgramID;
 		// Compile a .slang source through SlangBackend (→ GLSL) and link a GL program.
 		// Returns the program ID on success, 0 on failure.
 		static GLuint CompileSlangProgram(const CHEngine::String& slangSource,
@@ -44,11 +46,14 @@ namespace CHModules
 		                                  const CHEngine::String& fragEntry,
 		                                  const CHEngine::String& sourcePath);
 
-		// Привязка UBO block indices к binding points после компиляции/перекомпиляции
+		// Auto-assign sampler uniforms to sequential texture units (0,1,2,...)
+		// in declaration order, regardless of Slang's emitted binding indices.
+		void BindSamplerUnits();
+		
 		void BindUBOBlocks();
 
 		// OpenGL Uniform Buffer Objects (по одному на каждый binding point)
-		static constexpr uint32_t UBO_COUNT = 4;
-		GLuint m_UBOs[UBO_COUNT] = {0, 0, 0, 0};
+		static constexpr uint32_t UBO_COUNT = static_cast<uint32_t>(CHEngine::EUniformBlock::COUNT);
+		std::array<GLuint, UBO_COUNT> m_UBOs = {0};
 	};
 }

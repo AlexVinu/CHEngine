@@ -19,8 +19,8 @@ namespace CHModules
                   const CHEngine::String& sourcePath = CHEngine::String());
         ~ShaderMTL() override;
 
-        void Bind() const override;
-        void Unbind() const override;
+		void Bind() const;
+		void Unbind() const;
         bool Reload(const CHEngine::String& slangSource,
                     const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
                     const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),

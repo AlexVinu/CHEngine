@@ -7,12 +7,12 @@
 #include "CHEngine/Layer/LayerStack.h"
 #include "Window.h"
 
-#include "Render/RenderResourceManager.h"
 #include "UI/UIFacade.h"
 
 #include "WindowSystem/IWindowFactory.h"
-#include "UISystem/IImGuiFactory.h"
+#include "Render/UISystem/IImGuiFactory.h"
 #include "Physics/IPhysicsFactory.h"
+#include "Render/IRenderFactory.h"
 
 #include "ModuleManager.h"
 
@@ -21,20 +21,17 @@
 #include "Timestep.h"
 #include "World/World.h"
 #include <chrono>
-#include <vector>
 
 namespace CHEngine {
 
-    class IRenderer;
-
     struct CHENGINE_API ApplicationConfig
     {
-        ERenderAPI RenderAPI = ERenderAPI::OPENGL;
-        const char* WindowModuleOverride = nullptr;
-        const char* RendererModuleOverride = nullptr;
-        const char* ImGuiModuleOverride = nullptr;
-        const char* PhysicsModuleOverride = nullptr;
-        bool PhysicsEnabled = true;
+        ERenderAPI  RenderAPI = ERenderAPI::OPENGL;
+        const char* WindowModuleOverride    = nullptr;
+        const char* RendererModuleOverride  = nullptr;
+        const char* ImGuiModuleOverride     = nullptr;
+        const char* PhysicsModuleOverride   = nullptr;
+        bool        PhysicsEnabled          = true;
     };
 
     class CHENGINE_API Application
@@ -56,16 +53,16 @@ namespace CHEngine {
             return *s_Instance;
         }
 
-        RenderResourceManager* GetRenderResources() { return m_RenderResources.get(); }
         Window* GetWindow() const { return m_Window.get(); }
 
-        ERenderAPI GetRenderAPIType() const { return m_RenderAPIType; }
+        ERenderAPI     GetRenderAPIType()   const { return m_RenderAPIType; }
+        IRenderFactory* GetRenderFactory()  const { return m_RenderFactory; }
 
         void RequestRestart();
         bool IsRestartRequested() const { return m_RestartRequested; }
 
         ShaderHandle GetActiveShader() const         { return m_Shader; }
-        void         SetActiveShader(ShaderHandle h)  { m_Shader = h; }
+        void         SetActiveShader(ShaderHandle h) { m_Shader = h; }
 
     private:
         bool OnWindowClosed(WindowCloseEvent& e);
@@ -73,24 +70,23 @@ namespace CHEngine {
 
         static Application* s_Instance;
 
-        Scope<ModuleManager>         m_ModuleManager;
-        Scope<RenderResourceManager> m_RenderResources;
+        Scope<ModuleManager>  m_ModuleManager;
 
-        IWindowFactory* m_WindowFactory = nullptr;
-        IImGuiFactory*  m_ImGuiFactory  = nullptr;
+        IWindowFactory*  m_WindowFactory  = nullptr;
+        IImGuiFactory*   m_ImGuiFactory   = nullptr;
         IPhysicsFactory* m_PhysicsFactory = nullptr;
+        IRenderFactory*  m_RenderFactory  = nullptr;
 
-        bool            m_Running = true;
-        LayerStack      m_LayerStack;
+        bool       m_Running = true;
+        LayerStack m_LayerStack;
 
-        ShaderHandle    m_Shader;
+        ShaderHandle m_Shader;
 
-        ERenderAPI      m_RenderAPIType = ERenderAPI::OPENGL;
-        bool            m_RestartRequested = false;
+        ERenderAPI m_RenderAPIType       = ERenderAPI::OPENGL;
+        bool       m_RestartRequested    = false;
 
         Scope<Window> m_Window;
 
-        // Delta time
         std::chrono::steady_clock::time_point m_LastFrameTime;
     };
 

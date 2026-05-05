@@ -16,9 +16,6 @@ namespace CHModules
         // TODO: vkDestroyBuffer, vkFreeMemory
     }
 
-    void VertexBufferVK::Bind() const {}
-    void VertexBufferVK::Unbind() const {}
-
     const CHEngine::BufferLayout& VertexBufferVK::GetLayout() const { return m_Layout; }
     void VertexBufferVK::SetLayout(const CHEngine::BufferLayout& layout) { m_Layout = layout; }
 
@@ -35,7 +32,5 @@ namespace CHModules
         // TODO: vkDestroyBuffer, vkFreeMemory
     }
 
-    void IndexBufferVK::Bind() const {}
-    void IndexBufferVK::Unbind() const {}
     uint32_t IndexBufferVK::GetCount() const { return m_Count; }
 }

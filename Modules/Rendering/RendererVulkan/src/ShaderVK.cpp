@@ -111,9 +111,6 @@ namespace CHModules
         DestroyModules();
     }
 
-    void ShaderVK::Bind() const {}
-    void ShaderVK::Unbind() const {}
-
     bool ShaderVK::Reload(const CHEngine::String& slangSource,
                           const CHEngine::String& vertEntry,
                           const CHEngine::String& fragEntry,

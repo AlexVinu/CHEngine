@@ -94,7 +94,7 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
 
             for (CHEngine::Mesh& mesh : meshComponent.Meshes)
             {
-                if (mesh.GetVertexArray().IsValid())
+                if (mesh.GetVertexBuffer().IsValid() && mesh.GetIndexBuffer().IsValid())
                     ++validVaoCount;
 
                 if (!mesh.Mat)
@@ -102,7 +102,7 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
                         std::make_shared<CHEngine::Material>(CHEngine::RenderFacade::GetDefaultMeshShader()));
 
                 const CHEngine::ShaderHandle shaderHandle = mesh.Mat->GetMaterial()->GetShaderHandle();
-                if (CHEngine::RenderFacade::GetShader(shaderHandle))
+                if (shaderHandle.IsValid())
                     ++validShaderCount;
             }
 
@@ -184,8 +184,6 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
     ctx.SelectedEntity = {};
 
     CHEngine::SceneSerializer serializer{};
-    auto* resources_ptr = CHEngine::Application::Get().GetRenderResources();
-    if (resources_ptr)
     {
         const std::string sceneText = CHEngine::FileSystem::ReadFileText(filePath);
         if (sceneText.empty())
@@ -205,7 +203,7 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
             return;
         }
 
-        auto loadedScene = serializer.DeserializeFromJson(sceneJson, *resources_ptr);
+        auto loadedScene = serializer.DeserializeFromJson(sceneJson);
         if (!loadedScene)
             return;
         CHE_CORE_ASSERT(ctx.EditorScene, "SceneViewLayer: EditorScene must exist");
@@ -322,10 +320,8 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
         EditorWorldContext& activeSession = SceneViewLayerAccess::Active(layer);
 
         CHEngine::SceneSerializer serializer{};
-        auto* resources_ptr = CHEngine::Application::Get().GetRenderResources();
-        if (resources_ptr)
         {
-            auto loadedScene = serializer.LoadFromFile(k_SessionFile, *resources_ptr);
+            auto loadedScene = serializer.LoadFromFile(k_SessionFile);
             if (loadedScene)
             {
                 CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
@@ -335,8 +331,6 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
             else
                 CHE_CORE_WARN("SceneViewLayer: failed to restore scene");
         }
-        else
-            CHE_CORE_WARN("SceneViewLayer: failed to restore scene");
         std::filesystem::remove(k_SessionFile);
     }
 
@@ -432,7 +426,8 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     {
         for (auto& mesh : result.meshes)
         {
-            CHEngine::RenderFacade::DestroyVertexArray(mesh.GetVertexArray());
+            // Old VBO/IBO are leaked here until shutdown — acceptable in this
+            // transitional phase; will be fixed when Mesh tracks buffer ownership.
             auto verts = mesh.GetVertices();
             for (auto& v : verts)
                 v.Position -= centroid;

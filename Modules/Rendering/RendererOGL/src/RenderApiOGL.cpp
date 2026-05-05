@@ -31,7 +31,13 @@ namespace CHModules
 
 		glEnable(GL_DEPTH_TEST);
 
-		CHE_CORE_INFO("OpenGL initialized: {}", (const char*)glGetString(GL_VERSION));
+		// Cache UBO offset alignment (typically 256 on most desktop GPUs).
+		GLint align = 256;
+		glGetIntegerv(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &align);
+		m_UBOAlignment = static_cast<uint32_t>(align);
+
+		CHE_CORE_INFO("OpenGL initialized: {} (UBO align={})",
+		              (const char*)glGetString(GL_VERSION), m_UBOAlignment);
 	}
 
 	void RendererApiOGL::Shutdown()
@@ -69,21 +75,42 @@ namespace CHModules
 		glDepthMask(enable ? GL_TRUE : GL_FALSE);
 	}
 
-	void RendererApiOGL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
+	void RendererApiOGL::DrawFullscreenTriangle()
 	{
-		if (!vertexArray) return;
-		vertexArray->Bind();
-		const auto& ibo = vertexArray->GetIndexBuffer();
-		if (!ibo) return;
-		glDrawElements(GL_TRIANGLES, ibo->GetCount(), GL_UNSIGNED_INT, nullptr);
+		// Lazily create a VAO + VBO holding 3 clip-space positions.
+		// The covering triangle spans well beyond [-1,1]^2 so the rasterizer
+		// clips it down to a fullscreen quad without needing a 4-vertex strip.
+		if (m_FullscreenVAO == 0)
+		{
+			static const float kCoveringTri[6] = {
+				-1.0f, -1.0f,
+				 3.0f, -1.0f,
+				-1.0f,  3.0f,
+			};
+
+			glGenVertexArrays(1, reinterpret_cast<GLuint*>(&m_FullscreenVAO));
+			glGenBuffers     (1, reinterpret_cast<GLuint*>(&m_FullscreenVBO));
+
+			glBindVertexArray(m_FullscreenVAO);
+			glBindBuffer(GL_ARRAY_BUFFER, m_FullscreenVBO);
+			glBufferData(GL_ARRAY_BUFFER, sizeof(kCoveringTri), kCoveringTri, GL_STATIC_DRAW);
+
+			// Slot 0: float2 position. Matches `float2 Position : POSITION` in tonemap.slang.
+			glEnableVertexAttribArray(0);
+			glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), nullptr);
+
+			glBindBuffer(GL_ARRAY_BUFFER, 0);
+			glBindVertexArray(0);
+		}
+
+		glBindVertexArray(m_FullscreenVAO);
+		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glBindVertexArray(0);
 	}
 
-	void RendererApiOGL::DrawLines(const CHEngine::IVertexArray* vertexArray)
+	void RendererApiOGL::BindTextureSlot(uint32_t texID, uint32_t slot)
 	{
-		if (!vertexArray) return;
-		vertexArray->Bind();
-		const auto& ibo = vertexArray->GetIndexBuffer();
-		if (!ibo) return;
-		glDrawElements(GL_LINES, ibo->GetCount(), GL_UNSIGNED_INT, nullptr);
+		glActiveTexture(GL_TEXTURE0 + slot);
+		glBindTexture(GL_TEXTURE_2D, texID);
 	}
 }

@@ -19,7 +19,7 @@
 #include <Windows.h>
 #elif defined(CHE_PLATFORM_LINUX)
 #include <unistd.h>
-#include <climits>      // PATH_MAX
+#include <climits>
 #endif
 
 namespace CHEngine {
@@ -76,23 +76,19 @@ namespace CHEngine {
                 return false;
             }
 
-            out_selection->WindowModuleName = config.WindowModuleOverride ? config.WindowModuleOverride : GetDefaultWindowModuleName();
+            out_selection->WindowModuleName   = config.WindowModuleOverride   ? config.WindowModuleOverride   : GetDefaultWindowModuleName();
             out_selection->RendererModuleName = config.RendererModuleOverride ? config.RendererModuleOverride : module_names.Renderer;
-            out_selection->ImGuiModuleName = config.ImGuiModuleOverride ? config.ImGuiModuleOverride : module_names.ImGui;
-            out_selection->PhysicsModuleName = config.PhysicsModuleOverride ? config.PhysicsModuleOverride : GetDefaultPhysicsModuleName();
+            out_selection->ImGuiModuleName    = config.ImGuiModuleOverride    ? config.ImGuiModuleOverride    : module_names.ImGui;
+            out_selection->PhysicsModuleName  = config.PhysicsModuleOverride  ? config.PhysicsModuleOverride  : GetDefaultPhysicsModuleName();
 
-            if (config.WindowModuleOverride)
-                CHE_CORE_INFO("Window module override: {}", out_selection->WindowModuleName.c_str());
-            if (config.RendererModuleOverride)
-                CHE_CORE_INFO("Renderer module override: {}", out_selection->RendererModuleName.c_str());
-            if (config.ImGuiModuleOverride)
-                CHE_CORE_INFO("ImGui module override: {}", out_selection->ImGuiModuleName.c_str());
-            if (config.PhysicsModuleOverride)
-                CHE_CORE_INFO("Physics module override: {}", out_selection->PhysicsModuleName.c_str());
+            if (config.WindowModuleOverride)    CHE_CORE_INFO("Window module override: {}",   out_selection->WindowModuleName.c_str());
+            if (config.RendererModuleOverride)  CHE_CORE_INFO("Renderer module override: {}", out_selection->RendererModuleName.c_str());
+            if (config.ImGuiModuleOverride)     CHE_CORE_INFO("ImGui module override: {}",    out_selection->ImGuiModuleName.c_str());
+            if (config.PhysicsModuleOverride)   CHE_CORE_INFO("Physics module override: {}",  out_selection->PhysicsModuleName.c_str());
 
-            const bool window_loaded = module_manager->LoadModule(out_selection->WindowModuleName);
+            const bool window_loaded   = module_manager->LoadModule(out_selection->WindowModuleName);
             const bool renderer_loaded = module_manager->LoadModule(out_selection->RendererModuleName);
-            const bool imgui_loaded = module_manager->LoadModule(out_selection->ImGuiModuleName);
+            const bool imgui_loaded    = module_manager->LoadModule(out_selection->ImGuiModuleName);
 
             bool physics_loaded = false;
             if (config.PhysicsEnabled)
@@ -100,9 +96,9 @@ namespace CHEngine {
             else
                 CHE_CORE_INFO("Physics module loading disabled by startup config.");
 
-            *out_window_factory = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
-            *out_render_factory = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
-            *out_imgui_factory = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
+            *out_window_factory  = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
+            *out_render_factory  = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
+            *out_imgui_factory   = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
             *out_physics_factory = physics_loaded ? module_manager->GetModule<IPhysicsFactory>(ModuleType::Physics) : nullptr;
 
             if (!window_loaded || !*out_window_factory)
@@ -125,7 +121,7 @@ namespace CHEngine {
                 return false;
             }
             if (!imgui_loaded || !*out_imgui_factory)
-                CHE_CORE_WARN("Failed to load ImGui module '{}'! ImGui will be unavailable.", out_selection->ImGuiModuleName.c_str());
+                CHE_CORE_WARN("Failed to load ImGui module '{}': ImGui will be unavailable.", out_selection->ImGuiModuleName.c_str());
 
             if (config.PhysicsEnabled && *out_physics_factory)
             {
@@ -139,13 +135,13 @@ namespace CHEngine {
             }
             else if (config.PhysicsEnabled)
             {
-                CHE_CORE_WARN("Failed to load Physics module '{}'! Physics will be unavailable.",
+                CHE_CORE_WARN("Failed to load Physics module '{}': physics will be unavailable.",
                               out_selection->PhysicsModuleName.c_str());
             }
 
             return true;
         }
-    }
+    } // anonymous namespace
 
     Application* Application::s_Instance = nullptr;
 
@@ -153,11 +149,9 @@ namespace CHEngine {
         : m_RenderAPIType(config.RenderAPI)
     {
         m_ModuleManager = std::make_unique<ModuleManager>();
-        m_RenderResources = std::make_unique<RenderResourceManager>();
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
-        // Set working directory to executable location so relative paths
-        // (shaders/, assets/) resolve correctly on all platforms.
+        // Set working directory to executable location.
         {
             std::filesystem::path exeDir;
 #if defined(CHE_PLATFORM_APPLE)
@@ -186,6 +180,7 @@ namespace CHEngine {
         }
         s_Instance = this;
 
+        // ─── 1. Load startup modules ────────────────────────────────────────────
         StartupModuleSelection startup_selection;
         IRenderFactory* render_factory = nullptr;
         ERenderAPI selected_api = config.RenderAPI;
@@ -221,45 +216,38 @@ namespace CHEngine {
             return;
         }
 
-        CHE_CORE_INFO("Startup succeded");
+        CHE_CORE_INFO("Startup succeeded");
 
         m_RenderAPIType = selected_api;
+        m_RenderFactory = render_factory;
 
-        // Все модули загружены успешно — фиксируем рендерер как рабочий.
-        // Если движок до этой точки крашнулся, renderer_pending уже очищен
-        // в LoadRendererPreference, и следующий запуск вернётся к прежнему renderer.
         EngineConfig::CommitRendererPreference(m_RenderAPIType);
 
-        m_RenderResources->Init(render_factory);
-
-        // ─── 2. Создать окно ────────────────────────────────────────────────
+        // ─── 2. Create window ────────────────────────────────────────────────────
         ERenderAPI render_api = render_factory->GetRenderApi();
         m_Window = Scope<Window>(Window::Create(m_WindowFactory, render_api));
         m_Window->SetEventCallback([this](Event& e) { OnEvent(e); });
 
-        // ─── 3. Инициализировать IRenderApi (GLAD / device / Vulkan), затем IRenderer (только draw) ───
+        // ─── 3. Initialize renderer (GLAD / device) ──────────────────────────────
         RendererInitInfo renderInitInfo = m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api);
         RenderFacade::InitRenderer(renderInitInfo);
 
-        // ─── 4. Создать ImGui layer ──────────────────────────────────────────
-        // ImGuiOGL линкован с тем же shared libglfw.dylib → видит то же окно
+        // ─── 4. Create ImGui layer ────────────────────────────────────────────────
         if (m_ImGuiFactory)
             UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
 
-        // ─── 5. Создать рендер-объекты (нужен GLAD / API Init, поэтому после шага 3) ───
-        RenderFacade::SetClearColor(0.18f, 0.18f, 0.20f, 1.0f);
-
-        m_Shader = m_RenderResources->CreateShaderFromFile(
+        // ─── 5. Create default shader ─────────────────────────────────────────────
+        m_Shader = RenderFacade::CreateShaderFromFile(
             String("Basic"),
             String("shaders/basic.slang")
         );
 
+        // ─── 6. Physics ────────────────────────────────────────────────────────────
         if (m_PhysicsFactory)
         {
             if (!PhysicsFacade::Init(m_PhysicsFactory))
                 CHE_CORE_WARN("Failed to initialize physics facade!");
         }
-
     }
 
     Application::~Application()
@@ -272,7 +260,7 @@ namespace CHEngine {
 
         PhysicsFacade::Shutdown();
 
-        m_RenderResources->Shutdown();
+        RenderFacade::Shutdown();
     }
 
     void Application::PushLayer(Layer* layer)
@@ -319,14 +307,14 @@ namespace CHEngine {
 
     void Application::Run()
     {
-        m_LastFrameTime      = std::chrono::steady_clock::now();
-        float shaderPollAcc  = 0.0f;
+        m_LastFrameTime     = std::chrono::steady_clock::now();
+        float shaderPollAcc = 0.0f;
 
-        constexpr float ShaderPollInterval = 0.5f; // шейдеры — раз в полсекунды
+        constexpr float ShaderPollInterval = 0.5f;
 
         while (m_Running)
         {
-            // ── Delta time ──────────────────────────────────────────────────
+            // ── Delta time ───────────────────────────────────────────────────
             auto now = std::chrono::steady_clock::now();
             Timestep dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
             m_LastFrameTime = now;
@@ -337,53 +325,40 @@ namespace CHEngine {
             shaderPollAcc += dt;
             if (shaderPollAcc >= ShaderPollInterval) {
                 shaderPollAcc = 0.0f;
-                m_RenderResources->PollShaders();
+                RenderFacade::PollShaders();
             }
 
-            // ── Input: опросить состояние клавиатуры/мыши БЕЗ OS-задержки ──
             Input::BeginFrame(m_Window->GetPlatformWindow());
 
-            // ── BeginFrame (Metal: drawable + command buffer + encoder) ──
-            if (m_RenderResources->GetRenderAPI())
-                RenderFacade::BeginFrame();
+            RenderFacade::BeginFrame();
 
-            RenderFacade::Clear();
+            RenderFacade::BeginFrameGraph();
 
             for (Layer* layer : m_LayerStack)
                 layer->OnUpdate(dt);
 
+            RenderFacade::EndFrameGraph();
+
             if (UIFacade::GetLayer())
             {
-                // Передать нативный контекст (Metal нужны Device/CmdBuf/Encoder)
-                if (IRenderApi* api = m_RenderResources->GetRenderAPI())
-                    UIFacade::SetRenderContext(api->GetRenderContext());
-
                 UIFacade::Begin();
                 for (Layer* layer : m_LayerStack)
                     layer->OnImGuiRender();
                 UIFacade::End();
             }
 
-            // ── EndFrame (Metal: end encoding, present, commit) ──
-            if (m_RenderResources->GetRenderAPI())
-                RenderFacade::EndFrame();
+            RenderFacade::EndFrame();
 
             m_Window->OnUpdate();
         }
 
-        // ── Overlay «Restarting...» — один финальный кадр ────────────────────
+        // ── Overlay «Restarting...» — one final frame ────────────────────────
         if (m_RestartRequested && UIFacade::GetLayer())
         {
-            if (m_RenderResources->GetRenderAPI())
-                RenderFacade::BeginFrame();
+            RenderFacade::BeginFrame();
 
-            RenderFacade::Clear();
-
-            RenderFacade::BeginScene();
-            RenderFacade::EndScene();
-
-            if (IRenderApi* api = m_RenderResources->GetRenderAPI())
-                UIFacade::SetRenderContext(api->GetRenderContext());
+            RenderFacade::BeginFrameGraph();
+            RenderFacade::EndFrameGraph();
 
             UIFacade::Begin();
 
@@ -405,8 +380,7 @@ namespace CHEngine {
 
             UIFacade::End();
 
-            if (m_RenderResources->GetRenderAPI())
-                RenderFacade::EndFrame();
+            RenderFacade::EndFrame();
 
             m_Window->OnUpdate();
         }
