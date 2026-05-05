@@ -56,6 +56,8 @@ target_include_directories(${PROJECT_NAME}
         "${CHE_VENDOR_DIR}/boost/libs/uuid/include"
         ${CHE_BOOST_INCLUDE_DIRS}
         ${CHE_INTERFACES_DIR}   # PUBLIC: Sandbox и другие клиенты видят <Input/KeyCodes.h> и т.д.
+        ${LUA_INCLUDE_DIR}
+        "${CHE_VENDOR_DIR}/sol2/include"
     PRIVATE
         ${CHE_CORE_DIR}
         "${CHE_VENDOR_DIR}/tinyobjloader"
@@ -107,6 +109,8 @@ endif()
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
         CHEngine_CORE imgui glm
+    PRIVATE
+        ${LUA_LIBRARIES}
 )
 
 # Линковка dl на Unix

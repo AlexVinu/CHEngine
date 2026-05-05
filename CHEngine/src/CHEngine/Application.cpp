@@ -19,7 +19,7 @@
 #include <Windows.h>
 #elif defined(CHE_PLATFORM_LINUX)
 #include <unistd.h>
-#include <climits>
+#include <climits>      // PATH_MAX
 #endif
 
 namespace CHEngine {
@@ -76,19 +76,23 @@ namespace CHEngine {
                 return false;
             }
 
-            out_selection->WindowModuleName   = config.WindowModuleOverride   ? config.WindowModuleOverride   : GetDefaultWindowModuleName();
+            out_selection->WindowModuleName = config.WindowModuleOverride ? config.WindowModuleOverride : GetDefaultWindowModuleName();
             out_selection->RendererModuleName = config.RendererModuleOverride ? config.RendererModuleOverride : module_names.Renderer;
-            out_selection->ImGuiModuleName    = config.ImGuiModuleOverride    ? config.ImGuiModuleOverride    : module_names.ImGui;
-            out_selection->PhysicsModuleName  = config.PhysicsModuleOverride  ? config.PhysicsModuleOverride  : GetDefaultPhysicsModuleName();
+            out_selection->ImGuiModuleName = config.ImGuiModuleOverride ? config.ImGuiModuleOverride : module_names.ImGui;
+            out_selection->PhysicsModuleName = config.PhysicsModuleOverride ? config.PhysicsModuleOverride : GetDefaultPhysicsModuleName();
 
-            if (config.WindowModuleOverride)    CHE_CORE_INFO("Window module override: {}",   out_selection->WindowModuleName.c_str());
-            if (config.RendererModuleOverride)  CHE_CORE_INFO("Renderer module override: {}", out_selection->RendererModuleName.c_str());
-            if (config.ImGuiModuleOverride)     CHE_CORE_INFO("ImGui module override: {}",    out_selection->ImGuiModuleName.c_str());
-            if (config.PhysicsModuleOverride)   CHE_CORE_INFO("Physics module override: {}",  out_selection->PhysicsModuleName.c_str());
+            if (config.WindowModuleOverride)
+                CHE_CORE_INFO("Window module override: {}", out_selection->WindowModuleName.c_str());
+            if (config.RendererModuleOverride)
+                CHE_CORE_INFO("Renderer module override: {}", out_selection->RendererModuleName.c_str());
+            if (config.ImGuiModuleOverride)
+                CHE_CORE_INFO("ImGui module override: {}", out_selection->ImGuiModuleName.c_str());
+            if (config.PhysicsModuleOverride)
+                CHE_CORE_INFO("Physics module override: {}", out_selection->PhysicsModuleName.c_str());
 
-            const bool window_loaded   = module_manager->LoadModule(out_selection->WindowModuleName);
+            const bool window_loaded = module_manager->LoadModule(out_selection->WindowModuleName);
             const bool renderer_loaded = module_manager->LoadModule(out_selection->RendererModuleName);
-            const bool imgui_loaded    = module_manager->LoadModule(out_selection->ImGuiModuleName);
+            const bool imgui_loaded = module_manager->LoadModule(out_selection->ImGuiModuleName);
 
             bool physics_loaded = false;
             if (config.PhysicsEnabled)
@@ -96,9 +100,9 @@ namespace CHEngine {
             else
                 CHE_CORE_INFO("Physics module loading disabled by startup config.");
 
-            *out_window_factory  = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
-            *out_render_factory  = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
-            *out_imgui_factory   = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
+            *out_window_factory = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
+            *out_render_factory = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
+            *out_imgui_factory = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
             *out_physics_factory = physics_loaded ? module_manager->GetModule<IPhysicsFactory>(ModuleType::Physics) : nullptr;
 
             if (!window_loaded || !*out_window_factory)
@@ -121,7 +125,7 @@ namespace CHEngine {
                 return false;
             }
             if (!imgui_loaded || !*out_imgui_factory)
-                CHE_CORE_WARN("Failed to load ImGui module '{}': ImGui will be unavailable.", out_selection->ImGuiModuleName.c_str());
+                CHE_CORE_WARN("Failed to load ImGui module '{}'! ImGui will be unavailable.", out_selection->ImGuiModuleName.c_str());
 
             if (config.PhysicsEnabled && *out_physics_factory)
             {
@@ -135,13 +139,13 @@ namespace CHEngine {
             }
             else if (config.PhysicsEnabled)
             {
-                CHE_CORE_WARN("Failed to load Physics module '{}': physics will be unavailable.",
+                CHE_CORE_WARN("Failed to load Physics module '{}'! Physics will be unavailable.",
                               out_selection->PhysicsModuleName.c_str());
             }
 
             return true;
         }
-    } // anonymous namespace
+    }
 
     Application* Application::s_Instance = nullptr;
 
@@ -151,7 +155,8 @@ namespace CHEngine {
         m_ModuleManager = std::make_unique<ModuleManager>();
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
-        // Set working directory to executable location.
+        // Set working directory to executable location so relative paths
+        // (shaders/, assets/) resolve correctly on all platforms.
         {
             std::filesystem::path exeDir;
 #if defined(CHE_PLATFORM_APPLE)
@@ -307,14 +312,14 @@ namespace CHEngine {
 
     void Application::Run()
     {
-        m_LastFrameTime     = std::chrono::steady_clock::now();
-        float shaderPollAcc = 0.0f;
+        m_LastFrameTime      = std::chrono::steady_clock::now();
+        float shaderPollAcc  = 0.0f;
 
-        constexpr float ShaderPollInterval = 0.5f;
+        constexpr float ShaderPollInterval = 0.5f; // шейдеры — раз в полсекунды
 
         while (m_Running)
         {
-            // ── Delta time ───────────────────────────────────────────────────
+            // ── Delta time ──────────────────────────────────────────────────
             auto now = std::chrono::steady_clock::now();
             Timestep dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
             m_LastFrameTime = now;
