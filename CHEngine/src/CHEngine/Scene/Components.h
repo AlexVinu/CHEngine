@@ -89,6 +89,13 @@ namespace CHEngine {
         bool DestroyOnExpire = true;
     };
 
+    // ── Lua Scripting ─────────────────────────────────────────────────────────
+    struct ScriptComponent
+    {
+        std::string ScriptPath; // путь к .lua файлу относительно рабочей директории
+        bool        Enabled = true;
+    };
+
     template<typename... Components>
     struct ComponentGroup
     {
@@ -100,5 +107,6 @@ namespace CHEngine {
         VisibilityComponent,
         LightComponent,
         CameraComponent,
-        LifetimeComponent>;
+        LifetimeComponent,
+        ScriptComponent>;
 }

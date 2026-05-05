@@ -3,6 +3,7 @@
 #include "EditorViewport.h"
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
+#include "ScriptEditorPanel.h"
 
 #include <CHEngine/Utils/FileDialog.h>
 #include <CHEngine/Mesh/Material.h>
@@ -21,6 +22,7 @@
 #include <cfloat>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -211,6 +213,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
             DisplayAddComponentEntry<CHEngine::CameraComponent>("Camera", selectedEntity, activeSession);
             DisplayAddComponentEntry<CHEngine::RigidBody3DComponent>("RigidBody 3D", selectedEntity, activeSession);
             DisplayAddComponentEntry<CHEngine::LifetimeComponent>("Lifetime", selectedEntity, activeSession);
+            DisplayAddComponentEntry<CHEngine::ScriptComponent>("Script", selectedEntity, activeSession);
             ImGui::EndPopup();
         }
         ImGui::Spacing();
@@ -968,6 +971,49 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                     [&](CHEngine::LifetimeComponent& lifetime_component) {
                         lifetime_component.DestroyOnExpire = destroyOnExpire;
                     });
+            }
+            ImGui::Spacing();
+        });
+
+    // ── Script Component ──────────────────────────────────────────────────────
+    DrawComponent<CHEngine::ScriptComponent>("Script",
+        true, propsReadOnly, activeSession, selectedHandle, selectedEntity, "Script",
+        [&](CHEngine::ScriptComponent& sc)
+        {
+            // Путь к скрипту
+            char pathBuf[512];
+            std::snprintf(pathBuf, sizeof(pathBuf), "%s", sc.ScriptPath.c_str());
+            ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x - 60.0f);
+            if (ImGui::InputText("##scriptPath", pathBuf, sizeof(pathBuf)))
+            {
+                selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                    [&](CHEngine::ScriptComponent& c) { c.ScriptPath = pathBuf; });
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Edit##scr", ImVec2(54, 0)))
+            {
+                std::string path = sc.ScriptPath;
+                if (path.empty())
+                    path = "scripts/new_script.lua";
+                // Файл существует → открыть, нет → создать из шаблона
+                if (std::filesystem::exists(path))
+                    host.OpenScriptEditor(path);
+                else
+                    host.NewScriptEditor(path);
+                // Сохраняем путь обратно в компонент если он был пустой
+                if (sc.ScriptPath.empty())
+                {
+                    selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                        [&](CHEngine::ScriptComponent& c) { c.ScriptPath = path; });
+                }
+            }
+
+            // Чекбокс Enabled
+            bool enabled = sc.Enabled;
+            if (ImGui::Checkbox("Enabled##scrEnabled", &enabled))
+            {
+                selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                    [&](CHEngine::ScriptComponent& c) { c.Enabled = enabled; });
             }
             ImGui::Spacing();
         });

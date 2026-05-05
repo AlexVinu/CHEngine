@@ -2,6 +2,7 @@
 
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
+#include "ScriptEditorPanel.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SceneViewLayer_IO.h"
 #include "SceneViewLayer_Play.h"
@@ -445,4 +446,14 @@ void SceneViewLayerHost::ResumeFromPause()
 void SceneViewLayerHost::StopPlayMode()
 {
     SceneViewLayerPlay::StopPlayMode(m_Layer);
+}
+
+void SceneViewLayerHost::OpenScriptEditor(const std::string& scriptPath)
+{
+    SceneViewLayerAccess::ScriptEditor(m_Layer).Open(scriptPath);
+}
+
+void SceneViewLayerHost::NewScriptEditor(const std::string& scriptPath)
+{
+    SceneViewLayerAccess::ScriptEditor(m_Layer).NewScript(scriptPath);
 }

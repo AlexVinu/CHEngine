@@ -41,9 +41,7 @@ namespace CHModules
 
         shader->SetUniformBlock(CHEngine::EUniformBlock::Object, &objectUBO, sizeof(objectUBO));
 
-        CHEngine::UBOMaterial defaultMaterial;
-        shader->SetUniformBlock(CHEngine::EUniformBlock::Material, &defaultMaterial, sizeof(defaultMaterial));
-
+        // Material UBO already set by ApplyMaterial() before Submit() — do NOT override here
         m_Api->DrawIndexed(vertexArray);
     }
 

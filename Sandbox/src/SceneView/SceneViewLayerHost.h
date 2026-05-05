@@ -57,6 +57,9 @@ public:
     void OnRendererApiSelected(CHEngine::ERenderAPI api) override;
     void ToggleUiTheme() override;
 
+    void OpenScriptEditor(const std::string& scriptPath) override;
+    void NewScriptEditor(const std::string& scriptPath) override;
+
     void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) override;
     void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) override;
     void ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) override;

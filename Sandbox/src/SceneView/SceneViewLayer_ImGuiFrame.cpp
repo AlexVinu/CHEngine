@@ -2,6 +2,7 @@
 
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
+#include "ScriptEditorPanel.h"
 #include "SceneViewLayerHost.h"
 #include "SceneViewLayer_IO.h"
 #include "SceneViewLayer_Render.h"
@@ -82,5 +83,9 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
 
     SceneViewLayerAccess::Profiler(layer).Draw(host);
     SceneViewLayerRender::DrawOrbitIndicator(layer);
+
+    // Редактор скриптов — floating window, рисуется поверх всего
+    SceneViewLayerAccess::ScriptEditor(layer).Draw();
+
     viewport.End();
 }

@@ -11,6 +11,7 @@
 #include "ProfilerPanel.h"
 #include "PropertiesPanel.h"
 #include "SceneHierarchyPanel.h"
+#include "ScriptEditorPanel.h"
 #include "ToolbarPanel.h"
 
 #include <vector>
@@ -41,4 +42,5 @@ private:
     Sandbox::CameraPanel m_CameraPanel;
     Sandbox::ProfilerPanel m_ProfilerPanel;
     ContentBrowserPanel m_ContentBrowser;
+    Sandbox::ScriptEditorPanel m_ScriptEditor;
 };

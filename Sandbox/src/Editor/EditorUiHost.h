@@ -68,6 +68,9 @@ public:
     virtual void OnRendererApiSelected(CHEngine::ERenderAPI api) = 0;
     virtual void ToggleUiTheme() = 0;
 
+    virtual void OpenScriptEditor(const std::string& scriptPath) = 0;
+    virtual void NewScriptEditor(const std::string& scriptPath) = 0;
+
     virtual void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) = 0;
     virtual void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) = 0;
     virtual void ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) = 0;

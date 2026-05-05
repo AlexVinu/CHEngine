@@ -34,6 +34,9 @@ struct SceneSession
     CHEngine::EntityHandle SelectedEntity{};
 
     glm::vec2 ViewportSize{ 1280.0f, 720.0f };
+
+    CHEngine::World* GetRuntimeWorld() { return RuntimeWorld.get(); }
+
 protected:
     CHEngine::Ref<CHEngine::Scene> ActiveScene;
     CHEngine::Scope<CHEngine::World> RuntimeWorld;

@@ -10,6 +10,7 @@
 
 #include <cstring>
 #include <cstdlib>
+#include <sstream>
 #include <string>
 #include <algorithm>
 
@@ -44,6 +45,23 @@ bool ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
     // Slang выдаёт одну MSL-строку на программу — обе записи содержат тот же текст.
     std::string mslSource(reinterpret_cast<const char*>(compiled.vertexCode.data()),
                           compiled.vertexCode.size());
+
+    // Логируем MSL для диагностики текстурных индексов (только для mesh шейдера)
+    if (mslSource.find("u_DiffuseTexture") != std::string::npos)
+    {
+        // Вырезаем строки с [[texture(
+        std::istringstream ss(mslSource);
+        std::string line;
+        CHE_CORE_INFO("=== MSL texture bindings ===");
+        while (std::getline(ss, line)) {
+            if (line.find("texture(") != std::string::npos ||
+                line.find("sampler(") != std::string::npos ||
+                line.find("u_Diffuse") != std::string::npos ||
+                line.find("UseTexture") != std::string::npos)
+                CHE_CORE_INFO("MSL: {}", line);
+        }
+        CHE_CORE_INFO("=== end MSL bindings ===");
+    }
 
     NSString* src = [NSString stringWithUTF8String:mslSource.c_str()];
     NSError* error = nil;
@@ -249,6 +267,13 @@ void ShaderMTL::FlushUniforms(void* encoderPtr) const
 
     [encoder setFragmentBytes:&m_Lighting length:sizeof(CHEngine::UBOLighting) atIndex:2];
     [encoder setFragmentBytes:&m_Material length:sizeof(CHEngine::UBOMaterial) atIndex:3];
+
+    // DEBUG: log UseTexture once per shader if it's 1
+    static int s_LogCount = 0;
+    if (m_Material.UseTexture == 1 && s_LogCount < 3) {
+        CHE_CORE_INFO("FlushUniforms: UseTexture=1 ← texture draw happening!");
+        s_LogCount++;
+    }
 }
 
 // ─── Uniform Block setter ───────────────────────────────────────────────────

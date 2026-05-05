@@ -120,6 +120,8 @@ void MaterialInstance::ApplyMaterial() const
     ITexture* diffTex = d.IsValid() ? RenderFacade::GetTexture(d) : nullptr;
     ITexture* specTex = s.IsValid() ? RenderFacade::GetTexture(s) : nullptr;
 
+    // Bind textures — stay bound until next material or frame
+    // (do NOT unbind here: the draw call happens after ApplyMaterial)
     if (diffTex)
     {
         diffTex->Bind(0);
@@ -133,11 +135,6 @@ void MaterialInstance::ApplyMaterial() const
     }
 
     shader->SetUniformBlock(EUniformBlock::Material, &materialUBO, sizeof(materialUBO));
-
-    if (diffTex)
-        diffTex->Unbind();
-    if (specTex)
-        specTex->Unbind();
 }
 
 } // namespace CHEngine

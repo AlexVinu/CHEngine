@@ -45,19 +45,50 @@ namespace CHEngine {
 			}
 		}
 
-		if (texIdx >= 0 && texIdx < static_cast<int>(model.textures.size()))
+		if (texIdx < 0)
+		{
+			CHE_CORE_WARN("GLTF mat[{}]: no diffuse texture index (texIdx={})", materialIndex, texIdx);
+		}
+		else if (texIdx >= static_cast<int>(model.textures.size()))
+		{
+			CHE_CORE_WARN("GLTF mat[{}]: texIdx={} out of range (textures={})",
+			              materialIndex, texIdx, model.textures.size());
+		}
+		else
 		{
 			int imgIdx = model.textures[texIdx].source;
-			if (imgIdx >= 0 && imgIdx < static_cast<int>(model.images.size()))
+			if (imgIdx < 0 || imgIdx >= static_cast<int>(model.images.size()))
+			{
+				CHE_CORE_WARN("GLTF mat[{}]: imgIdx={} invalid (images={})",
+				              materialIndex, imgIdx, model.images.size());
+			}
+			else
 			{
 				const auto& img = model.images[imgIdx];
-				if (!img.image.empty() && img.width > 0 && img.height > 0)
+				CHE_CORE_INFO("GLTF mat[{}]: image[{}] name='{}' {}x{} ch={} dataSize={}",
+				              materialIndex, imgIdx, img.name,
+				              img.width, img.height, img.component,
+				              img.image.size());
+
+				if (img.image.empty())
+				{
+					// tinygltf не декодировал изображение — попробуем вручную через uri/bufferView
+					CHE_CORE_WARN("GLTF mat[{}]: img.image is empty! mimeType='{}' uri='{}'",
+					              materialIndex, img.mimeType, img.uri);
+				}
+				else if (img.width <= 0 || img.height <= 0)
+				{
+					CHE_CORE_WARN("GLTF mat[{}]: invalid image size {}x{}", materialIndex, img.width, img.height);
+				}
+				else
 				{
 					base->DiffuseMap = RenderFacade::CreateTexture(
 						img.image.data(),
 						static_cast<uint32_t>(img.width),
 						static_cast<uint32_t>(img.height),
 						static_cast<uint32_t>(img.component));
+					CHE_CORE_INFO("GLTF mat[{}]: texture created OK (handle valid={})",
+					              materialIndex, base->DiffuseMap.IsValid());
 				}
 			}
 		}

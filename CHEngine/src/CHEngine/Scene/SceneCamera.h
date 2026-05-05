@@ -36,15 +36,15 @@ namespace CHEngine {
 	private:
 		void RecalculateProjection();
 	private:
-		ProjectionType m_ProjectionType = ProjectionType::Orthographic;
+		ProjectionType m_ProjectionType = ProjectionType::Perspective;
 
-		float m_PerspectiveFOV = glm::radians(45.0f);
-		float m_PerspectiveNear = 0.01f, m_PerspectiveFar = 1000.0f;
+		float m_PerspectiveFOV = glm::radians(60.0f);
+		float m_PerspectiveNear = 0.1f, m_PerspectiveFar = 1000.0f;
 
 		float m_OrthographicSize = 10.0f;
 		float m_OrthographicNear = -1.0f, m_OrthographicFar = 1.0f;
 
-		float m_AspectRatio = 0.0f;
+		float m_AspectRatio = 16.0f / 9.0f;  // default until SetViewportSize is called
 	};
 
 }

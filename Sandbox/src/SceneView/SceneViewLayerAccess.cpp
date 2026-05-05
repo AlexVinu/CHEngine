@@ -1,6 +1,7 @@
 #include "SceneViewLayerAccess.h"
 
 #include "SceneViewLayer.h"
+#include "ScriptEditorPanel.h"
 
 EditorWorldContext& SceneViewLayerAccess::Active(SceneViewLayer& layer)
 {
@@ -66,4 +67,9 @@ Sandbox::CameraPanel& SceneViewLayerAccess::CameraPanel(SceneViewLayer& layer)
 Sandbox::ProfilerPanel& SceneViewLayerAccess::Profiler(SceneViewLayer& layer)
 {
     return layer.m_ProfilerPanel;
+}
+
+Sandbox::ScriptEditorPanel& SceneViewLayerAccess::ScriptEditor(SceneViewLayer& layer)
+{
+    return layer.m_ScriptEditor;
 }

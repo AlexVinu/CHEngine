@@ -3,6 +3,7 @@
 
 #include "Systems/ComponentValidationSystem.h"
 #include "Systems/LifetimeSystem.h"
+#include "Systems/LuaScriptSystem.h"
 #include "Systems/PhysicsSystem.h"
 #include "Systems/RenderSystem.h"
 #include "CHEngine/Physics/PhysicsFacade.h"
@@ -121,6 +122,7 @@ namespace CHEngine
     {
         m_Scheduler.EmplaceSystem<LifetimeSystem>();
         m_Scheduler.EmplaceSystem<ComponentValidationSystem>();
+        m_Scheduler.EmplaceSystem<LuaScriptSystem>();  // приоритет 5 — до физики
         m_Scheduler.EmplaceSystem<PhysicsSystem>();
         m_Scheduler.EmplaceSystem<RenderSystem>();
     }
