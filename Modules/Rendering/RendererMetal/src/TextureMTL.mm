@@ -95,9 +95,4 @@ void TextureMTL::Bind(uint32_t slot) const
         [encoder setFragmentSamplerState:(id<MTLSamplerState>)m_Sampler atIndex:slot];
 }
 
-void TextureMTL::Unbind() const
-{
-    // Metal textures don't need explicit unbind
-}
-
 } // namespace CHModules

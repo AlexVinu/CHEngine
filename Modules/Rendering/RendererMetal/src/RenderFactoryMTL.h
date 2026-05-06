@@ -4,6 +4,8 @@
 
 namespace CHModules
 {
+    // TODO: Change returns to handles
+    // Use handles EVERYWHERE like on OGL version
     struct RenderFactoryMTL : public CHEngine::IRenderFactory
     {
         CHEngine::IVertexBuffer* CreateVertexBuffer(float* verticies, uint32_t size) override;
@@ -20,7 +22,6 @@ namespace CHModules
         CHEngine::ITexture* CreateTexture(const uint8_t* data, uint32_t width,
                                           uint32_t height, uint32_t channels) override;
 
-        CHEngine::IFramebuffer* CreateFramebuffer(uint32_t width, uint32_t height) override;
         std::unique_ptr<CHEngine::IFrameGraphBackend> CreateFrameGraphBackend() override;
 
         void Delete(CHEngine::IVertexBuffer* ptr) override;
@@ -30,7 +31,6 @@ namespace CHModules
         void Delete(CHEngine::IRenderApi*    ptr) override;
         void Delete(CHEngine::IRenderer*     ptr) override;
         void Delete(CHEngine::ITexture*      ptr) override;
-        void Delete(CHEngine::IFramebuffer*  ptr) override;
 
         CHEngine::ModuleType GetType() const override;
         CHEngine::ERenderAPI GetRenderApi() override;

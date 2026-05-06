@@ -35,7 +35,7 @@
 `Core/` не зависит ни от чего внутри движка. Содержит:
 
 - **Интерфейсы** (`Core/Interfaces/`) — чистые абстракции для всех модулей:
-  - `IRenderFactory`, `IRenderer`, `IRenderApi`, `IShader`, `IVertexArray`, `ITexture`, `IFramebuffer`
+  - `IRenderFactory`, `IRenderer`, `IRenderApi`, `IShader`, `IVertexArray`, `ITexture`
   - `IWindowFactory`, `IWindow`
   - `IImGuiFactory`, `IImGuiLayer`
   - `IPhysicsFactory`, `IPhysicsWorld`, `IPhysicsBody`, `IPhysicsShape`

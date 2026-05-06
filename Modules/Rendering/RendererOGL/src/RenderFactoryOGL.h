@@ -46,7 +46,7 @@ namespace CHModules
             CHEngine::TextureType type,
             CHEngine::TextureUsage usage,
             CHEngine::MemoryType memory,
-            const char* debugName
+            const CHEngine::String& debugName = CHEngine::String()
         ) override;
 
         virtual void Delete(CHEngine::BufferHandle  handle) override;

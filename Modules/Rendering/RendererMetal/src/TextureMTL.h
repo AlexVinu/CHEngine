@@ -1,19 +1,16 @@
 #pragma once
 
-#include "Render/ITexture.h"
-
 namespace CHModules {
-    class TextureMTL : public CHEngine::ITexture
+    class TextureMTL
     {
     public:
         TextureMTL(const uint8_t* data, uint32_t width, uint32_t height, uint32_t channels);
-        ~TextureMTL() override;
+        ~TextureMTL() ;
 
-        void Bind(uint32_t slot = 0) const override;
-        void Unbind() const override;
+        void Bind(uint32_t slot = 0) const ;
 
-        uint32_t GetWidth()  const override { return m_Width; }
-        uint32_t GetHeight() const override { return m_Height; }
+        uint32_t GetWidth()  const  { return m_Width; }
+        uint32_t GetHeight() const  { return m_Height; }
 
         void* GetNativeTexture() const { return m_Texture; }
 

@@ -22,6 +22,8 @@ namespace CHEngine {
         uint32_t                FirstIndex    = 0;
         int32_t                 BaseVertex    = 0;
         uint32_t                InstanceCount = 1;
+
+        // ─── Per-draw uniforms and textures ────────────────────────
         Vector<UniformBinding>  Uniforms;
         Vector<TextureBinding>  Textures;
     };
@@ -32,7 +34,7 @@ namespace CHEngine {
         std::string             Name;
         PipelineHandle          Pipeline;
 
-        // Attachments
+        // ─── RENDER TARGET INFO ───────────────────────────────────
         Vector<TextureHandle>   ColorAttachments;
         TextureHandle           DepthAttachment;
 
@@ -47,13 +49,13 @@ namespace CHEngine {
         uint32_t                ViewportWidth  = 0;
         uint32_t                ViewportHeight = 0;
 
-        // Per-pass resource bindings
+        // ─── UNIFORMS AND TEXTURES ────────────────────────────────
         Vector<UniformBinding>  Uniforms;
         Vector<TextureBinding>  Textures;
 
-        // Dependency tracking for topo-sort
-        Vector<TextureHandle>   Reads;
-        Vector<TextureHandle>   Writes;
+        // ─── DEPENDENCY TRACKING (for topological sort) ────────────
+        Vector<TextureHandle>   Reads;   // Textures read by this pass
+        Vector<TextureHandle>   Writes;  // Textures written by this pass
 
         // Draw calls
         Vector<DrawDesc>        Draws;

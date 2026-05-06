@@ -23,12 +23,7 @@ namespace CHModules {
     class FrameGraphBackendMTL final : public CHEngine::IFrameGraphBackend
     {
     public:
-        void BeginFrame() override;
-        CHEngine::TextureHandle MaterializeTransient(const CHEngine::RGTextureDesc& desc) override;
-        void RecordPass(const CHEngine::CompiledPass& pass,
-                        CHEngine::IRGContext& context,
-                        const CHEngine::ExecuteFn& execute) override;
-        void SubmitFrame() override;
+        void Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes) override;
 
     private:
         CommandListMTL m_CommandList;

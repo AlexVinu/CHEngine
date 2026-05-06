@@ -1,22 +1,20 @@
 #pragma once
 
-#include "Render/IFramebuffer.h"
-
 namespace CHModules {
-    class FramebufferMTL : public CHEngine::IFramebuffer
+    class FramebufferMTL
     {
     public:
         FramebufferMTL(uint32_t width, uint32_t height);
-        ~FramebufferMTL() override;
+        ~FramebufferMTL();
 
-        void Bind()   const override;
-        void Unbind() const override;
-        void Resize(uint32_t width, uint32_t height) override;
+        void Bind()   const;
+        void Unbind() const;
+        void Resize(uint32_t width, uint32_t height);
 
-        uint32_t GetColorAttachmentID() const override;
-        void* GetNativeColorAttachment() const override { return m_ColorTexture; }
-        uint32_t GetWidth()  const override { return m_Width; }
-        uint32_t GetHeight() const override { return m_Height; }
+        uint32_t GetColorAttachmentID() const;
+        void* GetNativeColorAttachment() const { return m_ColorTexture; }
+        uint32_t GetWidth()  const { return m_Width; }
+        uint32_t GetHeight() const { return m_Height; }
 
     private:
         void CreateAttachments();

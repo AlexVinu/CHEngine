@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Core.h"
-#include "Render/UISystem/IImGuiLayer.h"
+#include "UISystem/IImGuiFactory.h"
 
 namespace CHEngine
 {

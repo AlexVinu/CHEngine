@@ -15,27 +15,17 @@ namespace CHModules {
     void CommandListMTL::DrawIndexed(uint32_t, uint32_t, int32_t) {}
     void CommandListMTL::DrawFullscreenTriangle() {}
 
-    void FrameGraphBackendMTL::BeginFrame()
+    void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes)
     {
-    }
+        for (const CHEngine::PassDesc& pass : passes)
+        {
+            // TODO: Metal render pass setup (similar to OGL FBO setup)
+            // - Create MTLRenderPassDescriptor from pass.ColorAttachments
+            // - Attach textures via m_Factory.Textures.Get()
+            // - Set viewport, clear state, etc.
 
-    CHEngine::TextureHandle FrameGraphBackendMTL::MaterializeTransient(const CHEngine::RGTextureDesc& desc)
-    {
-        (void)desc;
-        CHE_CORE_WARN("FrameGraphBackendMTL: transient texture materialization is pending Metal handle-pool migration");
-        return CHEngine::TextureHandle::Invalid();
-    }
-
-    void FrameGraphBackendMTL::RecordPass(const CHEngine::CompiledPass&,
-                                          CHEngine::IRGContext& context,
-                                          const CHEngine::ExecuteFn& execute)
-    {
-        if (execute)
-            execute(context, m_CommandList);
-    }
-
-    void FrameGraphBackendMTL::SubmitFrame()
-    {
+            CHE_CORE_WARN("FrameGraphBackendMTL::Execute: Metal implementation pending");
+        }
     }
 
 } // namespace CHModules

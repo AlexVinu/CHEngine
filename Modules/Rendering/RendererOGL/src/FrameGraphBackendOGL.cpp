@@ -34,12 +34,24 @@ namespace CHModules {
 
     GLuint FrameGraphBackendOGL::GetOrCreateFBO(const CHEngine::PassDesc& pass)
     {
-        const bool hasColor = (!pass.ColorAttachments.empty() && pass.ColorAttachments[0].IsValid());
-        const bool hasDepth = pass.DepthAttachment.IsValid();
-        const uint32_t colorIdx = hasColor ? pass.ColorAttachments[0].index      : ~0u;
-        const uint32_t colorGen = hasColor ? pass.ColorAttachments[0].generation : 0u;
-        const uint32_t depthIdx = hasDepth ? pass.DepthAttachment.index          : ~0u;
-        const uint32_t depthGen = hasDepth ? pass.DepthAttachment.generation     : 0u;
+        // ── Get color and depth textures ───────────────────────────────────────
+        CHEngine::TextureHandle colorTex = CHEngine::TextureHandle::Invalid();
+        CHEngine::TextureHandle depthTex = CHEngine::TextureHandle::Invalid();
+
+        // Get first color attachment
+        if (!pass.ColorAttachments.empty())
+            colorTex = pass.ColorAttachments[0];
+
+        // Get depth attachment
+        if (pass.DepthAttachment.IsValid())
+            depthTex = pass.DepthAttachment;
+
+        const bool hasColor = colorTex.IsValid();
+        const bool hasDepth = depthTex.IsValid();
+        const uint32_t colorIdx = hasColor ? colorTex.index      : ~0u;
+        const uint32_t colorGen = hasColor ? colorTex.generation : 0u;
+        const uint32_t depthIdx = hasDepth ? depthTex.index      : ~0u;
+        const uint32_t depthGen = hasDepth ? depthTex.generation : 0u;
 
         // Default framebuffer (no attachments specified).
         if (colorIdx == ~0u && depthIdx == ~0u)
@@ -54,28 +66,32 @@ namespace CHModules {
         glGenFramebuffers(1, &fbo);
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
 
-        // Attach color textures.
+        // Attach color texture(s).
+        uint32_t colorAttachmentIndex = 0;
         for (uint32_t i = 0; i < static_cast<uint32_t>(pass.ColorAttachments.size()); ++i)
         {
-            const CHEngine::TextureHandle& th = pass.ColorAttachments[i];
+            CHEngine::TextureHandle th = pass.ColorAttachments[i];
             if (!th.IsValid()) continue;
+
             TextureOGL* tex = m_Factory.Textures.Get(th);
             if (!tex) continue;
+
             glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                   GL_COLOR_ATTACHMENT0 + i,
+                                   GL_COLOR_ATTACHMENT0 + colorAttachmentIndex,
                                    GL_TEXTURE_2D,
                                    tex->GetRendererID(), 0);
+            ++colorAttachmentIndex;
         }
 
         // Attach depth texture.
         if (pass.DepthAttachment.IsValid())
         {
-            TextureOGL* dtex = m_Factory.Textures.Get(pass.DepthAttachment);
-            if (dtex)
+            TextureOGL* depthTexObj = m_Factory.Textures.Get(pass.DepthAttachment);
+            if (depthTexObj)
                 glFramebufferTexture2D(GL_FRAMEBUFFER,
                                        GL_DEPTH_STENCIL_ATTACHMENT,
                                        GL_TEXTURE_2D,
-                                       dtex->GetRendererID(), 0);
+                                       depthTexObj->GetRendererID(), 0);
         }
 
         GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);

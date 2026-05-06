@@ -5,7 +5,6 @@
 #include "VertexArrayMTL.h"
 #include "ShaderMTL.h"
 #include "TextureMTL.h"
-#include "FramebufferMTL.h"
 #include "RendererMTL.h"
 #include "RenderApiMTL.h"
 #include "FrameGraphBackendMTL.h"
@@ -39,9 +38,6 @@ namespace CHModules
                                                          uint32_t height, uint32_t channels)
     { return CreateImpl<TextureMTL>(data, width, height, channels); }
 
-    CHEngine::IFramebuffer* RenderFactoryMTL::CreateFramebuffer(uint32_t width, uint32_t height)
-    { return new FramebufferMTL(width, height); }
-
     std::unique_ptr<CHEngine::IFrameGraphBackend> RenderFactoryMTL::CreateFrameGraphBackend()
     { return std::make_unique<FrameGraphBackendMTL>(); }
 
@@ -52,7 +48,6 @@ namespace CHModules
     void RenderFactoryMTL::Delete(CHEngine::IRenderApi*    ptr) { DestroyImpl(static_cast<RenderApiMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IRenderer*     ptr) { DestroyImpl(static_cast<RendererMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::ITexture*      ptr) { DestroyImpl(static_cast<TextureMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::IFramebuffer*  ptr) { delete static_cast<FramebufferMTL*>(ptr); }
 
     CHEngine::ModuleType RenderFactoryMTL::GetType() const { return CHEngine::ModuleType::Render; }
     CHEngine::ERenderAPI RenderFactoryMTL::GetRenderApi() { return CHEngine::ERenderAPI::METAL; }

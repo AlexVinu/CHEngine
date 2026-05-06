@@ -1,17 +1,15 @@
 #pragma once
 
-#include "Render/ITexture.h"
-
 namespace CHModules {
 
-    class TextureVK : public CHEngine::ITexture
+    class TextureVK
     {
     public:
         TextureVK(const uint8_t* data, uint32_t width, uint32_t height, uint32_t channels);
-        ~TextureVK() override;
+        ~TextureVK() ;
 
-        uint32_t GetWidth()  const override { return m_Width; }
-        uint32_t GetHeight() const override { return m_Height; }
+        uint32_t GetWidth()  const  { return m_Width; }
+        uint32_t GetHeight() const  { return m_Height; }
 
     private:
         uint32_t m_Width  = 0;

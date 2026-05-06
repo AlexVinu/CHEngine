@@ -214,6 +214,7 @@ namespace CHEngine {
 		S8_UINT,
 	};
 
+	// TODO: Make flags in another way
 	enum class TextureUsage : uint32_t {
 		ShaderResource		= BIT(0),  // Чтение в шейдере (samplers)
 		RenderTarget		= BIT(1),  // Цветовая цель рендера
@@ -245,6 +246,7 @@ namespace CHEngine {
 		UInt32
 	};
 
+	// TODO: Make flags in another way
 	enum class BufferUsage : uint32_t {
 		Vertex		= BIT(0),
 		Index		= BIT(1),

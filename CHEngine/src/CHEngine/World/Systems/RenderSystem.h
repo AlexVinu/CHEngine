@@ -51,14 +51,16 @@ namespace CHEngine {
         std::vector<DrawItem> m_DrawList;
 
         // Persistent resources (created once, reused each frame).
-        TextureHandle  m_HDRTarget;
-        TextureHandle  m_DepthTarget;
-        TextureHandle  m_LDRTarget;
         PipelineHandle m_MeshPipeline;
         ShaderHandle   m_TonemapShader;
         PipelineHandle m_TonemapPipeline;
         BufferHandle   m_CameraUBO;
         BufferHandle   m_LightingUBO;
+
+        // Render targets
+        TextureHandle m_HDRTarget;
+        TextureHandle m_DepthTarget;
+        TextureHandle m_LDRTarget;
 
         // Per-draw Object UBO ring buffer.
         BufferHandle m_ObjectUBORing;

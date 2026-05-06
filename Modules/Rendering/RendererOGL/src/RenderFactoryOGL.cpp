@@ -66,12 +66,12 @@ namespace CHModules {
         CHEngine::TextureType type,
         CHEngine::TextureUsage usage,
         CHEngine::MemoryType memory,
-        const char* debugName)
+        const CHEngine::String& debugName)
     {
         auto* tex = new TextureOGL(data, width, height, channels,
                                    mipLevels, arrayLayers,
                                    format, type, usage, memory,
-                                   debugName);
+                                   debugName.c_str());
         return Textures.Add(tex);
     }
 

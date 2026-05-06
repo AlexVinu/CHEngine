@@ -8,7 +8,7 @@
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
 #include "CHEngine/Application.h"
-#include "Log/Log.h"
+#include <Log/Log.h>
 #include <Render/UniformBlocks.h>
 #include <Render/IRenderFactory.h>
 #include <Render/Graph/PassDesc.h>
@@ -49,54 +49,47 @@ namespace CHEngine {
 
         const bool sizeChanged = (vw != m_LastViewportW || vh != m_LastViewportH);
 
-        // Recreate render targets if viewport size changed.
-        if (sizeChanged || !m_HDRTarget.IsValid())
+        // Create/recreate render targets if viewport size changed
+        if (sizeChanged)
         {
-            if (m_HDRTarget.IsValid())   { factory->Delete(m_HDRTarget);   m_HDRTarget   = {}; }
-            if (m_DepthTarget.IsValid()) { factory->Delete(m_DepthTarget); m_DepthTarget = {}; }
-            if (m_LDRTarget.IsValid())   { factory->Delete(m_LDRTarget);   m_LDRTarget   = {}; }
+            m_LastViewportW = vw;
+            m_LastViewportH = vh;
 
+            // Delete old targets
+            if (m_HDRTarget.IsValid()) factory->Delete(m_HDRTarget);
+            if (m_DepthTarget.IsValid()) factory->Delete(m_DepthTarget);
+            if (m_LDRTarget.IsValid()) factory->Delete(m_LDRTarget);
+
+            // Create HDR target
             m_HDRTarget = factory->CreateTexture(
-                nullptr, vw, vh, 4,
-                1, 1,
+                nullptr, vw, vh, 4, 1, 1,
                 TextureFormat::RGBA16_FLOAT,
                 TextureType::Texture2D,
                 static_cast<TextureUsage>(
                     static_cast<uint32_t>(TextureUsage::RenderTarget) |
                     static_cast<uint32_t>(TextureUsage::ShaderResource)),
                 MemoryType::GpuOnly,
-                "HDRTarget");
+                String("HDRTarget"));
 
+            // Create Depth target
             m_DepthTarget = factory->CreateTexture(
-                nullptr, vw, vh, 0,
-                1, 1,
+                nullptr, vw, vh, 1, 1, 1,
                 TextureFormat::D24_UNORM_S8_UINT,
                 TextureType::Texture2D,
                 TextureUsage::DepthStencil,
                 MemoryType::GpuOnly,
-                "DepthTarget");
+                String("DepthTarget"));
 
+            // Create LDR target
             m_LDRTarget = factory->CreateTexture(
-                nullptr, vw, vh, 4,
-                1, 1,
+                nullptr, vw, vh, 4, 1, 1,
                 TextureFormat::RGBA8_UNORM,
                 TextureType::Texture2D,
                 static_cast<TextureUsage>(
                     static_cast<uint32_t>(TextureUsage::RenderTarget) |
                     static_cast<uint32_t>(TextureUsage::ShaderResource)),
                 MemoryType::GpuOnly,
-                "LDRTarget");
-
-            m_LastViewportW = vw;
-            m_LastViewportH = vh;
-
-            if (!m_HDRTarget.IsValid() || !m_DepthTarget.IsValid() || !m_LDRTarget.IsValid())
-            {
-                CHE_CORE_ERROR("RenderSystem: failed to create render targets ({}x{})", vw, vh);
-                return false;
-            }
-
-            RenderFacade::SetViewportOutputTexture(m_LDRTarget);
+                String("LDRTarget"));
         }
 
         // Create MeshPipeline once (or when default shader becomes available).
@@ -250,22 +243,36 @@ namespace CHEngine {
         PassDesc mainColor;
         mainColor.Name            = "MainColorPass";
         mainColor.Pipeline        = m_MeshPipeline;
-        mainColor.ColorAttachments.push_back(m_HDRTarget);
-        mainColor.DepthAttachment = m_DepthTarget;
         mainColor.ColorLoadOp     = ELoadOp::Clear;
         mainColor.ColorStoreOp    = EStoreOp::Store;
         mainColor.ClearColor      = { 0.18f, 0.18f, 0.20f, 1.0f };
         mainColor.DepthLoadOp     = ELoadOp::Clear;
         mainColor.ClearDepth      = 1.0f;
-        mainColor.ViewportWidth   = RenderFacade::GetViewportWidth();
-        mainColor.ViewportHeight  = RenderFacade::GetViewportHeight();
 
-        // Per-pass UBOs (Camera = slot 0, Lighting = slot 2).
-        mainColor.Uniforms.push_back({ m_CameraUBO,  static_cast<uint32_t>(EUniformBlock::Camera),  0, 0 });
-        mainColor.Uniforms.push_back({ m_LightingUBO, static_cast<uint32_t>(EUniformBlock::Lighting), 0, 0 });
+        const uint32_t vw = RenderFacade::GetViewportWidth();
+        const uint32_t vh = RenderFacade::GetViewportHeight();
+        mainColor.ViewportWidth   = vw;
+        mainColor.ViewportHeight  = vh;
 
-        // Writes the HDR target (for topo-sort dependency tracking).
+        // ── Setup render targets ───────────────────────────────────────────────
+        mainColor.ColorAttachments.push_back(m_HDRTarget);
+        mainColor.DepthAttachment = m_DepthTarget;
+
+        // ── Setup uniforms ─────────────────────────────────────────────────────
+        mainColor.Uniforms.push_back({
+            m_CameraUBO,
+            static_cast<uint32_t>(EUniformBlock::Camera),
+            0, sizeof(UBOCamera)
+        });
+        mainColor.Uniforms.push_back({
+            m_LightingUBO,
+            static_cast<uint32_t>(EUniformBlock::Lighting),
+            0, sizeof(UBOLighting)
+        });
+
+        // ── Dependency tracking ────────────────────────────────────────────────
         mainColor.Writes.push_back(m_HDRTarget);
+        mainColor.Writes.push_back(m_DepthTarget);
 
         // Build draw list — each draw binds its slice of the Object UBO ring buffer.
         for (uint32_t i = 0; i < drawCount; ++i)
@@ -280,6 +287,7 @@ namespace CHEngine {
             draw.FirstIndex    = 0;
             draw.BaseVertex    = 0;
             draw.InstanceCount = 1;
+            // Per-draw Object UBO
             draw.Uniforms.push_back({
                 m_ObjectUBORing,
                 static_cast<uint32_t>(EUniformBlock::Object),
@@ -291,10 +299,9 @@ namespace CHEngine {
 
         if (!s_LoggedOnce)
         {
-            CHE_CORE_INFO("RenderSystem: first MainColorPass dispatched (drawCount={}, viewport={}x{}, hdrTex={}, alignedStride={}, ringCapacity={})",
+            CHE_CORE_INFO("RenderSystem: first MainColorPass dispatched (drawCount={}, viewport={}x{}, alignedStride={}, ringCapacity={})",
                           drawCount,
                           mainColor.ViewportWidth, mainColor.ViewportHeight,
-                          m_HDRTarget.index,
                           m_ObjectUBOAlignedStride,
                           m_ObjectUBOCapacity);
             s_LoggedOnce = true;
@@ -307,16 +314,23 @@ namespace CHEngine {
         tonemapPass.Name       = "TonemapPass";
         tonemapPass.Pipeline   = m_TonemapPipeline;
         tonemapPass.Fullscreen = true;
-        tonemapPass.ColorAttachments.push_back(m_LDRTarget);
         tonemapPass.ColorLoadOp    = ELoadOp::DontCare;
         tonemapPass.ColorStoreOp   = EStoreOp::Store;
-        tonemapPass.ViewportWidth  = RenderFacade::GetViewportWidth();
-        tonemapPass.ViewportHeight = RenderFacade::GetViewportHeight();
-        tonemapPass.Textures.push_back({ m_HDRTarget, 0 });
-        tonemapPass.Reads.push_back(m_HDRTarget);
-        tonemapPass.Writes.push_back(m_LDRTarget);
+        tonemapPass.ViewportWidth  = vw;
+        tonemapPass.ViewportHeight = vh;
+
+        // Setup render target and input texture
+        tonemapPass.ColorAttachments.push_back(m_LDRTarget);
+        tonemapPass.Textures.push_back({ m_HDRTarget, 0 });  // Input: HDR target at slot 0
+
+        // ── Dependency tracking ────────────────────────────────────────────────
+        tonemapPass.Reads.push_back(m_HDRTarget);   // Reads from MainColorPass output
+        tonemapPass.Writes.push_back(m_LDRTarget);  // Writes LDR output
 
         RenderFacade::GetFrameGraph().AddPass(std::move(tonemapPass));
+
+        // Set final output texture for ImGui display
+        RenderFacade::SetViewportOutputTexture(m_LDRTarget);
     }
 
     // ============================================================================

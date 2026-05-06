@@ -18,11 +18,6 @@ namespace CHEngine {
         m_Passes.push_back(std::move(pass));
     }
 
-    // ─── Kahn's algorithm topological sort ───────────────────────────────────
-    // Edges: if pass A writes a texture that pass B reads, B depends on A.
-    // For MVP (2-3 passes added in insertion order), this degenerates to
-    // the original order — but the sort handles arbitrary permutations correctly.
-
     void BasicFrameGraphFrontend::Compile()
     {
         const int n = static_cast<int>(m_Passes.size());
@@ -33,7 +28,6 @@ namespace CHEngine {
         std::vector<int>              inDeg(n, 0);
 
         // Map TextureHandle → index of the last pass that writes it
-        // (only simple single-writer model needed for MVP)
         std::unordered_map<uint32_t, int> lastWriter; // key = handle index
 
         for (int i = 0; i < n; ++i)
@@ -69,7 +63,7 @@ namespace CHEngine {
         {
             int idx = ready.front();
             ready.pop();
-            m_Sorted.push_back(m_Passes[idx]); // copy into sorted list
+            m_Sorted.push_back(m_Passes[idx]);
             for (int next : adj[idx])
             {
                 if (--inDeg[next] == 0)

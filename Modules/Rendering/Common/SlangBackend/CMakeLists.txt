@@ -21,6 +21,32 @@ set(SLANG_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(SLANG_ENABLE_GFX      OFF CACHE BOOL "" FORCE)
 set(SLANG_ENABLE_SLANGD   OFF CACHE BOOL "" FORCE)
 set(SLANG_ENABLE_SLANGRT  OFF CACHE BOOL "" FORCE)
+# Avoid FetchDXC on restricted networks. We only need Slang for GLSL/MSL/SPIR-V
+# compilation paths used by current render backends.
+set(SLANG_ENABLE_DXIL     OFF CACHE BOOL "" FORCE)
+
+# Optional local DXC archive to avoid network issues with GitHub release assets.
+set(CHE_LOCAL_DXC_ARCHIVE
+    ""
+    CACHE FILEPATH
+    "Path to local dxc_2026_02_20.zip archive for Slang FetchDXC override"
+)
+set(_che_default_dxc_archive
+    "${CMAKE_SOURCE_DIR}/third_party/cache/dxc_2026_02_20.zip"
+)
+if(NOT CHE_LOCAL_DXC_ARCHIVE AND EXISTS "${_che_default_dxc_archive}")
+    set(CHE_LOCAL_DXC_ARCHIVE "${_che_default_dxc_archive}")
+endif()
+if(CHE_LOCAL_DXC_ARCHIVE AND EXISTS "${CHE_LOCAL_DXC_ARCHIVE}" AND NOT DEFINED SLANG_DXC_BINARY_URL)
+    file(TO_CMAKE_PATH "${CHE_LOCAL_DXC_ARCHIVE}" _che_local_dxc_archive_norm)
+    set(SLANG_DXC_BINARY_URL
+        "file:///${_che_local_dxc_archive_norm}"
+        CACHE STRING
+        ""
+        FORCE
+    )
+    message(STATUS "Using local DXC archive: ${CHE_LOCAL_DXC_ARCHIVE}")
+endif()
 
 FetchContent_MakeAvailable(slang)
 # ─────────────────────────────────────────────────────────────────────────────

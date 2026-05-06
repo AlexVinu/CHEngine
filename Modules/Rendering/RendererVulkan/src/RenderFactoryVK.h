@@ -20,8 +20,6 @@ namespace CHModules
         CHEngine::ITexture* CreateTexture(const uint8_t* data, uint32_t width,
                                           uint32_t height, uint32_t channels) override;
 
-        CHEngine::IFramebuffer* CreateFramebuffer(uint32_t width, uint32_t height) override;
-
         void Delete(CHEngine::IVertexBuffer* ptr) override;
         void Delete(CHEngine::IIndexBuffer*  ptr) override;
         void Delete(CHEngine::IVertexArray*  ptr) override;
@@ -29,7 +27,6 @@ namespace CHModules
         void Delete(CHEngine::IRenderApi*    ptr) override;
         void Delete(CHEngine::IRenderer*     ptr) override;
         void Delete(CHEngine::ITexture*      ptr) override;
-        void Delete(CHEngine::IFramebuffer*  ptr) override;
 
         CHEngine::ModuleType GetType() const override;
         CHEngine::ERenderAPI GetRenderApi() override;

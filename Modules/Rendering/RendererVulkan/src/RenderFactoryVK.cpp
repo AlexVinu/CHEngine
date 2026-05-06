@@ -4,7 +4,6 @@
 #include "VertexArrayVK.h"
 #include "ShaderVK.h"
 #include "TextureVK.h"
-#include "FramebufferVK.h"
 #include "RendererVK.h"
 #include "RenderApiVK.h"
 
@@ -49,11 +48,6 @@ namespace CHModules
         return CreateImpl<TextureVK>(data, width, height, channels);
     }
 
-    CHEngine::IFramebuffer* RenderFactoryVK::CreateFramebuffer(uint32_t width, uint32_t height)
-    {
-        return new FramebufferVK(width, height);
-    }
-
     void RenderFactoryVK::Delete(CHEngine::IVertexBuffer* ptr) { DestroyImpl(static_cast<VertexBufferVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::IIndexBuffer*  ptr) { DestroyImpl(static_cast<IndexBufferVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::IVertexArray*  ptr) { DestroyImpl(static_cast<VertexArrayVK*>(ptr)); }
@@ -61,7 +55,6 @@ namespace CHModules
     void RenderFactoryVK::Delete(CHEngine::IRenderApi*    ptr) { DestroyImpl(static_cast<RenderApiVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::IRenderer*     ptr) { DestroyImpl(static_cast<RendererVK*>(ptr)); }
     void RenderFactoryVK::Delete(CHEngine::ITexture*      ptr) { DestroyImpl(static_cast<TextureVK*>(ptr)); }
-    void RenderFactoryVK::Delete(CHEngine::IFramebuffer*  ptr) { delete static_cast<FramebufferVK*>(ptr); }
 
     CHEngine::ModuleType RenderFactoryVK::GetType() const { return CHEngine::ModuleType::Render; }
     CHEngine::ERenderAPI RenderFactoryVK::GetRenderApi() { return CHEngine::ERenderAPI::VULKAN; }

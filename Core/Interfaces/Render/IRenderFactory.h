@@ -3,7 +3,6 @@
 #include <Core.h>
 #include <CheStl/String.h>
 
-#include "Memory/HandlePool.h"
 #include "IModuleFactory.h"
 #include "Render/Handles.h"
 #include "Render/Core/RenderTypes.h"
@@ -43,7 +42,7 @@ namespace CHEngine {
             TextureType type,
             TextureUsage usage,
             MemoryType memory,
-            const char* debugName
+            const String& debugName = String()
         ) = 0;
 
         virtual void Delete(BufferHandle  ptr) = 0;

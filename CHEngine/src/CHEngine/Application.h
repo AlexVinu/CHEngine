@@ -10,7 +10,6 @@
 #include "UI/UIFacade.h"
 
 #include "WindowSystem/IWindowFactory.h"
-#include "Render/UISystem/IImGuiFactory.h"
 #include "Physics/IPhysicsFactory.h"
 #include "Render/IRenderFactory.h"
 

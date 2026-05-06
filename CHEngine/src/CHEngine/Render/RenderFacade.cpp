@@ -235,7 +235,7 @@ namespace CHEngine
                                 TextureType::Texture2D,
                                 TextureUsage::ShaderResource,
                                 MemoryType::GpuOnly,
-                                "texture");
+                                String("texture"));
     }
 
     TextureHandle RenderFacade::CreateTextureFromFile(const std::string& path)
