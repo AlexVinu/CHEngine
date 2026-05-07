@@ -1,18 +1,120 @@
 #include "chepch.h"
 #include "RenderFactoryMTL.h"
 
-#include "BufferMTL.h"
-#include "VertexArrayMTL.h"
-#include "ShaderMTL.h"
-#include "TextureMTL.h"
-#include "RendererMTL.h"
-#include "RenderApiMTL.h"
 #include "FrameGraphBackendMTL.h"
+#include "TextureMTL.h"    // Legacy TextureMTL
+#include "RendererMTL.h"   // RendererMTL (legacy)
+#include <Log/Log.h>
 
 namespace CHModules
 {
-    CHEngine::IVertexBuffer* RenderFactoryMTL::CreateVertexBuffer(float* verticies, uint32_t size)
-    { return CreateImpl<VertexBufferMTL>(verticies, size); }
+    // ── New handle-based API ──────────────────────────────────────────────────
+
+    CHEngine::BufferHandle RenderFactoryMTL::CreateBuffer(
+        uint64_t size, CHEngine::BufferUsage usage, CHEngine::MemoryType memory,
+        std::span<const std::byte> initialData, const CHEngine::String& /*debugName*/)
+    {
+        auto* buf = new UnifiedBufferMTL(size, usage, memory, initialData);
+        return Buffers.Add(buf);
+    }
+
+    CHEngine::ShaderHandle RenderFactoryMTL::CreateShader(
+        const CHEngine::String& slangSource,
+        const CHEngine::String& vertEntry,
+        const CHEngine::String& fragEntry,
+        const CHEngine::String& sourcePath)
+    {
+        auto* sh = new ShaderMTL(slangSource, vertEntry, fragEntry, sourcePath);
+        return Shaders.Add(sh);
+    }
+
+    CHEngine::TextureHandle RenderFactoryMTL::CreateTexture(
+        const uint8_t* data,
+        uint32_t width, uint32_t height, uint32_t channels,
+        uint32_t /*mipLevels*/, uint32_t /*arrayLayers*/,
+        CHEngine::TextureFormat format,
+        CHEngine::TextureType   /*type*/,
+        CHEngine::TextureUsage  usage,
+        CHEngine::MemoryType    /*memory*/,
+        const CHEngine::String& /*debugName*/)
+    {
+        TextureMTLFull* tex = nullptr;
+
+        if (data != nullptr) {
+            // Asset texture from raw pixel data
+            tex = new TextureMTLFull(data, width, height, channels);
+        } else {
+            // Render target / depth buffer created from format descriptor
+            tex = new TextureMTLFull(width, height, format, usage);
+        }
+
+        return Textures.Add(tex);
+    }
+
+    void RenderFactoryMTL::Delete(CHEngine::BufferHandle h)
+    {
+        auto* p = Buffers.Get(h);
+        if (p) { delete p; Buffers.Remove(h); }
+    }
+
+    void RenderFactoryMTL::Delete(CHEngine::ShaderHandle h)
+    {
+        auto* p = Shaders.Get(h);
+        if (p) { delete p; Shaders.Remove(h); }
+    }
+
+    void RenderFactoryMTL::Delete(CHEngine::TextureHandle h)
+    {
+        auto* p = Textures.Get(h);
+        if (p) { delete p; Textures.Remove(h); }
+    }
+
+    void RenderFactoryMTL::Delete(CHEngine::PipelineHandle h)
+    {
+        auto* p = Pipelines.Get(h);
+        if (p) { delete p; Pipelines.Remove(h); }
+    }
+
+    void RenderFactoryMTL::UpdateBuffer(CHEngine::BufferHandle h,
+                                        std::span<const std::byte> data,
+                                        uint64_t offset)
+    {
+        auto* buf = Buffers.Get(h);
+        if (buf) buf->Update(data, offset);
+    }
+
+    uint64_t RenderFactoryMTL::GetTextureNativeID(CHEngine::TextureHandle h)
+    {
+        auto* tex = Textures.Get(h);
+        return tex ? reinterpret_cast<uint64_t>(tex->GetNativeTexture()) : 0;
+    }
+
+    bool RenderFactoryMTL::ReloadShader(CHEngine::ShaderHandle h,
+                                        const CHEngine::String& slangSource,
+                                        const CHEngine::String& vertEntry,
+                                        const CHEngine::String& fragEntry,
+                                        const CHEngine::String& sourcePath)
+    {
+        auto* sh = Shaders.Get(h);
+        if (!sh) return false;
+        return sh->Reload(slangSource, vertEntry, fragEntry, sourcePath);
+    }
+
+    CHEngine::PipelineHandle RenderFactoryMTL::CreatePipeline(CHEngine::PipelineDesc desc)
+    {
+        auto* pipeline = new PipelineMTL(desc, *this);
+        return Pipelines.Add(pipeline);
+    }
+
+    std::unique_ptr<CHEngine::IFrameGraphBackend> RenderFactoryMTL::CreateFrameGraphBackend()
+    {
+        return std::make_unique<FrameGraphBackendMTL>(*this);
+    }
+
+    // ── Legacy API ────────────────────────────────────────────────────────────
+
+    CHEngine::IVertexBuffer* RenderFactoryMTL::CreateVertexBuffer(float* vertices, uint32_t size)
+    { return CreateImpl<VertexBufferMTL>(vertices, size); }
 
     CHEngine::IIndexBuffer* RenderFactoryMTL::CreateIndexBuffer(uint32_t* indices, uint32_t count)
     { return CreateImpl<IndexBufferMTL>(indices, count); }
@@ -20,38 +122,13 @@ namespace CHModules
     CHEngine::IVertexArray* RenderFactoryMTL::CreateVertexArray()
     { return CreateImpl<VertexArrayMTL>(); }
 
-    CHEngine::IShader* RenderFactoryMTL::CreateShader(const CHEngine::String& slangSource,
-                                                      const CHEngine::String& vertEntry,
-                                                      const CHEngine::String& fragEntry,
-                                                      const CHEngine::String& sourcePath)
-    { return CreateImpl<ShaderMTL>(slangSource, vertEntry, fragEntry, sourcePath); }
-
     CHEngine::IRenderApi* RenderFactoryMTL::CreateRenderAPI()
     { return CreateImpl<RenderApiMTL>(); }
-
-    CHEngine::IRenderer* RenderFactoryMTL::CreateRenderer(CHEngine::IRenderApi* api)
-    {
-        return CreateImpl<RendererMTL>(api);
-    }
-
-    CHEngine::ITexture* RenderFactoryMTL::CreateTexture(const uint8_t* data, uint32_t width,
-                                                         uint32_t height, uint32_t channels)
-    { return CreateImpl<TextureMTL>(data, width, height, channels); }
-
-    std::unique_ptr<CHEngine::IFrameGraphBackend> RenderFactoryMTL::CreateFrameGraphBackend()
-    { return std::make_unique<FrameGraphBackendMTL>(); }
 
     void RenderFactoryMTL::Delete(CHEngine::IVertexBuffer* ptr) { DestroyImpl(static_cast<VertexBufferMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IIndexBuffer*  ptr) { DestroyImpl(static_cast<IndexBufferMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IVertexArray*  ptr) { DestroyImpl(static_cast<VertexArrayMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::IShader*       ptr) { DestroyImpl(static_cast<ShaderMTL*>(ptr)); }
     void RenderFactoryMTL::Delete(CHEngine::IRenderApi*    ptr) { DestroyImpl(static_cast<RenderApiMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::IRenderer*     ptr) { DestroyImpl(static_cast<RendererMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::ITexture*      ptr) { DestroyImpl(static_cast<TextureMTL*>(ptr)); }
-
-    CHEngine::ModuleType RenderFactoryMTL::GetType() const { return CHEngine::ModuleType::Render; }
-    CHEngine::ERenderAPI RenderFactoryMTL::GetRenderApi() { return CHEngine::ERenderAPI::METAL; }
-    bool RenderFactoryMTL::CheckIsWorking() { return true; }
 }
 
 IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryMTL)

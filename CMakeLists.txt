@@ -52,6 +52,14 @@ set(CMAKE_CONFIGURATION_TYPES "Debug;Release;Dist" CACHE STRING "" FORCE)
 
 add_subdirectory(${CHE_VENDOR_DIR}/GLM)
 
+# ── Lua 5.4 ──────────────────────────────────────────────────────────────────
+if(APPLE)
+    set(LUA_INCLUDE_DIR "/opt/homebrew/opt/lua@5.4/include/lua5.4" CACHE PATH "" FORCE)
+    set(LUA_LIBRARIES   "/opt/homebrew/opt/lua@5.4/lib/liblua.dylib" CACHE FILEPATH "" FORCE)
+else()
+    find_package(Lua 5.4 REQUIRED)
+endif()
+
 # ImGui vendor path — used by ImGuiOGL to compile GLFW/OpenGL3 backends
 set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Core/vendor/imgui-docking/imgui" CACHE PATH "" FORCE)
 

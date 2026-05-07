@@ -19,13 +19,15 @@ file(GLOB_RECURSE SANDBOX_HEADERS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/src/*/*/*.hpp"
 )
 
-set(SANDBOX_IMGUIZMO_SRC "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImGuizmo/ImGuizmo.cpp")
+set(SANDBOX_IMGUIZMO_SRC   "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImGuizmo/ImGuizmo.cpp")
+set(SANDBOX_TEXTEDITOR_SRC "${CMAKE_CURRENT_SOURCE_DIR}/vendor/TextEditor/TextEditor.cpp")
 
 # Создание консольного приложения
-add_executable(${PROJECT_NAME} ${SANDBOX_SOURCES} ${SANDBOX_HEADERS} ${SANDBOX_IMGUIZMO_SRC})
+add_executable(${PROJECT_NAME} ${SANDBOX_SOURCES} ${SANDBOX_HEADERS} ${SANDBOX_IMGUIZMO_SRC} ${SANDBOX_TEXTEDITOR_SRC})
 
-# ImGuizmo doesn't work with PCH
-set_source_files_properties(${SANDBOX_IMGUIZMO_SRC} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+# ImGuizmo/TextEditor don't work with PCH
+set_source_files_properties(${SANDBOX_IMGUIZMO_SRC}   PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
+set_source_files_properties(${SANDBOX_TEXTEDITOR_SRC} PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 
 # ImGuizmo visibility
 if(NOT MSVC)
@@ -42,6 +44,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${MODULES_DIR}
     "${CHE_VENDOR_DIR}/spdlog/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/ImGuizmo"
+    "${CMAKE_CURRENT_SOURCE_DIR}/vendor/TextEditor"
     "${SANDBOX_SRC_ROOT}/App"
     "${SANDBOX_SRC_ROOT}/Core"
     "${SANDBOX_SRC_ROOT}/Editor"
@@ -89,6 +92,19 @@ endif()
 target_link_libraries(${PROJECT_NAME} PRIVATE
     CHEngine CHEngine_CORE
 )
+
+# libcurl для AI HTTP запросов
+find_package(CURL)
+if(CURL_FOUND)
+    target_link_libraries(${PROJECT_NAME} PRIVATE CURL::libcurl)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHE_HAS_CURL)
+else()
+    find_library(CURL_LIB curl)
+    if(CURL_LIB)
+        target_link_libraries(${PROJECT_NAME} PRIVATE ${CURL_LIB})
+        target_compile_definitions(${PROJECT_NAME} PRIVATE CHE_HAS_CURL)
+    endif()
+endif()
 
 # Линковка dl на Unix
 if(UNIX)

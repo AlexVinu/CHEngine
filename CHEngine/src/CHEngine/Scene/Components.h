@@ -89,6 +89,12 @@ namespace CHEngine {
         bool DestroyOnExpire = true;
     };
 
+    struct ScriptComponent
+    {
+        std::string ScriptPath;
+        bool        Enabled = true;
+    };
+
     template<typename... Components>
     struct ComponentGroup
     {
@@ -100,5 +106,6 @@ namespace CHEngine {
         VisibilityComponent,
         LightComponent,
         CameraComponent,
-        LifetimeComponent>;
+        LifetimeComponent,
+        ScriptComponent>;
 }

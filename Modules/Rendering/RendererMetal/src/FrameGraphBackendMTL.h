@@ -1,32 +1,33 @@
 #pragma once
 
-#include "Render/ICommandList.h"
 #include "Render/IFrameGraphBackend.h"
 
 namespace CHModules {
 
-    class CommandListMTL final : public CHEngine::ICommandList
-    {
-    public:
-        void BindPipeline(CHEngine::PipelineHandle pipeline) override;
-        void BindVertexBuffer(CHEngine::BufferHandle buffer, uint32_t slot) override;
-        void BindIndexBuffer(CHEngine::BufferHandle buffer) override;
-        void BindTexture(CHEngine::TextureHandle texture, uint32_t slot) override;
-        void BindUniformBuffer(CHEngine::BufferHandle buffer, uint32_t binding) override;
-        void SetViewport(int x, int y, int w, int h) override;
-        void SetScissor(int x, int y, int w, int h) override;
-        void Draw(uint32_t vertexCount, uint32_t firstVertex) override;
-        void DrawIndexed(uint32_t indexCount, uint32_t firstIndex, int32_t baseVertex) override;
-        void DrawFullscreenTriangle() override;
-    };
+    struct RenderFactoryMTL;
 
+    /// Metal implementation of IFrameGraphBackend.
+    /// Translates a sorted list of PassDesc into Metal render commands.
+    ///
+    /// Per pass:
+    ///   1. Build MTLRenderPassDescriptor from ColorAttachments / DepthAttachment
+    ///   2. Open a new render command encoder
+    ///   3. Set viewport, pipeline state, depth stencil state
+    ///   4. Bind pass-level uniforms and textures
+    ///   5. Execute draw calls (or fullscreen triangle)
+    ///   6. End the encoder
+    ///
+    /// After all framegraph passes, the screen encoder is restored so ImGui
+    /// can render on top.
     class FrameGraphBackendMTL final : public CHEngine::IFrameGraphBackend
     {
     public:
+        explicit FrameGraphBackendMTL(RenderFactoryMTL& factory);
+
         void Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes) override;
 
     private:
-        CommandListMTL m_CommandList;
+        RenderFactoryMTL& m_Factory;
     };
 
 } // namespace CHModules

@@ -41,6 +41,10 @@ namespace CHModules
         // Загрузить UBO данные в encoder
         void FlushUniforms(void* encoder) const;
 
+        // Access compiled Metal functions (for PipelineMTL)
+        void* GetVertexFunc()   const { return m_VertexFunc; }
+        void* GetFragmentFunc() const { return m_FragmentFunc; }
+
     private:
         bool CompileSlang(const CHEngine::String& slangSource,
                           const CHEngine::String& vertEntry,

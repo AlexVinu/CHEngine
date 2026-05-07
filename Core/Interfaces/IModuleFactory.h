@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core.h>
+#include <Log/Log.h>
 
 #define DECLARE_MODULE_FACTORY() \
 extern "C" { \
