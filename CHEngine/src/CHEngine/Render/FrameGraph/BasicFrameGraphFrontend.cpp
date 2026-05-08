@@ -27,18 +27,15 @@ namespace CHEngine {
         std::vector<std::vector<int>> adj(n);
         std::vector<int>              inDeg(n, 0);
 
-        // Map TextureHandle → index of the last pass that writes it
-        std::unordered_map<uint32_t, int> lastWriter; // key = handle index
+        // Process reads THEN writes per-pass so that read-modify-write passes
+        // (e.g. GridPass: reads LDR from Tonemap, writes LDR back) are correctly
+        // ordered. If we processed all writes first, GridPass would overwrite
+        // lastWriter[LDR] before TonemapPass→GridPass edge is added.
+        std::unordered_map<uint32_t, int> lastWriter; // texture index → last writer pass
 
         for (int i = 0; i < n; ++i)
         {
-            for (const TextureHandle& w : m_Passes[i].Writes)
-                if (w.IsValid())
-                    lastWriter[w.index] = i;
-        }
-
-        for (int i = 0; i < n; ++i)
-        {
+            // 1. Reads: add edges from previous writers to this pass
             for (const TextureHandle& r : m_Passes[i].Reads)
             {
                 if (!r.IsValid()) continue;
@@ -49,6 +46,10 @@ namespace CHEngine {
                 adj[writer].push_back(i);
                 ++inDeg[i];
             }
+            // 2. Writes: update lastWriter AFTER reads so self-reads work correctly
+            for (const TextureHandle& w : m_Passes[i].Writes)
+                if (w.IsValid())
+                    lastWriter[w.index] = i;
         }
 
         // Kahn's BFS
