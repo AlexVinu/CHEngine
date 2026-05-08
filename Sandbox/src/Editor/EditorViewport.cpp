@@ -217,7 +217,7 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
         const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
         ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
         ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
-        ImGui::Image(reinterpret_cast<ImTextureID>(colorTexID), panelSize, uv0, uv1);
+        ImGui::Image(static_cast<ImTextureID>(colorTexID), panelSize, uv0, uv1);
     }
 
     gizmo.Draw(scene_session, gizmo_operation, gizmo_mode, m_ViewportPos, m_ViewportSize);

@@ -13,51 +13,22 @@
 #include <variant>
 #include <vector>
 
+
 namespace CHEngine
 {
     class World;
 
+    // Lifetime = one frame
     using DeferredEntityHandle = uint32_t;
 
-    struct DeferredEntityTarget
+    using DeferredOpTarget = std::variant<EntityHandle, DeferredEntityHandle>;
+
+    struct DeferredEntity
     {
-        enum class Type
-        {
-            EntityHandle,
-            DeferredEntityHandle,
-            UUID
-        };
-
-        Type TargetType = Type::EntityHandle;
-        EntityHandle Entity{};
-        DeferredEntityHandle DeferredEntity = 0;
         UUID EntityUUID{};
-
-        static DeferredEntityTarget FromEntityHandle(EntityHandle entity_handle)
-        {
-            DeferredEntityTarget target{};
-            target.TargetType = Type::EntityHandle;
-            target.Entity = entity_handle;
-            return target;
-        }
-
-        static DeferredEntityTarget FromDeferredHandle(DeferredEntityHandle deferred_entity_handle)
-        {
-            DeferredEntityTarget target{};
-            target.TargetType = Type::DeferredEntityHandle;
-            target.DeferredEntity = deferred_entity_handle;
-            return target;
-        }
-
-        static DeferredEntityTarget FromUUID(const UUID& uuid)
-        {
-            DeferredEntityTarget target{};
-            target.TargetType = Type::UUID;
-            target.EntityUUID = uuid;
-            return target;
-        }
     };
 
+    // Commands
     struct CreateEntityCommand
     {
         DeferredEntityHandle DeferredEntity = 0;
@@ -67,18 +38,18 @@ namespace CHEngine
 
     struct DestroyEntityCommand
     {
-        DeferredEntityTarget Target;
+        EntityHandle Target;
     };
 
     struct AddComponentCommand
     {
-        DeferredEntityTarget Target;
+        DeferredOpTarget Target;
         std::function<void(World&, Ref<Scene>, EntityHandle)> Apply;
     };
 
     struct RemoveComponentCommand
     {
-        DeferredEntityTarget Target;
+        EntityHandle Target;
         std::function<void(World&, Ref<Scene>, EntityHandle)> Apply;
     };
 
@@ -87,95 +58,76 @@ namespace CHEngine
         std::function<void(Ref<Scene>)> Callback;
     };
 
-    using DeferredCommandRecord = std::variant<CreateEntityCommand, DestroyEntityCommand, AddComponentCommand, RemoveComponentCommand, CustomCommand>;
-
     // Provides deferred structural operations for a scene
+    // NOTES: I think there is no sense to delete deferred entity or its components (it literally does not exist)
     class DeferredOps {
         friend class World;
 
+        struct HookTag{};
+        
     public:
-        using HookToken = uint64_t;
+
+        ~DeferredOps();
+        using HookHandle = Handle<HookTag>;
+
         using ComponentAddedFn = void(*)(World& world, EntityHandle handle);
         using ComponentRemovedFn = void(*)(World& world, EntityHandle handle);
         using FnOnScene = std::function<void(Ref<Scene>)>;
 
-        // Create / destroy operations.
+        // Entity/ DeferredEntity operations 
         DeferredEntityHandle CreateEntity(const std::string& name = "Object");
         DeferredEntityHandle CreateEntityWithUUID(const std::string& name, const UUID& uuid);
         void DestroyEntity(EntityHandle entity_handle);
-        void DestroyEntity(DeferredEntityHandle deferred_entity_handle);
-        void DestroyEntityByUUID(const UUID& uuid);
 
         template<typename T, typename... Args>
         void AddComponent(DeferredEntityHandle deferred_entity_handle, Args&&... args)
         {
-            DeferredEntityTarget target = DeferredEntityTarget::FromDeferredHandle(deferred_entity_handle);
+            DeferredOpTarget target = deferred_entity_handle;
             QueueAddComponent<T>(target, std::forward<Args>(args)...);
         }
 
         template<typename T, typename... Args>
         void AddComponent(EntityHandle entity_handle, Args&&... args)
         {
-            DeferredEntityTarget target = DeferredEntityTarget::FromEntityHandle(entity_handle);
+            DeferredOpTarget target = entity_handle;
             QueueAddComponent<T>(target, std::forward<Args>(args)...);
-        }
-
-        template<typename T, typename... Args>
-        void AddComponentByUUID(const UUID& uuid, Args&&... args)
-        {
-            DeferredEntityTarget target = DeferredEntityTarget::FromUUID(uuid);
-            QueueAddComponent<T>(target, std::forward<Args>(args)...);
-        }
-
-        template<typename T>
-        void RemoveComponent(DeferredEntityHandle deferred_entity_handle)
-        {
-            DeferredEntityTarget target = DeferredEntityTarget::FromDeferredHandle(deferred_entity_handle);
-            QueueRemoveComponent<T>(target);
         }
 
         template<typename T>
         void RemoveComponent(EntityHandle entity_handle)
         {
-            DeferredEntityTarget target = DeferredEntityTarget::FromEntityHandle(entity_handle);
-            QueueRemoveComponent<T>(target);
+            QueueRemoveComponent<T>(entity_handle);
         }
 
-        template<typename T>
-        void RemoveComponentByUUID(const UUID& uuid)
-        {
-            DeferredEntityTarget target = DeferredEntityTarget::FromUUID(uuid);
-            QueueRemoveComponent<T>(target);
-        }
+        void Clear();
 
+        // Hooks for components
         template<typename T>
-        HookToken SubscribeOnComponentAdded(ComponentAddedFn fn)
+        HookHandle SubscribeOnComponentAdded(ComponentAddedFn fn)
         {
             return SubscribeOnComponentAdded(typeid(T), fn);
         }
 
         template<typename T>
-        HookToken SubscribeOnComponentRemoved(ComponentRemovedFn fn)
+        HookHandle SubscribeOnComponentRemoved(ComponentRemovedFn fn)
         {
             return SubscribeOnComponentRemoved(typeid(T), fn);
         }
 
-        bool Unsubscribe(HookToken token);
-
-        void Clear();
+        bool Unsubscribe(HookHandle token);
 
         // Manual work with deferred operations
+        // You must make checks if you deal with entity
         template<class Fn>
         void Enqueue(Fn&& f) {
             CustomCommand command{};
             command.Callback = std::forward<Fn>(f);
-            m_Commands.emplace_back(std::move(command));
+            m_CustomCommands.emplace_back(std::move(command));
         }
 
     private:
         struct ComponentHookBinding
         {
-            HookToken Token = 0;
             std::type_index ComponentType = typeid(void);
             uint64_t DedupKey = 0;
             ComponentAddedFn AddedFn = nullptr;
@@ -183,7 +135,7 @@ namespace CHEngine
         };
 
         template<typename T, typename... Args>
-        void QueueAddComponent(const DeferredEntityTarget& target, Args&&... args)
+        void QueueAddComponent(const DeferredOpTarget& target, Args&&... args)
         {
             AddComponentCommand command{};
             command.Target = target;
@@ -203,11 +155,11 @@ namespace CHEngine
 
                 DispatchOnComponentAdded<T>(world, entity_handle);
             };
-            m_Commands.emplace_back(std::move(command));
+            m_AddComponentCommands.emplace_back(std::move(command));
         }
 
         template<typename T>
-        void QueueRemoveComponent(const DeferredEntityTarget& target)
+        void QueueRemoveComponent(const EntityHandle& target)
         {
             RemoveComponentCommand command{};
             command.Target = target;
@@ -219,7 +171,7 @@ namespace CHEngine
                 entity->RemoveComponent<T>();
                 DispatchOnComponentRemoved<T>(world, entity_handle);
             };
-            m_Commands.emplace_back(std::move(command));
+            m_RemoveComponentCommands.emplace_back(std::move(command));
         }
 
         template<typename T>
@@ -234,23 +186,27 @@ namespace CHEngine
             DispatchOnComponentRemoved(typeid(T), world, entity_handle);
         }
 
-        HookToken SubscribeOnComponentAdded(std::type_index component_type, ComponentAddedFn fn);
-        HookToken SubscribeOnComponentRemoved(std::type_index component_type, ComponentRemovedFn fn);
+        HookHandle SubscribeOnComponentAdded(std::type_index component_type, ComponentAddedFn fn);
+        HookHandle SubscribeOnComponentRemoved(std::type_index component_type, ComponentRemovedFn fn);
 
         void DispatchOnComponentAdded(std::type_index component_type, World& world, EntityHandle entity_handle);
         void DispatchOnComponentRemoved(std::type_index component_type, World& world, EntityHandle entity_handle);
 
-        EntityHandle ResolveTarget(Ref<Scene> scene, const DeferredEntityTarget& target, const std::unordered_map<DeferredEntityHandle, EntityHandle>& created_handles) const;
         static uint64_t HandleToKey(EntityHandle entity_handle);
 
         void Flush(World& world, Ref<Scene> scene);
 
-    private:
-        std::vector<DeferredCommandRecord> m_Commands;
+        using HookPoolType = HandlePool<ComponentHookBinding, HookTag>;
+
+        HookPoolType m_HookPool;
+        std::unordered_map<uint64_t, HookHandle> m_HookHandleByKey;
+
+		std::vector<CreateEntityCommand> m_CreateCommands;
+		std::vector<DestroyEntityCommand> m_DestroyCommands;
+		std::vector<AddComponentCommand>    m_AddComponentCommands;
+		std::vector<RemoveComponentCommand> m_RemoveComponentCommands;
+		std::vector<CustomCommand> m_CustomCommands;
+
         DeferredEntityHandle m_NextDeferredEntity = 1;
-        std::vector<ComponentHookBinding> m_ComponentHooks;
-        std::unordered_map<HookToken, size_t> m_HookIndexByToken;
-        std::unordered_map<uint64_t, HookToken> m_DedupTokenByKey;
-        HookToken m_NextHookToken = 1;
     };
 }

@@ -1,4 +1,4 @@
-#include "chepch.h"
+﻿#include "chepch.h"
 #include "DeferredOps.h"
 
 #include <cstdint>
@@ -11,21 +11,30 @@ namespace CHEngine
         constexpr uint64_t kHookEventAdded = 0xA11Du;
         constexpr uint64_t kHookEventRemoved = 0xB22Eu;
 
+        constexpr uint64_t MAGIC_NUMBER = 0x9e3779b97f4a7c15ULL;
+
         uint64_t MixHookKey(size_t component_hash, uint64_t event_kind, uint64_t function_key)
         {
             uint64_t result = static_cast<uint64_t>(component_hash);
-            result ^= event_kind + 0x9e3779b97f4a7c15ULL + (result << 6u) + (result >> 2u);
-            result ^= function_key + 0x9e3779b97f4a7c15ULL + (result << 6u) + (result >> 2u);
+            result ^= event_kind + MAGIC_NUMBER + (result << 6u) + (result >> 2u);
+            result ^= function_key + MAGIC_NUMBER + (result << 6u) + (result >> 2u);
             return result;
         }
     }
 
-    DeferredEntityHandle DeferredOps::CreateEntity(const std::string& name)
+
+	DeferredOps::~DeferredOps()
+	{
+        Clear();
+        m_HookPool.Clear();
+	}
+
+	DeferredEntityHandle DeferredOps::CreateEntity(const std::string& name)
     {
         CreateEntityCommand command{};
         command.DeferredEntity = m_NextDeferredEntity++;
         command.Name = name;
-        m_Commands.emplace_back(std::move(command));
+        m_CreateCommands.emplace_back(std::move(command));
         return command.DeferredEntity;
     }
 
@@ -35,57 +44,15 @@ namespace CHEngine
         command.DeferredEntity = m_NextDeferredEntity++;
         command.Name = name;
         command.ExplicitUUID = uuid;
-        m_Commands.emplace_back(std::move(command));
+        m_CreateCommands.emplace_back(std::move(command));
         return command.DeferredEntity;
     }
 
     void DeferredOps::DestroyEntity(EntityHandle entity_handle)
     {
         DestroyEntityCommand command{};
-        command.Target = DeferredEntityTarget::FromEntityHandle(entity_handle);
-        m_Commands.emplace_back(std::move(command));
-    }
-
-    void DeferredOps::DestroyEntity(DeferredEntityHandle deferred_entity_handle)
-    {
-        DestroyEntityCommand command{};
-        command.Target = DeferredEntityTarget::FromDeferredHandle(deferred_entity_handle);
-        m_Commands.emplace_back(std::move(command));
-    }
-
-    void DeferredOps::DestroyEntityByUUID(const UUID& uuid)
-    {
-        DestroyEntityCommand command{};
-        command.Target = DeferredEntityTarget::FromUUID(uuid);
-        m_Commands.emplace_back(std::move(command));
-    }
-
-    EntityHandle DeferredOps::ResolveTarget(Ref<Scene> scene, const DeferredEntityTarget& target, const std::unordered_map<DeferredEntityHandle, EntityHandle>& created_handles) const
-    {
-        if (!scene)
-            return {};
-
-        switch (target.TargetType)
-        {
-        case DeferredEntityTarget::Type::EntityHandle:
-            return scene->IsEntityHandleValid(target.Entity) ? target.Entity : EntityHandle{};
-        case DeferredEntityTarget::Type::DeferredEntityHandle:
-        {
-            const auto it = created_handles.find(target.DeferredEntity);
-            if (it == created_handles.end())
-                return {};
-            return scene->IsEntityHandleValid(it->second) ? it->second : EntityHandle{};
-        }
-        case DeferredEntityTarget::Type::UUID:
-        {
-            const EntityHandle entity_handle = scene->TryGetEntityHandleByUUID(target.EntityUUID);
-            return scene->IsEntityHandleValid(entity_handle) ? entity_handle : EntityHandle{};
-        }
-        default:
-            break;
-        }
-
-        return {};
+        command.Target = entity_handle;
+        m_DestroyCommands.emplace_back(std::move(command));
     }
 
     uint64_t DeferredOps::HandleToKey(EntityHandle entity_handle)
@@ -93,197 +60,155 @@ namespace CHEngine
         return (static_cast<uint64_t>(entity_handle.generation) << 32u) | static_cast<uint64_t>(entity_handle.index);
     }
 
-    DeferredOps::HookToken DeferredOps::SubscribeOnComponentAdded(std::type_index component_type, ComponentAddedFn fn)
+    DeferredOps::HookHandle DeferredOps::SubscribeOnComponentAdded(std::type_index component_type, ComponentAddedFn fn)
     {
         if (!fn)
-            return 0;
+            return HookHandle::Invalid();
 
         const uint64_t function_key = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(fn));
         const uint64_t dedup_key = MixHookKey(component_type.hash_code(), kHookEventAdded, function_key);
-        const auto existing_it = m_DedupTokenByKey.find(dedup_key);
-        if (existing_it != m_DedupTokenByKey.end())
+        const auto existing_it = m_HookHandleByKey.find(dedup_key);
+        if (existing_it != m_HookHandleByKey.end())
             return existing_it->second;
 
-        const HookToken token = m_NextHookToken++;
-        ComponentHookBinding binding{};
-        binding.Token = token;
-        binding.ComponentType = component_type;
-        binding.DedupKey = dedup_key;
-        binding.AddedFn = fn;
-        m_HookIndexByToken.emplace(token, m_ComponentHooks.size());
-        m_DedupTokenByKey.emplace(dedup_key, token);
-        m_ComponentHooks.emplace_back(binding);
-        return token;
+
+		auto* binding = new ComponentHookBinding{};
+		auto handle = m_HookPool.Add(binding);
+
+		binding->ComponentType = component_type;
+		binding->DedupKey = dedup_key;
+		binding->AddedFn = fn;
+
+		m_HookHandleByKey.emplace(dedup_key, handle);
+
+		return handle;
     }
 
-    DeferredOps::HookToken DeferredOps::SubscribeOnComponentRemoved(std::type_index component_type, ComponentRemovedFn fn)
+    DeferredOps::HookHandle DeferredOps::SubscribeOnComponentRemoved(std::type_index component_type, ComponentRemovedFn fn)
     {
         if (!fn)
-            return 0;
+            return HookHandle::Invalid();
 
         const uint64_t function_key = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(fn));
         const uint64_t dedup_key = MixHookKey(component_type.hash_code(), kHookEventRemoved, function_key);
-        const auto existing_it = m_DedupTokenByKey.find(dedup_key);
-        if (existing_it != m_DedupTokenByKey.end())
+        const auto existing_it = m_HookHandleByKey.find(dedup_key);
+        if (existing_it != m_HookHandleByKey.end())
             return existing_it->second;
 
-        const HookToken token = m_NextHookToken++;
-        ComponentHookBinding binding{};
-        binding.Token = token;
-        binding.ComponentType = component_type;
-        binding.DedupKey = dedup_key;
-        binding.RemovedFn = fn;
-        m_HookIndexByToken.emplace(token, m_ComponentHooks.size());
-        m_DedupTokenByKey.emplace(dedup_key, token);
-        m_ComponentHooks.emplace_back(binding);
-        return token;
+		auto* binding = new ComponentHookBinding{};
+		auto handle = m_HookPool.Add(binding);
+
+		binding->ComponentType = component_type;
+		binding->DedupKey = dedup_key;
+		binding->RemovedFn = fn;
+
+		m_HookHandleByKey.emplace(dedup_key, handle);
+
+		return handle;
     }
 
-    bool DeferredOps::Unsubscribe(HookToken token)
+	bool DeferredOps::Unsubscribe(HookHandle handle)
     {
-        const auto token_it = m_HookIndexByToken.find(token);
-        if (token_it == m_HookIndexByToken.end())
+        const auto* binding = m_HookPool.Get(handle);
+        if (!binding)
             return false;
 
-        const size_t remove_index = token_it->second;
-        if (remove_index >= m_ComponentHooks.size())
-            return false;
-
-        const ComponentHookBinding removed = m_ComponentHooks[remove_index];
-        m_DedupTokenByKey.erase(removed.DedupKey);
-        m_HookIndexByToken.erase(token_it);
-
-        const size_t last_index = m_ComponentHooks.size() - 1;
-        if (remove_index != last_index)
-        {
-            m_ComponentHooks[remove_index] = m_ComponentHooks[last_index];
-            m_HookIndexByToken[m_ComponentHooks[remove_index].Token] = remove_index;
-        }
-
-        m_ComponentHooks.pop_back();
+        m_HookHandleByKey.erase(binding->DedupKey);
+        m_HookPool.Remove(handle);
         return true;
     }
 
     void DeferredOps::DispatchOnComponentAdded(std::type_index component_type, World& world, EntityHandle entity_handle)
     {
-        std::vector<ComponentAddedFn> callbacks;
-        callbacks.reserve(m_ComponentHooks.size());
+        //std::vector<ComponentAddedFn> callbacks;
 
-        for (const ComponentHookBinding& binding : m_ComponentHooks)
-        {
-            if (binding.ComponentType == component_type && binding.AddedFn)
-                callbacks.emplace_back(binding.AddedFn);
-        }
+        m_HookPool.ForEachOccupied([&component_type, &world, &entity_handle](ComponentHookBinding* ptr) {
+            if (ptr->ComponentType == component_type && ptr->AddedFn) ptr->AddedFn(world, entity_handle); });
 
-        for (ComponentAddedFn callback : callbacks)
-            callback(world, entity_handle);
+        //for (ComponentAddedFn callback : callbacks)
+        //    callback(world, entity_handle);
     }
 
     void DeferredOps::DispatchOnComponentRemoved(std::type_index component_type, World& world, EntityHandle entity_handle)
     {
-        std::vector<ComponentRemovedFn> callbacks;
-        callbacks.reserve(m_ComponentHooks.size());
+        //std::vector<ComponentRemovedFn> callbacks;
 
-        for (const ComponentHookBinding& binding : m_ComponentHooks)
-        {
-            if (binding.ComponentType == component_type && binding.RemovedFn)
-                callbacks.emplace_back(binding.RemovedFn);
-        }
+		m_HookPool.ForEachOccupied([&component_type, &world, &entity_handle](ComponentHookBinding* ptr) {
+			if (ptr->ComponentType == component_type && ptr->RemovedFn) ptr->RemovedFn(world, entity_handle); });
 
-        for (ComponentRemovedFn callback : callbacks)
-            callback(world, entity_handle);
+        //for (ComponentRemovedFn callback : callbacks)
+        //    callback(world, entity_handle);
     }
 
-    void DeferredOps::Flush(World& world, Ref<Scene> scene)
-    {
-        if (!scene)
-        {
-            Clear();
-            return;
-        }
+	void DeferredOps::Flush(World& world, Ref<Scene> scene)
+	{
+		if (!scene)
+		{
+			Clear();
+			return;
+		}
 
-        std::unordered_map<DeferredEntityHandle, EntityHandle> created_handles;
-        created_handles.reserve(m_Commands.size());
+		// 1: Create
+		std::unordered_map<DeferredEntityHandle, EntityHandle> created_handles;
+		created_handles.reserve(m_CreateCommands.size());
 
-        for (const DeferredCommandRecord& command_record : m_Commands)
-        {
-            const auto* create_command = std::get_if<CreateEntityCommand>(&command_record);
-            if (!create_command)
-                continue;
+		for (const CreateEntityCommand& create_command : m_CreateCommands)
+		{
+			EntityHandle created_entity;
+			if (create_command.ExplicitUUID.has_value())
+				created_entity = scene->CreateEntity(create_command.Name, create_command.ExplicitUUID.value());
+			else
+				created_entity = scene->CreateEntity(create_command.Name);
 
-            EntityHandle created_entity{};
-            if (create_command->ExplicitUUID.has_value())
-                created_entity = scene->CreateEntity(create_command->Name, create_command->ExplicitUUID.value());
-            else
-                created_entity = scene->CreateEntity(create_command->Name);
+			created_handles.emplace(create_command.DeferredEntity, created_entity);
+		}
 
-            created_handles.emplace(create_command->DeferredEntity, created_entity);
-        }
+		// 2: Delete
+		for (const DestroyEntityCommand& destroy_command : m_DestroyCommands)
+		{
+			EntityHandle entity_handle = destroy_command.Target;
+			if (scene->IsEntityHandleValid(entity_handle))
+				scene->DestroyEntity(entity_handle);
+		}
 
-        std::unordered_set<uint64_t> pending_destroy_keys;
-        pending_destroy_keys.reserve(m_Commands.size());
-        std::vector<EntityHandle> destroy_order;
-        destroy_order.reserve(m_Commands.size());
+		// 3: Add
+		for (const AddComponentCommand& add_command : m_AddComponentCommands)
+		{
+			const DeferredOpTarget& target = add_command.Target;
+			EntityHandle entity_handle;
+			if (auto* handle_ptr = std::get_if<DeferredEntityHandle>(&target))
+			{
+				entity_handle = created_handles[*handle_ptr];
+			}
+			else { entity_handle = std::get<EntityHandle>(target); }
 
-        for (const DeferredCommandRecord& command_record : m_Commands)
-        {
-            const auto* destroy_command = std::get_if<DestroyEntityCommand>(&command_record);
-            if (!destroy_command)
-                continue;
+			add_command.Apply(world, scene, entity_handle);
+		}
 
-            const EntityHandle entity_handle = ResolveTarget(scene, destroy_command->Target, created_handles);
-            if (!scene->IsEntityHandleValid(entity_handle))
-                continue;
+		// 4: Remove
+		for (const RemoveComponentCommand& remove_command : m_RemoveComponentCommands)
+		{
+			const EntityHandle entity_handle = remove_command.Target;
+			remove_command.Apply(world, scene, entity_handle);
+		}
 
-            const uint64_t handle_key = HandleToKey(entity_handle);
-            if (!pending_destroy_keys.insert(handle_key).second)
-                continue;
+		// 5: CustomCommands
+		for (const CustomCommand& custom_command : m_CustomCommands)
+		{
+			if (custom_command.Callback)
+				custom_command.Callback(scene);
+		}
 
-            destroy_order.push_back(entity_handle);
-        }
+		Clear();
+	}
 
-        for (const DeferredCommandRecord& command_record : m_Commands)
-        {
-            if (const auto* add_command = std::get_if<AddComponentCommand>(&command_record))
-            {
-                const EntityHandle entity_handle = ResolveTarget(scene, add_command->Target, created_handles);
-                if (!scene->IsEntityHandleValid(entity_handle))
-                    continue;
-                if (pending_destroy_keys.contains(HandleToKey(entity_handle)))
-                    continue;
-                add_command->Apply(world, scene, entity_handle);
-                continue;
-            }
-
-            if (const auto* remove_command = std::get_if<RemoveComponentCommand>(&command_record))
-            {
-                const EntityHandle entity_handle = ResolveTarget(scene, remove_command->Target, created_handles);
-                if (!scene->IsEntityHandleValid(entity_handle))
-                    continue;
-                if (pending_destroy_keys.contains(HandleToKey(entity_handle)))
-                    continue;
-                remove_command->Apply(world, scene, entity_handle);
-                continue;
-            }
-
-            if (const auto* custom_command = std::get_if<CustomCommand>(&command_record))
-            {
-                if (custom_command->Callback)
-                    custom_command->Callback(scene);
-            }
-        }
-
-        for (const EntityHandle entity_handle : destroy_order)
-        {
-            if (scene->IsEntityHandleValid(entity_handle))
-                scene->DestroyEntity(entity_handle);
-        }
-
-        Clear();
-    }
-
-    void DeferredOps::Clear()
-    {
-        m_Commands.clear();
-    }
+	void DeferredOps::Clear()
+	{
+		m_CreateCommands.clear();
+		m_DestroyCommands.clear();
+		m_AddComponentCommands.clear();
+		m_RemoveComponentCommands.clear();
+		m_CustomCommands.clear();
+		m_NextDeferredEntity = 1;
+	}
 }

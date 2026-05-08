@@ -4,6 +4,7 @@
 #include "CHEngine/Scene/Scene.h"
 #include "CHEngine/World/ISystem.h"
 #include "Physics/IPhysicsWorld.h"
+#include "CHEngine/World/DeferredOps.h"
 
 #include <cstdint>
 
@@ -34,14 +35,13 @@ private:
 
     static void DestroyRigidBody(World& world, EntityHandle handle);
     static void CreateRigidBody(World& world, EntityHandle handle);
-    static void OnRigidBodyComponentAdded(World& world, EntityHandle handle);
-    static void OnRigidBodyComponentRemoved(World& world, EntityHandle handle);
 
     static bool ShouldWriteToPhysics(RigidBodySyncMode syncMode, PhysicsBodyType bodyType);
     static bool ShouldReadFromPhysics(RigidBodySyncMode syncMode, PhysicsBodyType bodyType);
 
-    uint64_t m_RigidBodyAddedHookToken = 0;
-    uint64_t m_RigidBodyRemovedHookToken = 0;
+    // Tokens for deferred ops
+	DeferredOps::HookHandle m_RigidBodyAddedHookHandle;
+	DeferredOps::HookHandle m_RigidBodyRemovedHookHandle;
 };
 
 } // namespace CHEngine

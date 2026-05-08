@@ -62,22 +62,20 @@ void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 void PhysicsSystem::OnBegin(World& world, DeferredOps& deferred_ops)
 {
     RebuildPhysicsRuntime(world);
-    m_RigidBodyAddedHookToken = deferred_ops.SubscribeOnComponentAdded<RigidBody3DComponent>(&PhysicsSystem::CreateRigidBody);
-    m_RigidBodyRemovedHookToken = deferred_ops.SubscribeOnComponentRemoved<RigidBody3DComponent>(&PhysicsSystem::DestroyRigidBody);
+    m_RigidBodyAddedHookHandle = deferred_ops.SubscribeOnComponentAdded<RigidBody3DComponent>(&PhysicsSystem::CreateRigidBody);
+    m_RigidBodyRemovedHookHandle = deferred_ops.SubscribeOnComponentRemoved<RigidBody3DComponent>(&PhysicsSystem::DestroyRigidBody);
 }
 
 void PhysicsSystem::OnEnd(World& world, DeferredOps& deferred_ops)
 {
-    if (m_RigidBodyAddedHookToken != 0)
+    if (m_RigidBodyAddedHookHandle.IsValid())
     {
-        deferred_ops.Unsubscribe(m_RigidBodyAddedHookToken);
-        m_RigidBodyAddedHookToken = 0;
+        deferred_ops.Unsubscribe(m_RigidBodyAddedHookHandle);
     }
 
-    if (m_RigidBodyRemovedHookToken != 0)
+    if (m_RigidBodyRemovedHookHandle.IsValid())
     {
-        deferred_ops.Unsubscribe(m_RigidBodyRemovedHookToken);
-        m_RigidBodyRemovedHookToken = 0;
+        deferred_ops.Unsubscribe(m_RigidBodyRemovedHookHandle);
     }
 
     ClearPhysicsRuntime(world);

@@ -7,6 +7,7 @@
 
 namespace CHEngine {
 
+	// TODO: make generation overfill protection
 	template<typename T, typename Tag>
 	class HandlePool
 	{
