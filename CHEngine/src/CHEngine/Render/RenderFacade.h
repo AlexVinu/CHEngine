@@ -73,8 +73,9 @@ namespace CHEngine
         // Sandbox/EditorViewport reads it for ImGui::Image.
         static void          SetViewportOutputTexture(TextureHandle h);
         static TextureHandle GetViewportOutputTexture();
-        // Native texture ID (e.g. GLuint) — for ImGui::Image. Returns 0 if unset.
-        static uint32_t      GetViewportColorTexID();
+        // Native texture pointer — for ImGui::Image. Returns 0 if unset.
+        // MUST be uint64_t: on Metal/64-bit the value is a full pointer.
+        static uint64_t      GetViewportColorTexID();
 
         // ── Default mesh shader ───────────────────────────────────────────────
         static void         SetDefaultMeshShader(ShaderHandle h);

@@ -313,7 +313,7 @@ namespace CHEngine
         return s_ViewportOutputTex;
     }
 
-    uint32_t RenderFacade::GetViewportColorTexID()
+    uint64_t RenderFacade::GetViewportColorTexID()
     {
         if (!s_ViewportOutputTex.IsValid()) return 0;
         IRenderFactory* f = GetFactory();

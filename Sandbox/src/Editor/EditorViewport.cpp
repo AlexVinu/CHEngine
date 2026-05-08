@@ -125,13 +125,13 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
     }
 
     // Display viewport output texture in ImGui.
-    const uint32_t colorTexID = CHEngine::RenderFacade::GetViewportColorTexID();
+    const uint64_t colorTexID = CHEngine::RenderFacade::GetViewportColorTexID();
     if (colorTexID != 0)
     {
         const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
         ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
         ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
-        ImGui::Image(static_cast<ImTextureID>(colorTexID),
+        ImGui::Image(reinterpret_cast<ImTextureID>(colorTexID),
                      panelSize, uv0, uv1);
     }
 
