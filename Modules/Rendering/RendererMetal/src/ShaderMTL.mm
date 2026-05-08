@@ -41,7 +41,8 @@ bool ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
         return false;
     }
 
-    // Slang выдаёт одну MSL-строку на программу — обе записи содержат тот же текст.
+    // Slang Metal: getTargetCode() produces ONE MSL with both vertex + fragment.
+    // vertexCode and fragmentCode contain the same combined source.
     std::string mslSource(reinterpret_cast<const char*>(compiled.vertexCode.data()),
                           compiled.vertexCode.size());
 
@@ -55,10 +56,25 @@ bool ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
         return false;
     }
 
-    NSString* vertName = [NSString stringWithUTF8String:vertEntry.c_str()];
-    NSString* fragName = [NSString stringWithUTF8String:fragEntry.c_str()];
-    id<MTLFunction> vertFunc = [library newFunctionWithName:vertName];
-    id<MTLFunction> fragFunc = [library newFunctionWithName:fragName];
+    // Log available function names for diagnostics
+    {
+        NSArray<NSString*>* fnNames = [library functionNames];
+        std::string names;
+        for (NSString* n in fnNames)
+            names += std::string([n UTF8String]) + " ";
+        CHE_CORE_INFO("ShaderMTL: library functions: [{}]", names);
+    }
+
+    // Try exact name, then with _0 suffix (Slang sometimes appends _0)
+    auto findFunc = [&library](const std::string& name) -> id<MTLFunction> {
+        id<MTLFunction> f = [library newFunctionWithName:[NSString stringWithUTF8String:name.c_str()]];
+        if (f) return f;
+        std::string suffixed = name + "_0";
+        return [library newFunctionWithName:[NSString stringWithUTF8String:suffixed.c_str()]];
+    };
+
+    id<MTLFunction> vertFunc = findFunc(vertEntry.c_str());
+    id<MTLFunction> fragFunc = findFunc(fragEntry.c_str());
 
     if (!vertFunc) {
         CHE_CORE_ERROR("ShaderMTL: vertex entry '{}' not found in MSL", vertEntry.c_str());

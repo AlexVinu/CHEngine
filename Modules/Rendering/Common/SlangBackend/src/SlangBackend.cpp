@@ -196,8 +196,31 @@ namespace CHModules
 
         ReflectParams(linked->getLayout(), result);
 
-        ExtractEntryPoint(linked, 0, result.vertexCode, result.errorLog);
-        ExtractEntryPoint(linked, 1, result.fragmentCode, result.errorLog);
+        if (m_Api == CHEngine::ERenderAPI::METAL)
+        {
+            // Metal MSL: both stages must live in ONE library.
+            // getTargetCode() produces a single MSL blob with all entry points.
+            // Store it in both vertexCode and fragmentCode so ShaderMTL sees it.
+            Slang::ComPtr<slang::IBlob> blob, diag;
+            const SlangResult hr = linked->getTargetCode(0, blob.writeRef(), diag.writeRef());
+            if (SLANG_SUCCEEDED(hr) && blob)
+            {
+                const uint8_t* p = static_cast<const uint8_t*>(blob->getBufferPointer());
+                result.vertexCode.assign(p, p + blob->getBufferSize());
+                result.fragmentCode = result.vertexCode; // same source for both
+            }
+            else
+            {
+                result.errorLog = diag
+                    ? static_cast<const char*>(diag->getBufferPointer())
+                    : "Slang Metal: getTargetCode failed";
+            }
+        }
+        else
+        {
+            ExtractEntryPoint(linked, 0, result.vertexCode, result.errorLog);
+            ExtractEntryPoint(linked, 1, result.fragmentCode, result.errorLog);
+        }
 
         result.valid = !result.vertexCode.empty() && !result.fragmentCode.empty();
         return result;

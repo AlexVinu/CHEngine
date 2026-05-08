@@ -1,10 +1,10 @@
 #include "FrameGraphBackendMTL.h"
 #include "RenderFactoryMTL.h"
 #include "MetalGlobals.h"
-#include "MetalContext.h"
 
 #import <Metal/Metal.h>
 #include <Log/Log.h>
+#include "CHEngine/UI/UIFacade.h"
 
 namespace CHModules {
 
@@ -42,9 +42,11 @@ static MTLIndexType ToMTLIndexType(CHEngine::IndexFormat fmt)
 // ─── Execute ─────────────────────────────────────────────────────────────────
 void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes)
 {
+    @autoreleasepool {
+
     id<MTLCommandBuffer> cmdBuf = (id<MTLCommandBuffer>)MTLGlobals::g_CommandBuffer;
     if (!cmdBuf) {
-        CHE_CORE_ERROR("FrameGraphBackendMTL: no command buffer");
+        CHE_CORE_ERROR("FrameGraphBackendMTL: no command buffer — was BeginFrame called?");
         return;
     }
 
@@ -59,58 +61,76 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
         }
     }
 
-    for (const CHEngine::PassDesc& pass : passes)
+    CHE_CORE_INFO("FrameGraphBackendMTL: executing {} pass(es)", passes.size());
+
+    for (size_t passIdx = 0; passIdx < passes.size(); ++passIdx)
     {
+        const CHEngine::PassDesc& pass = passes[passIdx];
+        CHE_CORE_INFO("FrameGraphBackendMTL: pass[{}] = '{}'", passIdx, pass.Name.c_str());
+
         // ── Build MTLRenderPassDescriptor ────────────────────────────────────
         MTLRenderPassDescriptor* rpDesc = [MTLRenderPassDescriptor renderPassDescriptor];
+        if (!rpDesc) {
+            CHE_CORE_ERROR("FrameGraphBackendMTL: failed to create render pass descriptor");
+            continue;
+        }
 
         // Color attachments
+        bool hasValidColor = false;
         for (uint32_t i = 0; i < static_cast<uint32_t>(pass.ColorAttachments.size()); ++i)
         {
             CHEngine::TextureHandle th = pass.ColorAttachments[i];
+            if (!th.IsValid()) continue;
             TextureMTLFull* tex = m_Factory.Textures.Get(th);
-            if (!tex) continue;
+            if (!tex || !tex->GetNativeTexture()) {
+                CHE_CORE_WARN("FrameGraphBackendMTL: pass '{}' color attachment {} is null", pass.Name.c_str(), i);
+                continue;
+            }
 
             rpDesc.colorAttachments[i].texture     = (id<MTLTexture>)tex->GetNativeTexture();
             rpDesc.colorAttachments[i].loadAction  = ToMTLLoadAction(pass.ColorLoadOp);
             rpDesc.colorAttachments[i].storeAction = ToMTLStoreAction(pass.ColorStoreOp);
             rpDesc.colorAttachments[i].clearColor  = MTLClearColorMake(
                 pass.ClearColor.r, pass.ClearColor.g, pass.ClearColor.b, pass.ClearColor.a);
+            hasValidColor = true;
         }
 
         // Depth attachment
         if (pass.DepthAttachment.IsValid())
         {
             TextureMTLFull* depthTex = m_Factory.Textures.Get(pass.DepthAttachment);
-            if (depthTex) {
+            if (depthTex && depthTex->GetNativeTexture()) {
                 rpDesc.depthAttachment.texture     = (id<MTLTexture>)depthTex->GetNativeTexture();
                 rpDesc.depthAttachment.loadAction  = ToMTLLoadAction(pass.DepthLoadOp);
                 rpDesc.depthAttachment.storeAction = MTLStoreActionDontCare;
                 rpDesc.depthAttachment.clearDepth  = pass.ClearDepth;
+            } else {
+                CHE_CORE_WARN("FrameGraphBackendMTL: pass '{}' depth attachment is null", pass.Name.c_str());
             }
+        }
+
+        // For fullscreen passes without color attachments, use the screen pass descriptor
+        if (!hasValidColor && pass.Fullscreen && !pass.ColorAttachments.empty()) {
+            CHE_CORE_WARN("FrameGraphBackendMTL: fullscreen pass '{}' has no valid color target — skipping", pass.Name.c_str());
+            continue;
         }
 
         // ── Open encoder ─────────────────────────────────────────────────────
         id<MTLRenderCommandEncoder> enc =
             [cmdBuf renderCommandEncoderWithDescriptor:rpDesc];
         if (!enc) {
-            CHE_CORE_WARN("FrameGraphBackendMTL: failed to create encoder for pass '{}'", pass.Name.c_str());
+            CHE_CORE_WARN("FrameGraphBackendMTL: could not create encoder for pass '{}'", pass.Name.c_str());
             continue;
         }
         [enc retain];
         MTLGlobals::g_Encoder = (void*)enc;
 
-        // Label for GPU profiler
         if (!pass.Name.empty())
             enc.label = [NSString stringWithUTF8String:pass.Name.c_str()];
 
         // ── Viewport ─────────────────────────────────────────────────────────
         if (pass.ViewportWidth > 0 && pass.ViewportHeight > 0) {
-            MTLViewport vp;
-            vp.originX = 0.0; vp.originY = 0.0;
-            vp.width   = pass.ViewportWidth;
-            vp.height  = pass.ViewportHeight;
-            vp.znear   = 0.0; vp.zfar = 1.0;
+            MTLViewport vp = { 0.0, 0.0, (double)pass.ViewportWidth, (double)pass.ViewportHeight, 0.0, 1.0 };
             [enc setViewport:vp];
         }
 
@@ -121,6 +141,8 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
             if (pipeline) {
                 if (pipeline->GetPSO())
                     [enc setRenderPipelineState:(id<MTLRenderPipelineState>)pipeline->GetPSO()];
+                else
+                    CHE_CORE_WARN("FrameGraphBackendMTL: pass '{}' PSO is null", pass.Name.c_str());
                 if (pipeline->GetDepthState())
                     [enc setDepthStencilState:(id<MTLDepthStencilState>)pipeline->GetDepthState()];
             }
@@ -129,20 +151,19 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
         // ── Pass-level uniforms ───────────────────────────────────────────────
         for (const CHEngine::UniformBinding& ub : pass.Uniforms)
         {
+            if (!ub.Buffer.IsValid()) continue;
             UnifiedBufferMTL* buf = m_Factory.Buffers.Get(ub.Buffer);
-            if (!buf) continue;
+            if (!buf || !buf->GetNative()) continue;
 
             id<MTLBuffer> mtlBuf = (id<MTLBuffer>)buf->GetNative();
-            NSUInteger offset    = (NSUInteger)ub.Offset;
-            uint32_t   slot      = ub.Slot;
-
-            [enc setVertexBuffer:mtlBuf   offset:offset atIndex:slot];
-            [enc setFragmentBuffer:mtlBuf offset:offset atIndex:slot];
+            [enc setVertexBuffer:mtlBuf   offset:(NSUInteger)ub.Offset atIndex:ub.Slot];
+            [enc setFragmentBuffer:mtlBuf offset:(NSUInteger)ub.Offset atIndex:ub.Slot];
         }
 
         // ── Pass-level textures ───────────────────────────────────────────────
         for (const CHEngine::TextureBinding& tb : pass.Textures)
         {
+            if (!tb.Texture.IsValid()) continue;
             TextureMTLFull* tex = m_Factory.Textures.Get(tb.Texture);
             if (!tex) continue;
             if (tex->GetNativeTexture())
@@ -153,35 +174,31 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
 
         // ── Draw calls ────────────────────────────────────────────────────────
         if (pass.Fullscreen) {
-            // Fullscreen triangle (no vertex buffer needed)
             [enc drawPrimitives:MTLPrimitiveTypeTriangle vertexStart:0 vertexCount:3];
         } else {
             for (const CHEngine::DrawDesc& draw : pass.Draws)
             {
-                // Vertex buffer at slot 10 (above UBO slots 0–3)
+                if (!draw.VertexBuffer.IsValid() || !draw.IndexBuffer.IsValid()) continue;
+
                 UnifiedBufferMTL* vb = m_Factory.Buffers.Get(draw.VertexBuffer);
-                if (vb)
-                    [enc setVertexBuffer:(id<MTLBuffer>)vb->GetNative() offset:0 atIndex:10];
-
-                // Index buffer
                 UnifiedBufferMTL* ib = m_Factory.Buffers.Get(draw.IndexBuffer);
-                if (!ib) continue;
+                if (!vb || !ib) continue;
 
-                // Per-draw uniforms (Object UBO ring)
+                [enc setVertexBuffer:(id<MTLBuffer>)vb->GetNative() offset:0 atIndex:10];
+
                 for (const CHEngine::UniformBinding& ub : draw.Uniforms)
                 {
-                    UnifiedBufferMTL* buf = m_Factory.Buffers.Get(ub.Buffer);
-                    if (!buf) continue;
-                    id<MTLBuffer> mtlBuf = (id<MTLBuffer>)buf->GetNative();
-                    NSUInteger    offset  = (NSUInteger)ub.Offset;
-                    uint32_t      slot    = ub.Slot;
-                    [enc setVertexBuffer:mtlBuf   offset:offset atIndex:slot];
-                    [enc setFragmentBuffer:mtlBuf offset:offset atIndex:slot];
+                    if (!ub.Buffer.IsValid()) continue;
+                    UnifiedBufferMTL* ubuf = m_Factory.Buffers.Get(ub.Buffer);
+                    if (!ubuf || !ubuf->GetNative()) continue;
+                    id<MTLBuffer> mtlBuf = (id<MTLBuffer>)ubuf->GetNative();
+                    [enc setVertexBuffer:mtlBuf   offset:(NSUInteger)ub.Offset atIndex:ub.Slot];
+                    [enc setFragmentBuffer:mtlBuf offset:(NSUInteger)ub.Offset atIndex:ub.Slot];
                 }
 
-                // Per-draw textures
                 for (const CHEngine::TextureBinding& tb : draw.Textures)
                 {
+                    if (!tb.Texture.IsValid()) continue;
                     TextureMTLFull* tex = m_Factory.Textures.Get(tb.Texture);
                     if (!tex) continue;
                     if (tex->GetNativeTexture())
@@ -190,7 +207,6 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
                         [enc setFragmentSamplerState:(id<MTLSamplerState>)tex->GetNativeSampler() atIndex:tb.Slot];
                 }
 
-                // Draw indexed
                 MTLIndexType idxType = ToMTLIndexType(draw.IdxFormat);
                 NSUInteger   idxSize = (idxType == MTLIndexTypeUInt16) ? 2 : 4;
 
@@ -205,21 +221,19 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
             }
         }
 
-        // ── End encoder ───────────────────────────────────────────────────────
         [enc endEncoding];
         [enc release];
         MTLGlobals::g_Encoder = nullptr;
     }
 
-    // Restore screen encoder for ImGui (MTLLoadActionLoad to preserve content)
+    CHE_CORE_INFO("FrameGraphBackendMTL: all passes done, restoring screen encoder");
+
+    // Restore screen encoder for ImGui
     {
         MTLRenderPassDescriptor* screenRPDesc =
             (MTLRenderPassDescriptor*)MTLGlobals::g_ScreenRPDesc;
         if (screenRPDesc) {
-            // Switch to Load so we don't clear what the framegraph drew
             screenRPDesc.colorAttachments[0].loadAction = MTLLoadActionLoad;
-            if (screenRPDesc.depthAttachment.texture)
-                screenRPDesc.depthAttachment.loadAction = MTLLoadActionLoad;
 
             id<MTLRenderCommandEncoder> screenEnc =
                 [cmdBuf renderCommandEncoderWithDescriptor:screenRPDesc];
@@ -227,18 +241,26 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
                 [screenEnc retain];
                 MTLGlobals::g_Encoder = (void*)screenEnc;
 
-                // Restore viewport to full screen
                 if (MTLGlobals::g_Width > 0 && MTLGlobals::g_Height > 0) {
-                    MTLViewport vp;
-                    vp.originX = 0.0; vp.originY = 0.0;
-                    vp.width   = MTLGlobals::g_Width;
-                    vp.height  = MTLGlobals::g_Height;
-                    vp.znear   = 0.0; vp.zfar = 1.0;
+                    MTLViewport vp = { 0.0, 0.0, (double)MTLGlobals::g_Width,
+                                                  (double)MTLGlobals::g_Height, 0.0, 1.0 };
                     [screenEnc setViewport:vp];
                 }
+
+                // Update ImGui's render context so it uses the new encoder
+                CHEngine::RenderContextInfo ctx;
+                ctx.Device               = MTLGlobals::g_Device;
+                ctx.CommandBuffer        = (void*)cmdBuf;
+                ctx.RenderEncoder        = (void*)screenEnc;
+                ctx.RenderPassDescriptor = MTLGlobals::g_ScreenRPDesc;
+                CHEngine::UIFacade::SetRenderContext(ctx);
             }
         }
     }
+
+    CHE_CORE_INFO("FrameGraphBackendMTL: execute complete");
+
+    } // @autoreleasepool
 }
 
 } // namespace CHModules
