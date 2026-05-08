@@ -56,9 +56,6 @@ void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
     m_GizmoSystem.BindCommandStack(&active->CommandStack);
     m_Viewport.BeginSceneRender(active);
     active->Update(dt);
-    // Register editor-only passes (grid) AFTER ECS systems so they run after
-    // RenderSystem's MainColor + Tonemap and write into the LDR viewport output.
-    m_Viewport.RegisterEditorPasses(active);
     m_Viewport.EndSceneRender();
 }
 

@@ -254,14 +254,28 @@ namespace CHEngine {
                 0);
         }
 
+        // Expose HDR and Depth targets BEFORE the pre-scene callback so that
+        // RegisterEditorPasses() can read them via GetViewportHDRTexture().
+        RenderFacade::SetViewportHDRTexture(m_HDRTarget);
+        RenderFacade::SetViewportDepthTexture(m_DepthTarget);
+
+        // Hook: editor background passes (grid) injected BEFORE MainColorPass.
+        // GridPass clears HDR + Depth, draws grid.  MainColorPass then loads
+        // the grid content and draws objects on top with depth test.
+        if (auto& cb = RenderFacade::GetPreSceneCallbackRef(); cb)
+            cb();
+
         // Build MainColorPass.
+        // If a pre-scene pass ran (e.g. GridPass with clear), we LOAD here so
+        // the background content is preserved; otherwise we clear ourselves.
+        const bool hasPreScene = static_cast<bool>(RenderFacade::GetPreSceneCallbackRef());
         PassDesc mainColor;
         mainColor.Name            = "MainColorPass";
         mainColor.Pipeline        = m_MeshPipeline;
-        mainColor.ColorLoadOp     = ELoadOp::Clear;
+        mainColor.ColorLoadOp     = hasPreScene ? ELoadOp::Load : ELoadOp::Clear;
         mainColor.ColorStoreOp    = EStoreOp::Store;
         mainColor.ClearColor      = { 0.18f, 0.18f, 0.20f, 1.0f };
-        mainColor.DepthLoadOp     = ELoadOp::Clear;
+        mainColor.DepthLoadOp     = hasPreScene ? ELoadOp::Load : ELoadOp::Clear;
         mainColor.ClearDepth      = 1.0f;
 
         const uint32_t vw = RenderFacade::GetViewportWidth();
@@ -293,6 +307,11 @@ namespace CHEngine {
         });
 
         // ── Dependency tracking ────────────────────────────────────────────────
+        // If GridPass ran first and wrote HDR/Depth, MainColorPass must come after.
+        if (hasPreScene) {
+            mainColor.Reads.push_back(m_HDRTarget);
+            mainColor.Reads.push_back(m_DepthTarget);
+        }
         mainColor.Writes.push_back(m_HDRTarget);
         mainColor.Writes.push_back(m_DepthTarget);
 
@@ -331,12 +350,6 @@ namespace CHEngine {
 
         RenderFacade::GetFrameGraph().AddPass(std::move(mainColor));
 
-        // Hook: editor overlay passes (grid, etc.) injected BEFORE tonemap so they
-        // render into the HDR target with depth testing (objects occlude grid).
-        // The callback is set by EditorViewport in BeginSceneRender.
-        if (auto& cb = RenderFacade::GetPreTonemapCallbackRef(); cb)
-            cb();
-
         // TonemapPass: ACES HDR → LDR (RGBA8 target for ImGui display).
         PassDesc tonemapPass;
         tonemapPass.Name       = "TonemapPass";
@@ -359,9 +372,6 @@ namespace CHEngine {
 
         // Set final output texture for ImGui display
         RenderFacade::SetViewportOutputTexture(m_LDRTarget);
-        // Expose HDR and Depth for editor overlay passes (e.g. grid)
-        RenderFacade::SetViewportHDRTexture(m_HDRTarget);
-        RenderFacade::SetViewportDepthTexture(m_DepthTarget);
     }
 
     // ============================================================================
