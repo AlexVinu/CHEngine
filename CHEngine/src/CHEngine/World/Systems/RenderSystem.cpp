@@ -331,6 +331,12 @@ namespace CHEngine {
 
         RenderFacade::GetFrameGraph().AddPass(std::move(mainColor));
 
+        // Hook: editor overlay passes (grid, etc.) injected BEFORE tonemap so they
+        // render into the HDR target with depth testing (objects occlude grid).
+        // The callback is set by EditorViewport in BeginSceneRender.
+        if (auto& cb = RenderFacade::GetPreTonemapCallbackRef(); cb)
+            cb();
+
         // TonemapPass: ACES HDR → LDR (RGBA8 target for ImGui display).
         PassDesc tonemapPass;
         tonemapPass.Name       = "TonemapPass";
@@ -353,6 +359,9 @@ namespace CHEngine {
 
         // Set final output texture for ImGui display
         RenderFacade::SetViewportOutputTexture(m_LDRTarget);
+        // Expose HDR and Depth for editor overlay passes (e.g. grid)
+        RenderFacade::SetViewportHDRTexture(m_HDRTarget);
+        RenderFacade::SetViewportDepthTexture(m_DepthTarget);
     }
 
     // ============================================================================

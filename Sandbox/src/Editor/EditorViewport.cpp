@@ -73,6 +73,20 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
 
         CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
 
+        // Register grid as a pre-tonemap callback so it renders into HDR with depth testing.
+        // The callback is called by RenderSystem after MainColorPass, before TonemapPass.
+        if (m_ShowGrid && scene_session->SessionState == SceneSession::State::Edit
+            && m_GridVB.IsValid() && m_GridIB.IsValid() && m_GridPipeline.IsValid())
+        {
+            CHEngine::RenderFacade::SetPreTonemapCallback([this, scene_session]() {
+                this->RegisterEditorPasses(scene_session);
+            });
+        }
+        else
+        {
+            CHEngine::RenderFacade::ClearPreTonemapCallback();
+        }
+
         // Update grid camera UBO so the grid shader knows InvViewProj
         if (m_GridCameraUBO.IsValid()) {
             if (auto* f = CHEngine::RenderFacade::GetRenderFactory()) {
@@ -86,14 +100,13 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
 
 void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
 {
-    if (!m_ShowGrid) return;
-    if (!scene_session || scene_session->SessionState != SceneSession::State::Edit) return;
-    if (!m_GridVB.IsValid() || !m_GridIB.IsValid()) return;
-    if (!m_GridPipeline.IsValid()) return;
+    // Guards checked by caller (BeginSceneRender callback)
 
-    // GridPass: alpha-blend grid on top of the LDR viewport output.
-    CHEngine::TextureHandle ldrTarget = CHEngine::RenderFacade::GetViewportOutputTexture();
-    if (!ldrTarget.IsValid()) return;
+    // GridPass: alpha-blend grid into the HDR target (before tonemap),
+    // with depth testing so scene objects occlude the grid.
+    CHEngine::TextureHandle hdrTarget   = CHEngine::RenderFacade::GetViewportHDRTexture();
+    CHEngine::TextureHandle depthTarget = CHEngine::RenderFacade::GetViewportDepthTexture();
+    if (!hdrTarget.IsValid()) return;
 
     // We need the Camera UBO — get it via a helper in RenderFacade
     // For now, register a simple pass that uses the existing camera UBO from RenderSystem.
@@ -108,9 +121,17 @@ void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
     gridPass.ViewportWidth  = CHEngine::RenderFacade::GetViewportWidth();
     gridPass.ViewportHeight = CHEngine::RenderFacade::GetViewportHeight();
 
-    gridPass.ColorAttachments.push_back(ldrTarget);
-    gridPass.Reads.push_back(ldrTarget);
-    gridPass.Writes.push_back(ldrTarget);
+    // Render into HDR (before tonemap) with depth testing.
+    gridPass.ColorAttachments.push_back(hdrTarget);
+    gridPass.Reads.push_back(hdrTarget);
+    gridPass.Writes.push_back(hdrTarget);
+
+    // Attach depth for depth testing (Load = preserve from MainColorPass).
+    if (depthTarget.IsValid()) {
+        gridPass.DepthAttachment = depthTarget;
+        gridPass.DepthLoadOp = CHEngine::ELoadOp::Load;
+        gridPass.Reads.push_back(depthTarget);
+    }
 
     // Bind camera UBO at slot 0 (grid shader: ConstantBuffer<CameraUBO> camera)
     if (m_GridCameraUBO.IsValid()) {
@@ -246,10 +267,12 @@ void EditorViewport::BuildGrid()
         desc.Shader        = m_GridShader;
         desc.VertexLayout  = CHEngine::VertexInputLayout(
             { CHEngine::VertexAttributeDesc(CHEngine::VertexFormat::Float2, 0, 0) }, 8u);
-        desc.Primitive     = CHEngine::PrimitiveType::Triangles;
-        desc.Depth.Test    = false;
-        desc.Depth.Write   = false;
-        desc.Raster.Cull   = CHEngine::CullMode::None;
+        desc.Primitive       = CHEngine::PrimitiveType::Triangles;
+        // Depth test ON so objects occlude grid; depth write OFF so grid doesn't block objects
+        desc.Depth.Test      = true;
+        desc.Depth.Write     = false;
+        desc.Depth.Compare   = CHEngine::CompareOp::LessEqual;
+        desc.Raster.Cull     = CHEngine::CullMode::None;
         desc.Blend.Enable  = true;
         desc.Blend.SrcColor = CHEngine::BlendFactor::SrcAlpha;
         desc.Blend.DstColor = CHEngine::BlendFactor::OneMinusSrcAlpha;
@@ -257,7 +280,8 @@ void EditorViewport::BuildGrid()
         desc.Blend.SrcAlpha = CHEngine::BlendFactor::One;
         desc.Blend.DstAlpha = CHEngine::BlendFactor::OneMinusSrcAlpha;
         desc.Blend.AlphaOp  = CHEngine::BlendOp::Add;
-        desc.ColorFormats.push_back(CHEngine::TextureFormat::RGBA8_UNORM);
+        desc.ColorFormats.push_back(CHEngine::TextureFormat::RGBA16_FLOAT);  // HDR target
+        desc.DepthFormat = CHEngine::TextureFormat::D24_UNORM_S8_UINT;
         m_GridPipeline = f->CreatePipeline(std::move(desc));
     }
 }

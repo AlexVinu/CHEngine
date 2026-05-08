@@ -77,6 +77,20 @@ namespace CHEngine
         // MUST be uint64_t: on Metal/64-bit the value is a full pointer.
         static uint64_t      GetViewportColorTexID();
 
+        // HDR and Depth targets — exposed so editor passes can render into them.
+        static void          SetViewportHDRTexture(TextureHandle h);
+        static TextureHandle GetViewportHDRTexture();
+        static void          SetViewportDepthTexture(TextureHandle h);
+        static TextureHandle GetViewportDepthTexture();
+
+        // Pre-tonemap hook: called by RenderSystem AFTER MainColorPass, BEFORE TonemapPass.
+        // Use this to inject editor overlay passes (grid, etc.) into the HDR target
+        // so that depth testing works and the grid appears behind scene objects.
+        using PreTonemapCallback = std::function<void()>;
+        static void SetPreTonemapCallback(PreTonemapCallback cb);
+        static void ClearPreTonemapCallback();
+        static PreTonemapCallback& GetPreTonemapCallbackRef();
+
         // ── Default mesh shader ───────────────────────────────────────────────
         static void         SetDefaultMeshShader(ShaderHandle h);
         static ShaderHandle GetDefaultMeshShader();

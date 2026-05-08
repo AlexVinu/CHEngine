@@ -21,7 +21,10 @@ VSOut vertMain(uint vertexID : SV_VertexID)
     float2 pos = positions[vertexID];
     VSOut o;
     o.Position = float4(pos, 0.0, 1.0);
-    o.UV       = pos * 0.5 + 0.5;
+    // Correct UV mapping for Metal:
+    // pos.y=+1 (screen top)    → UV.y=0 (sample HDR top row = sky)
+    // pos.y=-1 (screen bottom) → UV.y=1 (sample HDR bottom row = ground)
+    o.UV = float2(pos.x * 0.5 + 0.5, 0.5 - pos.y * 0.5);
     return o;
 }
 

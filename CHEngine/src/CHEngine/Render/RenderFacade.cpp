@@ -17,6 +17,9 @@ namespace CHEngine
 
     // ── Viewport output texture (set by FG after Execute) ─────────────────────
     static TextureHandle s_ViewportOutputTex;
+    static TextureHandle s_ViewportHDRTex;
+    static TextureHandle s_ViewportDepthTex;
+    static RenderFacade::PreTonemapCallback s_PreTonemapCallback;
 
     // ── Frame graph ───────────────────────────────────────────────────────────
     static std::unique_ptr<BasicFrameGraphFrontend>  s_Graph;
@@ -303,15 +306,18 @@ namespace CHEngine
         SetViewportSize(w, h);
     }
 
-    void RenderFacade::SetViewportOutputTexture(TextureHandle h)
-    {
-        s_ViewportOutputTex = h;
-    }
+    void RenderFacade::SetViewportOutputTexture(TextureHandle h) { s_ViewportOutputTex = h; }
+    TextureHandle RenderFacade::GetViewportOutputTexture()       { return s_ViewportOutputTex; }
 
-    TextureHandle RenderFacade::GetViewportOutputTexture()
-    {
-        return s_ViewportOutputTex;
-    }
+    void RenderFacade::SetViewportHDRTexture(TextureHandle h)    { s_ViewportHDRTex = h; }
+    TextureHandle RenderFacade::GetViewportHDRTexture()          { return s_ViewportHDRTex; }
+
+    void RenderFacade::SetViewportDepthTexture(TextureHandle h)  { s_ViewportDepthTex = h; }
+    TextureHandle RenderFacade::GetViewportDepthTexture()        { return s_ViewportDepthTex; }
+
+    void RenderFacade::SetPreTonemapCallback(PreTonemapCallback cb) { s_PreTonemapCallback = std::move(cb); }
+    void RenderFacade::ClearPreTonemapCallback()                    { s_PreTonemapCallback = nullptr; }
+    RenderFacade::PreTonemapCallback& RenderFacade::GetPreTonemapCallbackRef() { return s_PreTonemapCallback; }
 
     uint64_t RenderFacade::GetViewportColorTexID()
     {
