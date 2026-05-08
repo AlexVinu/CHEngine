@@ -52,10 +52,12 @@ private:
 
 private:
     CHEngine::ShaderHandle m_MeshShader{};
-    CHEngine::ShaderHandle m_GridShader{};
-    // Grid mesh buffers — populated by BuildGrid() in Phase 6.
+    CHEngine::ShaderHandle   m_GridShader{};
+    CHEngine::PipelineHandle m_GridPipeline{};
+    // Grid mesh buffers — fullscreen quad in NDC space.
     CHEngine::BufferHandle m_GridVB{};
     CHEngine::BufferHandle m_GridIB{};
+    CHEngine::BufferHandle m_GridCameraUBO{}; // camera UBO for grid shader
     uint32_t               m_GridIndexCount = 0;
     // Viewport output texture is owned by the frame graph and read via
     // RenderFacade::GetViewportColorTexID() for ImGui::Image.

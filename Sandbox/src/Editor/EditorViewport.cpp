@@ -3,6 +3,8 @@
 #include <CHEngine/Application.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
+#include <Render/IRenderFactory.h>
+#include <Render/Descriptors.h>
 
 #include <CHEngine/Camera/EditorCamera.h>
 #include <glm/gtc/type_ptr.hpp>
@@ -70,13 +72,64 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
         cameraUBO.CameraPos[3] = 0.0f;
 
         CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
+
+        // Update grid camera UBO so the grid shader knows InvViewProj
+        if (m_GridCameraUBO.IsValid()) {
+            if (auto* f = CHEngine::RenderFacade::GetRenderFactory()) {
+                f->UpdateBuffer(m_GridCameraUBO,
+                    std::span<const std::byte>(
+                        reinterpret_cast<const std::byte*>(&cameraUBO), sizeof(cameraUBO)));
+            }
+        }
     }
 }
 
 void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
 {
-    // TODO: register editor grid pass after Phase 6 (frame graph backend implemented).
-    (void)scene_session;
+    if (!m_ShowGrid) return;
+    if (!scene_session || scene_session->SessionState != SceneSession::State::Edit) return;
+    if (!m_GridVB.IsValid() || !m_GridIB.IsValid()) return;
+    if (!m_GridPipeline.IsValid()) return;
+
+    // GridPass: alpha-blend grid on top of the LDR viewport output.
+    CHEngine::TextureHandle ldrTarget = CHEngine::RenderFacade::GetViewportOutputTexture();
+    if (!ldrTarget.IsValid()) return;
+
+    // We need the Camera UBO — get it via a helper in RenderFacade
+    // For now, register a simple pass that uses the existing camera UBO from RenderSystem.
+    // The grid shader reads camera.InvViewProj to reconstruct world rays.
+
+    CHEngine::PassDesc gridPass;
+    gridPass.Name          = "GridPass";
+    gridPass.Pipeline      = m_GridPipeline;
+    gridPass.ColorLoadOp   = CHEngine::ELoadOp::Load;   // preserve LDR scene content
+    gridPass.ColorStoreOp  = CHEngine::EStoreOp::Store;
+    gridPass.ViewportWidth  = static_cast<uint32_t>(m_ViewportSize.x);
+    gridPass.ViewportHeight = static_cast<uint32_t>(m_ViewportSize.y);
+
+    gridPass.ColorAttachments.push_back(ldrTarget);
+    gridPass.Reads.push_back(ldrTarget);
+    gridPass.Writes.push_back(ldrTarget);
+
+    // Bind camera UBO at slot 0 (grid shader: ConstantBuffer<CameraUBO> camera)
+    if (m_GridCameraUBO.IsValid()) {
+        gridPass.Uniforms.push_back({
+            m_GridCameraUBO,
+            static_cast<uint32_t>(CHEngine::EUniformBlock::Camera),
+            0, sizeof(CHEngine::UBOCamera)
+        });
+    }
+
+    // Draw the fullscreen NDC quad
+    CHEngine::DrawDesc draw;
+    draw.VertexBuffer  = m_GridVB;
+    draw.IndexBuffer   = m_GridIB;
+    draw.IdxFormat     = CHEngine::IndexFormat::UInt32;
+    draw.IndexCount    = m_GridIndexCount;
+    draw.InstanceCount = 1;
+    gridPass.Draws.push_back(std::move(draw));
+
+    CHEngine::RenderFacade::GetFrameGraph().AddPass(std::move(gridPass));
 }
 
 void EditorViewport::EndSceneRender()
@@ -159,8 +212,48 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
 
 void EditorViewport::BuildGrid()
 {
-    // TODO: rebuild grid using new handle-based VertexArray after Phase 6.
-    // For now grid rendering is disabled (RegisterEditorPasses is a no-op).
+    CHEngine::IRenderFactory* f = CHEngine::RenderFacade::GetRenderFactory();
+    if (!f) return;
+
+    // Full-screen NDC quad — the grid shader reconstructs world position via InvViewProj.
+    float verts[] = { -1.f, -1.f,  1.f, -1.f,  1.f, 1.f,  -1.f, 1.f };
+    uint32_t idx[] = { 0, 1, 2,  0, 2, 3 };
+
+    std::span<const std::byte> vbBytes{reinterpret_cast<const std::byte*>(verts), sizeof(verts)};
+    m_GridVB = f->CreateBuffer(sizeof(verts), CHEngine::BufferUsage::Vertex,
+                                CHEngine::MemoryType::GpuOnly, vbBytes, CHEngine::String("grid_vb"));
+
+    std::span<const std::byte> ibBytes{reinterpret_cast<const std::byte*>(idx), sizeof(idx)};
+    m_GridIB = f->CreateBuffer(sizeof(idx), CHEngine::BufferUsage::Index,
+                                CHEngine::MemoryType::GpuOnly, ibBytes, CHEngine::String("grid_ib"));
+    m_GridIndexCount = 6;
+
+    // Camera UBO for grid shader
+    m_GridCameraUBO = f->CreateBuffer(sizeof(CHEngine::UBOCamera),
+                                       CHEngine::BufferUsage::Uniform,
+                                       CHEngine::MemoryType::CpuToGpu, {},
+                                       CHEngine::String("grid_camera_ubo"));
+
+    // Create grid pipeline — blending ON so transparent areas let scene show through.
+    if (m_GridShader.IsValid()) {
+        CHEngine::PipelineDesc desc;
+        desc.Shader        = m_GridShader;
+        desc.VertexLayout  = CHEngine::VertexInputLayout(
+            { CHEngine::VertexAttributeDesc(CHEngine::VertexFormat::Float2, 0, 0) }, 8u);
+        desc.Primitive     = CHEngine::PrimitiveType::Triangles;
+        desc.Depth.Test    = false;
+        desc.Depth.Write   = false;
+        desc.Raster.Cull   = CHEngine::CullMode::None;
+        desc.Blend.Enable  = true;
+        desc.Blend.SrcColor = CHEngine::BlendFactor::SrcAlpha;
+        desc.Blend.DstColor = CHEngine::BlendFactor::OneMinusSrcAlpha;
+        desc.Blend.ColorOp  = CHEngine::BlendOp::Add;
+        desc.Blend.SrcAlpha = CHEngine::BlendFactor::One;
+        desc.Blend.DstAlpha = CHEngine::BlendFactor::OneMinusSrcAlpha;
+        desc.Blend.AlphaOp  = CHEngine::BlendOp::Add;
+        desc.ColorFormats.push_back(CHEngine::TextureFormat::RGBA8_UNORM);
+        m_GridPipeline = f->CreatePipeline(std::move(desc));
+    }
 }
 
 } // namespace Sandbox
