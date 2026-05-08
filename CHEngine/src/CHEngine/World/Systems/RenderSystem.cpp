@@ -138,6 +138,20 @@ namespace CHEngine {
                 String("LightingUBO"));
         }
 
+        // Default material UBO — UseTexture=0, no texture, default Shininess.
+        if (!m_DefaultMaterialUBO.IsValid())
+        {
+            UBOMaterial defaultMat{};  // UseTexture=0, Shininess=32, SpecularScale=1
+            std::span<const std::byte> matBytes{
+                reinterpret_cast<const std::byte*>(&defaultMat), sizeof(defaultMat)};
+            m_DefaultMaterialUBO = factory->CreateBuffer(
+                sizeof(UBOMaterial),
+                BufferUsage::Uniform,
+                MemoryType::CpuToGpu,
+                matBytes,
+                String("DefaultMaterialUBO"));
+        }
+
         // Load tonemap shader once.
         if (!m_TonemapShader.IsValid())
         {
@@ -169,7 +183,8 @@ namespace CHEngine {
         return m_HDRTarget.IsValid() && m_DepthTarget.IsValid() && m_LDRTarget.IsValid()
             && m_MeshPipeline.IsValid()
             && m_TonemapShader.IsValid() && m_TonemapPipeline.IsValid()
-            && m_CameraUBO.IsValid() && m_LightingUBO.IsValid();
+            && m_CameraUBO.IsValid() && m_LightingUBO.IsValid()
+            && m_DefaultMaterialUBO.IsValid();
     }
 
     void RenderSystem::Run(World& world, DeferredOps& /*deferred_ops*/, Timestep /*ts*/)
@@ -268,6 +283,13 @@ namespace CHEngine {
             m_LightingUBO,
             static_cast<uint32_t>(EUniformBlock::Lighting),
             0, sizeof(UBOLighting)
+        });
+        // Default material UBO — UseTexture=0, no textures, standard Shininess.
+        // Per-mesh materials will override this in a future phase.
+        mainColor.Uniforms.push_back({
+            m_DefaultMaterialUBO,
+            static_cast<uint32_t>(EUniformBlock::Material),
+            0, sizeof(UBOMaterial)
         });
 
         // ── Dependency tracking ────────────────────────────────────────────────

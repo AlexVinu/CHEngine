@@ -56,6 +56,7 @@ namespace CHEngine {
         PipelineHandle m_TonemapPipeline;
         BufferHandle   m_CameraUBO;
         BufferHandle   m_LightingUBO;
+        BufferHandle   m_DefaultMaterialUBO; // default material: UseTexture=0
 
         // Render targets
         TextureHandle m_HDRTarget;

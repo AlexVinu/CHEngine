@@ -18,9 +18,10 @@ UnifiedBufferMTL::UnifiedBufferMTL(uint64_t size,
         return;
     }
 
+    // On Apple Silicon, all memory is unified — MTLStorageModeShared works for
+    // both CPU and GPU access without performance penalty. Use Shared for everything
+    // so we can always upload initial data (vertex/index buffers need this).
     MTLResourceOptions opts = MTLResourceStorageModeShared;
-    if (memory == CHEngine::MemoryType::GpuOnly)
-        opts = MTLResourceStorageModePrivate;
 
     id<MTLBuffer> buf = [device newBufferWithLength:(NSUInteger)size options:opts];
     if (!buf) {
@@ -28,8 +29,8 @@ UnifiedBufferMTL::UnifiedBufferMTL(uint64_t size,
         return;
     }
 
-    // Upload initial data if provided and buffer is CPU-accessible.
-    if (!initialData.empty() && memory != CHEngine::MemoryType::GpuOnly) {
+    // Upload initial data (always possible with Shared storage).
+    if (!initialData.empty()) {
         const uint64_t copySize = std::min<uint64_t>(initialData.size_bytes(), size);
         std::memcpy([buf contents], initialData.data(), copySize);
     }
