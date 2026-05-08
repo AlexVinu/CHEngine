@@ -104,8 +104,9 @@ void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
     gridPass.Pipeline      = m_GridPipeline;
     gridPass.ColorLoadOp   = CHEngine::ELoadOp::Load;   // preserve LDR scene content
     gridPass.ColorStoreOp  = CHEngine::EStoreOp::Store;
-    gridPass.ViewportWidth  = static_cast<uint32_t>(m_ViewportSize.x);
-    gridPass.ViewportHeight = static_cast<uint32_t>(m_ViewportSize.y);
+    // Use physical pixel size (with Retina scale) matching the LDR texture resolution.
+    gridPass.ViewportWidth  = CHEngine::RenderFacade::GetViewportWidth();
+    gridPass.ViewportHeight = CHEngine::RenderFacade::GetViewportHeight();
 
     gridPass.ColorAttachments.push_back(ldrTarget);
     gridPass.Reads.push_back(ldrTarget);
@@ -150,13 +151,18 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
 
     ImGui::SetNextWindowPos(vp_pos);
     ImGui::SetNextWindowSize(vp_size);
+    // Zero padding so Image fills the entire window and GetCursorScreenPos == window top-left
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0.0f, 0.0f));
     ImGui::Begin("##viewport", nullptr,
                  ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse
                      | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBringToFrontOnFocus
                      | ImGuiWindowFlags_NoNavFocus);
+    ImGui::PopStyleVar();
 
     m_ViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
-    m_ViewportPos = ImGui::GetWindowPos();
+    // Use cursor screen pos (not window pos) — window has padding that offsets the image.
+    // ImGuizmo::SetRect must match exactly where the Image is drawn.
+    m_ViewportPos = ImGui::GetCursorScreenPos();
 
     ImVec2 panelSize = ImGui::GetContentRegionAvail();
 
