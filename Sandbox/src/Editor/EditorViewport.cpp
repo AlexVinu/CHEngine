@@ -128,11 +128,16 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
     const uint64_t colorTexID = CHEngine::RenderFacade::GetViewportColorTexID();
     if (colorTexID != 0)
     {
+        static bool s_LoggedOnce = false;
+        if (!s_LoggedOnce) {
+            CHE_CORE_INFO("EditorViewport: displaying LDR texture 0x{:x} ({}x{})",
+                          colorTexID, (int)panelSize.x, (int)panelSize.y);
+            s_LoggedOnce = true;
+        }
         const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
         ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
         ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
-        ImGui::Image(reinterpret_cast<ImTextureID>(colorTexID),
-                     panelSize, uv0, uv1);
+        ImGui::Image(reinterpret_cast<ImTextureID>(colorTexID), panelSize, uv0, uv1);
     }
 
     gizmo.Draw(scene_session, gizmo_operation, gizmo_mode, m_ViewportPos, m_ViewportSize);

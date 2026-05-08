@@ -1,15 +1,8 @@
 // Fullscreen tonemap pass.
-// Vertex input is a single float2 position in clip space. The pipeline supplies
-// a covering triangle (DrawFullscreenTriangle), so this shader stays portable
-// across OpenGL / Vulkan without relying on SV_VertexID (which Slang emits as
-// gl_VertexIndex — unavailable in plain GLSL without GL_KHR_vulkan_glsl).
+// Uses SV_VertexID to generate a full-screen triangle without a vertex buffer.
+// Metal supports this natively. OpenGL uses gl_VertexID (GLSL 1.30+).
 
 Sampler2D u_HDRTexture;
-
-struct VSIn
-{
-    [[vk::location(0)]] float2 Position : POSITION;
-};
 
 struct VSOut
 {
@@ -18,14 +11,17 @@ struct VSOut
 };
 
 [shader("vertex")]
-VSOut vertMain(VSIn input)
+VSOut vertMain(uint vertexID : SV_VertexID)
 {
+    // Generate a triangle that covers the entire clip space:
+    //  vertex 0: (-1, -1)  UV (0,  0)
+    //  vertex 1: ( 3, -1)  UV (2,  0)
+    //  vertex 2: (-1,  3)  UV (0,  2)
+    float2 positions[3] = { float2(-1.0, -1.0), float2(3.0, -1.0), float2(-1.0, 3.0) };
+    float2 pos = positions[vertexID];
     VSOut o;
-    o.Position = float4(input.Position, 0.0, 1.0);
-    // No Y flip: HDR FBO already stores scene with OpenGL convention
-    // (V=1 at scene-top). The downstream ImGui::Image does the Y flip
-    // that the OpenGL FBO->screen path expects.
-    o.UV = input.Position * 0.5 + 0.5;
+    o.Position = float4(pos, 0.0, 1.0);
+    o.UV       = pos * 0.5 + 0.5;
     return o;
 }
 

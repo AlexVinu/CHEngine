@@ -87,7 +87,13 @@ namespace CHModules
     uint64_t RenderFactoryMTL::GetTextureNativeID(CHEngine::TextureHandle h)
     {
         auto* tex = Textures.Get(h);
-        return tex ? reinterpret_cast<uint64_t>(tex->GetNativeTexture()) : 0;
+        if (!tex) return 0;
+        void* native = tex->GetNativeTexture();
+        uint64_t id = reinterpret_cast<uint64_t>(native);
+        static int s_log = 0;
+        if (s_log++ < 3)
+            CHE_CORE_INFO("GetTextureNativeID: native=0x{:x} id=0x{:x}", (uint64_t)native, id);
+        return id;
     }
 
     bool RenderFactoryMTL::ReloadShader(CHEngine::ShaderHandle h,

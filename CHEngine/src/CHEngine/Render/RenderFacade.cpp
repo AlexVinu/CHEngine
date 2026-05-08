@@ -318,7 +318,7 @@ namespace CHEngine
         if (!s_ViewportOutputTex.IsValid()) return 0;
         IRenderFactory* f = GetFactory();
         if (!f) return 0;
-        return static_cast<uint32_t>(f->GetTextureNativeID(s_ViewportOutputTex));
+        return f->GetTextureNativeID(s_ViewportOutputTex);
     }
 
     // ── Default mesh shader ───────────────────────────────────────────────────

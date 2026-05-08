@@ -153,8 +153,8 @@ namespace CHEngine {
         {
             PipelineDesc tonemapDesc;
             tonemapDesc.Shader = m_TonemapShader;
-            tonemapDesc.VertexLayout = VertexInputLayout(
-                { VertexAttributeDesc(VertexFormat::Float2, 0, 0) }, 8u);
+            // No vertex buffer needed — vertex shader uses SV_VertexID
+            // tonemapDesc.VertexLayout stays default (empty)
             tonemapDesc.Primitive      = PrimitiveType::Triangles;
             tonemapDesc.Depth.Test     = false;
             tonemapDesc.Depth.Write    = false;

@@ -120,7 +120,9 @@ TextureMTLFull::TextureMTLFull(uint32_t width, uint32_t height,
     desc.width            = width;
     desc.height           = height;
     desc.mipmapLevelCount = 1;
-    desc.storageMode      = MTLStorageModePrivate;
+    // Use Shared for render targets that ImGui::Image needs to sample.
+    // Private is GPU-only and can cause issues with ImGui texture display on some Metal versions.
+    desc.storageMode = isDepth ? MTLStorageModePrivate : MTLStorageModeShared;
 
     // Build usage flags
     MTLTextureUsage mtlUsage = 0;
@@ -136,11 +138,20 @@ TextureMTLFull::TextureMTLFull(uint32_t width, uint32_t height,
                            : (MTLTextureUsageShaderRead | MTLTextureUsageRenderTarget);
     desc.usage = mtlUsage;
 
-    m_Texture = (void*)[device newTextureWithDescriptor:desc];
+    id<MTLTexture> tex = [device newTextureWithDescriptor:desc];
     [desc release];
+    m_Texture = (void*)tex;
 
-    if (!m_Texture)
-        CHE_CORE_ERROR("TextureMTLFull: failed to create {}x{} render target", width, height);
+    if (!tex) {
+        CHE_CORE_ERROR("TextureMTLFull: newTextureWithDescriptor returned nil for {}x{} fmt={} usage={} storage={}",
+                       width, height, (uint32_t)mtlFmt, (uint32_t)mtlUsage,
+                       isDepth ? "Private" : "Shared");
+    } else {
+        // Validate by reading properties — if this crashes, the descriptor was invalid
+        CHE_CORE_INFO("TextureMTLFull: created RT {}x{} at 0x{:x} (reported {}x{} fmt={})",
+                      width, height, (uint64_t)tex,
+                      (uint32_t)tex.width, (uint32_t)tex.height, (uint32_t)tex.pixelFormat);
+    }
 
     if (!isDepth)
         CreateSampler();
