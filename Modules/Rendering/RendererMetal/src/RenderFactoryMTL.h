@@ -2,6 +2,7 @@
 
 #include "Render/IRenderFactory.h"
 #include "Memory/HandlePool.h"
+#include <memory>
 
 #include "UnifiedBufferMTL.h"
 #include "TextureMTLFull.h"
@@ -74,8 +75,10 @@ namespace CHModules
 
         uint32_t GetUniformBufferOffsetAlignment() const override { return 256u; }
 
-        void Init(const CHEngine::RendererInitInfo& /*init*/) override {}
-        void Shutdown() override {}
+        void Init(const CHEngine::RendererInitInfo& init) override;
+        void Shutdown() override;
+        void BeginFrame() override;
+        void EndFrame()   override;
 
         CHEngine::ERenderAPI GetRenderApi() override { return CHEngine::ERenderAPI::METAL; }
         CHEngine::ModuleType GetType() const override { return CHEngine::ModuleType::Render; }
@@ -96,5 +99,8 @@ namespace CHModules
         T* CreateImpl(Args&&... args) { return new T(std::forward<Args>(args)...); }
         template<typename T>
         void DestroyImpl(T* ptr) { delete ptr; }
+
+        // Manages Metal context lifecycle (device, command queue, framebuffer)
+        std::unique_ptr<RenderApiMTL> m_RenderApi;
     };
 }

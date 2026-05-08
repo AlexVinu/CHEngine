@@ -4,6 +4,7 @@
 #include "FrameGraphBackendMTL.h"
 #include "TextureMTL.h"    // Legacy TextureMTL
 #include "RendererMTL.h"   // RendererMTL (legacy)
+#include "CHEngine/UI/UIFacade.h"
 #include <Log/Log.h>
 
 namespace CHModules
@@ -112,6 +113,41 @@ namespace CHModules
     }
 
     // ── Legacy API ────────────────────────────────────────────────────────────
+
+    void RenderFactoryMTL::Init(const CHEngine::RendererInitInfo& init)
+    {
+        // Create and initialize the Metal render API (sets up device, command queue, framebuffer)
+        m_RenderApi = std::make_unique<RenderApiMTL>();
+        m_RenderApi->Init(init);
+    }
+
+    void RenderFactoryMTL::Shutdown()
+    {
+        // Flush pools before destroying the Metal context
+        Buffers.Clear();
+        Textures.Clear();
+        Shaders.Clear();
+        Pipelines.Clear();
+
+        if (m_RenderApi) {
+            m_RenderApi->Shutdown();
+            m_RenderApi.reset();
+        }
+    }
+
+    void RenderFactoryMTL::BeginFrame()
+    {
+        if (!m_RenderApi) return;
+        m_RenderApi->BeginFrame();
+        // Provide ImGui with the current Metal command buffer + encoder
+        CHEngine::UIFacade::SetRenderContext(m_RenderApi->GetRenderContext());
+    }
+
+    void RenderFactoryMTL::EndFrame()
+    {
+        if (!m_RenderApi) return;
+        m_RenderApi->EndFrame();
+    }
 
     CHEngine::IVertexBuffer* RenderFactoryMTL::CreateVertexBuffer(float* vertices, uint32_t size)
     { return CreateImpl<VertexBufferMTL>(vertices, size); }

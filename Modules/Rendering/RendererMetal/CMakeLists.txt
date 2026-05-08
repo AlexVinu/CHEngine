@@ -35,9 +35,14 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<CONFIG:Dist>:CHE_DIST>
 )
 
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "${CHE_SRC_DIR}"   # access to CHEngine/src headers (UIFacade etc.)
+)
+
 target_link_libraries(${PROJECT_NAME}
     PRIVATE
         CHEngine_CORE
+        CHEngine
         glfw
         glm
         SlangBackend

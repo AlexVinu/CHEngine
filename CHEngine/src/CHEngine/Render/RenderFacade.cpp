@@ -118,11 +118,14 @@ namespace CHEngine
     void RenderFacade::BeginFrame()
     {
         s_SceneCameraValid = false;
+        if (IRenderFactory* f = GetFactory())
+            f->BeginFrame();
     }
 
     void RenderFacade::EndFrame()
     {
-        // Swap buffers is handled by Window::OnUpdate.
+        if (IRenderFactory* f = GetFactory())
+            f->EndFrame();
     }
 
     // ── Frame graph ───────────────────────────────────────────────────────────

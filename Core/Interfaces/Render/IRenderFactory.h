@@ -59,6 +59,12 @@ namespace CHEngine {
         virtual void Init(const RendererInitInfo& init) = 0;
         virtual void Shutdown() = 0;
 
+        // Called each frame by RenderFacade::BeginFrame / EndFrame.
+        // Metal: starts/ends command buffer + sets render context for ImGui.
+        // OGL: no-op (state is managed implicitly).
+        virtual void BeginFrame() {}
+        virtual void EndFrame()   {}
+
         // Backend-native ID for the texture (OGL: GLuint; VK: VkImage; ...).
         // Used by ImGui::Image to display offscreen render output.
         // Returns 0 on invalid handle.
