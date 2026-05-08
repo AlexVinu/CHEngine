@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.20)
 if(APPLE)
-    project(CHEngine LANGUAGES CXX OBJCXX)
+    project(CHEngine LANGUAGES C CXX OBJCXX)
 else()
-    project(CHEngine LANGUAGES CXX)
+    project(CHEngine LANGUAGES C CXX)
 endif()
 
 # Установка политик

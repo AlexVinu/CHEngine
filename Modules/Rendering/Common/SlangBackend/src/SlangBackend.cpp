@@ -75,7 +75,7 @@ namespace CHModules
         switch (api)
         {
             case CHEngine::ERenderAPI::OPENGL:
-                return { SLANG_GLSL,   "glsl_420", true };
+                return { SLANG_GLSL,   "glsl_410", true };  // macOS ограничен OpenGL 4.1
             case CHEngine::ERenderAPI::VULKAN:
                 return { SLANG_SPIRV,  "spirv_1_5", true };
             case CHEngine::ERenderAPI::METAL:

@@ -2,7 +2,15 @@
 #include "LuaScriptSystem.h"
 
 // sol2 — подключаем только здесь (PIMPL)
-#define SOL_ALL_SAFETIES_ON 1
+// SOL_ALL_SAFETIES_ON включает SOL_SAFE_REFERENCES, что добавляет type-check
+// в конструкторы sol::table/sol::environment и вызывает lua_error() без pcall-защиты
+// (индекс LUA_REGISTRYINDEX = -1001000 → PANIC). Используем точечные флаги вместо всех сразу.
+#define SOL_SAFE_USERTYPE   1   // проверяем типы usertype при вызове методов
+#define SOL_SAFE_FUNCTION   1   // ошибки функций через safe_function
+#define SOL_SAFE_GETTER     1   // геттеры проверяют типы
+#define SOL_SAFE_NUMERICS   0   // числовые преобразования — не нужна проверка
+#define SOL_SAFE_REFERENCES 0   // ВЫКЛЮЧАЕМ: конструкторы reference вызывают
+                                // lua_error на LUA_REGISTRYINDEX → unprotected PANIC
 #include <sol/sol.hpp>
 
 #include "CHEngine/World/World.h"
@@ -131,9 +139,24 @@ struct ScriptEntity
 // ─────────────────────────────────────────────────────────────────────────────
 // Impl — хранит sol::state и инстансы скриптов
 // ─────────────────────────────────────────────────────────────────────────────
+// Кастомный Lua panic handler: вместо abort() — логируем и бросаем исключение.
+// Перехватывается снаружи через try/catch чтобы движок не падал.
+static int LuaPanicHandler(lua_State* L)
+{
+    const char* msg = lua_tostring(L, -1);
+    CHE_CORE_CRITICAL("[LuaScriptSystem] Lua PANIC: {}", msg ? msg : "(unknown error)");
+    throw std::runtime_error(msg ? msg : "Lua panic");
+}
+
 struct LuaScriptSystem::Impl
 {
     sol::state lua;
+
+    Impl()
+    {
+        // Переопределяем panic handler: без этого lua_error() вне pcall → abort().
+        lua_atpanic(lua.lua_state(), &LuaPanicHandler);
+    }
 
     struct ScriptInstance
     {
@@ -274,20 +297,31 @@ void LuaScriptSystem::OnBegin(World& world, DeferredOps& /*deferred_ops*/)
             if (!sc.Enabled || sc.ScriptPath.empty()) return;
 
             uint64_t key = MakeKey(handle);
-            if (!m_Impl->LoadScript(key, sc.ScriptPath)) return;
 
-            auto& inst = m_Impl->instances[key];
-            if (inst.onStart.valid())
+            // Оборачиваем в try/catch — LuaPanicHandler бросает std::runtime_error
+            // при unprotected lua_error (например, sol2 safety checks).
+            try
             {
-                ScriptEntity se{ handle, &world };
-                auto res = inst.onStart(se);
-                if (!res.valid())
+                if (!m_Impl->LoadScript(key, sc.ScriptPath)) return;
+
+                auto& inst = m_Impl->instances[key];
+                if (inst.onStart.valid())
                 {
-                    sol::error err = res;
-                    CHE_CORE_ERROR("[LuaScriptSystem] OnStart error in '{}': {}", sc.ScriptPath, err.what());
+                    ScriptEntity se{ handle, &world };
+                    auto res = inst.onStart(se);
+                    if (!res.valid())
+                    {
+                        sol::error err = res;
+                        CHE_CORE_ERROR("[LuaScriptSystem] OnStart error in '{}': {}", sc.ScriptPath, err.what());
+                    }
                 }
+                inst.started = true;
             }
-            inst.started = true;
+            catch (const std::exception& ex)
+            {
+                CHE_CORE_ERROR("[LuaScriptSystem] Exception in OnBegin for '{}': {}", sc.ScriptPath, ex.what());
+                sc.Enabled = false;
+            }
         });
 
     CHE_CORE_INFO("[LuaScriptSystem] Loaded {} script(s)", m_Impl->instances.size());
@@ -310,13 +344,21 @@ void LuaScriptSystem::Run(World& world, DeferredOps& /*deferred_ops*/, Timestep 
             auto& inst = it->second;
             if (!inst.started || !inst.onUpdate.valid()) return;
 
-            ScriptEntity se{ handle, &world };
-            auto res = inst.onUpdate(se, (float)dt);
-            if (!res.valid())
+            try
             {
-                sol::error err = res;
-                CHE_CORE_ERROR("[LuaScriptSystem] OnUpdate error in '{}': {}", sc.ScriptPath, err.what());
-                sc.Enabled = false; // отключаем чтобы не спамить каждый кадр
+                ScriptEntity se{ handle, &world };
+                auto res = inst.onUpdate(se, (float)dt);
+                if (!res.valid())
+                {
+                    sol::error err = res;
+                    CHE_CORE_ERROR("[LuaScriptSystem] OnUpdate error in '{}': {}", sc.ScriptPath, err.what());
+                    sc.Enabled = false;
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                CHE_CORE_ERROR("[LuaScriptSystem] Exception in OnUpdate for '{}': {}", sc.ScriptPath, ex.what());
+                sc.Enabled = false;
             }
         });
 }

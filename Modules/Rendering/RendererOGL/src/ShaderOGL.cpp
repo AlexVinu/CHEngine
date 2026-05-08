@@ -9,12 +9,91 @@
 
 #include <string>
 #include <vector>
+#include <regex>
 
 namespace CHModules
 {
 
 	namespace
 	{
+		// ── GLSL 4.1 patcher ─────────────────────────────────────────────────────
+		// macOS поддерживает только OpenGL 4.1. Slang генерирует GLSL 4.1+ который
+		// содержит конструкции недоступные на этой версии. Патчим вывод.
+		static std::string PatchGlslForGL41(std::string src)
+		{
+			// 1. #version N [profile] → #version 410 core
+			//    [^\n]* — не выходим за пределы строки
+			{
+				std::regex re(R"(#version[^\n]*)");
+				src = std::regex_replace(src, re, "#version 410 core",
+				                         std::regex_constants::format_first_only);
+			}
+
+			// 2. Убираем "layout(row_major) buffer;" (SSBO, требует 4.30+)
+			//    НО ОСТАВЛЯЕМ "layout(row_major) uniform;" — валидно с GLSL 1.40
+			{
+				std::regex re(R"(layout\s*\(\s*row_major\s*\)\s*buffer\s*;[^\n]*)");
+				src = std::regex_replace(src, re, "");
+			}
+
+			// 3. Убираем ВСЕ "layout(binding = N)" (для UBO и сэмплеров).
+			//    Binding в layout требует GLSL 4.20.
+			{
+				std::regex re(R"(layout\s*\(\s*binding\s*=\s*\d+\s*\)\s*\n?)");
+				src = std::regex_replace(src, re, "");
+			}
+
+			// 4. Убираем "#extension GL_ARB_shader_draw_parameters : require"
+			//    Это расширение добавляет gl_BaseVertex — недоступно на macOS 4.1.
+			{
+				std::regex re(R"(#extension\s+GL_ARB_shader_draw_parameters\s*:\s*\w+[^\n]*)");
+				src = std::regex_replace(src, re, "");
+			}
+
+			// 5. gl_VertexIndex → gl_VertexID   (Slang пишет Vulkan-имя)
+			//    gl_BaseVertex  → 0               (всегда 0 для fullscreen drawcall)
+			{
+				std::regex re_vidx(R"(\bgl_VertexIndex\b)");
+				src = std::regex_replace(src, re_vidx, "gl_VertexID");
+
+				std::regex re_bv(R"(\bgl_BaseVertex\b)");
+				src = std::regex_replace(src, re_bv, "0");
+			}
+
+			// 6. C-style array initializer → GLSL конструктор (4.10 не поддерживает = { }).
+			//    Пример: "const vec2 pos[3] = { a, b, c };"
+			//          → "const vec2 pos[3] = vec2[3](a, b, c);"
+			{
+				std::regex re(R"(const\s+(\w+)\s+\s*(\w+)\[(\d+)\]\s*=\s*\{([^}]+)\})");
+				src = std::regex_replace(src, re, "const $1 $2[$3] = $1[$3]($4)");
+			}
+
+			return src;
+		}
+
+		// ── Varying-нормализатор ──────────────────────────────────────────────────
+		// Slang генерирует разные имена varying для vert-out и frag-in:
+		//   vert out: entryPointParam_vertMain_Color_0
+		//   frag  in: input_Color_0
+		// OpenGL 4.1 на macOS матчит по имени (не location) → переименовываем оба в v_*.
+		static void NormalizeGlslVaryings(std::string& vertSrc, std::string& fragSrc)
+		{
+			// Регулярка для varying-переменных в vertex выходе (entryPointParam_vertMain_*)
+			// и соответствующих входах фрагментного шейдера (input_*)
+			static const std::pair<std::regex, std::string> vert_patterns[] = {
+				{ std::regex(R"(\bentryPointParam_\w+_(\w+)_0\b)"), "v_$1_0" },
+			};
+			static const std::pair<std::regex, std::string> frag_patterns[] = {
+				{ std::regex(R"(\binput_(\w+)_0\b)"), "v_$1_0" },
+			};
+
+			for (auto& [re, repl] : vert_patterns)
+				vertSrc = std::regex_replace(vertSrc, re, repl);
+			for (auto& [re, frag_repl] : frag_patterns)
+				fragSrc = std::regex_replace(fragSrc, re, frag_repl);
+		}
+
+		// ── Stage compiler ────────────────────────────────────────────────────────
 		// Compile one GLSL stage. Returns the GL shader id, or 0 on failure.
 		GLuint CompileStage(GLenum stage, const std::string& source, const char* stageName)
 		{
@@ -64,6 +143,12 @@ namespace CHModules
 		                     compiled.vertexCode.size());
 		std::string fragGlsl(reinterpret_cast<const char*>(compiled.fragmentCode.data()),
 		                     compiled.fragmentCode.size());
+
+		// macOS ограничен OpenGL 4.1 — патчим GLSL-вывод Slang.
+		vertGlsl = PatchGlslForGL41(std::move(vertGlsl));
+		fragGlsl = PatchGlslForGL41(std::move(fragGlsl));
+		// Нормализуем varying-имена: OpenGL 4.1 матчит по имени, не по location.
+		NormalizeGlslVaryings(vertGlsl, fragGlsl);
 
 		GLuint vertexShader = CompileStage(GL_VERTEX_SHADER, vertGlsl, "vertex");
 		if (!vertexShader)

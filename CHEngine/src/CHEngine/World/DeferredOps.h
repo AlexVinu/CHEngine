@@ -60,7 +60,7 @@ namespace CHEngine
 
     // Provides deferred structural operations for a scene
     // NOTES: I think there is no sense to delete deferred entity or its components (it literally does not exist)
-    class DeferredOps {
+    class CHENGINE_API DeferredOps {
         friend class World;
 
         struct HookTag{};
