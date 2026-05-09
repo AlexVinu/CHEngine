@@ -68,6 +68,18 @@ namespace CHModules
 				src = std::regex_replace(src, re, "const $1 $2[$3] = $1[$3]($4)");
 			}
 
+			// 7. Исправляем UV Y-флип тонмапа: формула написана для Metal (FBO Y=0 сверху),
+			//    в OpenGL FBO Y=0 снизу → нужна стандартная UV (без переворота).
+			//
+			//    Metal:   UV.y = 0.5 - pos.y * 0.5   (переворот нужен, т.к. Metal FBO Y=0 сверху)
+			//    OpenGL:  UV.y = pos.y * 0.5 + 0.5   (стандарт, OGL FBO Y=0 снизу)
+			//
+			//    Паттерн:  "0.5 - <expr>.y * 0.5"  →  "<expr>.y * 0.5 + 0.5"
+			{
+				std::regex re(R"(0\.5\s*-\s*(\S+\.y)\s*\*\s*0\.5)");
+				src = std::regex_replace(src, re, "$1 * 0.5 + 0.5");
+			}
+
 			return src;
 		}
 
