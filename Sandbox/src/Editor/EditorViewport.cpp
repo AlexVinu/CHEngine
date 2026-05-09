@@ -73,18 +73,18 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
 
         CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
 
-        // Register grid as a pre-tonemap callback so it renders into HDR with depth testing.
-        // The callback is called by RenderSystem after MainColorPass, before TonemapPass.
+        // Register grid as a PRE-SCENE callback: grid is drawn FIRST (clears HDR),
+        // then MainColorPass draws objects ON TOP of the grid.
         if (m_ShowGrid && scene_session->SessionState == SceneSession::State::Edit
             && m_GridVB.IsValid() && m_GridIB.IsValid() && m_GridPipeline.IsValid())
         {
-            CHEngine::RenderFacade::SetPreTonemapCallback([this, scene_session]() {
+            CHEngine::RenderFacade::SetPreSceneCallback([this, scene_session]() {
                 this->RegisterEditorPasses(scene_session);
             });
         }
         else
         {
-            CHEngine::RenderFacade::ClearPreTonemapCallback();
+            CHEngine::RenderFacade::ClearPreSceneCallback();
         }
 
         // Update grid camera UBO so the grid shader knows InvViewProj
@@ -102,8 +102,9 @@ void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
 {
     // Guards checked by caller (BeginSceneRender callback)
 
-    // GridPass: alpha-blend grid into the HDR target (before tonemap),
-    // with depth testing so scene objects occlude the grid.
+    // GridPass: drawn FIRST — clears HDR to background color, draws grid.
+    // MainColorPass (called after) loads this content and draws objects on top.
+    // Objects naturally cover the grid since they render AFTER it.
     CHEngine::TextureHandle hdrTarget   = CHEngine::RenderFacade::GetViewportHDRTexture();
     CHEngine::TextureHandle depthTarget = CHEngine::RenderFacade::GetViewportDepthTexture();
     if (!hdrTarget.IsValid()) return;
@@ -115,22 +116,23 @@ void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
     CHEngine::PassDesc gridPass;
     gridPass.Name          = "GridPass";
     gridPass.Pipeline      = m_GridPipeline;
-    gridPass.ColorLoadOp   = CHEngine::ELoadOp::Load;   // preserve LDR scene content
+    // Clear HDR to background color — grid is the first thing drawn.
+    gridPass.ColorLoadOp   = CHEngine::ELoadOp::Clear;
     gridPass.ColorStoreOp  = CHEngine::EStoreOp::Store;
-    // Use physical pixel size (with Retina scale) matching the LDR texture resolution.
+    gridPass.ClearColor    = { 0.18f, 0.18f, 0.20f, 1.0f };  // editor background
     gridPass.ViewportWidth  = CHEngine::RenderFacade::GetViewportWidth();
     gridPass.ViewportHeight = CHEngine::RenderFacade::GetViewportHeight();
 
-    // Render into HDR (before tonemap) with depth testing.
+    // Render into HDR as the background layer.
     gridPass.ColorAttachments.push_back(hdrTarget);
-    gridPass.Reads.push_back(hdrTarget);
     gridPass.Writes.push_back(hdrTarget);
 
-    // Attach depth for depth testing (Load = preserve from MainColorPass).
+    // Clear depth so MainColorPass starts with a fresh depth buffer.
     if (depthTarget.IsValid()) {
         gridPass.DepthAttachment = depthTarget;
-        gridPass.DepthLoadOp = CHEngine::ELoadOp::Load;
-        gridPass.Reads.push_back(depthTarget);
+        gridPass.DepthLoadOp  = CHEngine::ELoadOp::Clear;
+        gridPass.ClearDepth   = 1.0f;
+        gridPass.Writes.push_back(depthTarget);
     }
 
     // Bind camera UBO at slot 0 (grid shader: ConstantBuffer<CameraUBO> camera)
@@ -267,12 +269,11 @@ void EditorViewport::BuildGrid()
         desc.Shader        = m_GridShader;
         desc.VertexLayout  = CHEngine::VertexInputLayout(
             { CHEngine::VertexAttributeDesc(CHEngine::VertexFormat::Float2, 0, 0) }, 8u);
-        desc.Primitive       = CHEngine::PrimitiveType::Triangles;
-        // Depth test ON so objects occlude grid; depth write OFF so grid doesn't block objects
-        desc.Depth.Test      = true;
-        desc.Depth.Write     = false;
-        desc.Depth.Compare   = CHEngine::CompareOp::LessEqual;
-        desc.Raster.Cull     = CHEngine::CullMode::None;
+        desc.Primitive   = CHEngine::PrimitiveType::Triangles;
+        // Grid drawn first as background — no depth test needed, objects rendered after
+        desc.Depth.Test  = false;
+        desc.Depth.Write = false;
+        desc.Raster.Cull = CHEngine::CullMode::None;
         desc.Blend.Enable  = true;
         desc.Blend.SrcColor = CHEngine::BlendFactor::SrcAlpha;
         desc.Blend.DstColor = CHEngine::BlendFactor::OneMinusSrcAlpha;

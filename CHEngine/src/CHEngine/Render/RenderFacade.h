@@ -83,13 +83,13 @@ namespace CHEngine
         static void          SetViewportDepthTexture(TextureHandle h);
         static TextureHandle GetViewportDepthTexture();
 
-        // Pre-tonemap hook: called by RenderSystem AFTER MainColorPass, BEFORE TonemapPass.
-        // Use this to inject editor overlay passes (grid, etc.) into the HDR target
-        // so that depth testing works and the grid appears behind scene objects.
-        using PreTonemapCallback = std::function<void()>;
-        static void SetPreTonemapCallback(PreTonemapCallback cb);
-        static void ClearPreTonemapCallback();
-        static PreTonemapCallback& GetPreTonemapCallbackRef();
+        // Pre-scene hook: called by RenderSystem BEFORE MainColorPass.
+        // EditorViewport uses this to inject the GridPass so the grid is drawn
+        // as a background, and scene objects (drawn after) appear on top.
+        using PreSceneCallback = std::function<void()>;
+        static void SetPreSceneCallback(PreSceneCallback cb);
+        static void ClearPreSceneCallback();
+        static PreSceneCallback& GetPreSceneCallbackRef();
 
         // ── Default mesh shader ───────────────────────────────────────────────
         static void         SetDefaultMeshShader(ShaderHandle h);
