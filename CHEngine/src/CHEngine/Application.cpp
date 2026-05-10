@@ -8,6 +8,7 @@
 #include "CHEngine/EngineConfig.h"
 #include "Physics/PhysicsFacade.h"
 #include "Render/RenderFacade.h"
+#include "CHEngine/ResourceManager/ResourceManager.h"
 #include "UI/UIFacade.h"
 
 #include <imgui.h>
@@ -242,9 +243,9 @@ namespace CHEngine {
             UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
 
         // ─── 5. Create default shader ─────────────────────────────────────────────
-        m_Shader = RenderFacade::CreateShaderFromFile(
-            String("Basic"),
-            String("shaders/basic.slang")
+        m_Shader = ResourceManager::Instance().Load<ShaderHandle>(
+            std::string("Basic"),
+            std::string("shaders/basic.slang")
         );
 
         // ─── 6. Physics ────────────────────────────────────────────────────────────

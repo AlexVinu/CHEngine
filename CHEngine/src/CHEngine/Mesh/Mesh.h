@@ -6,22 +6,15 @@
 #include <vector>
 #include <cstdint>
 
-#include "CHEngine/Render/RenderFacade.h"
+#include "CHEngine/Mesh/Vertex.h"
+#include "CHEngine/ResourceManager/MeshLoader.h"
 #include "Render/Core/RenderTypes.h"
 #include "Render/Pipeline/VertexLayout.h"
 #include "Material.h"
 
 namespace CHEngine {
 
-	struct Vertex {
-		glm::vec3 Position;
-		glm::vec3 Normal;
-		glm::vec2 TexCoords;
-		glm::vec3 Color;
-	};
-
 	// Standard mesh vertex input layout (pos3 + normal3 + uv2 + color3 = 11 floats).
-	// Used by all engine-built meshes; future Phase 3 will move this into PipelineDesc.
 	const VertexInputLayout& GetStandardMeshLayout();
 
 	class CHENGINE_API Mesh
@@ -30,32 +23,30 @@ namespace CHEngine {
 		Mesh() = default;
 		~Mesh();
 
+		Mesh(const Mesh& other);
+		Mesh& operator=(const Mesh& other);
+
 		Mesh(Mesh&& other) noexcept;
 		Mesh& operator=(Mesh&& other) noexcept;
-		Mesh(const Mesh&) = delete;
-		Mesh& operator=(const Mesh&) = delete;
 
 		void Build(const std::vector<Vertex>& vertices,
 		           const std::vector<uint32_t>& indices);
 
-		BufferHandle GetVertexBuffer() const { return m_VertexBuffer; }
-		BufferHandle GetIndexBuffer()  const { return m_IndexBuffer; }
+		BufferHandle GetVertexBuffer() const;
+		BufferHandle GetIndexBuffer()  const;
 		IndexFormat  GetIndexFormat()  const { return IndexFormat::UInt32; }
-		uint32_t     GetIndexCount()   const { return m_IndexCount; }
-		bool         IsValid()         const { return m_IndexCount > 0; }
+		uint32_t     GetIndexCount()   const;
+		bool         IsValid()         const { return GetIndexCount() > 0; }
 
-		const std::vector<Vertex>& GetVertices() const { return m_Vertices; }
-		const std::vector<uint32_t>& GetIndices() const { return m_Indices; }
+		const std::vector<Vertex>&   GetVertices() const;
+		const std::vector<uint32_t>& GetIndices()  const;
+
+		MeshHandle GetCacheHandle() const { return m_Handle; }
 
 		Ref<MaterialInstance> Mat;
 
 	private:
-		BufferHandle m_VertexBuffer;
-		BufferHandle m_IndexBuffer;
-		uint32_t     m_IndexCount = 0;
-
-		std::vector<Vertex> m_Vertices;
-		std::vector<uint32_t> m_Indices;
+		MeshHandle m_Handle{};
 	};
 
 }

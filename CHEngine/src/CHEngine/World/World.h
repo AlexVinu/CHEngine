@@ -31,6 +31,8 @@ namespace CHEngine
         World();
         explicit World(Ref<Scene> scene);
 
+        ~World();
+
         void SetScene(Ref<Scene> scene);
         bool HasScene() const { return m_Scene != nullptr; }
         Ref<Scene> GetSceneRef() { return m_Scene; }

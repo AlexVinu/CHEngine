@@ -5,6 +5,7 @@
 #include "CHEngine/Mesh/Material.h"
 #include "CHEngine/Mesh/Mesh.h"
 #include "CHEngine/Render/RenderFacade.h"
+#include "CHEngine/ResourceManager/ResourceManager.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
 #include "CHEngine/Application.h"
@@ -155,9 +156,8 @@ namespace CHEngine {
         // Load tonemap shader once.
         if (!m_TonemapShader.IsValid())
         {
-            m_TonemapShader = RenderFacade::CreateShaderFromFile(
-                String("Tonemap"), String("shaders/tonemap.slang"),
-                String("vertMain"), String("fragMain"));
+            m_TonemapShader = ResourceManager::Instance().Load<ShaderHandle>(
+                std::string("Tonemap"), std::string("shaders/tonemap.slang"));
             if (!m_TonemapShader.IsValid())
                 CHE_CORE_ERROR("RenderSystem: failed to load tonemap shader");
         }
@@ -189,39 +189,19 @@ namespace CHEngine {
 
     void RenderSystem::Run(World& world, DeferredOps& /*deferred_ops*/, Timestep /*ts*/)
     {
-        static bool s_LoggedOnce = false;
-        static int  s_FailureLogBudget = 5;
-
         auto scene = world.GetSceneRef();
 
         UBOCamera cameraUBO{};
         if (!ResolveCamera(world, *scene, cameraUBO))
-        {
-            if (s_FailureLogBudget-- > 0)
-                CHE_CORE_WARN("RenderSystem: ResolveCamera failed, skipping frame");
             return;
-        }
 
         UBOLighting lightingUBO{};
         CollectLighting(*scene, lightingUBO);
 
         BuildDrawList(*scene);
 
-        // Phase 6 MVP: build and submit MainColorPass.
         if (!EnsureGPUResources())
-        {
-            if (s_FailureLogBudget-- > 0)
-                CHE_CORE_WARN("RenderSystem: EnsureGPUResources failed (vw={}, vh={}, meshPipeline={}, tonemapPipeline={}, hdr={}, ldr={}, depth={}, defaultShader={})",
-                              RenderFacade::GetViewportWidth(),
-                              RenderFacade::GetViewportHeight(),
-                              m_MeshPipeline.IsValid(),
-                              m_TonemapPipeline.IsValid(),
-                              m_HDRTarget.IsValid(),
-                              m_LDRTarget.IsValid(),
-                              m_DepthTarget.IsValid(),
-                              RenderFacade::GetDefaultMeshShader().IsValid());
             return;
-        }
 
         IRenderFactory* factory = RenderFacade::GetRenderFactory();
         if (!factory) return;
@@ -338,16 +318,6 @@ namespace CHEngine {
             mainColor.Draws.push_back(std::move(draw));
         }
 
-        if (!s_LoggedOnce)
-        {
-            CHE_CORE_INFO("RenderSystem: first MainColorPass dispatched (drawCount={}, viewport={}x{}, alignedStride={}, ringCapacity={})",
-                          drawCount,
-                          mainColor.ViewportWidth, mainColor.ViewportHeight,
-                          m_ObjectUBOAlignedStride,
-                          m_ObjectUBOCapacity);
-            s_LoggedOnce = true;
-        }
-
         RenderFacade::GetFrameGraph().AddPass(std::move(mainColor));
 
         // TonemapPass: ACES HDR → LDR (RGBA8 target for ImGui display).
@@ -431,12 +401,15 @@ namespace CHEngine {
     {
         m_DrawList.clear();
 
+        int entityCount = 0, meshCount = 0, skippedInvisible = 0, skippedNoBuffer = 0;
+
         scene.ForEach<MeshComponent, TransformComponent, ColorComponent, VisibilityComponent>(
             [&](EntityHandle, const UUID&, MeshComponent& meshComp,
                 TransformComponent& transformComp, ColorComponent& colorComp,
                 VisibilityComponent& visibilityComp)
             {
-                if (!visibilityComp.Visible) return;
+                ++entityCount;
+                if (!visibilityComp.Visible) { ++skippedInvisible; return; }
 
                 const Transform&  t     = transformComp.ObjectTransform;
                 const glm::vec4&  color = colorComp.Color;
@@ -467,9 +440,16 @@ namespace CHEngine {
                     }
 
                     const ShaderHandle shaderHandle = mesh.Mat->GetMaterial()->GetShaderHandle();
+                    ++meshCount;
                     const BufferHandle vb = mesh.GetVertexBuffer();
                     const BufferHandle ib = mesh.GetIndexBuffer();
-                    if (!vb.IsValid() || !ib.IsValid()) continue;
+                    if (!vb.IsValid() || !ib.IsValid())
+                    {
+                        ++skippedNoBuffer;
+                        CHE_CORE_WARN("BuildDrawList: mesh skipped — vb.valid={} ib.valid={} indexCount={}",
+                                      vb.IsValid(), ib.IsValid(), mesh.GetIndexCount());
+                        continue;
+                    }
 
                     DrawItem item;
                     item.shader       = shaderHandle;
@@ -484,6 +464,8 @@ namespace CHEngine {
                     m_DrawList.push_back(std::move(item));
                 }
             });
+
+        (void)entityCount; (void)meshCount; (void)skippedInvisible; (void)skippedNoBuffer;
     }
 
     // ============================================================================

@@ -49,8 +49,10 @@ Shared-библиотека (.dylib/.dll). Загружается при ста�
 - `ModuleManager` — загрузка/выгрузка/горячая перезагрузка плагинов
 - `World` + `Scene` + `SystemScheduler` — ECS-симуляция
 - `RenderFacade`, `PhysicsFacade`, `UIFacade` — статические фасады
+- `ResourceManager` — централизованный менеджер ресурсов (шейдеры, текстуры, модели)
+- `MeshLoader` — синглтон, контент-адресуемый кэш GPU-буферов геометрии
 - `Input`, `Camera`, `Layer`, `LayerStack`
-- `ModelLoader` (OBJ/GLTF), `Mesh`, `Material`
+- `Mesh`, `Material`, `MaterialInstance`
 - `EventSystem`
 
 ### 3. Модули — платформенные реализации
@@ -80,16 +82,36 @@ RenderFacade::Submit(shader, vao, transform);
 
 ### Handle-based resource management
 
-Ресурсы (шейдеры, VAO, текстуры) возвращаются как `Handle<Tag>` — обёртка над `uint32_t`.  
+Все GPU-ресурсы идентифицируются хэндлами — `Handle<Tag>` (index + generation, 8 байт).
 Это исключает висячие указатели и обеспечивает type-safety:
 
 ```cpp
-ShaderHandle    shader  = RenderFacade::CreateShader("shaders/pbr.glsl");
-TextureHandle   texture = RenderFacade::CreateTexture("textures/albedo.png");
-VertexArrayHandle vao   = RenderFacade::CreateVertexArray(layout, vb, ib);
+ShaderHandle  shader  = ResourceManager::Instance().Load<ShaderHandle>("Mesh", "shaders/mesh.slang");
+TextureHandle texture = ResourceManager::Instance().Load<TextureHandle>("textures/albedo.png");
+ModelHandle   model   = ResourceManager::Instance().Load<ModelHandle>("assets/cube.obj", shader);
 ```
 
 `Handle<ShaderTag>` и `Handle<TextureTag>` — разные типы, компилятор не перепутает.
+`Handle::IsValid()` проверяет `index != 0xFFFFFFFF`.
+
+Загрузка всех файловых ресурсов проходит через `ResourceManager` — он кэширует по пути
+и разделяет один GPU-ресурс между всеми пользователями. Прямые вызовы
+`RenderFacade::CreateShaderFromFile / CreateTextureFromFile` допустимы только внутри
+самих лоадеров.
+
+### ResourceManager
+
+Синглтон `ResourceManager::Instance()` хранит три лоадера:
+
+| Лоадер | Тип хэндла | Кэш-ключ |
+|--------|-----------|---------|
+| `ShaderLoader` | `ShaderHandle` | путь к `.slang` файлу |
+| `TextureLoader` | `TextureHandle` | путь к файлу текстуры |
+| `ModelLoader` | `ModelHandle` | путь к `.obj`/`.gltf`/`.glb` |
+
+`MeshLoader` — отдельный синглтон, не входит в массив лоадеров.
+Кэширует GPU-буферы (VBO/IBO) по хэшу содержимого. Refcount: буферы живут пока
+на них ссылается хотя бы один `Mesh` объект.
 
 ### Фазовая симуляция
 

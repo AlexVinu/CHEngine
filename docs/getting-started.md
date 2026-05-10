@@ -96,23 +96,33 @@ CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationCo
 
 ```cpp
 #include <CHEngine.h>
+#include <CHEngine/ResourceManager/ResourceManager.h>
 
 void OnAttach() override {
-    // Получить мир
-    auto& world = CHEngine::Application::Get().GetWorld();
-    auto& scene = world.GetScene();
+    auto& scene = CHEngine::Application::Get().GetWorld().GetScene();
+    auto& rm    = CHEngine::ResourceManager::Instance();
 
-    // Загрузить модель
-    auto meshes = CHEngine::ModelLoader::Load("assets/models/cube.obj");
+    // Загрузить шейдер и модель (кэшируются — повторный вызов вернёт тот же хэндл)
+    CHEngine::ShaderHandle shader = rm.Load<CHEngine::ShaderHandle>(
+        "Mesh", "shaders/mesh.slang");
+    CHEngine::ModelHandle model = rm.Load<CHEngine::ModelHandle>(
+        "assets/models/cube.obj", shader);
 
-    // Создать сущность
+    const CHEngine::LoadedModel* data = rm.GetModel(model);
+    if (!data || data->meshes.empty())
+        return;
+
+    // Создать сущность и скопировать меши (GPU-буферы разделяются через MeshLoader)
     auto entity = scene.CreateEntity("Cube");
-    auto& meshComp = entity.GetComponent<CHEngine::MeshComponent>();
-    meshComp.Meshes = meshes;
+    entity.PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mc) {
+        mc.Meshes     = data->meshes;
+        mc.SourcePath = "assets/models/cube.obj";
+    });
 
     // Настроить трансформ
-    auto& transform = entity.GetComponent<CHEngine::TransformComponent>();
-    transform.Position = {0.0f, 0.0f, -3.0f};
-    transform.Scale    = {1.0f, 1.0f, 1.0f};
+    entity.PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& t) {
+        t.Position = {0.0f, 0.0f, -3.0f};
+        t.Scale    = {1.0f, 1.0f, 1.0f};
+    });
 }
 ```

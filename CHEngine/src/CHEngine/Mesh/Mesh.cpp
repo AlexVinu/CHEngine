@@ -20,37 +20,49 @@ namespace CHEngine {
 
 	Mesh::~Mesh()
 	{
-		// Note: buffers are owned by the factory and freed via RenderFacade::GetRenderFactory().
-		// Phase 6 will introduce explicit destroy via factory->Delete(BufferHandle).
-		// For now we leave them — leaking until shutdown is acceptable in this transitional phase.
+		if (m_Handle.IsValid())
+			MeshLoader::Instance().Release(m_Handle);
+	}
+
+	Mesh::Mesh(const Mesh& other)
+		: Mat(other.Mat)
+		, m_Handle(other.m_Handle)
+	{
+		if (m_Handle.IsValid())
+			MeshLoader::Instance().AddRef(m_Handle);
+	}
+
+	Mesh& Mesh::operator=(const Mesh& other)
+	{
+		if (this == &other) return *this;
+
+		if (m_Handle.IsValid())
+			MeshLoader::Instance().Release(m_Handle);
+
+		Mat = other.Mat;
+		m_Handle = other.m_Handle;
+		if (m_Handle.IsValid())
+			MeshLoader::Instance().AddRef(m_Handle);
+		return *this;
 	}
 
 	Mesh::Mesh(Mesh&& other) noexcept
 		: Mat(std::move(other.Mat))
-		, m_VertexBuffer(other.m_VertexBuffer)
-		, m_IndexBuffer(other.m_IndexBuffer)
-		, m_IndexCount(other.m_IndexCount)
-		, m_Vertices(std::move(other.m_Vertices))
-		, m_Indices(std::move(other.m_Indices))
+		, m_Handle(other.m_Handle)
 	{
-		other.m_VertexBuffer = {};
-		other.m_IndexBuffer  = {};
-		other.m_IndexCount   = 0;
+		other.m_Handle = {};
 	}
 
 	Mesh& Mesh::operator=(Mesh&& other) noexcept
 	{
 		if (this != &other)
 		{
+			if (m_Handle.IsValid())
+				MeshLoader::Instance().Release(m_Handle);
+
 			Mat = std::move(other.Mat);
-			m_VertexBuffer = other.m_VertexBuffer;
-			m_IndexBuffer  = other.m_IndexBuffer;
-			m_IndexCount = other.m_IndexCount;
-			m_Vertices = std::move(other.m_Vertices);
-			m_Indices = std::move(other.m_Indices);
-			other.m_VertexBuffer = {};
-			other.m_IndexBuffer  = {};
-			other.m_IndexCount = 0;
+			m_Handle = other.m_Handle;
+			other.m_Handle = {};
 		}
 		return *this;
 	}
@@ -58,44 +70,44 @@ namespace CHEngine {
 	void Mesh::Build(const std::vector<Vertex>& vertices,
 	                 const std::vector<uint32_t>& indices)
 	{
-		m_Vertices = vertices;
-		m_Indices  = indices;
-		m_IndexCount = static_cast<uint32_t>(indices.size());
-
-		IRenderFactory* f = RenderFacade::GetRenderFactory();
-		if (!f) { CHE_CORE_ERROR("Mesh::Build — no render factory"); return; }
-
-		// Flatten vertex data: pos(3) + normal(3) + uv(2) + color(3) = 11 floats.
-		std::vector<float> flatData;
-		flatData.reserve(vertices.size() * 11);
-		for (const auto& v : vertices)
+		if (m_Handle.IsValid())
 		{
-			flatData.push_back(v.Position.x);
-			flatData.push_back(v.Position.y);
-			flatData.push_back(v.Position.z);
-			flatData.push_back(v.Normal.x);
-			flatData.push_back(v.Normal.y);
-			flatData.push_back(v.Normal.z);
-			flatData.push_back(v.TexCoords.x);
-			flatData.push_back(v.TexCoords.y);
-			flatData.push_back(v.Color.x);
-			flatData.push_back(v.Color.y);
-			flatData.push_back(v.Color.z);
+			MeshLoader::Instance().Release(m_Handle);
+			m_Handle = {};
 		}
+		m_Handle = MeshLoader::Instance().GetOrCreate(vertices, indices);
+	}
 
-		const uint64_t vbSize = flatData.size() * sizeof(float);
-		std::span<const std::byte> vbBytes{
-			reinterpret_cast<const std::byte*>(flatData.data()), vbSize };
-		m_VertexBuffer = f->CreateBuffer(vbSize, BufferUsage::Vertex,
-		                                 MemoryType::GpuOnly, vbBytes,
-		                                 String("mesh_vb"));
+	BufferHandle Mesh::GetVertexBuffer() const
+	{
+		const MeshGpuRecord* r = MeshLoader::Instance().Get(m_Handle);
+		return r ? r->vb : BufferHandle{};
+	}
 
-		const uint64_t ibSize = indices.size() * sizeof(uint32_t);
-		std::span<const std::byte> ibBytes{
-			reinterpret_cast<const std::byte*>(indices.data()), ibSize };
-		m_IndexBuffer = f->CreateBuffer(ibSize, BufferUsage::Index,
-		                                MemoryType::GpuOnly, ibBytes,
-		                                String("mesh_ib"));
+	BufferHandle Mesh::GetIndexBuffer() const
+	{
+		const MeshGpuRecord* r = MeshLoader::Instance().Get(m_Handle);
+		return r ? r->ib : BufferHandle{};
+	}
+
+	uint32_t Mesh::GetIndexCount() const
+	{
+		const MeshGpuRecord* r = MeshLoader::Instance().Get(m_Handle);
+		return r ? r->indexCount : 0u;
+	}
+
+	const std::vector<Vertex>& Mesh::GetVertices() const
+	{
+		static const std::vector<Vertex> kEmpty;
+		const MeshGpuRecord* r = MeshLoader::Instance().Get(m_Handle);
+		return r ? r->vertices : kEmpty;
+	}
+
+	const std::vector<uint32_t>& Mesh::GetIndices() const
+	{
+		static const std::vector<uint32_t> kEmpty;
+		const MeshGpuRecord* r = MeshLoader::Instance().Get(m_Handle);
+		return r ? r->indices : kEmpty;
 	}
 
 }

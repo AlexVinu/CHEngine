@@ -62,6 +62,16 @@ Ref<MaterialInstance> MaterialInstance::FromBase(Ref<Material> base)
     return std::make_shared<MaterialInstance>(std::move(base));
 }
 
+Ref<MaterialInstance> MaterialInstance::Clone() const
+{
+    auto inst = std::make_shared<MaterialInstance>(m_Material);
+    inst->DiffuseMapPath  = DiffuseMapPath;
+    inst->SpecularMapPath = SpecularMapPath;
+    inst->Shininess       = Shininess;
+    inst->SpecularScale   = SpecularScale;
+    return inst;
+}
+
 Ref<Material> MaterialInstance::GetMaterial() const
 {
     return m_Material;

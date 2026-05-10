@@ -48,6 +48,11 @@ public:
 
     static Ref<MaterialInstance> FromBase(Ref<Material> base);
 
+    // Returns a new instance sharing the same base Material but with independent
+    // overrides (scalar params copied; texture handles are NOT duplicated — they
+    // fall through to the base material until explicitly set on the clone).
+    Ref<MaterialInstance> Clone() const;
+
     Ref<Material> GetMaterial() const;
 
     Ref<Material> m_Material;

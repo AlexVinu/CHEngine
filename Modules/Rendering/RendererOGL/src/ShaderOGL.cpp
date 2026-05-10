@@ -162,6 +162,7 @@ namespace CHModules
 		// Нормализуем varying-имена: OpenGL 4.1 матчит по имени, не по location.
 		NormalizeGlslVaryings(vertGlsl, fragGlsl);
 
+
 		GLuint vertexShader = CompileStage(GL_VERTEX_SHADER, vertGlsl, "vertex");
 		if (!vertexShader)
 			return 0;
@@ -203,26 +204,77 @@ namespace CHModules
 
 	void ShaderOGL::BindUBOBlocks()
 	{
-		// Slang mangles ConstantBuffer<CameraUBO> to "block_CameraUBO_0" etc.
-		// We try both the plain name (for any future non-Slang path) and the
-		// Slang-mangled name so the binding is always established correctly.
-		struct BlockBinding { const char* names[2]; GLuint binding; };
+		// Pass 1: name-based matching — works when Slang generates expected block names.
+		// Slang mangles ConstantBuffer<CameraUBO> to "block_CameraUBO_0" etc., but the
+		// exact mangling can differ by Slang version / platform, so we try several aliases.
+		struct BlockBinding { const char* names[4]; GLuint binding; GLint knownSize; };
 		static const BlockBinding blocks[] = {
-			{ { "CameraUBO",   "block_CameraUBO_0"   }, 0 },
-			{ { "ObjectUBO",   "block_ObjectUBO_0"   }, 1 },
-			{ { "LightingUBO", "block_LightingUBO_0" }, 2 },
-			{ { "MaterialUBO", "block_MaterialUBO_0" }, 3 },
+			{ { "CameraUBO",   "block_CameraUBO_0",   "_CameraUBO",   "CameraUBO_0"   }, 0, static_cast<GLint>(sizeof(CHEngine::UBOCamera))   },
+			{ { "ObjectUBO",   "block_ObjectUBO_0",   "_ObjectUBO",   "ObjectUBO_0"   }, 1, static_cast<GLint>(sizeof(CHEngine::UBOObject))   },
+			{ { "LightingUBO", "block_LightingUBO_0", "_LightingUBO", "LightingUBO_0" }, 2, static_cast<GLint>(sizeof(CHEngine::UBOLighting)) },
+			{ { "MaterialUBO", "block_MaterialUBO_0", "_MaterialUBO", "MaterialUBO_0" }, 3, static_cast<GLint>(sizeof(CHEngine::UBOMaterial)) },
 		};
+		constexpr int kBlockCount = static_cast<int>(sizeof(blocks) / sizeof(blocks[0]));
 
-		for (const auto& b : blocks) {
+		bool bound[kBlockCount] = {};
+
+		for (int bi = 0; bi < kBlockCount; ++bi) {
+			const auto& b = blocks[bi];
 			for (const char* name : b.names) {
+				if (!name) break;
 				GLuint idx = glGetUniformBlockIndex(m_ProgramID, name);
 				if (idx != GL_INVALID_INDEX) {
 					glUniformBlockBinding(m_ProgramID, idx, b.binding);
+					bound[bi] = true;
 					break;
 				}
 			}
 		}
+
+		// Pass 2: size-based fallback for any blocks not matched by name.
+		// All four UBO sizes are unique (144 / 160 / 672 / 32), so size alone is unambiguous.
+		bool anyUnbound = false;
+		for (int bi = 0; bi < kBlockCount; ++bi) anyUnbound |= !bound[bi];
+
+		if (anyUnbound) {
+			GLint activeBlocks = 0;
+			glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORM_BLOCKS, &activeBlocks);
+
+			GLint maxNameLen = 0;
+			glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH, &maxNameLen);
+			std::vector<char> nameBuf(static_cast<size_t>(std::max(maxNameLen, 1)));
+
+			CHE_CORE_WARN("ShaderOGL: name-based UBO match incomplete — enumerating {} active blocks:", activeBlocks);
+			for (GLint gi = 0; gi < activeBlocks; ++gi) {
+				GLint blockSize = 0;
+				glGetActiveUniformBlockiv(m_ProgramID, static_cast<GLuint>(gi),
+				                         GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+
+				GLsizei nameLen = 0;
+				glGetActiveUniformBlockName(m_ProgramID, static_cast<GLuint>(gi),
+				                           static_cast<GLsizei>(nameBuf.size()),
+				                           &nameLen, nameBuf.data());
+
+				CHE_CORE_WARN("  block[{}] name='{}' size={}", gi, nameBuf.data(), blockSize);
+
+				for (int bi = 0; bi < kBlockCount; ++bi) {
+					if (bound[bi]) continue;
+					if (blockSize == blocks[bi].knownSize) {
+						glUniformBlockBinding(m_ProgramID, static_cast<GLuint>(gi), blocks[bi].binding);
+						bound[bi] = true;
+						CHE_CORE_WARN("  → matched to '{}' binding={} by size", blocks[bi].names[0], blocks[bi].binding);
+					}
+				}
+			}
+		}
+
+#ifdef CHE_DEBUG
+		for (int bi = 0; bi < kBlockCount; ++bi) {
+			if (!bound[bi])
+				CHE_CORE_WARN("ShaderOGL: UBO '{}' (binding {}) not found in shader — block may be unused or name/size mismatch",
+				              blocks[bi].names[0], blocks[bi].binding);
+		}
+#endif
 
 		BindSamplerUnits();
 	}

@@ -2,6 +2,7 @@
 
 #include <CHEngine/Application.h>
 #include <CHEngine/Render/RenderFacade.h>
+#include <CHEngine/ResourceManager/ResourceManager.h>
 #include <Render/UniformBlocks.h>
 #include <Render/IRenderFactory.h>
 #include <Render/Descriptors.h>
@@ -15,14 +16,12 @@ namespace Sandbox {
 
 EditorViewport::EditorViewport()
 {
-    m_MeshShader = CHEngine::RenderFacade::CreateShaderFromFile(
-        CHEngine::String("Mesh"),
-        CHEngine::String("shaders/mesh.slang"));
+    m_MeshShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        std::string("Mesh"), std::string("shaders/mesh.slang"));
     CHEngine::RenderFacade::SetDefaultMeshShader(m_MeshShader);
 
-    m_GridShader = CHEngine::RenderFacade::CreateShaderFromFile(
-        CHEngine::String("Grid"),
-        CHEngine::String("shaders/grid.slang"));
+    m_GridShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        std::string("Grid"), std::string("shaders/grid.slang"));
 
     BuildGrid();
 }

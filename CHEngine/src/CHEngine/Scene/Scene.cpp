@@ -17,16 +17,7 @@ namespace CHEngine {
 		void CopyMeshComponent(const MeshComponent& source_component, MeshComponent& destination_component)
 		{
 			destination_component.SourcePath = source_component.SourcePath;
-			destination_component.Meshes.clear();
-			destination_component.Meshes.reserve(source_component.Meshes.size());
-
-			for (const Mesh& source_mesh : source_component.Meshes)
-			{
-				Mesh destination_mesh;
-				destination_mesh.Build(source_mesh.GetVertices(), source_mesh.GetIndices());
-				destination_mesh.Mat = source_mesh.Mat;
-				destination_component.Meshes.push_back(std::move(destination_mesh));
-			}
+			destination_component.Meshes = source_component.Meshes;
 		}
 
 		void CopyRigidBody3DComponent(const RigidBody3DComponent& source_component, RigidBody3DComponent& destination_component)

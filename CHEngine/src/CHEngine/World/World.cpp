@@ -29,7 +29,12 @@ namespace CHEngine
         RegisterDefaultSystems();
     }
 
-    void World::SetScene(Ref<Scene> scene)
+	World::~World()
+	{
+        ApplyStateTransition(WorldState::NONE);
+	}
+
+	void World::SetScene(Ref<Scene> scene)
     {
         if (m_Scene == scene)
             return;
@@ -75,6 +80,14 @@ namespace CHEngine
 {
     if (new_state == m_State)
         return;
+
+    // Turn off the world
+    if (new_state == WorldState::NONE)
+    {
+		m_Scheduler.NotifyEnd(SystemPhase::Presentation, *this, m_DeferredOps);
+		m_Scheduler.NotifyEnd(SystemPhase::Simulation, *this, m_DeferredOps);
+        return;
+    }
 
     // --- EXIT current state ---
     switch (m_State)

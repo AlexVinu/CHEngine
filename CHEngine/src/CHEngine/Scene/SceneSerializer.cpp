@@ -9,9 +9,9 @@
 #include <memory>
 #include <unordered_set>
 #include <CHEngine/Mesh/Material.h>
-#include <CHEngine/Mesh/ModelLoader.h>
 #include <CHEngine/Mesh/PrimitiveMeshFactory.h>
 #include <CHEngine/Render/RenderFacade.h>
+#include <CHEngine/ResourceManager/ResourceManager.h>
 
 #include <CHEngine/Scene/Components.h>
 #include "Entity.h"
@@ -123,13 +123,13 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
         TextureHandle oldD, oldS;
         mat.ResolveTextures(oldD, oldS);
         if (oldD.IsValid())
-            RenderFacade::DestroyTexture(oldD);
+            ResourceManager::Instance().Unload(oldD);
         if (mat.m_Material)
         {
             mat.m_Material->DiffuseMap = TextureHandle{};
             mat.m_Material->DiffuseMapPath.clear();
         }
-        mat.DiffuseMap     = RenderFacade::CreateTextureFromFile(diffPath);
+        mat.DiffuseMap     = ResourceManager::Instance().Load<TextureHandle>(diffPath);
         mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
     }
 
@@ -139,13 +139,13 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
         TextureHandle oldD, oldS;
         mat.ResolveTextures(oldD, oldS);
         if (oldS.IsValid())
-            RenderFacade::DestroyTexture(oldS);
+            ResourceManager::Instance().Unload(oldS);
         if (mat.m_Material)
         {
             mat.m_Material->SpecularMap = TextureHandle{};
             mat.m_Material->SpecularMapPath.clear();
         }
-        mat.SpecularMap     = RenderFacade::CreateTextureFromFile(specPath);
+        mat.SpecularMap     = ResourceManager::Instance().Load<TextureHandle>(specPath);
         mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
     }
 }
@@ -273,11 +273,16 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             }
             else
             {
-                auto result = ModelLoader::Load(meshPath, RenderFacade::GetDefaultMeshShader());
-                if (result.success && !result.meshes.empty()) {
+                auto modelHandle = ResourceManager::Instance().Load<ModelHandle>(
+                    meshPath, RenderFacade::GetDefaultMeshShader());
+                const LoadedModel* result = modelHandle.IsValid()
+                    ? ResourceManager::Instance().GetModel(modelHandle) : nullptr;
+                if (result && !result->meshes.empty()) {
+                    importedMeshes = result->meshes; // copy — Mesh copy-ctor AddRefs GPU records
+
                     glm::vec3 centroid(0.0f);
                     size_t totalVerts = 0;
-                    for (auto& mesh : result.meshes) {
+                    for (auto& mesh : importedMeshes) {
                         for (const auto& v : mesh.GetVertices()) {
                             centroid += v.Position;
                             ++totalVerts;
@@ -286,16 +291,13 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                     if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
 
                     if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
-                        for (auto& mesh : result.meshes) {
-                            // Old VBO/IBO are leaked here until shutdown — acceptable in this
-                            // transitional phase; will be fixed when Mesh tracks buffer ownership.
+                        for (auto& mesh : importedMeshes) {
                             auto verts = mesh.GetVertices();
                             for (auto& v : verts) v.Position -= centroid;
                             mesh.Build(verts, mesh.GetIndices());
                         }
                     }
 
-                    importedMeshes = std::move(result.meshes);
                     hasImportedMeshes = true;
                 } else {
                     std::string normalizedPath = meshPath;
@@ -304,13 +306,11 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                         normalizedPath = fsPath.lexically_normal().string();
 
                     CHE_CORE_WARN(
-                        "SceneSerializer: model load failed for entity='{}' uuid={} meshPath='{}' normalized='{}' success={} meshCount={}",
+                        "SceneSerializer: model load failed for entity='{}' uuid={} meshPath='{}' normalized='{}'",
                         name,
                         boost::uuids::to_string(entityUUID),
                         meshPath,
-                        normalizedPath,
-                        result.success,
-                        result.meshes.size());
+                        normalizedPath);
                 }
             }
         }

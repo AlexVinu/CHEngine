@@ -50,78 +50,77 @@ RenderFacade::Submit(customShader, vaoHandle, modelMatrix);
 
 ## Управление ресурсами
 
+Все ресурсы загружаются через `ResourceManager`. Подробнее — в [resource-management.md](resource-management.md).
+
 ### Шейдеры
 
-```cpp
-ShaderHandle shader = RenderFacade::CreateShader("assets/shaders/pbr.glsl");
-RenderFacade::DestroyShader(shader);
-```
-
-**Формат glsl-файла** (единый файл, разделённый тегами):
-```glsl
-#type vertex
-#version 410 core
-layout(location = 0) in vec3 a_Position;
-// ...
-
-#type fragment
-#version 410 core
-out vec4 FragColor;
-// ...
-```
-
-**Горячая перезагрузка шейдеров**: движок опрашивает файлы шейдеров каждые 0.5 секунды.  
-При изменении файла шейдер автоматически перекомпилируется.
-
-### Вершинные массивы (VAO)
+Шейдеры написаны на [Slang](https://shader-slang.org/) и компилируются в GLSL / MSL / SPIR-V.
+Все `.slang` файлы находятся в `Sandbox/shaders/`.
 
 ```cpp
-// Описание лейаута вершин
-BufferLayout layout = {
-    { ShaderDataType::Float3, "a_Position" },
-    { ShaderDataType::Float3, "a_Normal"   },
-    { ShaderDataType::Float2, "a_TexCoord" },
+// Загрузить шейдер (кэшируется по пути)
+ShaderHandle shader = ResourceManager::Instance().Load<ShaderHandle>(
+    "Mesh", "shaders/mesh.slang");
+
+// Выгрузить
+ResourceManager::Instance().Unload(shader);
+```
+
+**Структура Slang-шейдера:**
+```slang
+import common;  // CameraUBO, ObjectUBO, MaterialUBO, LightingUBO
+
+ConstantBuffer<CameraUBO> camera;
+ConstantBuffer<ObjectUBO> object;
+
+struct VSIn {
+    [[vk::location(0)]] float3 Position  : POSITION;
+    [[vk::location(1)]] float3 Normal    : NORMAL;
+    [[vk::location(2)]] float2 TexCoords : TEXCOORD0;
+    [[vk::location(3)]] float3 Color     : COLOR;
 };
 
-// Создать вершинный буфер и индексный буфер
-VertexBufferHandle vb = RenderFacade::CreateVertexBuffer(vertices.data(), vertices.size() * sizeof(Vertex));
-IndexBufferHandle  ib = RenderFacade::CreateIndexBuffer(indices.data(), indices.size());
+[shader("vertex")]
+VSOut vertMain(VSIn input) { ... }
 
-// Собрать VAO
-VertexArrayHandle vao = RenderFacade::CreateVertexArray(layout, vb, ib);
-
-// После использования
-RenderFacade::DestroyVertexArray(vao);
+[shader("fragment")]
+float4 fragMain(VSOut input) : SV_Target { ... }
 ```
+
+**Горячая перезагрузка шейдеров**: движок опрашивает файлы каждые 0.5 секунды.
+При изменении `.slang` файла шейдер автоматически перекомпилируется.
 
 ### Текстуры
 
 ```cpp
-TextureHandle albedo = RenderFacade::CreateTexture("assets/textures/albedo.png");
-// Привязать к шейдеру
-shader->SetTexture("u_Albedo", albedo, 0);
+// Из файла (кэшируется по пути)
+TextureHandle tex = ResourceManager::Instance().Load<TextureHandle>("textures/diffuse.png");
+ResourceManager::Instance().Unload(tex);
 
-RenderFacade::DestroyTexture(albedo);
+// Из сырых пикселей (минуя кэш — например при загрузке OBJ/GLTF)
+TextureHandle tex = RenderFacade::CreateTexture(pixels, width, height, channels);
+RenderFacade::DestroyTexture(tex);
 ```
 
-### Фреймбуферы
+### GPU-буферы меша
+
+Меши не создаются вручную — они строятся через `Mesh::Build()`.
+`MeshLoader` кэширует идентичную геометрию и считает ссылки:
 
 ```cpp
-FramebufferSpec spec;
-spec.Width      = 1280;
-spec.Height     = 720;
-spec.Attachments = { FramebufferTextureFormat::RGBA8, FramebufferTextureFormat::Depth };
-
-FramebufferHandle fb = RenderFacade::CreateFramebuffer(spec);
-
-// Рендерить в фреймбуфер
-fb->Bind();
-// ... Submit() ...
-fb->Unbind();
-
-// Получить текстуру (для ImGui::Image, постобработки, etc.)
-TextureHandle colorAttachment = fb->GetColorAttachment(0);
+Mesh mesh;
+mesh.Build(vertices, indices); // Загружает в GPU через MeshLoader::GetOrCreate
+// Деструктор Mesh автоматически вызывает MeshLoader::Release
 ```
+
+Стандартный лейаут вершин (11 float на вершину, stride = 44 байта):
+
+| Атрибут | Offset | Формат |
+|---------|--------|--------|
+| Position | 0 | Float3 |
+| Normal | 12 | Float3 |
+| TexCoords | 24 | Float2 |
+| Color | 32 | Float3 |
 
 ## Материалы
 
@@ -172,21 +171,27 @@ entity.GetComponent<VisibilityComponent>().Visible = false;
 
 ## Загрузка моделей
 
-### OBJ
+Модели загружаются через `ResourceManager`. `ModelLoader` не вызывается напрямую.
 
 ```cpp
-std::vector<Mesh> meshes = ModelLoader::Load("assets/models/scene.obj");
-entity.GetComponent<MeshComponent>().Meshes = meshes;
+auto& rm = ResourceManager::Instance();
+ShaderHandle meshShader = RenderFacade::GetDefaultMeshShader();
+
+// Загрузить OBJ или GLTF/GLB (формат определяется по расширению)
+ModelHandle handle = rm.Load<ModelHandle>("assets/models/scene.obj", meshShader);
+
+const LoadedModel* model = rm.GetModel(handle);
+if (model && !model->meshes.empty())
+{
+    // Копирование — GPU-буферы разделяются через MeshLoader (refcount)
+    entity.GetComponent<MeshComponent>().Meshes = model->meshes;
+}
 ```
 
-### GLTF/GLB
+Поддерживаемые форматы: `.obj`, `.gltf`, `.glb`.  
+Поддерживаются: меши, материалы (PBR/диффуз/specular), текстуры, UV-развёртка.
 
-```cpp
-std::vector<Mesh> meshes = ModelLoader::Load("assets/models/character.gltf");
-// Поддерживаются: меши, материалы (PBR), текстуры, UV-развёртка
-```
-
-`ModelLoader` автоматически определяет формат по расширению файла.
+> Повторная загрузка того же пути возвращает кэшированный `ModelHandle` без I/O.
 
 ## Выбор рендерера
 

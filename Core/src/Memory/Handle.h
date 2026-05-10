@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 
 namespace CHEngine {
 
@@ -25,6 +26,34 @@ namespace CHEngine {
 		{
 			return !(*this == other);
 		}
+
+		// Special cast for specific cases when it needed to treat handle like handle<void>
+		template<typename OtherTag = void>
+			requires std::is_same_v<Tag, void> || std::is_same_v<OtherTag, void>
+		operator Handle<OtherTag>() const
+		{
+			return Handle<OtherTag>{index, generation};
+		}
 	};
 
+	// ADL hook for boost::hash (used by boost::bimap unordered_set_of).
+	template<typename Tag>
+	inline std::size_t hash_value(const Handle<Tag>& h) noexcept
+	{
+		return std::hash<Handle<Tag>>{}(h);
+	}
+
+}
+
+namespace std {
+	template<typename Tag>
+	struct hash<CHEngine::Handle<Tag>>
+	{
+		size_t operator()(const CHEngine::Handle<Tag>& h) const noexcept
+		{
+			return std::hash<uint64_t>{}(
+				(static_cast<uint64_t>(h.index) << 32) | h.generation
+			);
+		}
+	};
 }

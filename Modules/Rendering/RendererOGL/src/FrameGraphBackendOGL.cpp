@@ -5,7 +5,6 @@
 #include "PipelineOGL.h"
 #include "BufferOGL.h"
 #include "TextureOGL.h"
-#include "VertexArrayOGL.h"
 
 #include <Log/Log.h>
 #include <glad/glad.h>
@@ -137,13 +136,6 @@ namespace CHModules {
             return 0;
         }
 
-        // Create a temporary VertexArrayOGL and steal its GL handle.
-        VertexArrayOGL vao(pipeline->GetVertexLayout(), vb, ib,
-                           draw.IdxFormat, draw.IndexCount);
-        // Extract raw GL name by bind+query.
-        // VertexArrayOGL owns the VAO; we need the ID but can't get it from the class directly.
-        // Instead, create a raw GL VAO here using the same logic.
-
         GLuint glVao = 0;
         glGenVertexArrays(1, &glVao);
         glBindVertexArray(glVao);
@@ -211,6 +203,13 @@ namespace CHModules {
 
     // ─── Execute ─────────────────────────────────────────────────────────────
 
+    static void CheckGLErrors(const char* where)
+    {
+        GLenum err;
+        while ((err = glGetError()) != GL_NO_ERROR)
+            CHE_CORE_ERROR("GL error 0x{:X} at {}", (unsigned)err, where);
+    }
+
     void FrameGraphBackendOGL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes)
     {
         for (const CHEngine::PassDesc& pass : passes)
@@ -226,6 +225,8 @@ namespace CHModules {
                            static_cast<GLsizei>(pass.ViewportHeight));
 
             // ── Clear ─────────────────────────────────────────────────────────
+            // glClear respects glColorMask/glDepthMask — reset them before clearing
+            // so a previous pass's disabled write mask doesn't silently suppress the clear.
             GLbitfield clearMask = 0;
             if (pass.ColorLoadOp == CHEngine::ELoadOp::Clear)
             {
@@ -239,7 +240,13 @@ namespace CHModules {
                 clearMask |= GL_DEPTH_BUFFER_BIT;
             }
             if (clearMask)
+            {
+                if (clearMask & GL_COLOR_BUFFER_BIT)
+                    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+                if (clearMask & GL_DEPTH_BUFFER_BIT)
+                    glDepthMask(GL_TRUE);
                 glClear(clearMask);
+            }
 
             // ── Pipeline state ────────────────────────────────────────────────
             PipelineOGL* pipeline = m_Factory.Pipelines.Get(pass.Pipeline);
@@ -319,6 +326,8 @@ namespace CHModules {
                         idxOffset,
                         static_cast<GLsizei>(draw.InstanceCount),
                         static_cast<GLint>(draw.BaseVertex));
+
+                    CheckGLErrors(pass.Name.c_str());
                 }
             }
 

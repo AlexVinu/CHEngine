@@ -1,5 +1,5 @@
 #include "chepch.h"
-#include "ModelLoader.h"
+#include "../ModelLoader.h"
 #include "Log/Log.h"
 
 #include <filesystem>
@@ -66,7 +66,7 @@ namespace CHEngine {
 
 	} // namespace
 
-	LoadedModel ModelLoader::LoadGLTF(const std::string& filepath, ShaderHandle meshShader)
+	ModelHandle ModelLoader::LoadGLTF(const std::string& filepath, ShaderHandle meshShader)
 	{
 		LoadedModel result;
 		result.name = std::filesystem::path(filepath).stem().string();
@@ -87,8 +87,8 @@ namespace CHEngine {
 
 		if (!ok)
 		{
-			result.error = "Failed to load GLTF: " + err;
-			return result;
+			CHE_CORE_ERROR("Failed to load GLTF: {}", err);
+			return {};
 		}
 
 		std::vector<Ref<MaterialInstance>> gltfMats;
@@ -224,13 +224,15 @@ namespace CHEngine {
 			}
 		}
 
-		result.success = !result.meshes.empty();
-		if (result.success)
-			CHE_CORE_INFO("Loaded GLTF '{0}': {1} mesh(es)", result.name.c_str(), result.meshes.size());
-		else
-			result.error = "No geometry found in GLTF file";
+		if (result.meshes.empty())
+		{
+			CHE_CORE_WARN("No geometry found in GLTF file: {}", filepath);
+			return {};
+		}
 
-		return result;
+		result.success = true;
+		CHE_CORE_INFO("Loaded GLTF '{}': {} mesh(es)", result.name.c_str(), result.meshes.size());
+		return m_Models.Add(new LoadedModel(std::move(result)));
 	}
 
 } // namespace CHEngine

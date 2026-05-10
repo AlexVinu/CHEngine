@@ -1,5 +1,5 @@
 #include "chepch.h"
-#include "ModelLoader.h"
+#include "../ModelLoader.h"
 #include "Log/Log.h"
 
 #include <algorithm>
@@ -8,7 +8,7 @@
 #include <unordered_map>
 
 #include "CHEngine/Render/RenderFacade.h"
-#include "Material.h"
+#include "CHEngine/Mesh/Material.h"
 
 // OBJ loader implementation (header-only lib — compile exactly once here)
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -20,10 +20,10 @@
 
 namespace CHEngine {
 
-	LoadedModel ModelLoader::LoadOBJ(const std::string& filepath, ShaderHandle meshShader)
+	ModelHandle ModelLoader::LoadOBJ(const std::string& filepath, ShaderHandle meshShader)
 	{
-		LoadedModel result;
-		result.name = std::filesystem::path(filepath).stem().string();
+		LoadedModel* result = new LoadedModel();
+		result->name = std::filesystem::path(filepath).stem().string();
 
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
@@ -43,8 +43,9 @@ namespace CHEngine {
 
 		if (!ok)
 		{
-			result.error = "Failed to load OBJ: " + err;
-			return result;
+			CHE_CORE_ERROR("Failed to load OBJ: {}", err);
+			delete result;
+			return {};
 		}
 
 		std::unordered_map<int, Ref<MaterialInstance>> objMatByIdx;
@@ -200,17 +201,19 @@ namespace CHEngine {
 				Mesh mesh;
 				mesh.Build(vertices, indices);
 				mesh.Mat = getOrCreateObjMaterial(matIdx);
-				result.meshes.push_back(std::move(mesh));
+				result->meshes.push_back(std::move(mesh));
 			}
 		}
 
-		result.success = !result.meshes.empty();
-		if (result.success)
-			CHE_CORE_INFO("Loaded OBJ '{0}': {1} mesh(es)", result.name.c_str(), result.meshes.size());
-		else
-			result.error = "No geometry found in OBJ file";
+		if (result->meshes.empty())
+		{
+			CHE_CORE_WARN("No geometry found in OBJ file: {}", filepath);
+			delete result;
+			return {};
+		}
 
-		return result;
+		CHE_CORE_INFO("Loaded OBJ '{}': {} mesh(es)", result->name.c_str(), result->meshes.size());
+		return m_Models.Add(result);
 	}
 
 } // namespace CHEngine

@@ -44,8 +44,8 @@ namespace CHEngine {
         std::string       SourcePath;  // original file path for serialization
 
         MeshComponent() = default;
-        MeshComponent(const MeshComponent&) = delete;
-        MeshComponent& operator=(const MeshComponent&) = delete;
+        MeshComponent(const MeshComponent&) = default;
+        MeshComponent& operator=(const MeshComponent&) = default;
         MeshComponent(MeshComponent&&) = default;
         MeshComponent& operator=(MeshComponent&&) = default;
     };

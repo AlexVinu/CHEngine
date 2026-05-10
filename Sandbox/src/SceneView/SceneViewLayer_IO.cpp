@@ -7,8 +7,8 @@
 
 #include <CHEngine/Application.h>
 #include <CHEngine/Mesh/Material.h>
-#include <CHEngine/Mesh/ModelLoader.h>
 #include <CHEngine/Render/RenderFacade.h>
+#include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/RecentFiles.h>
 #include <CHEngine/Scene/SceneSerializer.h>
@@ -208,6 +208,7 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
             return;
         CHE_CORE_ASSERT(ctx.EditorScene, "SceneViewLayer: EditorScene must exist");
         *ctx.EditorScene = std::move(*loadedScene);
+        ctx.ActivateEditorScene();
         LogSceneRenderReadiness(ctx.EditorScene.get());
         auto tryReadVec3 = [](const nlohmann::json& value, glm::vec3* out_vec3) -> bool {
             if (!out_vec3 || !value.is_array() || value.size() < 3)
@@ -326,6 +327,7 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
             {
                 CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
                 *activeSession.EditorScene = std::move(*loadedScene);
+                activeSession.ActivateEditorScene();
                 CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
             }
             else
@@ -400,18 +402,23 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 
 void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& filepath)
 {
-    auto result = CHEngine::ModelLoader::Load(filepath, CHEngine::RenderFacade::GetDefaultMeshShader());
-    if (!result.success)
+    auto modelHandle = CHEngine::ResourceManager::Instance().Load<CHEngine::ModelHandle>(
+        filepath, CHEngine::RenderFacade::GetDefaultMeshShader());
+    const CHEngine::LoadedModel* result = modelHandle.IsValid()
+        ? CHEngine::ResourceManager::Instance().GetModel(modelHandle) : nullptr;
+
+    if (!result || result->meshes.empty())
     {
-        CHE_CORE_ERROR("SceneViewLayer: failed to import model '{}': {}",
-                       filepath,
-                       result.error.empty() ? "unknown loader error" : result.error);
+        CHE_CORE_ERROR("SceneViewLayer: failed to import model '{}'", filepath);
         return;
     }
 
+    // Copy meshes — Mesh copy-ctor AddRefs the shared GPU buffers in MeshLoader.
+    std::vector<CHEngine::Mesh> meshes = result->meshes;
+
     glm::vec3 centroid(0.0f);
     size_t totalVerts = 0;
-    for (auto& mesh : result.meshes)
+    for (auto& mesh : meshes)
     {
         for (const auto& v : mesh.GetVertices())
         {
@@ -424,10 +431,8 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
 
     if (totalVerts > 0 && glm::length(centroid) > 1e-5f)
     {
-        for (auto& mesh : result.meshes)
+        for (auto& mesh : meshes)
         {
-            // Old VBO/IBO are leaked here until shutdown — acceptable in this
-            // transitional phase; will be fixed when Mesh tracks buffer ownership.
             auto verts = mesh.GetVertices();
             for (auto& v : verts)
                 v.Position -= centroid;
@@ -441,12 +446,12 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     auto scene_ref = activeSession.EditorScene;
     if (!scene_ref)
         return;
-    const CHEngine::EntityHandle handle = scene_ref->CreateEntity(result.name, objectID);
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity(result->name, objectID);
     auto* entity = scene_ref->TryGetEntity(handle);
     if (!entity || !entity->HasComponent<CHEngine::TransformComponent>() || !entity->HasComponent<CHEngine::MeshComponent>())
         return;
     entity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
-        mesh_component.Meshes = std::move(result.meshes);
+        mesh_component.Meshes = std::move(meshes);
         mesh_component.SourcePath = filepath;
     });
     entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {
