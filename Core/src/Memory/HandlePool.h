@@ -7,6 +7,7 @@
 
 namespace CHEngine {
 
+	// TODO: make generation overfill protection
 	template<typename T, typename Tag>
 	class HandlePool
 	{
@@ -108,30 +109,59 @@ namespace CHEngine {
 
 		void Clear()
 		{
-			for (auto& slot : m_Slots)
-			{
-				if (slot.occupied && slot.ptr)
-				{
-					if (m_Deleter)
-						m_Deleter(slot.ptr);
-					slot.ptr      = nullptr;
-					slot.occupied = false;
-					++slot.generation;
-				}
-			}
 			m_FreeList.clear();
+
+			for (uint32_t i = 0; i < m_Slots.size(); ++i)
+			{
+				auto& slot = m_Slots[i];
+
+				if (slot.occupied && slot.ptr && m_Deleter)
+					m_Deleter(slot.ptr);
+
+				if (slot.occupied)
+					++slot.generation;
+
+				slot.ptr = nullptr;
+				slot.occupied = false;
+				m_FreeList.push_back(i);
+			}
+
 			m_Count = 0;
 		}
 
 		uint32_t Count() const { return m_Count; }
 		bool     Empty() const { return m_Count == 0; }
 
+		template<typename Fn>
+		void ForEachOccupied(Fn&& fn)
+		{
+			for (auto& slot : m_Slots)
+			{
+				if (!slot.occupied || !slot.ptr)
+					continue;
+
+				fn(slot.ptr);
+			}
+		}
+
+		template<typename Fn>
+		void ForEachOccupied(Fn&& fn) const
+		{
+			for (const auto& slot : m_Slots)
+			{
+				if (!slot.occupied || !slot.ptr)
+					continue;
+
+				fn(slot.ptr);
+			}
+		}
+
 	private:
 		struct Slot
 		{
-			T*       ptr        = nullptr;
-			uint8_t  generation = 0;
-			bool     occupied   = false;
+			T*       ptr         = nullptr;
+			uint32_t  generation = 0;
+			bool     occupied    = false;
 		};
 
 		std::vector<Slot>     m_Slots;

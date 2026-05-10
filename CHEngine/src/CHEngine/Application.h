@@ -7,43 +7,89 @@
 #include "CHEngine/Layer/LayerStack.h"
 #include "Window.h"
 
-#include "Render/RenderResourceManager.h"
+#include "UI/UIFacade.h"
+
+#include "WindowSystem/IWindowFactory.h"
+#include "Physics/IPhysicsFactory.h"
+#include "Render/IRenderFactory.h"
 
 #include "ModuleManager.h"
 
+#include "RenderData.h"
+
+#include "Timestep.h"
+#include "World/World.h"
+#include <chrono>
+
 namespace CHEngine {
 
-	class CHENGINE_API Application
-	{
-	public:
-		Application();
-		virtual ~Application();
+    struct CHENGINE_API ApplicationConfig
+    {
+        ERenderAPI  RenderAPI = ERenderAPI::OPENGL;
+        const char* WindowModuleOverride    = nullptr;
+        const char* RendererModuleOverride  = nullptr;
+        const char* ImGuiModuleOverride     = nullptr;
+        const char* PhysicsModuleOverride   = nullptr;
+        bool        PhysicsEnabled          = true;
+    };
 
-		void Run();
+    class CHENGINE_API Application
+    {
+    public:
+        Application(const ApplicationConfig& config = {});
+        virtual ~Application();
 
-		void OnEvent(Event& e);
+        void Run();
 
-		void PushLayer(Layer* layer);
-		void PushOverlay(Layer* overlay);
+        void OnEvent(Event& e);
 
-	private:
-		bool OnWindowClosed(WindowCloseEvent& e);
-		bool OnWindowResized(WindowResizeEvent& e);
+        void PushLayer(Layer* layer);
+        void PushOverlay(Layer* overlay);
 
-		ModuleManager m_ModuleManager;
-		RenderResourceManager m_RenderResources;
+        static Application& Get()
+        {
+            CHE_CORE_ASSERT(s_Instance, "Application not created yet!");
+            return *s_Instance;
+        }
 
-		bool m_Running = true;
-		LayerStack m_LayerStack;
+        Window* GetWindow() const { return m_Window.get(); }
 
-		ShaderHandle      m_Shader;
-		VertexArrayHandle m_VertexArray;
-		RenderAPIHandle   m_RenderApi;
+        ERenderAPI     GetRenderAPIType()   const { return m_RenderAPIType; }
+        IRenderFactory* GetRenderFactory()  const { return m_RenderFactory; }
 
-		std::unique_ptr<Window> m_Window;
-	};
+        void RequestRestart();
+        bool IsRestartRequested() const { return m_RestartRequested; }
 
-	// To be defined in client
-	Application* CreateApplication();
+        ShaderHandle GetActiveShader() const         { return m_Shader; }
+        void         SetActiveShader(ShaderHandle h) { m_Shader = h; }
+
+    private:
+        bool OnWindowClosed(WindowCloseEvent& e);
+        bool OnWindowResized(WindowResizeEvent& e);
+
+        static Application* s_Instance;
+
+        Scope<ModuleManager>  m_ModuleManager;
+
+        IWindowFactory*  m_WindowFactory  = nullptr;
+        IImGuiFactory*   m_ImGuiFactory   = nullptr;
+        IPhysicsFactory* m_PhysicsFactory = nullptr;
+        IRenderFactory*  m_RenderFactory  = nullptr;
+
+        bool       m_Running = true;
+        LayerStack m_LayerStack;
+
+        ShaderHandle m_Shader;
+
+        ERenderAPI m_RenderAPIType       = ERenderAPI::OPENGL;
+        bool       m_RestartRequested    = false;
+
+        Scope<Window> m_Window;
+
+        std::chrono::steady_clock::time_point m_LastFrameTime;
+    };
+
+    // To be defined in client
+    Application* CreateApplication(const ApplicationConfig& config);
 
 }

@@ -1,126 +1,407 @@
 #include <chepch.h>
 #include "ShaderOGL.h"
 
-#include<glad/glad.h>
+#include <Render/UniformBlocks.h>
+
+#include <SlangBackend/SlangBackend.h>
+
+#include <glad/glad.h>
+
+#include <string>
+#include <vector>
+#include <regex>
 
 namespace CHModules
 {
-	ShaderOGL::ShaderOGL(const CHEngine::String& vertexSrc, const CHEngine::String& fragmentSrc)
+
+	namespace
 	{
-		// Create an empty vertex shader handle
-		GLuint vertexShader = glCreateShader(GL_VERTEX_SHADER);
-
-		// Send the vertex shader source code to GL
-		// Note that std::string's .c_str is NULL character terminated.
-		const GLchar* source = vertexSrc.c_str();
-		glShaderSource(vertexShader, 1, &source, 0);
-
-		// Compile the vertex shader
-		glCompileShader(vertexShader);
-
-		GLint isCompiled = 0;
-		glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &isCompiled);
-		if (isCompiled == GL_FALSE)
+		// ── GLSL 4.1 patcher ─────────────────────────────────────────────────────
+		// macOS поддерживает только OpenGL 4.1. Slang генерирует GLSL 4.1+ который
+		// содержит конструкции недоступные на этой версии. Патчим вывод.
+		static std::string PatchGlslForGL41(std::string src)
 		{
-			GLint maxLength = 0;
-			glGetShaderiv(vertexShader, GL_INFO_LOG_LENGTH, &maxLength);
+			// 1. #version N [profile] → #version 410 core
+			//    [^\n]* — не выходим за пределы строки
+			{
+				std::regex re(R"(#version[^\n]*)");
+				src = std::regex_replace(src, re, "#version 410 core",
+				                         std::regex_constants::format_first_only);
+			}
 
-			// The maxLength includes the NULL character
-			std::vector<GLchar> infoLog(maxLength);
-			glGetShaderInfoLog(vertexShader, maxLength, &maxLength, &infoLog[0]);
+			// 2. Убираем "layout(row_major) buffer;" (SSBO, требует 4.30+)
+			//    НО ОСТАВЛЯЕМ "layout(row_major) uniform;" — валидно с GLSL 1.40
+			{
+				std::regex re(R"(layout\s*\(\s*row_major\s*\)\s*buffer\s*;[^\n]*)");
+				src = std::regex_replace(src, re, "");
+			}
 
-			// We don't need the shader anymore.
-			glDeleteShader(vertexShader);
+			// 3. Убираем ВСЕ "layout(binding = N)" (для UBO и сэмплеров).
+			//    Binding в layout требует GLSL 4.20.
+			{
+				std::regex re(R"(layout\s*\(\s*binding\s*=\s*\d+\s*\)\s*\n?)");
+				src = std::regex_replace(src, re, "");
+			}
 
-			CHE_CORE_ERROR("{0}", infoLog.data());
-			CHE_CORE_ASSERT(false, "Vertex shader compilation failure!");
-			return;
+			// 4. Убираем "#extension GL_ARB_shader_draw_parameters : require"
+			//    Это расширение добавляет gl_BaseVertex — недоступно на macOS 4.1.
+			{
+				std::regex re(R"(#extension\s+GL_ARB_shader_draw_parameters\s*:\s*\w+[^\n]*)");
+				src = std::regex_replace(src, re, "");
+			}
+
+			// 5. gl_VertexIndex → gl_VertexID   (Slang пишет Vulkan-имя)
+			//    gl_BaseVertex  → 0               (всегда 0 для fullscreen drawcall)
+			{
+				std::regex re_vidx(R"(\bgl_VertexIndex\b)");
+				src = std::regex_replace(src, re_vidx, "gl_VertexID");
+
+				std::regex re_bv(R"(\bgl_BaseVertex\b)");
+				src = std::regex_replace(src, re_bv, "0");
+			}
+
+			// 6. C-style array initializer → GLSL конструктор (4.10 не поддерживает = { }).
+			//    Пример: "const vec2 pos[3] = { a, b, c };"
+			//          → "const vec2 pos[3] = vec2[3](a, b, c);"
+			{
+				std::regex re(R"(const\s+(\w+)\s+\s*(\w+)\[(\d+)\]\s*=\s*\{([^}]+)\})");
+				src = std::regex_replace(src, re, "const $1 $2[$3] = $1[$3]($4)");
+			}
+
+			// 7. Исправляем UV Y-флип тонмапа: формула написана для Metal (FBO Y=0 сверху),
+			//    в OpenGL FBO Y=0 снизу → нужна стандартная UV (без переворота).
+			//
+			//    Metal:   UV.y = 0.5 - pos.y * 0.5   (переворот нужен, т.к. Metal FBO Y=0 сверху)
+			//    OpenGL:  UV.y = pos.y * 0.5 + 0.5   (стандарт, OGL FBO Y=0 снизу)
+			//
+			//    Паттерн:  "0.5 - <expr>.y * 0.5"  →  "<expr>.y * 0.5 + 0.5"
+			{
+				std::regex re(R"(0\.5\s*-\s*(\S+\.y)\s*\*\s*0\.5)");
+				src = std::regex_replace(src, re, "$1 * 0.5 + 0.5");
+			}
+
+			return src;
 		}
 
-		// Create an empty fragment shader handle
-		GLuint fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-
-		// Send the fragment shader source code to GL
-		// Note that std::string's .c_str is NULL character terminated.
-		source = fragmentSrc.c_str();
-		glShaderSource(fragmentShader, 1, &source, 0);
-
-		// Compile the fragment shader
-		glCompileShader(fragmentShader);
-
-		glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &isCompiled);
-		if (isCompiled == GL_FALSE)
+		// ── Varying-нормализатор ──────────────────────────────────────────────────
+		// Slang генерирует разные имена varying для vert-out и frag-in:
+		//   vert out: entryPointParam_vertMain_Color_0
+		//   frag  in: input_Color_0
+		// OpenGL 4.1 на macOS матчит по имени (не location) → переименовываем оба в v_*.
+		static void NormalizeGlslVaryings(std::string& vertSrc, std::string& fragSrc)
 		{
-			GLint maxLength = 0;
-			glGetShaderiv(fragmentShader, GL_INFO_LOG_LENGTH, &maxLength);
+			// Регулярка для varying-переменных в vertex выходе (entryPointParam_vertMain_*)
+			// и соответствующих входах фрагментного шейдера (input_*)
+			static const std::pair<std::regex, std::string> vert_patterns[] = {
+				{ std::regex(R"(\bentryPointParam_\w+_(\w+)_0\b)"), "v_$1_0" },
+			};
+			static const std::pair<std::regex, std::string> frag_patterns[] = {
+				{ std::regex(R"(\binput_(\w+)_0\b)"), "v_$1_0" },
+			};
 
-			// The maxLength includes the NULL character
-			std::vector<GLchar> infoLog(maxLength);
-			glGetShaderInfoLog(fragmentShader, maxLength, &maxLength, &infoLog[0]);
-
-			// We don't need the shader anymore.
-			glDeleteShader(fragmentShader);
-			// Either of them. Don't leak shaders.
-			glDeleteShader(vertexShader);
-
-			CHE_CORE_ERROR("{0}", infoLog.data());
-			CHE_CORE_ASSERT(false, "Fragment shader compilation failure!");
-			return;
+			for (auto& [re, repl] : vert_patterns)
+				vertSrc = std::regex_replace(vertSrc, re, repl);
+			for (auto& [re, frag_repl] : frag_patterns)
+				fragSrc = std::regex_replace(fragSrc, re, frag_repl);
 		}
 
-		// Vertex and fragment shaders are successfully compiled.
-		// Now time to link them together into a program.
-		// Get a program object.
-		m_RendererID = glCreateProgram();
-		GLuint program = m_RendererID;
+		// ── Stage compiler ────────────────────────────────────────────────────────
+		// Compile one GLSL stage. Returns the GL shader id, or 0 on failure.
+		GLuint CompileStage(GLenum stage, const std::string& source, const char* stageName)
+		{
+			GLuint shader = glCreateShader(stage);
+			const GLchar* src = source.c_str();
+			const GLint len = static_cast<GLint>(source.size());
+			glShaderSource(shader, 1, &src, &len);
+			glCompileShader(shader);
 
-		// Attach our shaders to our program
+			GLint isCompiled = 0;
+			glGetShaderiv(shader, GL_COMPILE_STATUS, &isCompiled);
+			if (isCompiled == GL_FALSE)
+			{
+				GLint maxLength = 0;
+				glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &maxLength);
+				std::vector<GLchar> infoLog(maxLength);
+				glGetShaderInfoLog(shader, maxLength, &maxLength, infoLog.data());
+				glDeleteShader(shader);
+				CHE_CORE_ERROR("ShaderOGL: {0} compilation failed: {1}", stageName, infoLog.data());
+				return 0;
+			}
+			return shader;
+		}
+	}
+
+	GLuint ShaderOGL::CompileSlangProgram(const CHEngine::String& slangSource,
+	                                      const CHEngine::String& vertEntry,
+	                                      const CHEngine::String& fragEntry,
+	                                      const CHEngine::String& sourcePath)
+	{
+		SlangBackend* backend = SlangBackend::GetForApi(CHEngine::ERenderAPI::OPENGL);
+		if (!backend)
+		{
+			CHE_CORE_ERROR("ShaderOGL: SlangBackend unavailable for OpenGL");
+			return 0;
+		}
+
+		CompiledShader compiled = backend->Compile(slangSource, vertEntry, fragEntry, sourcePath);
+		if (!compiled.valid)
+		{
+			CHE_CORE_ERROR("ShaderOGL: Slang compilation failed:\n{0}", compiled.errorLog);
+			return 0;
+		}
+
+		// Slang выдаёт GLSL как текст без терминирующего нуля — берём как есть по размеру.
+		std::string vertGlsl(reinterpret_cast<const char*>(compiled.vertexCode.data()),
+		                     compiled.vertexCode.size());
+		std::string fragGlsl(reinterpret_cast<const char*>(compiled.fragmentCode.data()),
+		                     compiled.fragmentCode.size());
+
+		// macOS ограничен OpenGL 4.1 — патчим GLSL-вывод Slang.
+		vertGlsl = PatchGlslForGL41(std::move(vertGlsl));
+		fragGlsl = PatchGlslForGL41(std::move(fragGlsl));
+		// Нормализуем varying-имена: OpenGL 4.1 матчит по имени, не по location.
+		NormalizeGlslVaryings(vertGlsl, fragGlsl);
+
+
+		GLuint vertexShader = CompileStage(GL_VERTEX_SHADER, vertGlsl, "vertex");
+		if (!vertexShader)
+			return 0;
+
+		GLuint fragmentShader = CompileStage(GL_FRAGMENT_SHADER, fragGlsl, "fragment");
+		if (!fragmentShader)
+		{
+			glDeleteShader(vertexShader);
+			return 0;
+		}
+
+		GLuint program = glCreateProgram();
 		glAttachShader(program, vertexShader);
 		glAttachShader(program, fragmentShader);
-
-		// Link our program
 		glLinkProgram(program);
 
-		// Note the different functions here: glGetProgram* instead of glGetShader*.
 		GLint isLinked = 0;
-		glGetProgramiv(program, GL_LINK_STATUS, (int*)&isLinked);
+		glGetProgramiv(program, GL_LINK_STATUS, &isLinked);
 		if (isLinked == GL_FALSE)
 		{
 			GLint maxLength = 0;
 			glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
-
-			// The maxLength includes the NULL character
 			std::vector<GLchar> infoLog(maxLength);
-			glGetProgramInfoLog(program, maxLength, &maxLength, &infoLog[0]);
-
-			// We don't need the program anymore.
+			glGetProgramInfoLog(program, maxLength, &maxLength, infoLog.data());
 			glDeleteProgram(program);
-			// Don't leak shaders either.
-			glDeleteShader(vertexShader);
 			glDeleteShader(fragmentShader);
-
-			CHE_CORE_ERROR("{0}", infoLog.data());
-			CHE_CORE_ASSERT(false, "Shader link failure!");
-			return;
+			glDeleteShader(vertexShader);
+			CHE_CORE_ERROR("ShaderOGL: link failed: {0}", infoLog.data());
+			return 0;
 		}
 
-		// Always detach shaders after a successful link.
 		glDetachShader(program, vertexShader);
 		glDetachShader(program, fragmentShader);
+		glDeleteShader(vertexShader);
+		glDeleteShader(fragmentShader);
+
+		return program;
+	}
+
+	void ShaderOGL::BindUBOBlocks()
+	{
+		// Pass 1: name-based matching — works when Slang generates expected block names.
+		// Slang mangles ConstantBuffer<CameraUBO> to "block_CameraUBO_0" etc., but the
+		// exact mangling can differ by Slang version / platform, so we try several aliases.
+		struct BlockBinding { const char* names[4]; GLuint binding; GLint knownSize; };
+		static const BlockBinding blocks[] = {
+			{ { "CameraUBO",   "block_CameraUBO_0",   "_CameraUBO",   "CameraUBO_0"   }, 0, static_cast<GLint>(sizeof(CHEngine::UBOCamera))   },
+			{ { "ObjectUBO",   "block_ObjectUBO_0",   "_ObjectUBO",   "ObjectUBO_0"   }, 1, static_cast<GLint>(sizeof(CHEngine::UBOObject))   },
+			{ { "LightingUBO", "block_LightingUBO_0", "_LightingUBO", "LightingUBO_0" }, 2, static_cast<GLint>(sizeof(CHEngine::UBOLighting)) },
+			{ { "MaterialUBO", "block_MaterialUBO_0", "_MaterialUBO", "MaterialUBO_0" }, 3, static_cast<GLint>(sizeof(CHEngine::UBOMaterial)) },
+		};
+		constexpr int kBlockCount = static_cast<int>(sizeof(blocks) / sizeof(blocks[0]));
+
+		bool bound[kBlockCount] = {};
+
+		for (int bi = 0; bi < kBlockCount; ++bi) {
+			const auto& b = blocks[bi];
+			for (const char* name : b.names) {
+				if (!name) break;
+				GLuint idx = glGetUniformBlockIndex(m_ProgramID, name);
+				if (idx != GL_INVALID_INDEX) {
+					glUniformBlockBinding(m_ProgramID, idx, b.binding);
+					bound[bi] = true;
+					break;
+				}
+			}
+		}
+
+		// Pass 2: size-based fallback for any blocks not matched by name.
+		// All four UBO sizes are unique (144 / 160 / 672 / 32), so size alone is unambiguous.
+		bool anyUnbound = false;
+		for (int bi = 0; bi < kBlockCount; ++bi) anyUnbound |= !bound[bi];
+
+		if (anyUnbound) {
+			GLint activeBlocks = 0;
+			glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORM_BLOCKS, &activeBlocks);
+
+			GLint maxNameLen = 0;
+			glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORM_BLOCK_MAX_NAME_LENGTH, &maxNameLen);
+			std::vector<char> nameBuf(static_cast<size_t>(std::max(maxNameLen, 1)));
+
+			CHE_CORE_WARN("ShaderOGL: name-based UBO match incomplete — enumerating {} active blocks:", activeBlocks);
+			for (GLint gi = 0; gi < activeBlocks; ++gi) {
+				GLint blockSize = 0;
+				glGetActiveUniformBlockiv(m_ProgramID, static_cast<GLuint>(gi),
+				                         GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+
+				GLsizei nameLen = 0;
+				glGetActiveUniformBlockName(m_ProgramID, static_cast<GLuint>(gi),
+				                           static_cast<GLsizei>(nameBuf.size()),
+				                           &nameLen, nameBuf.data());
+
+				CHE_CORE_WARN("  block[{}] name='{}' size={}", gi, nameBuf.data(), blockSize);
+
+				for (int bi = 0; bi < kBlockCount; ++bi) {
+					if (bound[bi]) continue;
+					if (blockSize == blocks[bi].knownSize) {
+						glUniformBlockBinding(m_ProgramID, static_cast<GLuint>(gi), blocks[bi].binding);
+						bound[bi] = true;
+						CHE_CORE_WARN("  → matched to '{}' binding={} by size", blocks[bi].names[0], blocks[bi].binding);
+					}
+				}
+			}
+		}
+
+#ifdef CHE_DEBUG
+		for (int bi = 0; bi < kBlockCount; ++bi) {
+			if (!bound[bi])
+				CHE_CORE_WARN("ShaderOGL: UBO '{}' (binding {}) not found in shader — block may be unused or name/size mismatch",
+				              blocks[bi].names[0], blocks[bi].binding);
+		}
+#endif
+
+		BindSamplerUnits();
+	}
+
+	void ShaderOGL::BindSamplerUnits()
+	{
+		// Slang emits GLSL samplers with target-assigned binding indices that
+		// don't necessarily match texture unit 0,1,2,... in declaration order.
+		// Enumerate active sampler uniforms post-link and explicitly assign
+		// each one to a sequential texture unit, so callers can simply bind
+		// textures to GL_TEXTUREN where N is the declaration order.
+
+		GLint activeUniforms = 0;
+		glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORMS, &activeUniforms);
+		if (activeUniforms <= 0)
+			return;
+
+		GLint maxNameLen = 0;
+		glGetProgramiv(m_ProgramID, GL_ACTIVE_UNIFORM_MAX_LENGTH, &maxNameLen);
+		if (maxNameLen <= 0)
+			return;
+
+		std::vector<char> nameBuf(static_cast<size_t>(maxNameLen));
+		glUseProgram(m_ProgramID); // glUniform1i operates on the currently bound program
+
+		uint32_t samplerUnit = 0;
+		for (GLint i = 0; i < activeUniforms; ++i) {
+			GLsizei len  = 0;
+			GLint   size = 0;
+			GLenum  type = 0;
+			glGetActiveUniform(m_ProgramID, static_cast<GLuint>(i),
+			                   maxNameLen, &len, &size, &type, nameBuf.data());
+
+			const bool isSampler =
+				type == GL_SAMPLER_2D            || type == GL_SAMPLER_2D_ARRAY ||
+				type == GL_SAMPLER_2D_SHADOW     || type == GL_SAMPLER_CUBE     ||
+				type == GL_SAMPLER_CUBE_SHADOW   || type == GL_SAMPLER_3D       ||
+				type == GL_INT_SAMPLER_2D        || type == GL_UNSIGNED_INT_SAMPLER_2D;
+
+			if (!isSampler)
+				continue;
+
+			GLint loc = glGetUniformLocation(m_ProgramID, nameBuf.data());
+			if (loc == -1)
+				continue;
+
+			glUniform1i(loc, static_cast<GLint>(samplerUnit));
+			++samplerUnit;
+		}
+
+		glUseProgram(0);
+	}
+
+	ShaderOGL::ShaderOGL(const CHEngine::String& slangSource,
+	                     const CHEngine::String& vertEntry,
+	                     const CHEngine::String& fragEntry,
+	                     const CHEngine::String& sourcePath)
+	{
+		m_ProgramID = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
+		CHE_CORE_ASSERT(m_ProgramID, "ShaderOGL: failed to compile/link shader");
+
+		glGenBuffers(UBO_COUNT, m_UBOs.data());
+
+		const uint32_t uboSizes[UBO_COUNT] = {
+			static_cast<uint32_t>(sizeof(CHEngine::UBOCamera)),
+			static_cast<uint32_t>(sizeof(CHEngine::UBOObject)),
+			static_cast<uint32_t>(sizeof(CHEngine::UBOLighting)),
+			static_cast<uint32_t>(sizeof(CHEngine::UBOMaterial)),
+		};
+
+		for (uint32_t i = 0; i < UBO_COUNT; ++i) {
+			glBindBuffer(GL_UNIFORM_BUFFER, m_UBOs[i]);
+			glBufferData(GL_UNIFORM_BUFFER, uboSizes[i], nullptr, GL_DYNAMIC_DRAW);
+		}
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+
+		BindUBOBlocks();
 	}
 
 	ShaderOGL::~ShaderOGL()
 	{
-		glDeleteProgram(m_RendererID);
+		glDeleteBuffers(UBO_COUNT, m_UBOs.data());
+		glDeleteProgram(m_ProgramID);
 	}
 
 	void ShaderOGL::Bind() const
 	{
-		glUseProgram(m_RendererID);
+		glUseProgram(m_ProgramID);
 	}
 
 	void ShaderOGL::Unbind() const
 	{
 		glUseProgram(0);
 	}
+
+	bool ShaderOGL::Reload(const CHEngine::String& slangSource,
+	                       const CHEngine::String& vertEntry,
+	                       const CHEngine::String& fragEntry,
+	                       const CHEngine::String& sourcePath)
+	{
+		GLuint newProgram = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
+		if (!newProgram)
+			return false;
+
+		glDeleteProgram(m_ProgramID);
+		m_ProgramID = newProgram;
+
+		BindUBOBlocks();
+		return true;
+	}
+
+	void ShaderOGL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size)
+	{
+		uint32_t binding = static_cast<uint32_t>(block);
+		if (binding >= UBO_COUNT) return;
+
+		glBindBuffer(GL_UNIFORM_BUFFER, m_UBOs[binding]);
+		glBufferSubData(GL_UNIFORM_BUFFER, 0, size, data);
+		glBindBufferBase(GL_UNIFORM_BUFFER, binding, m_UBOs[binding]);
+		glBindBuffer(GL_UNIFORM_BUFFER, 0);
+	}
+
+	void ShaderOGL::SetInt(const CHEngine::String& name, int value)
+	{
+		GLint location = glGetUniformLocation(m_ProgramID, name.c_str());
+		if (location == -1) return;
+		glUniform1i(location, value);
+	}
+
 }

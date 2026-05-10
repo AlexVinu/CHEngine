@@ -6,9 +6,8 @@
 
 namespace CHEngine
 {
-    class CHE_CORE_API MemorySystem
+    struct CHE_CORE_API MemorySystem
     {
-    public:
         // Инициализация memory system
         static void Initialize();
 
@@ -21,8 +20,5 @@ namespace CHEngine
         // Можно добавить дополнительные методы, например set allocator
         static void SetAllocator(IAllocator* allocator);
 
-    private:
-        // Глобальный указатель на allocator
-        static IAllocator* s_Allocator;
     };
 }

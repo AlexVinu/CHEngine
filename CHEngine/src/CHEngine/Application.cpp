@@ -2,130 +2,393 @@
 #include "Application.h"
 
 #include "Log/Log.h"
+#include "PlatformAPICapabilities.h"
+#include "Profiler.h"
+#include "CHEngine/Input/Input.h"
+#include "CHEngine/EngineConfig.h"
+#include "Physics/PhysicsFacade.h"
+#include "Render/RenderFacade.h"
+#include "CHEngine/ResourceManager/ResourceManager.h"
+#include "UI/UIFacade.h"
+
+#include <imgui.h>
+
+#include <filesystem>
+#if defined(CHE_PLATFORM_APPLE)
+#include <mach-o/dyld.h>
+#elif defined(CHE_PLATFORM_WINDOWS)
+#include <Windows.h>
+#elif defined(CHE_PLATFORM_LINUX)
+#include <unistd.h>
+#include <climits>      // PATH_MAX
+#endif
 
 namespace CHEngine {
 
-#define BIND_EVENT_FN(x) std::bind(&Application::x, this, std::placeholders::_1)
+    namespace
+    {
+        struct StartupModuleSelection
+        {
+            std::string WindowModuleName;
+            std::string RendererModuleName;
+            std::string ImGuiModuleName;
+            std::string PhysicsModuleName;
+        };
 
-	Application::Application()
-		:m_ModuleManager()
-	{
-		m_ModuleManager.LoadModule("RendererOGL.dll");
-		auto* renderFactory = m_ModuleManager.GetModule<IRenderFactory>(ModuleType::Render);
+        const char* GetDefaultWindowModuleName()
+        {
+#if defined(CHE_PLATFORM_WINDOWS)
+            return "WindowGLFW.dll";
+#elif defined(CHE_PLATFORM_APPLE)
+            return "libWindowGLFW.dylib";
+#else
+            return "libWindowGLFW.so";
+#endif
+        }
 
-		m_RenderResources.Init(renderFactory);
+        const char* GetDefaultPhysicsModuleName()
+        {
+#if defined(CHE_PLATFORM_WINDOWS)
+            return "PhysicsPhysX.dll";
+#elif defined(CHE_PLATFORM_APPLE)
+            return "libPhysicsPhysX.dylib";
+#else
+            return "libPhysicsPhysX.so";
+#endif
+        }
 
-		m_Window = std::unique_ptr<Window>(Window::Create(renderFactory));
-		m_Window->SetEventCallback(BIND_EVENT_FN(OnEvent));
+        bool TryLoadStartupModules(ModuleManager* module_manager,
+                                   const ApplicationConfig& config,
+                                   ERenderAPI render_api,
+                                   StartupModuleSelection* out_selection,
+                                   IWindowFactory** out_window_factory,
+                                   IRenderFactory** out_render_factory,
+                                   IImGuiFactory** out_imgui_factory,
+                                   IPhysicsFactory** out_physics_factory)
+        {
+            if (!module_manager || !out_selection || !out_window_factory || !out_render_factory
+                || !out_imgui_factory || !out_physics_factory)
+                return false;
 
-		m_RenderApi = m_RenderResources.CreateRenderAPI();
+            const ModuleNames module_names = RenderModuleResolver::GetModuleNames(render_api);
+            if (!module_names.Renderer || !module_names.ImGui)
+            {
+                CHE_CORE_WARN("Render API {} is not supported by platform module mapping", (int)render_api);
+                return false;
+            }
 
-		m_VertexArray = m_RenderResources.CreateVertexArray();
+            out_selection->WindowModuleName = config.WindowModuleOverride ? config.WindowModuleOverride : GetDefaultWindowModuleName();
+            out_selection->RendererModuleName = config.RendererModuleOverride ? config.RendererModuleOverride : module_names.Renderer;
+            out_selection->ImGuiModuleName = config.ImGuiModuleOverride ? config.ImGuiModuleOverride : module_names.ImGui;
+            out_selection->PhysicsModuleName = config.PhysicsModuleOverride ? config.PhysicsModuleOverride : GetDefaultPhysicsModuleName();
 
-		float vertices[3 * 3] = {
-			-0.5f, -0.5f, 0.0f,
-			 0.5f, -0.5f, 0.0f,
-			 0.0f,  0.5f, 0.0f
-		};
+            if (config.WindowModuleOverride)
+                CHE_CORE_INFO("Window module override: {}", out_selection->WindowModuleName.c_str());
+            if (config.RendererModuleOverride)
+                CHE_CORE_INFO("Renderer module override: {}", out_selection->RendererModuleName.c_str());
+            if (config.ImGuiModuleOverride)
+                CHE_CORE_INFO("ImGui module override: {}", out_selection->ImGuiModuleName.c_str());
+            if (config.PhysicsModuleOverride)
+                CHE_CORE_INFO("Physics module override: {}", out_selection->PhysicsModuleName.c_str());
 
-		auto vertexBuffer = m_RenderResources.CreateVertexBuffer(vertices, sizeof(vertices));
-		BufferLayout layout = {
-			{ ShaderDataType::Float3, "a_Position" },
-		};
-		vertexBuffer->SetLayout(layout);
-		m_RenderResources.Get(m_VertexArray)->AddVertexBuffer(vertexBuffer);
+            const bool window_loaded = module_manager->LoadModule(out_selection->WindowModuleName);
+            const bool renderer_loaded = module_manager->LoadModule(out_selection->RendererModuleName);
+            const bool imgui_loaded = module_manager->LoadModule(out_selection->ImGuiModuleName);
 
-		uint32_t indices[3] = { 0, 1, 2 };
-		auto indexBuffer = m_RenderResources.CreateIndexBuffer(indices, sizeof(indices) / sizeof(uint32_t));
+            bool physics_loaded = false;
+            if (config.PhysicsEnabled)
+                physics_loaded = module_manager->LoadModule(out_selection->PhysicsModuleName);
+            else
+                CHE_CORE_INFO("Physics module loading disabled by startup config.");
 
-		m_RenderResources.Get(m_VertexArray)->SetIndexBuffer(indexBuffer);
+            *out_window_factory = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
+            *out_render_factory = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
+            *out_imgui_factory = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
+            *out_physics_factory = physics_loaded ? module_manager->GetModule<IPhysicsFactory>(ModuleType::Physics) : nullptr;
 
-		String vertexSrc = R"(
-			#version 330 core
+            if (!window_loaded || !*out_window_factory)
+            {
+                CHE_CORE_ERROR("Failed to load Window module '{}'", out_selection->WindowModuleName.c_str());
+                module_manager->UnloadAll();
+                return false;
+            }
+            if (!renderer_loaded || !*out_render_factory)
+            {
+                CHE_CORE_ERROR("Failed to load Renderer module '{}'", out_selection->RendererModuleName.c_str());
+                module_manager->UnloadAll();
+                return false;
+            }
+            CHE_CORE_INFO("Running renderer health-check: {}", out_selection->RendererModuleName.c_str());
+            if (!(*out_render_factory)->CheckIsWorking())
+            {
+                CHE_CORE_ERROR("Renderer module '{}' failed CheckIsWorking()", out_selection->RendererModuleName.c_str());
+                module_manager->UnloadAll();
+                return false;
+            }
+            if (!imgui_loaded || !*out_imgui_factory)
+                CHE_CORE_WARN("Failed to load ImGui module '{}'! ImGui will be unavailable.", out_selection->ImGuiModuleName.c_str());
 
-			layout(location = 0) in vec3 a_Position;
+            if (config.PhysicsEnabled && *out_physics_factory)
+            {
+                CHE_CORE_INFO("Running physics health-check: {}", out_selection->PhysicsModuleName.c_str());
+                if (!(*out_physics_factory)->CheckIsWorking())
+                {
+                    CHE_CORE_WARN("Physics module '{}' failed CheckIsWorking(); physics will be disabled.",
+                                  out_selection->PhysicsModuleName.c_str());
+                    *out_physics_factory = nullptr;
+                }
+            }
+            else if (config.PhysicsEnabled)
+            {
+                CHE_CORE_WARN("Failed to load Physics module '{}'! Physics will be unavailable.",
+                              out_selection->PhysicsModuleName.c_str());
+            }
 
-			out vec3 v_Position;
+            return true;
+        }
+    }
 
-			void main()
-			{
-				v_Position = a_Position;
-				gl_Position = vec4(a_Position, 1.0);
-			}
-		)";
+    Application* Application::s_Instance = nullptr;
 
-		String fragmentSrc = R"(
-			#version 330 core
+    Application::Application(const ApplicationConfig& config)
+        : m_RenderAPIType(config.RenderAPI)
+    {
+        m_ModuleManager = std::make_unique<ModuleManager>();
+        CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
-			layout(location = 0) out vec4 color;
+        // Set working directory to executable location so relative paths
+        // (shaders/, assets/) resolve correctly on all platforms.
+        {
+            std::filesystem::path exeDir;
+#if defined(CHE_PLATFORM_APPLE)
+            char exePath[4096];
+            uint32_t size = sizeof(exePath);
+            if (_NSGetExecutablePath(exePath, &size) == 0)
+                exeDir = std::filesystem::path(exePath).parent_path();
+#elif defined(CHE_PLATFORM_WINDOWS)
+            char exePath[MAX_PATH];
+            if (GetModuleFileNameA(nullptr, exePath, MAX_PATH) > 0)
+                exeDir = std::filesystem::path(exePath).parent_path();
+#elif defined(CHE_PLATFORM_LINUX)
+            char exePath[PATH_MAX];
+            ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+            if (len > 0)
+            {
+                exePath[len] = '\0';
+                exeDir = std::filesystem::path(exePath).parent_path();
+            }
+#endif
+            if (!exeDir.empty())
+            {
+                std::filesystem::current_path(exeDir);
+                CHE_CORE_INFO("Working directory set to: {0}", exeDir.string().c_str());
+            }
+        }
+        s_Instance = this;
 
-			in vec3 v_Position;
+        // ─── 1. Load startup modules ────────────────────────────────────────────
+        StartupModuleSelection startup_selection;
+        IRenderFactory* render_factory = nullptr;
+        ERenderAPI selected_api = config.RenderAPI;
+        CHE_CORE_INFO("Startup Modules");
+        bool startup_ok = TryLoadStartupModules(m_ModuleManager.get(),
+                                                config,
+                                                selected_api,
+                                                &startup_selection,
+                                                &m_WindowFactory,
+                                                &render_factory,
+                                                &m_ImGuiFactory,
+                                                &m_PhysicsFactory);
 
-			void main()
-			{
-				color = vec4(v_Position * 0.5 + 0.5, 1.0);
-			}
-		)";
+        const bool has_render_override = config.RendererModuleOverride || config.ImGuiModuleOverride;
+        if (!startup_ok && !has_render_override && selected_api != ERenderAPI::OPENGL)
+        {
+            CHE_CORE_WARN("Startup failed for render API {}. Falling back to OpenGL.", (int)selected_api);
+            selected_api = ERenderAPI::OPENGL;
+            startup_ok = TryLoadStartupModules(m_ModuleManager.get(),
+                                               config,
+                                               selected_api,
+                                               &startup_selection,
+                                               &m_WindowFactory,
+                                               &render_factory,
+                                               &m_ImGuiFactory,
+                                               &m_PhysicsFactory);
+        }
 
-		m_Shader = m_RenderResources.CreateShader(vertexSrc, fragmentSrc);
-	}
+        if (!startup_ok)
+        {
+            CHE_CORE_CRITICAL("Failed to initialize startup modules.");
+            m_Running = false;
+            return;
+        }
 
-	Application::~Application()
-	{
-		m_RenderResources.Shutdown();
-	}
+        CHE_CORE_INFO("Startup succeeded");
 
-	void Application::PushLayer(Layer* layer)
-	{
-		m_LayerStack.PushLayer(layer);
-	}
+        m_RenderAPIType = selected_api;
+        m_RenderFactory = render_factory;
 
-	void Application::PushOverlay(Layer* overlay)
-	{
-		m_LayerStack.PushLayer(overlay);
-	}
+        EngineConfig::CommitRendererPreference(m_RenderAPIType);
 
-	void Application::OnEvent(Event& e)
-	{
-		EventDispatcher dispatcher(e);
-		dispatcher.Dispatch<WindowCloseEvent>(BIND_EVENT_FN(OnWindowClosed));
-		dispatcher.Dispatch<WindowResizeEvent>(BIND_EVENT_FN(OnWindowResized));
+        // ─── 2. Create window ────────────────────────────────────────────────────
+        ERenderAPI render_api = render_factory->GetRenderApi();
+        m_Window = Scope<Window>(Window::Create(m_WindowFactory, render_api));
+        m_Window->SetEventCallback([this](Event& e) { OnEvent(e); });
 
-		CHE_CORE_TRACE("{0}", e);
+        // ─── 3. Initialize renderer (GLAD / device) ──────────────────────────────
+        RendererInitInfo renderInitInfo = m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api);
+        RenderFacade::InitRenderer(renderInitInfo);
 
-		for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
-		{
-			(*--it)->OnEvent(e);
-			if (e.Handled)
-				break;
-		}
-	}
+        // ─── 4. Create ImGui layer ────────────────────────────────────────────────
+        if (m_ImGuiFactory)
+            UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
 
-	bool Application::OnWindowClosed(WindowCloseEvent& e)
-	{
-		m_Running = false;
-		return true;
-	}
+        // ─── 5. Create default shader ─────────────────────────────────────────────
+        m_Shader = ResourceManager::Instance().Load<ShaderHandle>(
+            std::string("Basic"),
+            std::string("shaders/basic.slang")
+        );
 
-	bool Application::OnWindowResized(WindowResizeEvent& e)
-	{
-		m_RenderResources.Get(m_RenderApi)->SetViewport(e.GetWidth(), e.GetHeight());
-		return false;
-	}
+        // ─── 6. Physics ────────────────────────────────────────────────────────────
+        if (m_PhysicsFactory)
+        {
+            if (!PhysicsFacade::Init(m_PhysicsFactory))
+                CHE_CORE_WARN("Failed to initialize physics facade!");
+        }
+    }
 
-	void Application::Run()
-	{
-		while (m_Running)
-		{
-			m_RenderResources.Get(m_RenderApi)->Clear();
+    Application::~Application()
+    {
+        m_LayerStack.Clear();
 
-			m_RenderResources.Get(m_Shader)->Bind();
-			m_RenderResources.Get(m_RenderApi)->DrawIndexed(m_RenderResources.Get(m_VertexArray));
+        if (IImGuiLayer* layer = UIFacade::GetLayer(); layer && m_ImGuiFactory)
+            m_ImGuiFactory->Delete(layer);
+        UIFacade::SetLayer(nullptr);
 
-			for (Layer* layer : m_LayerStack)
-				layer->OnUpdate();
+        PhysicsFacade::Shutdown();
 
-			m_Window->OnUpdate();
-		}
-	}
+        RenderFacade::Shutdown();
+    }
+
+    void Application::PushLayer(Layer* layer)
+    {
+        m_LayerStack.PushLayer(layer);
+    }
+
+    void Application::PushOverlay(Layer* overlay)
+    {
+        m_LayerStack.PushOverlay(overlay);
+    }
+
+    void Application::OnEvent(Event& e)
+    {
+        EventDispatcher dispatcher(e);
+        dispatcher.Dispatch<WindowCloseEvent>([this](WindowCloseEvent& event) { return OnWindowClosed(event); });
+        dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& event) { return OnWindowResized(event); });
+
+        for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
+        {
+            (*--it)->OnEvent(e);
+            if (e.Handled)
+                break;
+        }
+    }
+
+    bool Application::OnWindowClosed(WindowCloseEvent& /*e*/)
+    {
+        m_Running = false;
+        return true;
+    }
+
+    bool Application::OnWindowResized(WindowResizeEvent& e)
+    {
+        RenderFacade::SetViewport(e.GetWidth(), e.GetHeight());
+        return false;
+    }
+
+    void Application::RequestRestart()
+    {
+        m_RestartRequested = true;
+        m_Running = false;
+    }
+
+    void Application::Run()
+    {
+        m_LastFrameTime      = std::chrono::steady_clock::now();
+        float shaderPollAcc  = 0.0f;
+
+        constexpr float ShaderPollInterval = 0.5f; // шейдеры — раз в полсекунды
+
+        while (m_Running)
+        {
+            // ── Delta time ──────────────────────────────────────────────────
+            auto now = std::chrono::steady_clock::now();
+            Timestep dt = std::chrono::duration<float>(now - m_LastFrameTime).count();
+            m_LastFrameTime = now;
+
+            Profiler::Flush();
+
+            // ── Shader hot reload ────────────────────────────────────────────
+            shaderPollAcc += dt;
+            if (shaderPollAcc >= ShaderPollInterval) {
+                shaderPollAcc = 0.0f;
+                RenderFacade::PollShaders();
+            }
+
+            Input::BeginFrame(m_Window->GetPlatformWindow());
+
+            RenderFacade::BeginFrame();
+
+            RenderFacade::BeginFrameGraph();
+
+            for (Layer* layer : m_LayerStack)
+                layer->OnUpdate(dt);
+
+            RenderFacade::EndFrameGraph();
+
+            if (UIFacade::GetLayer())
+            {
+                UIFacade::Begin();
+                for (Layer* layer : m_LayerStack)
+                    layer->OnImGuiRender();
+                UIFacade::End();
+            }
+
+            RenderFacade::EndFrame();
+
+            m_Window->OnUpdate();
+        }
+
+        // ── Overlay «Restarting...» — one final frame ────────────────────────
+        if (m_RestartRequested && UIFacade::GetLayer())
+        {
+            RenderFacade::BeginFrame();
+
+            RenderFacade::BeginFrameGraph();
+            RenderFacade::EndFrameGraph();
+
+            UIFacade::Begin();
+
+            ImVec2 displaySize = ImGui::GetIO().DisplaySize;
+            ImGui::GetBackgroundDrawList()->AddRectFilled(
+                ImVec2(0, 0), displaySize, IM_COL32(0, 0, 0, 180));
+
+            const char* text = "Restarting with new renderer...";
+            ImVec2 center(displaySize.x * 0.5f, displaySize.y * 0.5f);
+
+            ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+            ImGui::SetNextWindowSize(ImVec2(0, 0));
+            ImGui::Begin("##restart_overlay", nullptr,
+                ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoNav |
+                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground |
+                ImGuiWindowFlags_AlwaysAutoResize);
+            ImGui::TextUnformatted(text);
+            ImGui::End();
+
+            UIFacade::End();
+
+            RenderFacade::EndFrame();
+
+            m_Window->OnUpdate();
+        }
+    }
 }

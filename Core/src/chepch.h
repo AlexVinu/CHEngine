@@ -6,8 +6,9 @@
 #include <algorithm>
 #include <functional>
 
-#include "Memory/String.h"
-#include "Memory/Vector.h"
+#include "CheStl/String.h"
+#include "CheStl/Vector.h"
+#include "CheStl/MemoryTypes.h"
 
 #include "Log/Log.h"
 #ifdef CHE_PLATFORM_WINDOWS

@@ -1,0 +1,15 @@
+#pragma once
+
+#include "UISystem/IImGuiFactory.h"
+#include "ImGuiLayerMTL.h"
+
+namespace CHModules {
+
+    struct ImGuiFactoryMTL : CHEngine::IImGuiFactory
+    {
+        CHEngine::IImGuiLayer* CreateImGuiLayer(CHEngine::IWindow* window) override;
+        void Delete(CHEngine::IImGuiLayer* ptr) override;
+        CHEngine::ModuleType GetType() const override;
+    };
+
+}

@@ -1,24 +1,21 @@
 #pragma once
 
+#include <Core.h>
+
+#include "CheStl/MemoryTypes.h"
+
 #include <memory>
 #include "spdlog/spdlog.h"
 
-#ifdef CHE_LOG_EXPORT
-#define CHE_LOG_API __declspec(dllexport)
-#else
-#define CHE_LOG_API __declspec(dllimport)
-#endif
-
 namespace CHEngine {
 
-    class CHE_LOG_API Log
+    struct CHE_CORE_API Log
     {
-    public:
         static void init();
 
-        static std::shared_ptr<spdlog::logger>& GetCoreLogger();
-        static std::shared_ptr<spdlog::logger>& GetModuleLogger();
-        static std::shared_ptr<spdlog::logger>& GetClientLogger();
+        static Ref<spdlog::logger>& GetCoreLogger();
+        static Ref<spdlog::logger>& GetModuleLogger();
+        static Ref<spdlog::logger>& GetClientLogger();
     };
 
 } // namespace CHEngine
@@ -43,3 +40,18 @@ namespace CHEngine {
 #define CHE_INFO(...)          ::CHEngine::Log::GetClientLogger()->info(__VA_ARGS__)
 #define CHE_TRACE(...)         ::CHEngine::Log::GetClientLogger()->trace(__VA_ARGS__)
 #define CHE_CRITICAL(...)         ::CHEngine::Log::GetClientLogger()->critical(__VA_ARGS__)
+
+#ifdef CHE_ENABLE_ASSERTS
+	#ifdef _MSC_VER
+		#define CHE_DEBUGBREAK() __debugbreak()
+	#else
+		#define CHE_DEBUGBREAK() __builtin_trap()
+	#endif
+	#define CHE_ASSERT(x, ...)		{if(!(x)) {CHE_ERROR("Assertion Failed: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); } }
+	#define CHE_CORE_ASSERT(x, ...) {if(!(x)) {CHE_CORE_ERROR("Assertion Failed: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); } }
+	#define CHE_FATAL(...) {CHE_ERROR("Fatal: {0}", __VA_ARGS__); CHE_DEBUGBREAK(); }
+#else
+	#define CHE_ASSERT(x, ...)		
+	#define CHE_CORE_ASSERT(x, ...) 
+	#define CHE_FATAL(...) {CHE_ERROR("Fatal: {0}", __VA_ARGS__); std::abort(); }
+#endif

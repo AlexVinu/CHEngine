@@ -1,3 +1,15 @@
 .vs/
 bin/
+build/
+build-x64/
 out/
+.cursor/
+.claude/
+CLAUDE.md
+.vscode/
+
+# Local logs and debug artifacts
+*.log
+
+# Omniverse bundle (Git LFS); not required for PhysX SDK build — use NVIDIA tooling locally if needed
+CHEngine/vendor/PhysX/omni/

@@ -1,55 +1,73 @@
 #pragma once
 #include <Core.h>
 
-#include <utility>
+#include <string>
+#include <unordered_map>
 
 #include "IModuleFactory.h"
 
+// Platform-specific dynamic library includes (must be outside namespace)
+#ifdef CHE_PLATFORM_WINDOWS
+    #include <Windows.h>
+#elif defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
+    #include <dlfcn.h>
+#endif
+
 namespace CHEngine
 {
-	using DestroyFn = void(*)(IModuleFactory*);
-    using CreateFn = IModuleFactory* (*)();
-	
+    using DestroyFn    = void(*)(IModuleFactory*);
+    using CreateFn     = IModuleFactory*(*)();
 
-	#ifdef CHE_PLATFORM_WINDOWS
-        #include<windows.h>
-		using ModuleHandle = HMODULE;
+    #ifdef CHE_PLATFORM_WINDOWS
+        using ModuleHandle = HMODULE;
     #elif defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
-        #include <dlfcn.h>
         using ModuleHandle = void*;
     #else
         #error Unsupported platform
-	#endif
+    #endif
 
     class ModuleManager
     {
     public:
+        ModuleManager() = default;
 
         ~ModuleManager() { UnloadAll(); }
 
         bool LoadModule(const std::string& path)
         {
-            ModuleHandle handle = load(path.c_str());
+            ModuleHandle handle = Load(path.c_str());
             if (!handle)
+            {
+            #if defined(CHE_PLATFORM_LINUX) || defined(CHE_PLATFORM_APPLE)
+                CHE_CORE_ERROR("LoadModule FAILED '{}': {}", path, dlerror());
+            #else
+                CHE_CORE_ERROR("LoadModule FAILED '{}'", path);
+            #endif
                 return false;
+            }
 
             auto create = reinterpret_cast<CreateFn>(
-                getSymbol(handle, "CreateFactory"));
+                GetSymbol(handle, "CreateFactory"));
 
             auto destroy = reinterpret_cast<DestroyFn>(
-                getSymbol(handle, "DestroyFactory"));
+                GetSymbol(handle, "DestroyFactory"));
 
             if (!create || !destroy)
+            {
+                CHE_CORE_ERROR("LoadModule '{}': CreateFactory/DestroyFactory symbol not found", path);
+                Unload(handle);
                 return false;
+            }
 
             IModuleFactory* module = create();
+            if (!module) {
+                CHE_CORE_ERROR("LoadModule '{}': CreateFactory() returned null", path);
+                Unload(handle);
+                return false;
+            }
+            ModuleType type = module->GetType();
 
-            m_Modules[module->GetType()] =
-            {
-                handle,
-                module,
-                destroy
-            };
+            m_Modules[type] = { handle, module, destroy, path };
 
             return true;
         }
@@ -59,7 +77,7 @@ namespace CHEngine
             for (auto& [type, data] : m_Modules)
             {
                 data.destroy(data.module);
-                unload(data.handle);
+                Unload(data.handle);
             }
             m_Modules.clear();
         }
@@ -70,7 +88,7 @@ namespace CHEngine
             auto it = m_Modules.find(type);
             if (it == m_Modules.end())
             {
-                CHE_CORE_ERROR("Module Manager did not find type ({0} in  integer)", (int)type);
+                CHE_CORE_ERROR("ModuleManager: module type {} not found", (int)type);
                 return nullptr;
             }
 
@@ -80,14 +98,15 @@ namespace CHEngine
     private:
         struct ModuleData
         {
-            ModuleHandle handle;
+            ModuleHandle    handle;
             IModuleFactory* module;
-            DestroyFn destroy;
+            DestroyFn       destroy;
+            std::string     path;
         };
 
-        std::unordered_map<ModuleType, ModuleData> m_Modules;
+        std::unordered_map<ModuleType, ModuleData>           m_Modules;
 
-        ModuleHandle load(const char* path)
+        ModuleHandle Load(const char* path)
         {
         #if defined(CHE_PLATFORM_WINDOWS)
             return LoadLibraryA(path);
@@ -96,24 +115,23 @@ namespace CHEngine
         #endif
         }
 
-        void* getSymbol(ModuleHandle handle, const char* name)
+        void* GetSymbol(ModuleHandle handle, const char* name)
         {
         #if defined(CHE_PLATFORM_WINDOWS)
             return reinterpret_cast<void*>(
                 GetProcAddress(handle, name));
         #else
-            return dlsym(m_Module, name);
+            return dlsym(handle, name);
         #endif
         }
 
-        void unload(ModuleHandle handle)
+        void Unload(ModuleHandle handle)
         {
         #if defined(CHE_PLATFORM_WINDOWS)
             FreeLibrary(handle);
         #else
-            dlclose(m_Module);
+            dlclose(handle);
         #endif
-            handle = nullptr;
         }
-	};
+    };
 }
