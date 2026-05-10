@@ -95,6 +95,11 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
             }
         }
     }
+    else
+    {
+        // Play mode: editor grid must not render.
+        CHEngine::RenderFacade::ClearPreSceneCallback();
+    }
 }
 
 void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
