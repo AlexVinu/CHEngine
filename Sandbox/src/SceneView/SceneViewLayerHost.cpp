@@ -64,6 +64,11 @@ bool& SceneViewLayerHost::GetShowProfiler()
     return SceneViewLayerAccess::Active(m_Layer).ShowProfiler;
 }
 
+bool& SceneViewLayerHost::GetShowUVEditor()
+{
+    return SceneViewLayerAccess::ShowUVEditor(m_Layer);
+}
+
 std::vector<EditorWorldContext>& SceneViewLayerHost::GetSceneSessions()
 {
     return SceneViewLayerAccess::Sessions(m_Layer);

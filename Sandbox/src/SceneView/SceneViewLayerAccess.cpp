@@ -67,3 +67,13 @@ Sandbox::ProfilerPanel& SceneViewLayerAccess::Profiler(SceneViewLayer& layer)
 {
     return layer.m_ProfilerPanel;
 }
+
+Sandbox::UvEditorPanel& SceneViewLayerAccess::UvEditor(SceneViewLayer& layer)
+{
+    return layer.m_UvEditor;
+}
+
+bool& SceneViewLayerAccess::ShowUVEditor(SceneViewLayer& layer)
+{
+    return layer.m_ShowUVEditor;
+}

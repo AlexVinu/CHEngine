@@ -68,6 +68,12 @@ namespace CHEngine {
         uint32_t     m_ObjectUBOAlignedStride = 0;
         uint32_t     m_ObjectUBOCapacity      = 0;
 
+        // Per-draw Material UBO ring buffer.
+        BufferHandle m_MaterialUBORing;
+        uint32_t     m_MaterialUBOAlignedStride = 0;
+        uint32_t     m_MaterialUBOCapacity      = 0;
+        bool EnsureMaterialUBO(uint32_t requiredDraws);
+
         uint32_t m_LastViewportW = 0;
         uint32_t m_LastViewportH = 0;
     };

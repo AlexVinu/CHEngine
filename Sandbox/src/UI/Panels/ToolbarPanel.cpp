@@ -85,6 +85,10 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         vcenter(20.0f);
         UIActive::Toggle("Profiler", &host.GetShowProfiler());
 
+        ImGui::SameLine(0, 12);
+        vcenter(20.0f);
+        UIActive::Toggle("UV Editor", &host.GetShowUVEditor());
+
         {
             if (!ImGui::GetIO().WantTextInput)
             {

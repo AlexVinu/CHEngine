@@ -17,6 +17,7 @@ class SceneHierarchyPanel;
 class PropertiesPanel;
 class CameraPanel;
 class ProfilerPanel;
+class UvEditorPanel;
 } // namespace Sandbox
 
 /// Friend accessors for internal compilation units (host, IO, play mode, etc.).
@@ -37,4 +38,6 @@ struct SceneViewLayerAccess
     static Sandbox::PropertiesPanel& Properties(SceneViewLayer& layer);
     static Sandbox::CameraPanel& CameraPanel(SceneViewLayer& layer);
     static Sandbox::ProfilerPanel& Profiler(SceneViewLayer& layer);
+    static Sandbox::UvEditorPanel& UvEditor(SceneViewLayer& layer);
+    static bool& ShowUVEditor(SceneViewLayer& layer);
 };

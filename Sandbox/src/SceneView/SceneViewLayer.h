@@ -12,6 +12,7 @@
 #include "PropertiesPanel.h"
 #include "SceneHierarchyPanel.h"
 #include "ToolbarPanel.h"
+#include "UvEditorPanel.h"
 
 #include <vector>
 
@@ -41,4 +42,7 @@ private:
     Sandbox::CameraPanel m_CameraPanel;
     Sandbox::ProfilerPanel m_ProfilerPanel;
     ContentBrowserPanel m_ContentBrowser;
+
+    Sandbox::UvEditorPanel m_UvEditor;
+    bool m_ShowUVEditor = false;
 };

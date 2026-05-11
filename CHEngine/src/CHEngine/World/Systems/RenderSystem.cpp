@@ -234,6 +234,29 @@ namespace CHEngine {
                 0);
         }
 
+        // Per-draw Material UBO ring buffer — ensure capacity, fill, upload.
+        if (drawCount > 0)
+        {
+            if (!EnsureMaterialUBO(drawCount))
+                return;
+
+            std::vector<std::byte> matRingStaging(
+                static_cast<size_t>(drawCount) * m_MaterialUBOAlignedStride, std::byte{0});
+            for (uint32_t i = 0; i < drawCount; ++i)
+            {
+                const DrawItem& item = m_DrawList[i];
+                UBOMaterial mat{};
+                if (item.material)
+                    item.material->FillUBOMaterial(mat);
+                std::memcpy(matRingStaging.data() + static_cast<size_t>(i) * m_MaterialUBOAlignedStride,
+                            &mat,
+                            sizeof(UBOMaterial));
+            }
+            factory->UpdateBuffer(m_MaterialUBORing,
+                std::span<const std::byte>(matRingStaging.data(), matRingStaging.size()),
+                0);
+        }
+
         // Expose HDR and Depth targets BEFORE the pre-scene callback so that
         // RegisterEditorPasses() can read them via GetViewportHDRTexture().
         RenderFacade::SetViewportHDRTexture(m_HDRTarget);
@@ -278,13 +301,6 @@ namespace CHEngine {
             static_cast<uint32_t>(EUniformBlock::Lighting),
             0, sizeof(UBOLighting)
         });
-        // Default material UBO — UseTexture=0, no textures, standard Shininess.
-        // Per-mesh materials will override this in a future phase.
-        mainColor.Uniforms.push_back({
-            m_DefaultMaterialUBO,
-            static_cast<uint32_t>(EUniformBlock::Material),
-            0, sizeof(UBOMaterial)
-        });
 
         // ── Dependency tracking ────────────────────────────────────────────────
         // If GridPass ran first and wrote HDR/Depth, MainColorPass must come after.
@@ -295,7 +311,7 @@ namespace CHEngine {
         mainColor.Writes.push_back(m_HDRTarget);
         mainColor.Writes.push_back(m_DepthTarget);
 
-        // Build draw list — each draw binds its slice of the Object UBO ring buffer.
+        // Build draw list — each draw binds its slice of the Object and Material UBO ring buffers.
         for (uint32_t i = 0; i < drawCount; ++i)
         {
             const DrawItem& item = m_DrawList[i];
@@ -315,6 +331,23 @@ namespace CHEngine {
                 static_cast<uint64_t>(i) * m_ObjectUBOAlignedStride,
                 sizeof(UBOObject)
             });
+            // Per-draw Material UBO
+            draw.Uniforms.push_back({
+                m_MaterialUBORing,
+                static_cast<uint32_t>(EUniformBlock::Material),
+                static_cast<uint64_t>(i) * m_MaterialUBOAlignedStride,
+                sizeof(UBOMaterial)
+            });
+            // Per-draw textures
+            if (item.material)
+            {
+                TextureHandle diffuse, specular;
+                item.material->ResolveTextures(diffuse, specular);
+                if (diffuse.IsValid())
+                    draw.Textures.push_back({ diffuse, 0 });
+                if (specular.IsValid())
+                    draw.Textures.push_back({ specular, 1 });
+            }
             mainColor.Draws.push_back(std::move(draw));
         }
 
@@ -390,6 +423,53 @@ namespace CHEngine {
         }
 
         m_ObjectUBOCapacity = newCapacity;
+        return true;
+    }
+
+    // ============================================================================
+    //  Material UBO ring buffer
+    // ============================================================================
+
+    bool RenderSystem::EnsureMaterialUBO(uint32_t requiredDraws)
+    {
+        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        if (!factory) return false;
+
+        if (m_MaterialUBOAlignedStride == 0)
+        {
+            const uint32_t align = std::max<uint32_t>(1u, factory->GetUniformBufferOffsetAlignment());
+            const uint32_t size  = static_cast<uint32_t>(sizeof(UBOMaterial));
+            m_MaterialUBOAlignedStride = ((size + align - 1) / align) * align;
+        }
+
+        if (requiredDraws <= m_MaterialUBOCapacity && m_MaterialUBORing.IsValid())
+            return true;
+
+        uint32_t newCapacity = std::max<uint32_t>(256u, requiredDraws * 2u);
+
+        if (m_MaterialUBORing.IsValid())
+        {
+            factory->Delete(m_MaterialUBORing);
+            m_MaterialUBORing = {};
+        }
+
+        const uint64_t totalSize = static_cast<uint64_t>(newCapacity) * m_MaterialUBOAlignedStride;
+        m_MaterialUBORing = factory->CreateBuffer(
+            totalSize,
+            BufferUsage::Uniform,
+            MemoryType::CpuToGpu,
+            {},
+            String("MaterialUBORing"));
+
+        if (!m_MaterialUBORing.IsValid())
+        {
+            CHE_CORE_ERROR("RenderSystem::EnsureMaterialUBO — failed to allocate ring ({} draws, {} bytes)",
+                           newCapacity, totalSize);
+            m_MaterialUBOCapacity = 0;
+            return false;
+        }
+
+        m_MaterialUBOCapacity = newCapacity;
         return true;
     }
 

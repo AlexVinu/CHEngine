@@ -1,0 +1,273 @@
+#include "UvEditorPanel.h"
+
+#include "CHEngine/Mesh/Mesh.h"
+#include "CHEngine/Scene/Components.h"
+#include "CHEngine/Scene/Entity.h"
+#include "CHEngine/Scene/Scene.h"
+#include "CHEngine/Utils/MathUtils.h"
+
+#include <CHEngine/Render/RenderFacade.h>
+#include <CHEngine/Application.h>
+
+#include <imgui_internal.h>
+
+
+
+namespace Sandbox {
+
+static std::vector<std::vector<int>> BuildUVGroups(const std::vector<CHEngine::Vertex>& verts, float epsilon = 0.0001f)
+{
+    std::vector<std::vector<int>> groups;
+    std::vector<bool> visited(verts.size(), false);
+    for (size_t i = 0; i < verts.size(); ++i)
+    {
+        if (visited[i]) continue;
+        std::vector<int> group;
+        group.push_back(static_cast<int>(i));
+        visited[i] = true;
+        for (size_t j = i + 1; j < verts.size(); ++j)
+        {
+            if (visited[j]) continue;
+            float dx = verts[i].TexCoords.x - verts[j].TexCoords.x;
+            float dy = verts[i].TexCoords.y - verts[j].TexCoords.y;
+            if ((dx * dx + dy * dy) < epsilon)
+            {
+                group.push_back(static_cast<int>(j));
+                visited[j] = true;
+            }
+        }
+        groups.push_back(std::move(group));
+    }
+    return groups;
+}
+
+void UvEditorPanel::Draw(EditorUiHost& host)
+{
+    EditorWorldContext& session = host.GetActiveSceneSession();
+    auto scene = session.EditorScene;
+    if (!scene) return;
+
+    CHEngine::EntityHandle sel = session.SelectedEntity;
+    if (!scene->IsEntityHandleValid(sel)) return;
+
+    CHEngine::Entity* entity = scene->TryGetEntity(sel);
+    if (!entity) return;
+    if (!entity->HasComponent<CHEngine::MeshComponent>()) return;
+
+    CHEngine::MeshComponent& meshComp = entity->GetComponent<CHEngine::MeshComponent>();
+    if (meshComp.Meshes.empty()) return;
+
+    CHEngine::Mesh& mesh = meshComp.Meshes[0];
+    const auto& vertices = mesh.GetVertices();
+    const auto& indices  = mesh.GetIndices();
+    if (vertices.empty() || indices.empty()) return;
+
+    // --- Get diffuse texture for background ---
+    CHEngine::TextureHandle diffuseTex;
+    if (mesh.Mat)
+    {
+        CHEngine::TextureHandle spec;
+        mesh.Mat->ResolveTextures(diffuseTex, spec);
+    }
+
+    ImGui::Begin("UV Editor");
+
+    const float canvasW = ImGui::GetContentRegionAvail().x;
+    const float canvasH = ImGui::GetContentRegionAvail().y;
+    if (canvasW < 1.0f || canvasH < 1.0f)
+    {
+        ImGui::End();
+        return;
+    }
+
+    const ImVec2 canvasSize(canvasW, canvasH);
+    const ImVec2 canvasOrigin = ImGui::GetCursorScreenPos();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+
+    ImGui::InvisibleButton("##uv_canvas", canvasSize);
+    const bool isHovered = ImGui::IsItemHovered();
+    const bool isActive  = ImGui::IsItemActive();
+    const ImVec2 mousePos = ImGui::GetIO().MousePos;
+    const bool mouseDown = ImGui::GetIO().MouseDown[0];
+    const ImVec2 mouseDelta = ImGui::GetIO().MouseDelta;
+
+    const ImVec2 canvasEnd(canvasOrigin.x + canvasW, canvasOrigin.y + canvasH);
+
+    // --- 1. Background: texture or dark fill ---
+    bool hasTexture = false;
+    if (diffuseTex.IsValid())
+    {
+        CHEngine::IRenderFactory* factory = CHEngine::RenderFacade::GetRenderFactory();
+        if (factory)
+        {
+            uint64_t nativeID = factory->GetTextureNativeID(diffuseTex);
+            if (nativeID != 0)
+            {
+                const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
+                const ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
+                const ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
+                dl->AddImage(static_cast<ImTextureID>(nativeID),
+                             canvasOrigin, canvasEnd, uv0, uv1);
+                hasTexture = true;
+            }
+        }
+    }
+
+    if (!hasTexture)
+        dl->AddRectFilled(canvasOrigin, canvasEnd, IM_COL32(30, 30, 30, 255));
+
+    // --- 2. Dark overlay over full canvas (dim outside UV islands) ---
+    dl->AddRectFilled(canvasOrigin, canvasEnd, IM_COL32(0, 0, 0, 140));
+
+    // --- 3. Bright fill for each UV triangle (lighten face regions) ---
+    auto uvToScreen = [&](glm::vec2 uv) -> ImVec2 {
+        return ImVec2(
+            canvasOrigin.x + uv.x * canvasW,
+            canvasOrigin.y + (1.0f - uv.y) * canvasH
+        );
+    };
+
+    // First pass: bright fill for each triangle
+    for (size_t i = 0; i + 2 < indices.size(); i += 3)
+    {
+        uint32_t i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+        if (i0 >= vertices.size() || i1 >= vertices.size() || i2 >= vertices.size())
+            continue;
+
+        ImVec2 p0 = uvToScreen(vertices[i0].TexCoords);
+        ImVec2 p1 = uvToScreen(vertices[i1].TexCoords);
+        ImVec2 p2 = uvToScreen(vertices[i2].TexCoords);
+
+        ImVec2 triPts[3] = { p0, p1, p2 };
+        dl->AddConvexPolyFilled(triPts, 3, IM_COL32(255, 255, 255, 100));
+    }
+
+    // --- 4. Grid overlay ---
+    const int gridDiv = 4;
+    for (int gi = 0; gi <= gridDiv; ++gi)
+    {
+        float t = static_cast<float>(gi) / static_cast<float>(gridDiv);
+        float x = canvasOrigin.x + t * canvasW;
+        float y = canvasOrigin.y + t * canvasH;
+        dl->AddLine(ImVec2(x, canvasOrigin.y), ImVec2(x, canvasOrigin.y + canvasH),
+                    IM_COL32(100, 100, 100, 180));
+        dl->AddLine(ImVec2(canvasOrigin.x, y), ImVec2(canvasOrigin.x + canvasW, y),
+                    IM_COL32(100, 100, 100, 180));
+    }
+
+    // --- 5. Build UV vertex groups (welded = same position) ---
+    auto uvGroups = BuildUVGroups(vertices);
+
+    // --- 6. Mouse interaction: find closest UV group and drag ---
+    float mx = (mousePos.x - canvasOrigin.x) / canvasW;
+    float my = 1.0f - (mousePos.y - canvasOrigin.y) / canvasH;
+
+    if (isActive && isHovered && mouseDown)
+    {
+        const float pickRadius = 15.0f / canvasW;
+        int groupHit = -1;
+        for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
+        {
+            int vi = uvGroups[g][0];
+            float dx = vertices[vi].TexCoords.x - mx;
+            float dy = vertices[vi].TexCoords.y - my;
+            if ((dx * dx + dy * dy) < pickRadius * pickRadius)
+            {
+                groupHit = g;
+                break;
+            }
+        }
+
+        if (groupHit >= 0)
+        {
+            m_Dragging = true;
+
+            ImVec2 delta = mouseDelta;
+            float du = delta.x / canvasW;
+            float dv = -delta.y / canvasH;
+
+            if (std::abs(du) > 0.0f || std::abs(dv) > 0.0f)
+            {
+                // Build new UVs: move all vertices in the hit group
+                std::vector<glm::vec2> newUVs(vertices.size());
+                for (size_t vi = 0; vi < vertices.size(); ++vi)
+                    newUVs[vi] = vertices[vi].TexCoords;
+
+                for (int vi : uvGroups[groupHit])
+                {
+                    newUVs[vi].x = std::clamp(newUVs[vi].x + du, 0.0f, 1.0f);
+                    newUVs[vi].y = std::clamp(newUVs[vi].y + dv, 0.0f, 1.0f);
+                }
+                mesh.UpdateUVs(newUVs);
+            }
+        }
+    }
+
+    if (!mouseDown)
+        m_Dragging = false;
+
+    // --- 7. Hover: highlight nearest group ---
+    if (!m_Dragging)
+    {
+        if (isHovered)
+        {
+            const float pickRadius = 15.0f / canvasW;
+            m_SelectedVertex = -1;
+            for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
+            {
+                int vi = uvGroups[g][0];
+                float dx = vertices[vi].TexCoords.x - mx;
+                float dy = vertices[vi].TexCoords.y - my;
+                if ((dx * dx + dy * dy) < pickRadius * pickRadius)
+                {
+                    m_SelectedVertex = vi;
+                    break;
+                }
+            }
+        }
+        else
+        {
+            m_SelectedVertex = -1;
+        }
+    }
+
+    // --- 8. Triangle wireframes ---
+    for (size_t i = 0; i + 2 < indices.size(); i += 3)
+    {
+        uint32_t i0 = indices[i], i1 = indices[i + 1], i2 = indices[i + 2];
+        if (i0 >= vertices.size() || i1 >= vertices.size() || i2 >= vertices.size())
+            continue;
+
+        ImVec2 p0 = uvToScreen(vertices[i0].TexCoords);
+        ImVec2 p1 = uvToScreen(vertices[i1].TexCoords);
+        ImVec2 p2 = uvToScreen(vertices[i2].TexCoords);
+
+        dl->AddTriangle(p0, p1, p2, IM_COL32(200, 200, 50, 220), 1.5f);
+    }
+
+    // --- 9. Vertex dots (one dot per group, all coincident = one dot) ---
+    for (const auto& group : uvGroups)
+    {
+        int vi = group[0];
+        ImVec2 pos = uvToScreen(vertices[vi].TexCoords);
+        if (vi == m_SelectedVertex)
+        {
+            dl->AddCircleFilled(pos, 6.0f, IM_COL32(255, 255, 50, 255));
+            dl->AddCircle(pos, 8.0f, IM_COL32(255, 255, 255, 200), 0, 2.0f);
+        }
+        else
+        {
+            dl->AddCircleFilled(pos, 4.0f, IM_COL32(255, 200, 50, 220));
+        }
+    }
+
+    // --- 10. Info ---
+    ImGui::SetCursorScreenPos(ImVec2(canvasOrigin.x, canvasOrigin.y + canvasH + 4));
+    ImGui::Text("Verts: %zu  Tris: %zu  Groups: %zu%s",
+                vertices.size(), indices.size() / 3, uvGroups.size(),
+                hasTexture ? "  (texture)" : "");
+
+    ImGui::End();
+}
+
+} // namespace Sandbox

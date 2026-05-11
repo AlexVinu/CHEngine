@@ -30,6 +30,7 @@ public:
     virtual ImGuizmo::MODE& GetGizmoMode() = 0;
     virtual bool& GetLocalMode() = 0;
     virtual bool& GetShowProfiler() = 0;
+    virtual bool& GetShowUVEditor() = 0;
 
     virtual std::vector<EditorWorldContext>& GetSceneSessions() = 0;
     virtual size_t GetActiveSessionIndex() const = 0;

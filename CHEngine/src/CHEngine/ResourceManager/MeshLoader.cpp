@@ -91,8 +91,8 @@ namespace CHEngine
 
 		const uint64_t vbSize = flat.size() * sizeof(float);
 		std::span<const std::byte> vbBytes{ reinterpret_cast<const std::byte*>(flat.data()), vbSize };
-		BufferHandle vb = f->CreateBuffer(vbSize, BufferUsage::Vertex, MemoryType::GpuOnly,
-		                                  vbBytes, String("mesh_vb"));
+        BufferHandle vb = f->CreateBuffer(vbSize, BufferUsage::Vertex, MemoryType::CpuToGpu,
+                                          vbBytes, String("mesh_vb"));
 
 		const uint64_t ibSize = indices.size() * sizeof(uint32_t);
 		std::span<const std::byte> ibBytes{ reinterpret_cast<const std::byte*>(indices.data()), ibSize };
@@ -144,6 +144,34 @@ namespace CHEngine
 	const MeshGpuRecord* MeshLoader::Get(MeshHandle h) const
 	{
 		return m_Records.Get(h);
+	}
+
+	void MeshLoader::UpdateVertexUVs(MeshHandle h, std::span<const glm::vec2> uvs)
+	{
+		MeshGpuRecord* r = m_Records.Get(h);
+		if (!r) return;
+		if (uvs.size() != r->vertices.size())
+		{
+			CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — UV count {} != vertex count {}", uvs.size(), r->vertices.size());
+			return;
+		}
+
+		// Update CPU copy
+		for (size_t i = 0; i < uvs.size(); ++i)
+			r->vertices[i].TexCoords = uvs[i];
+
+		// Partial GPU update: UV starts at byte offset 24 (6 floats) within each vertex,
+		// stride is 44 bytes (11 floats). Currently uploads full buffer; future: pack UVs.
+		constexpr uint64_t kVertexStride = sizeof(Vertex);
+
+		IRenderFactory* f = RenderFacade::GetRenderFactory();
+		if (!f) { CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — no render factory"); return; }
+
+		// Upload all UV data individually — not optimal but correct.
+		// TODO: use glBufferSubData with stride on GL 4.3+ using glBindVertexBuffer,
+		//       or pack all UVs into a contiguous span for a single call.
+		std::span<const std::byte> allData(reinterpret_cast<const std::byte*>(r->vertices.data()), r->vertices.size() * kVertexStride);
+		f->UpdateBuffer(r->vb, allData, 0);
 	}
 
 	void MeshLoader::DeleteRecord(MeshGpuRecord* r)

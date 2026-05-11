@@ -36,27 +36,40 @@ Mesh PrimitiveMeshFactory::CreateCube(float size, const glm::vec3& color)
         FaceData{ { 0, 1, 5, 4 }, { 0.0f, -1.0f, 0.0f } }   // -Y
     };
 
-    const std::array<glm::vec2, 4> uv = {
-        glm::vec2{ 0.0f, 0.0f },
-        glm::vec2{ 1.0f, 0.0f },
-        glm::vec2{ 1.0f, 1.0f },
-        glm::vec2{ 0.0f, 1.0f }
-    };
+    // Cross UV layout: 1 top, 3 middle, 1 below, 1 bottom — like Blender
+    //   Face order: 0=+Z, 1=-Z, 2=-X, 3=+X, 4=+Y, 5=-Y
+    const int faceCol[6] = { 1, 1, 0, 2, 1, 1 };
+    const int faceRow[6] = { 1, 2, 1, 1, 0, 3 };
+    constexpr float cell = 0.25f;
 
     std::vector<Vertex> vertices;
     vertices.reserve(24);
     std::vector<uint32_t> indices;
     indices.reserve(36);
 
-    for (const FaceData& face : faces)
+    for (int f = 0; f < 6; ++f)
     {
+        const FaceData& face = faces[f];
         const uint32_t base_index = static_cast<uint32_t>(vertices.size());
+
+        const float u_min = static_cast<float>(faceCol[f]) * cell;
+        const float u_max = u_min + cell;
+        const float v_min = static_cast<float>(faceRow[f]) * cell;
+        const float v_max = v_min + cell;
+
+        const std::array<glm::vec2, 4> face_uvs = {{
+            { u_min, v_min },
+            { u_max, v_min },
+            { u_max, v_max },
+            { u_min, v_max }
+        }};
+
         for (uint32_t i = 0; i < 4; ++i)
         {
             Vertex vertex{};
             vertex.Position = corners[face.corner_indices[i]];
             vertex.Normal = face.normal;
-            vertex.TexCoords = uv[i];
+            vertex.TexCoords = face_uvs[i];
             vertex.Color = color;
             vertices.push_back(vertex);
         }

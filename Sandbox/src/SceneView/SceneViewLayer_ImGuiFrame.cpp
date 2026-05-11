@@ -2,6 +2,7 @@
 
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
+#include "UvEditorPanel.h"
 #include "SceneViewLayerHost.h"
 #include "SceneViewLayer_IO.h"
 #include "SceneViewLayer_Render.h"
@@ -81,6 +82,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     }
 
     SceneViewLayerAccess::Profiler(layer).Draw(host);
+    if (SceneViewLayerAccess::ShowUVEditor(layer))
+        SceneViewLayerAccess::UvEditor(layer).Draw(host);
     SceneViewLayerRender::DrawOrbitIndicator(layer);
     viewport.End();
 }

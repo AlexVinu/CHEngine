@@ -3,6 +3,7 @@
 #include <Core.h>
 #include <glm/glm.hpp>
 #include <memory>
+#include <span>
 #include <vector>
 #include <cstdint>
 
@@ -40,6 +41,9 @@ namespace CHEngine {
 
 		const std::vector<Vertex>&   GetVertices() const;
 		const std::vector<uint32_t>& GetIndices()  const;
+
+		// Update UV coordinates on CPU + GPU at runtime.
+		void UpdateUVs(std::span<const glm::vec2> uvs);
 
 		MeshHandle GetCacheHandle() const { return m_Handle; }
 

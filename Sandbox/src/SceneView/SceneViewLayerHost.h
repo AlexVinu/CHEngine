@@ -19,6 +19,7 @@ public:
     ImGuizmo::MODE& GetGizmoMode() override;
     bool& GetLocalMode() override;
     bool& GetShowProfiler() override;
+    bool& GetShowUVEditor() override;
 
     std::vector<EditorWorldContext>& GetSceneSessions() override;
     size_t GetActiveSessionIndex() const override;
