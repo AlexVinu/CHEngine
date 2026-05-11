@@ -72,9 +72,9 @@ static char* getMonitorName(CGDirectDisplayID displayID, NSScreen* screen)
                                              kIODisplayOnlyPreferredName);
 
         CFNumberRef vendorIDRef =
-            CFDictionaryGetValue(info, CFSTR(kDisplayVendorID));
+            (CFNumberRef) CFDictionaryGetValue(info, CFSTR(kDisplayVendorID));
         CFNumberRef productIDRef =
-            CFDictionaryGetValue(info, CFSTR(kDisplayProductID));
+            (CFNumberRef) CFDictionaryGetValue(info, CFSTR(kDisplayProductID));
         if (!vendorIDRef || !productIDRef)
         {
             CFRelease(info);
@@ -105,7 +105,7 @@ static char* getMonitorName(CGDirectDisplayID displayID, NSScreen* screen)
     }
 
     CFDictionaryRef names =
-        CFDictionaryGetValue(info, CFSTR(kDisplayProductName));
+        (CFDictionaryRef) CFDictionaryGetValue(info, CFSTR(kDisplayProductName));
 
     CFStringRef nameRef;
 
@@ -120,7 +120,7 @@ static char* getMonitorName(CGDirectDisplayID displayID, NSScreen* screen)
     const CFIndex size =
         CFStringGetMaximumSizeForEncoding(CFStringGetLength(nameRef),
                                           kCFStringEncodingUTF8);
-    char* name = _glfw_calloc(size + 1, 1);
+    char* name = (char*) _glfw_calloc(size + 1, 1);
     CFStringGetCString(nameRef, name, size, kCFStringEncodingUTF8);
 
     CFRelease(info);
@@ -241,7 +241,7 @@ static double getFallbackRefreshRate(CGDirectDisplayID displayID)
     while ((service = IOIteratorNext(it)) != 0)
     {
         const CFNumberRef indexRef =
-            IORegistryEntryCreateCFProperty(service,
+            (CFNumberRef) IORegistryEntryCreateCFProperty(service,
                                             CFSTR("IOFramebufferOpenGLIndex"),
                                             kCFAllocatorDefault,
                                             kNilOptions);
@@ -256,12 +256,12 @@ static double getFallbackRefreshRate(CGDirectDisplayID displayID)
             continue;
 
         const CFNumberRef clockRef =
-            IORegistryEntryCreateCFProperty(service,
+            (CFNumberRef) IORegistryEntryCreateCFProperty(service,
                                             CFSTR("IOFBCurrentPixelClock"),
                                             kCFAllocatorDefault,
                                             kNilOptions);
         const CFNumberRef countRef =
-            IORegistryEntryCreateCFProperty(service,
+            (CFNumberRef) IORegistryEntryCreateCFProperty(service,
                                             CFSTR("IOFBCurrentPixelCount"),
                                             kCFAllocatorDefault,
                                             kNilOptions);
@@ -301,7 +301,7 @@ void _glfwPollMonitorsCocoa(void)
 {
     uint32_t displayCount;
     CGGetOnlineDisplayList(0, NULL, &displayCount);
-    CGDirectDisplayID* displays = _glfw_calloc(displayCount, sizeof(CGDirectDisplayID));
+    CGDirectDisplayID* displays = (CGDirectDisplayID*) _glfw_calloc(displayCount, sizeof(CGDirectDisplayID));
     CGGetOnlineDisplayList(displayCount, displays, &displayCount);
 
     for (int i = 0;  i < _glfw.monitorCount;  i++)
@@ -311,7 +311,7 @@ void _glfwPollMonitorsCocoa(void)
     uint32_t disconnectedCount = _glfw.monitorCount;
     if (disconnectedCount)
     {
-        disconnected = _glfw_calloc(_glfw.monitorCount, sizeof(_GLFWmonitor*));
+        disconnected = (_GLFWmonitor**) _glfw_calloc(_glfw.monitorCount, sizeof(_GLFWmonitor*));
         memcpy(disconnected,
                _glfw.monitors,
                _glfw.monitorCount * sizeof(_GLFWmonitor*));
@@ -521,7 +521,7 @@ GLFWvidmode* _glfwGetVideoModesCocoa(_GLFWmonitor* monitor, int* count)
 
     CFArrayRef modes = CGDisplayCopyAllDisplayModes(monitor->ns.displayID, NULL);
     const CFIndex found = CFArrayGetCount(modes);
-    GLFWvidmode* result = _glfw_calloc(found, sizeof(GLFWvidmode));
+    GLFWvidmode* result = (GLFWvidmode*) _glfw_calloc(found, sizeof(GLFWvidmode));
 
     for (CFIndex i = 0;  i < found;  i++)
     {
@@ -569,7 +569,7 @@ GLFWbool _glfwGetGammaRampCocoa(_GLFWmonitor* monitor, GLFWgammaramp* ramp)
     @autoreleasepool {
 
     uint32_t size = CGDisplayGammaTableCapacity(monitor->ns.displayID);
-    CGGammaValue* values = _glfw_calloc(size * 3, sizeof(CGGammaValue));
+    CGGammaValue* values = (CGGammaValue*) _glfw_calloc(size * 3, sizeof(CGGammaValue));
 
     CGGetDisplayTransferByTable(monitor->ns.displayID,
                                 size,
@@ -597,7 +597,7 @@ void _glfwSetGammaRampCocoa(_GLFWmonitor* monitor, const GLFWgammaramp* ramp)
 {
     @autoreleasepool {
 
-    CGGammaValue* values = _glfw_calloc(ramp->size * 3, sizeof(CGGammaValue));
+    CGGammaValue* values = (CGGammaValue*) _glfw_calloc(ramp->size * 3, sizeof(CGGammaValue));
 
     for (unsigned int i = 0;  i < ramp->size;  i++)
     {
