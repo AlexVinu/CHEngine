@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 if(APPLE)
-    project(CHEngine LANGUAGES C CXX OBJCXX)
+    project(CHEngine LANGUAGES C CXX OBJC OBJCXX)
 else()
     project(CHEngine LANGUAGES C CXX)
 endif()

@@ -645,7 +645,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
     const NSUInteger count = [urls count];
     if (count)
     {
-        char** paths = _glfw_calloc(count, sizeof(char*));
+        char** paths = (char**) _glfw_calloc(count, sizeof(char*));
 
         for (NSUInteger i = 0;  i < count;  i++)
             paths[i] = _glfw_strdup([urls[i] fileSystemRepresentation]);
@@ -1557,7 +1557,7 @@ const char* _glfwGetScancodeNameCocoa(int scancode)
     UniChar characters[4];
     UniCharCount characterCount = 0;
 
-    if (UCKeyTranslate([(NSData*) _glfw.ns.unicodeData bytes],
+    if (UCKeyTranslate((const UCKeyboardLayout*) [(NSData*) _glfw.ns.unicodeData bytes],
                        scancode,
                        kUCKeyActionDisplay,
                        0,
@@ -1786,7 +1786,7 @@ EGLenum _glfwGetEGLPlatformCocoa(EGLint** attribs)
 
         if (type)
         {
-            *attribs = _glfw_calloc(3, sizeof(EGLint));
+            *attribs = (EGLint*) _glfw_calloc(3, sizeof(EGLint));
             (*attribs)[0] = EGL_PLATFORM_ANGLE_TYPE_ANGLE;
             (*attribs)[1] = type;
             (*attribs)[2] = EGL_NONE;

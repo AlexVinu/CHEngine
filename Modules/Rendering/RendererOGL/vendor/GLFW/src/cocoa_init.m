@@ -322,8 +322,8 @@ static GLFWbool updateUnicodeData(void)
     }
 
     _glfw.ns.unicodeData =
-        TISGetInputSourceProperty(_glfw.ns.inputSource,
-                                  kTISPropertyUnicodeKeyLayoutData);
+        (id) TISGetInputSourceProperty(_glfw.ns.inputSource,
+                                       kTISPropertyUnicodeKeyLayoutData);
     if (!_glfw.ns.unicodeData)
     {
         _glfwInputError(GLFW_PLATFORM_ERROR,
@@ -349,15 +349,18 @@ static GLFWbool initializeTIS(void)
     }
 
     CFStringRef* kPropertyUnicodeKeyLayoutData =
-        CFBundleGetDataPointerForName(_glfw.ns.tis.bundle,
-                                      CFSTR("kTISPropertyUnicodeKeyLayoutData"));
+        (CFStringRef*) CFBundleGetDataPointerForName(_glfw.ns.tis.bundle,
+                                                     CFSTR("kTISPropertyUnicodeKeyLayoutData"));
     _glfw.ns.tis.CopyCurrentKeyboardLayoutInputSource =
+        (PFN_TISCopyCurrentKeyboardLayoutInputSource)
         CFBundleGetFunctionPointerForName(_glfw.ns.tis.bundle,
                                           CFSTR("TISCopyCurrentKeyboardLayoutInputSource"));
     _glfw.ns.tis.GetInputSourceProperty =
+        (PFN_TISGetInputSourceProperty)
         CFBundleGetFunctionPointerForName(_glfw.ns.tis.bundle,
                                           CFSTR("TISGetInputSourceProperty"));
     _glfw.ns.tis.GetKbdType =
+        (PFN_LMGetKbdType)
         CFBundleGetFunctionPointerForName(_glfw.ns.tis.bundle,
                                           CFSTR("LMGetKbdType"));
 
