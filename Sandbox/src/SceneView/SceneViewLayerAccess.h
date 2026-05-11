@@ -12,11 +12,13 @@ namespace Sandbox {
 class EditorCameraController;
 class EditorViewport;
 class GizmoSystem;
+class ProjectEditorState;
 class ToolbarPanel;
 class SceneHierarchyPanel;
 class PropertiesPanel;
 class CameraPanel;
 class ProfilerPanel;
+class SceneBrowserPanel;
 } // namespace Sandbox
 
 /// Friend accessors for internal compilation units (host, IO, play mode, etc.).
@@ -37,4 +39,6 @@ struct SceneViewLayerAccess
     static Sandbox::PropertiesPanel& Properties(SceneViewLayer& layer);
     static Sandbox::CameraPanel& CameraPanel(SceneViewLayer& layer);
     static Sandbox::ProfilerPanel& Profiler(SceneViewLayer& layer);
+    static Sandbox::ProjectEditorState& EditorState(SceneViewLayer& layer);
+    static Sandbox::SceneBrowserPanel& SceneBrowser(SceneViewLayer& layer);
 };

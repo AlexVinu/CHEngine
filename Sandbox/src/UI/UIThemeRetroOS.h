@@ -97,7 +97,6 @@ namespace UIThemeRetro
                 "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
                 "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
                 // Custom
-                "assets/fonts/JetBrainsMono-Regular.ttf",
             };
             ImFontConfig cfg;
             cfg.OversampleH = 2; cfg.OversampleV = 2;
@@ -117,7 +116,6 @@ namespace UIThemeRetro
                 "C:/Windows/Fonts/cour.ttf",
                 "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
                 "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-                "assets/fonts/JetBrainsMono-Regular.ttf",
             };
             ImFontConfig cfg;
             cfg.OversampleH = 2; cfg.OversampleV = 2;

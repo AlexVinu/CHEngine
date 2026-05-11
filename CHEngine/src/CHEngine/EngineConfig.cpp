@@ -3,9 +3,11 @@
 
 #include "FileSystem/FileSystem.h"
 #include "Log/Log.h"
+#include "CHEngine/Utils/AppPaths.h"
 
 #include <nlohmann/json.hpp>
 #include <filesystem>
+#include <algorithm>
 
 namespace CHEngine {
 
@@ -18,7 +20,7 @@ namespace CHEngine {
 
     static std::filesystem::path GetConfigPath()
     {
-        return std::filesystem::current_path() / "engine.json";
+        return AppPaths::EngineConfigPath();
     }
 
     static nlohmann::json ReadJsonSafe(const std::filesystem::path& path)
@@ -107,6 +109,64 @@ namespace CHEngine {
         }
         catch (const std::exception& e) {
             CHE_CORE_ERROR("EngineConfig: failed to commit renderer: {}", e.what());
+        }
+    }
+
+    std::string EngineConfig::LoadLastProject()
+    {
+        auto j = ReadJsonSafe(GetConfigPath());
+        if (j.contains("last_project") && j["last_project"].is_string())
+            return j["last_project"].get<std::string>();
+        return {};
+    }
+
+    void EngineConfig::SaveLastProject(const std::string& path)
+    {
+        auto configPath = GetConfigPath();
+        try {
+            auto j = ReadJsonSafe(configPath);
+            j["last_project"] = path;
+            WriteJson(configPath, j);
+        } catch (const std::exception& e) {
+            CHE_CORE_ERROR("EngineConfig: failed to save last_project: {}", e.what());
+        }
+    }
+
+    std::vector<std::string> EngineConfig::LoadRecentProjects()
+    {
+        auto j = ReadJsonSafe(GetConfigPath());
+        std::vector<std::string> result;
+        if (j.contains("recent_projects") && j["recent_projects"].is_array())
+        {
+            for (const auto& s : j["recent_projects"])
+                if (s.is_string())
+                    result.push_back(s.get<std::string>());
+        }
+        return result;
+    }
+
+    void EngineConfig::AddRecentProject(const std::string& path)
+    {
+        if (path.empty())
+            return;
+        auto configPath = GetConfigPath();
+        try {
+            auto j = ReadJsonSafe(configPath);
+            std::vector<std::string> list;
+            if (j.contains("recent_projects") && j["recent_projects"].is_array())
+                for (const auto& s : j["recent_projects"])
+                    if (s.is_string()) list.push_back(s.get<std::string>());
+
+            auto it = std::find(list.begin(), list.end(), path);
+            if (it != list.end()) list.erase(it);
+            list.insert(list.begin(), path);
+            if (static_cast<int>(list.size()) > k_MaxRecentProjects)
+                list.resize(k_MaxRecentProjects);
+
+            j["recent_projects"] = list;
+            WriteJson(configPath, j);
+        } catch (const std::exception& e) {
+            CHE_CORE_ERROR("EngineConfig: failed to add recent_project: {}", e.what());
         }
     }
 }

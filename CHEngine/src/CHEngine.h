@@ -50,6 +50,11 @@
 #include "CHEngine/Utils/FileDialog.h"
 // ================================
 
+// Project ------------------------
+#include "CHEngine/Project/Project.h"
+#include "CHEngine/Project/ProjectManager.h"
+// ================================
+
 // ImGui --------------------------
 #include <imgui.h>
 // ================================

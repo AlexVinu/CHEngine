@@ -6,6 +6,9 @@
 #include "ModelLoader.h"
 #include "MeshLoader.h"
 
+#include <filesystem>
+#include <string>
+
 namespace CHEngine {
 
 	// Centralized resource loading with caching and memory control.
@@ -51,6 +54,12 @@ namespace CHEngine {
 		}
 
 		const LoadedModel* GetModel(ModelHandle h) const { return GetModelLoader()->Get(h); }
+
+		/// Resolve an asset path to an absolute filesystem path.
+		/// - Absolute path → returned as-is (with WARN if no project context).
+		/// - Relative + project open → <project>/Assets/ <relPath> (or <project>/relPath if it already starts with assets dir).
+		/// - Relative + no project → <ExecutableDir>/editor_assets/<relPath> (fallback for engine defaults).
+		static std::filesystem::path ResolveAssetPath(const std::string& path);
 
 	private:
 		static constexpr size_t LOADERS_COUNT = static_cast<size_t>(ELoaderResourceType::SIZE);

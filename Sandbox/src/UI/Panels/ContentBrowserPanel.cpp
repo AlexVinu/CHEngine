@@ -1,22 +1,13 @@
 #include "ContentBrowserPanel.h"
 #include <imgui.h>
 #include <algorithm>
-#include <CHEngine/Utils/FileDialog.h>
+#include <CHEngine/Project/ProjectManager.h>
 #include <Log/Log.h>
 
 ContentBrowserPanel::ContentBrowserPanel() {
-    // Default to working directory / assets
-    fs::path cwd = fs::current_path();
-    fs::path assetsDir = cwd / "assets";
-
-    // Create assets dir if it doesn't exist
-    if (!fs::exists(assetsDir)) {
-        fs::create_directories(assetsDir);
-        fs::create_directories(assetsDir / "models");
-        fs::create_directories(assetsDir / "scenes");
-    }
-
-    SetAssetsDirectory(assetsDir);
+    if (CHEngine::ProjectManager::HasProject())
+        SetAssetsDirectory(CHEngine::ProjectManager::Current()->AssetsAbsPath());
+    // Without a project the browser stays empty until OnProjectOpened sets the root.
 }
 
 void ContentBrowserPanel::SetAssetsDirectory(const fs::path& path) {
@@ -208,6 +199,14 @@ std::string ContentBrowserPanel::OnImGuiRender(ImVec2 pos, ImVec2 size) {
         ImGuiWindowFlags_NoMove     | ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_NoBringToFrontOnFocus);
 
+    if (!CHEngine::ProjectManager::HasProject() || m_AssetsRoot.empty()) {
+        ImGui::TextDisabled("CONTENT");
+        ImGui::Separator();
+        ImGui::TextDisabled("  No project open.");
+        ImGui::End();
+        return m_PendingAction;
+    }
+
     // Header bar
     ImGui::TextDisabled("CONTENT");
     ImGui::SameLine();
@@ -223,17 +222,6 @@ std::string ContentBrowserPanel::OnImGuiRender(ImVec2 pos, ImVec2 size) {
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", m_AssetsRoot.string().c_str());
     }
-    // Change root folder button
-    ImGui::SameLine();
-    if (ImGui::SmallButton("[...]")) {
-        std::string chosen = CHEngine::FileDialog::SelectFolder(
-            "Select Assets Folder",
-            m_AssetsRoot.string().c_str());
-        if (!chosen.empty())
-            SetAssetsDirectory(fs::path(chosen));
-    }
-    if (ImGui::IsItemHovered())
-        ImGui::SetTooltip("Change assets folder");
     ImGui::Separator();
 
     // Two columns: directory tree (left) + file grid (right)

@@ -10,8 +10,11 @@
 #include "GizmoSystem.h"
 #include "ProfilerPanel.h"
 #include "PropertiesPanel.h"
+#include "ProjectEditorState.h"
+#include "SceneBrowserPanel.h"
 #include "SceneHierarchyPanel.h"
 #include "ToolbarPanel.h"
+#include "ProjectBrowserWindow.h"
 
 #include <vector>
 
@@ -24,6 +27,8 @@ public:
     void OnUpdate(CHEngine::Timestep dt) override;
     void OnImGuiRender() override;
     void OnEvent(CHEngine::Event& e) override;
+
+    void OnProjectOpened();
 
 private:
     friend struct SceneViewLayerAccess;
@@ -41,4 +46,8 @@ private:
     Sandbox::CameraPanel m_CameraPanel;
     Sandbox::ProfilerPanel m_ProfilerPanel;
     ContentBrowserPanel m_ContentBrowser;
+    Sandbox::SceneBrowserPanel m_SceneBrowser;
+
+    Sandbox::ProjectEditorState m_EditorState;
+    ProjectBrowserWindow m_ProjectBrowser;
 };

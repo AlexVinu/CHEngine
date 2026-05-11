@@ -3,6 +3,7 @@
 #include "RenderFacade.h"
 #include "CHEngine/Application.h"
 #include "CHEngine/Render/FrameGraph/BasicFrameGraphFrontend.h"
+#include "CHEngine/Utils/AppPaths.h"
 #include "CHEngine/Utils/FileWatcher.h"
 #include "FileSystem/FileSystem.h"
 
@@ -190,15 +191,22 @@ namespace CHEngine
                                                     const String& vert,
                                                     const String& frag)
     {
-        String src = ReadTextFile(slangPath);
+        // Anchor relative shader paths to the executable directory, not cwd.
+        std::filesystem::path inputPath(slangPath.c_str());
+        std::filesystem::path resolvedPath = inputPath.is_absolute()
+            ? inputPath
+            : (AppPaths::ExecutableDir() / inputPath);
+
+        String src = ReadTextFile(String(resolvedPath.string().c_str()));
         const bool hasSource = !src.empty();
 
         String absPath;
         if (hasSource)
         {
             std::error_code ec;
-            auto fs_abs = std::filesystem::absolute(std::filesystem::path(slangPath.c_str()), ec);
-            absPath = ec ? slangPath : String(fs_abs.string().c_str());
+            auto fs_abs = std::filesystem::absolute(resolvedPath, ec);
+            absPath = ec ? String(resolvedPath.string().c_str())
+                         : String(fs_abs.string().c_str());
         }
 
         ShaderHandle handle = ShaderHandle::Invalid();
@@ -224,7 +232,7 @@ namespace CHEngine
         if (valid)
         {
             auto reload = [handle](const std::filesystem::path&) { ReloadShaderInternal(handle); };
-            s_ShaderWatcher.Watch(std::filesystem::path(slangPath.c_str()), reload);
+            s_ShaderWatcher.Watch(resolvedPath, reload);
         }
 
         return handle;

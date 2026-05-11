@@ -81,6 +81,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     }
 
     SceneViewLayerAccess::Profiler(layer).Draw(host);
+    SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
     SceneViewLayerRender::DrawOrbitIndicator(layer);
     viewport.End();
 }

@@ -3,6 +3,9 @@
 #include <CHEngine/World/World.h>
 #include <Log/Log.h>
 
+#include <algorithm>
+#include <filesystem>
+
 EditorWorldContext::EditorWorldContext()
     : SceneSession()
 {
@@ -60,4 +63,13 @@ void EditorWorldContext::ActivateEditorScene()
 
     *ActiveScene = *EditorScene;
     RuntimeWorld->SetScene(EditorScene);
+}
+
+std::string EditorWorldContext::DisplayName() const
+{
+    if (SceneRelPath.empty())
+        return "Untitled";
+    std::string name = std::filesystem::path(SceneRelPath).stem().string();
+    std::replace(name.begin(), name.end(), '_', ' ');
+    return name;
 }

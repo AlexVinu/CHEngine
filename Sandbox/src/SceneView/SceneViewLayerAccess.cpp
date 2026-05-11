@@ -1,5 +1,6 @@
 #include "SceneViewLayerAccess.h"
 
+#include "ProjectEditorState.h"
 #include "SceneViewLayer.h"
 
 EditorWorldContext& SceneViewLayerAccess::Active(SceneViewLayer& layer)
@@ -66,4 +67,14 @@ Sandbox::CameraPanel& SceneViewLayerAccess::CameraPanel(SceneViewLayer& layer)
 Sandbox::ProfilerPanel& SceneViewLayerAccess::Profiler(SceneViewLayer& layer)
 {
     return layer.m_ProfilerPanel;
+}
+
+Sandbox::ProjectEditorState& SceneViewLayerAccess::EditorState(SceneViewLayer& layer)
+{
+    return layer.m_EditorState;
+}
+
+Sandbox::SceneBrowserPanel& SceneViewLayerAccess::SceneBrowser(SceneViewLayer& layer)
+{
+    return layer.m_SceneBrowser;
 }

@@ -8,14 +8,16 @@
 
 void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
 {
-    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(layer);
-    if (activeSession.SessionState != SceneSession::State::Edit)
+    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    if (ctx.SessionState != SceneSession::State::Edit)
         return;
 
-    activeSession.CommandStack.Clear();
+    ctx.CommandStack.Clear();
 
-    activeSession.ActivateActiveScene();
-    activeSession.SessionState = SceneSession::State::Play;
+    // One world = one scene. Play just runs a copy of the current tab's scene.
+    // Startup scene selection happens at the tab level (Sessions[0]).
+    ctx.ActivateActiveScene();
+    ctx.SessionState = SceneSession::State::Play;
 }
 
 void SceneViewLayerPlay::EnterPauseMode(SceneViewLayer& layer)
@@ -38,13 +40,13 @@ void SceneViewLayerPlay::ResumeFromPause(SceneViewLayer& layer)
 
 void SceneViewLayerPlay::StopPlayMode(SceneViewLayer& layer)
 {
-    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(layer);
-    if (activeSession.SessionState == SceneSession::State::Edit)
+    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    if (ctx.SessionState == SceneSession::State::Edit)
         return;
 
-    activeSession.ActivateEditorScene();
-    activeSession.SelectedEntity = {};
-    activeSession.SessionState = SceneSession::State::Edit;
+    ctx.ActivateEditorScene();
+    ctx.SelectedEntity = {};
+    ctx.SessionState = SceneSession::State::Edit;
 }
 
 //void SceneViewLayerPlay::StepOneFrame(SceneViewLayer& layer)
