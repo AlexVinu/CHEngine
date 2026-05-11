@@ -165,35 +165,38 @@ void UvEditorPanel::Draw(EditorUiHost& host)
     if (isActive && isHovered && mouseDown)
     {
         const float pickRadius = 15.0f / canvasW;
-        int groupHit = -1;
-        for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
+
+        // Acquire: first press on a vertex → lock the group
+        if (!m_Dragging)
         {
-            int vi = uvGroups[g][0];
-            float dx = vertices[vi].TexCoords.x - mx;
-            float dy = vertices[vi].TexCoords.y - my;
-            if ((dx * dx + dy * dy) < pickRadius * pickRadius)
+            m_DraggedGroup = -1;
+            for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
             {
-                groupHit = g;
-                break;
+                int vi = uvGroups[g][0];
+                float dx = vertices[vi].TexCoords.x - mx;
+                float dy = vertices[vi].TexCoords.y - my;
+                if ((dx * dx + dy * dy) < pickRadius * pickRadius)
+                {
+                    m_DraggedGroup = g;
+                    m_Dragging = true;
+                    break;
+                }
             }
         }
 
-        if (groupHit >= 0)
+        // Drag: move locked group by delta, regardless of cursor position
+        if (m_Dragging && m_DraggedGroup >= 0)
         {
-            m_Dragging = true;
+            float du = mouseDelta.x / canvasW;
+            float dv = -mouseDelta.y / canvasH;
 
-            ImVec2 delta = mouseDelta;
-            float du = delta.x / canvasW;
-            float dv = -delta.y / canvasH;
-
-            if (std::abs(du) > 0.0f || std::abs(dv) > 0.0f)
+            if (du != 0.0f || dv != 0.0f)
             {
-                // Build new UVs: move all vertices in the hit group
                 std::vector<glm::vec2> newUVs(vertices.size());
                 for (size_t vi = 0; vi < vertices.size(); ++vi)
                     newUVs[vi] = vertices[vi].TexCoords;
 
-                for (int vi : uvGroups[groupHit])
+                for (int vi : uvGroups[m_DraggedGroup])
                 {
                     newUVs[vi].x = std::clamp(newUVs[vi].x + du, 0.0f, 1.0f);
                     newUVs[vi].y = std::clamp(newUVs[vi].y + dv, 0.0f, 1.0f);
@@ -204,31 +207,35 @@ void UvEditorPanel::Draw(EditorUiHost& host)
     }
 
     if (!mouseDown)
-        m_Dragging = false;
-
-    // --- 7. Hover: highlight nearest group ---
-    if (!m_Dragging)
     {
-        if (isHovered)
+        m_Dragging = false;
+        m_DraggedGroup = -1;
+    }
+
+    // --- 7. Highlight: dragged group during drag, hover otherwise ---
+    if (m_Dragging && m_DraggedGroup >= 0)
+    {
+        m_SelectedVertex = uvGroups[m_DraggedGroup][0];
+    }
+    else if (isHovered)
+    {
+        const float pickRadius = 15.0f / canvasW;
+        m_SelectedVertex = -1;
+        for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
         {
-            const float pickRadius = 15.0f / canvasW;
-            m_SelectedVertex = -1;
-            for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
+            int vi = uvGroups[g][0];
+            float dx = vertices[vi].TexCoords.x - mx;
+            float dy = vertices[vi].TexCoords.y - my;
+            if ((dx * dx + dy * dy) < pickRadius * pickRadius)
             {
-                int vi = uvGroups[g][0];
-                float dx = vertices[vi].TexCoords.x - mx;
-                float dy = vertices[vi].TexCoords.y - my;
-                if ((dx * dx + dy * dy) < pickRadius * pickRadius)
-                {
-                    m_SelectedVertex = vi;
-                    break;
-                }
+                m_SelectedVertex = vi;
+                break;
             }
         }
-        else
-        {
-            m_SelectedVertex = -1;
-        }
+    }
+    else
+    {
+        m_SelectedVertex = -1;
     }
 
     // --- 8. Triangle wireframes ---

@@ -15,6 +15,7 @@ public:
 
 private:
     int m_SelectedVertex = -1;
+    int m_DraggedGroup = -1;
     bool m_Dragging = false;
 };
 
