@@ -105,6 +105,11 @@ SET(GCC_WARNINGS "-Wall -Werror \
 	-Wno-use-after-free \
 ")
 
+# Define PhysX source directory tree
+SET(PHYSX_SOURCE_DIR "${PHYSX_ROOT_DIR}/source")
+SET(LL_SOURCE_DIR "${PHYSX_SOURCE_DIR}/foundation")
+SET(PX_SOURCE_DIR "${PHYSX_SOURCE_DIR}/physx/src")
+
 # macOS always uses Apple Clang on both x86_64 and arm64
 SET(AARCH64_FLAGS "")
 SET(COMMON_CXX_FLAGS "-std=c++14 -fno-rtti -fno-exceptions -ffunction-sections -fdata-sections -fvisibility=hidden")
@@ -186,54 +191,210 @@ SET(PHYSX_MAC_RELEASE_COMPILE_DEFS "NDEBUG;PX_SUPPORT_PVD=0;PX_SUPPORT_OMNI_PVD=
 # 	ENDIF()
 # ENDIF()
 
-# Include all of the projects
-IF(PX_GENERATE_GPU_PROJECTS_ONLY)
-	INCLUDE(PhysXCommon.cmake)
-	INCLUDE(PhysXFoundation.cmake)
-	INCLUDE(LowLevelAABB.cmake)
+# Include all of the projects — defines source variables
+# Note: INCLUDE without path searches CMAKE_CURRENT_SOURCE_DIR (source/compiler/cmake/).
+# We explicitly reference the mac/ subdirectory to get the platform-specific files.
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXFoundation.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXCommon.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXTask.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/LowLevel.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/LowLevelAABB.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/LowLevelDynamics.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/SceneQuery.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/SimulationController.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysX.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXCharacterKinematic.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXCooking.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXExtensions.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXVehicle.cmake)
+INCLUDE(${CMAKE_CURRENT_LIST_DIR}/PhysXPvdSDK.cmake)
 
-	SET_PROPERTY(TARGET PhysXCommon PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXFoundation PROPERTY FOLDER "PhysX SDK")
-ELSE()
-	INCLUDE(PhysXFoundation.cmake)
-	INCLUDE(LowLevel.cmake)
-	INCLUDE(LowLevelAABB.cmake)
-	INCLUDE(LowLevelDynamics.cmake)
-	INCLUDE(PhysX.cmake)
-	INCLUDE(PhysXCharacterKinematic.cmake)
-	INCLUDE(PhysXCommon.cmake)
-	INCLUDE(PhysXCooking.cmake)
-	INCLUDE(PhysXExtensions.cmake)
-	INCLUDE(PhysXVehicle.cmake)
-	INCLUDE(SceneQuery.cmake)
-	INCLUDE(SimulationController.cmake)
-	INCLUDE(PhysXPvdSDK.cmake)
-	INCLUDE(PhysXTask.cmake)
+# ── GLOB source file helper ───────────────────────────────────────────────
+macro(_physx_sources name_out)
+    file(GLOB_RECURSE ${name_out}
+        ${ARGN}
+    )
+    # Remove GPU-related files (CUDA, OptiX)
+    list(FILTER ${name_out} EXCLUDE REGEX "cuda|Cuda|gpu|Gpu|optix|OptiX|omnipvd|OmniPvd|windows|Windows|WIN32|_WIN32")
+endmacro()
 
-	# Set folder PhysX SDK to all common SDK source projects
-	SET_PROPERTY(TARGET PhysX PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXCharacterKinematic PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXCommon PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXCooking PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXExtensions PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXVehicle2 PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET LowLevel PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET LowLevelAABB PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET LowLevelDynamics PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET SceneQuery PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET SimulationController PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXPvdSDK PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXTask PROPERTY FOLDER "PhysX SDK")
-	SET_PROPERTY(TARGET PhysXFoundation PROPERTY FOLDER "PhysX SDK")
+# ── Target creation ──────────────────────────────────────────────────────
+function(_create_physx_target name libtype sources includes compile_defs link_libs)
+    add_library(${name} ${libtype} ${sources})
+    # Collect all PhysX source directories for header resolution
+    # (PhysX #includes headers by relative name from the source tree)
+    if(NOT DEFINED _PHYSX_ALL_SRC_DIRS)
+        set(_PHYSX_ALL_SRC_DIRS)
+        file(GLOB_RECURSE _ALL_PHYSX_DIRS
+            ${PHYSX_SOURCE_DIR}/*/
+        )
+        foreach(_d ${_ALL_PHYSX_DIRS})
+            get_filename_component(_dn "${_d}" REALPATH)
+            list(APPEND _PHYSX_ALL_SRC_DIRS "${_dn}")
+        endforeach()
+        set(_PHYSX_ALL_SRC_DIRS ${_PHYSX_ALL_SRC_DIRS} CACHE INTERNAL "")
+    endif()
+    target_include_directories(${name}
+        PUBLIC  ${PHYSX_ROOT_DIR}/include
+                ${PHYSX_ROOT_DIR}/include/foundation
+                ${PHYSX_ROOT_DIR}/include/foundation/unix
+                ${PHYSX_ROOT_DIR}/include/foundation/unix/neon
+        PRIVATE ${PHYSX_SOURCE_DIR}
+                ${PHYSX_SOURCE_DIR}/lowlevel/api/include
+                ${_PHYSX_ALL_SRC_DIRS}
+                ${includes}
+    )
+    if(compile_defs)
+        target_compile_definitions(${name} PRIVATE ${compile_defs})
+    endif()
+    set_target_properties(${name} PROPERTIES
+        CXX_STANDARD 14
+        CXX_STANDARD_REQUIRED ON
+        CXX_EXTENSIONS OFF
+        POSITION_INDEPENDENT_CODE ON
+    )
+    if(link_libs)
+        target_link_libraries(${name} PRIVATE ${link_libs})
+    endif()
+endfunction()
 
+# ── Sources ──────────────────────────────────────────────────────────────
+_physx_sources(FOUNDATION_SRC
+    ${PHYSX_SOURCE_DIR}/foundation/*.cpp
+    ${PHYSX_SOURCE_DIR}/foundation/unix/*.cpp
+    ${PHYSX_SOURCE_DIR}/foundation/include/*.cpp
+)
+_physx_sources(TASK_SRC ${PHYSX_SOURCE_DIR}/task/src/*.cpp)
+_physx_sources(LOWLEVEL_SRC
+    ${PHYSX_SOURCE_DIR}/lowlevel/software/src/*.cpp
+    ${PHYSX_SOURCE_DIR}/lowlevel/common/src/**/*.cpp
+)
+_physx_sources(LOWLEVELAABB_SRC ${PHYSX_SOURCE_DIR}/lowlevelaabb/src/*.cpp)
+_physx_sources(LOWLEVELDYNAMICS_SRC ${PHYSX_SOURCE_DIR}/lowleveldynamics/src/*.cpp)
+_physx_sources(SCENEQUERY_SRC ${PHYSX_SOURCE_DIR}/scenequery/src/*.cpp)
+_physx_sources(SIMULATION_SRC ${PHYSX_SOURCE_DIR}/simulationcontroller/src/*.cpp)
+_physx_sources(PHYSX_SRC ${PHYSX_SOURCE_DIR}/physx/src/**/*.cpp)
+_physx_sources(CKINEMATIC_SRC ${PHYSX_SOURCE_DIR}/physxcharacterkinematic/src/*.cpp)
+_physx_sources(COOKING_SRC
+    ${PHYSX_SOURCE_DIR}/physxcooking/src/*.cpp
+    ${PHYSX_SOURCE_DIR}/physxcooking/src/*/*.cpp
+)
+_physx_sources(COMMON_SRC
+    ${PHYSX_SOURCE_DIR}/common/src/*.cpp
+    ${PHYSX_SOURCE_DIR}/geomutils/src/**/*.cpp
+)
+_physx_sources(EXTENSIONS_SRC ${PHYSX_SOURCE_DIR}/physxextensions/src/**/*.cpp)
+_physx_sources(VEHICLE_SRC ${PHYSX_SOURCE_DIR}/physxvehicle/src/**/*.cpp)
+_physx_sources(PVD_SRC ${PHYSX_SOURCE_DIR}/pvd/src/*.cpp)
+_physx_sources(TASK_SRC ${PHYSX_SOURCE_DIR}/task/src/*.cpp)
 
-	SET(PHYSXDISTRO_LIBS PhysXFoundation PhysX PhysXCharacterKinematic PhysXPvdSDK PhysXCommon PhysXCooking PhysXExtensions PhysXVehicle2)
+# ── Target creation ──────────────────────────────────────────────────────
+_create_physx_target(PhysXFoundation ${PHYSXFOUNDATION_LIBTYPE}
+    "${FOUNDATION_SRC}"
+    "${PHYSXFOUNDATION_PLATFORM_INCLUDES}"
+    "${PHYSXFOUNDATION_COMPILE_DEFS}"
+    "${PHYSXFOUNDATION_PLATFORM_LINKED_LIBS}"
+)
 
+_create_physx_target(PhysXCommon ${PHYSXCOMMON_LIBTYPE}
+    "${COMMON_SRC}"
+    "${PXCOMMON_PLATFORM_INCLUDES}"
+    "${PXCOMMON_COMPILE_DEFS}"
+    "PhysXFoundation"
+)
 
-	INSTALL(
-		TARGETS ${PHYSXDISTRO_LIBS}
-		EXPORT PhysXSDK
-		DESTINATION $<$<CONFIG:debug>:${PX_ROOT_LIB_DIR}/debug>$<$<CONFIG:release>:${PX_ROOT_LIB_DIR}/release>$<$<CONFIG:checked>:${PX_ROOT_LIB_DIR}/checked>$<$<CONFIG:profile>:${PX_ROOT_LIB_DIR}/profile>
-		)
+_create_physx_target(PhysXTask ${PHYSXTASK_LIBTYPE}
+    "${TASK_SRC}"
+    ""
+    "${PHYSXTASK_COMPILE_DEFS}"
+    "PhysXFoundation"
+)
 
-ENDIF()
+_create_physx_target(LowLevel ${LOWLEVEL_LIBTYPE}
+    "${LOWLEVEL_SRC}"
+    "${LOWLEVEL_PLATFORM_INCLUDES}"
+    "${LOWLEVEL_COMPILE_DEFS}"
+    "PhysXFoundation"
+)
+
+_create_physx_target(LowLevelAABB ${LOWLEVELAABB_LIBTYPE}
+    "${LOWLEVELAABB_SRC}"
+    "${LOWLEVELAABB_PLATFORM_INCLUDES}"
+    "${LOWLEVELAABB_COMPILE_DEFS}"
+    "PhysXFoundation"
+)
+
+_create_physx_target(LowLevelDynamics ${LOWLEVELDYNAMICS_LIBTYPE}
+    "${LOWLEVELDYNAMICS_SRC}"
+    "${LOWLEVELDYNAMICS_PLATFORM_INCLUDES}"
+    "${LOWLEVELDYNAMICS_COMPILE_DEFS}"
+    "PhysXFoundation"
+)
+
+_create_physx_target(SceneQuery ${SCENEQUERY_LIBTYPE}
+    "${SCENEQUERY_SRC}"
+    "${SCENEQUERY_PLATFORM_INCLUDES}"
+    "${SCENEQUERY_COMPILE_DEFS}"
+    "PhysXFoundation;PhysXCommon"
+)
+
+_create_physx_target(SimulationController ${SIMULATIONCONTROLLER_LIBTYPE}
+    "${SIMULATION_SRC}"
+    "${SIMULATIONCONTROLLER_PLATFORM_INCLUDES}"
+    "${SIMULATIONCONTROLLER_COMPILE_DEFS}"
+    "PhysXFoundation;PhysXCommon"
+)
+
+_create_physx_target(PhysX ${PHYSX_LIBTYPE}
+    "${PHYSX_SRC}"
+    "${PHYSX_PLATFORM_INCLUDES}"
+    "${PHYSX_COMPILE_DEFS}"
+    "PhysXFoundation;PhysXCommon;PhysXTask;LowLevel;LowLevelAABB;LowLevelDynamics;SceneQuery;SimulationController"
+)
+
+_create_physx_target(PhysXCharacterKinematic ${PHYSXCHARACTERKINEMATIC_LIBTYPE}
+    "${CKINEMATIC_SRC}"
+    ""
+    "${PHYSXCHARACTERKINEMATICS_COMPILE_DEFS}"
+    "PhysX;PhysXFoundation;PhysXCommon"
+)
+
+_create_physx_target(PhysXCooking ${PHYSXCOOKING_LIBTYPE}
+    "${COOKING_SRC}"
+    ""
+    "${PHYSXCOOKING_COMPILE_DEFS}"
+    "PhysXCommon;PhysXFoundation"
+)
+
+_create_physx_target(PhysXExtensions ${PHYSXEXTENSIONS_LIBTYPE}
+    "${EXTENSIONS_SRC}"
+    "${PHYSXEXTENSIONS_PLATFORM_INCLUDES}"
+    "${PHYSXEXTENSIONS_COMPILE_DEFS}"
+    "PhysX;PhysXFoundation;PhysXCommon"
+)
+
+_create_physx_target(PhysXVehicle2 ${PHYSXVEHICLE_LIBTYPE}
+    "${VEHICLE_SRC}"
+    ""
+    "${PHYSXVEHICLE_COMPILE_DEFS}"
+    "PhysXExtensions;PhysX;PhysXFoundation;PhysXCommon"
+)
+
+_create_physx_target(PhysXPvdSDK ${PHYSXPVDSDK_LIBTYPE}
+    "${PVD_SRC}"
+    "${PHYSXPVDSDK_PLATFORM_INCLUDES}"
+    "${PHYSXPVDSDK_COMPILE_DEFS}"
+    "PhysXFoundation"
+)
+
+# Folder organization
+foreach(t PhysX PhysXCharacterKinematic PhysXCommon PhysXCooking PhysXExtensions
+          PhysXVehicle2 LowLevel LowLevelAABB LowLevelDynamics SceneQuery
+          SimulationController PhysXPvdSDK PhysXTask PhysXFoundation)
+    if(TARGET ${t})
+        set_target_properties(${t} PROPERTIES FOLDER "PhysX SDK")
+    endif()
+endforeach()
+
+SET(PHYSXDISTRO_LIBS PhysXFoundation PhysX PhysXCharacterKinematic PhysXPvdSDK
+    PhysXCommon PhysXCooking PhysXExtensions PhysXVehicle2)
