@@ -8,10 +8,8 @@ namespace CHEngine {
 
 class CHENGINE_API Project
 {
+    friend class ProjectManager;
 public:
-    static std::unique_ptr<Project> Load(const std::string& path);
-    static std::unique_ptr<Project> Create(const std::string& parentDir, const std::string& name);
-
     bool Save() const;
 
     const std::string& GetName()     const { return m_Name; }
@@ -25,6 +23,11 @@ public:
 
     std::string ToRelativePath(const std::string& absolutePath) const;
     std::string ResolveScenePath(const std::string& relPath)    const;
+
+    // Scene file management (paths relative to RootDir)
+    std::string CreateScene(const std::string& name = "");
+    bool        DeleteScene(const std::string& relPath);
+    std::string RenameScene(const std::string& relPath, const std::string& newName);
 
     /// Copy contents of <exe>/editor_assets/ into this project's Assets/ directory.
     /// Non-destructive: existing files are skipped (skip_existing). Safe to call repeatedly.

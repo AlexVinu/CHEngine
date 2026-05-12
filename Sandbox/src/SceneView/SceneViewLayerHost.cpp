@@ -175,40 +175,18 @@ void SceneViewLayerHost::NewSceneFile()
 {
     if (!CHEngine::ProjectManager::HasProject())
         return;
-    namespace fs = std::filesystem;
-    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
-    const fs::path scenesDir = proj->ScenesAbsPath();
-    std::error_code ec;
-    fs::create_directories(scenesDir, ec);
-
-    fs::path target;
-    for (int i = 1; i < 10000; ++i)
-    {
-        target = scenesDir / ("Untitled_" + std::to_string(i) + ".chscene");
-        if (!fs::exists(target))
-            break;
-    }
-    CHEngine::FileSystem::WriteFileText(target, R"({"version":3,"objects":[]})");
-
-    const std::string rel = fs::relative(target, proj->RootDir(), ec).generic_string();
-    OpenSceneFile(rel);
+    const std::string rel = CHEngine::ProjectManager::Current()->CreateScene();
+    if (!rel.empty())
+        OpenSceneFile(rel);
 }
 
 void SceneViewLayerHost::DeleteSceneFile(const std::string& rel)
 {
     if (!CHEngine::ProjectManager::HasProject() || rel.empty())
         return;
-    namespace fs = std::filesystem;
-    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
-    const fs::path abs = proj->RootDir() / rel;
 
-    std::error_code ec;
-    fs::remove(abs, ec);
-    if (ec)
-    {
-        CHE_CORE_ERROR("DeleteSceneFile: failed to remove '{}': {}", abs.string(), ec.message());
+    if (!CHEngine::ProjectManager::Current()->DeleteScene(rel))
         return;
-    }
 
     // Close any tabs bound to it (but keep at least one session alive).
     auto& sessions = SceneViewLayerAccess::Sessions(m_Layer);
@@ -219,15 +197,8 @@ void SceneViewLayerHost::DeleteSceneFile(const std::string& rel)
             if (sessions.size() > 1)
                 CloseSceneSession(i);
             else
-                sessions[i].SceneRelPath.clear(); // becomes a clean Untitled tab
+                sessions[i].SceneRelPath.clear();
         }
-    }
-
-    // If we deleted the startup scene, clear that field.
-    if (proj->GetStartupScene() == rel)
-    {
-        proj->SetStartupScene("");
-        proj->Save();
     }
 }
 
@@ -235,33 +206,10 @@ void SceneViewLayerHost::RenameSceneFile(const std::string& oldRel, const std::s
 {
     if (!CHEngine::ProjectManager::HasProject() || oldRel.empty() || newName.empty())
         return;
-    namespace fs = std::filesystem;
-    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
 
-    fs::path oldAbs = proj->RootDir() / oldRel;
-    fs::path parent = oldAbs.parent_path();
-
-    // Strip any extension the user might have typed; we always store as .chscene.
-    fs::path stem = fs::path(newName).stem();
-    if (stem.empty()) stem = newName;
-    fs::path newAbs = parent / (stem.string() + ".chscene");
-    if (newAbs == oldAbs)
+    const std::string newRel = CHEngine::ProjectManager::Current()->RenameScene(oldRel, newName);
+    if (newRel.empty())
         return;
-
-    std::error_code ec;
-    if (fs::exists(newAbs))
-    {
-        CHE_CORE_WARN("RenameSceneFile: target already exists: {}", newAbs.string());
-        return;
-    }
-    fs::rename(oldAbs, newAbs, ec);
-    if (ec)
-    {
-        CHE_CORE_ERROR("RenameSceneFile: failed: {}", ec.message());
-        return;
-    }
-
-    const std::string newRel = fs::relative(newAbs, proj->RootDir(), ec).generic_string();
 
     // Update any open tabs.
     auto& sessions = SceneViewLayerAccess::Sessions(m_Layer);
@@ -269,13 +217,6 @@ void SceneViewLayerHost::RenameSceneFile(const std::string& oldRel, const std::s
     {
         if (s.SceneRelPath == oldRel)
             s.SceneRelPath = newRel;
-    }
-
-    // Update startup scene reference if needed.
-    if (proj->GetStartupScene() == oldRel)
-    {
-        proj->SetStartupScene(newRel);
-        proj->Save();
     }
 }
 

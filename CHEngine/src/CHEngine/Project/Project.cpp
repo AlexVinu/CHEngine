@@ -75,37 +75,96 @@ std::string Project::ResolveScenePath(const std::string& relPath) const
     return (RootDir() / relPath).string();
 }
 
-std::unique_ptr<Project> Project::Load(const std::string& path)
+std::string Project::CreateScene(const std::string& name)
 {
-    if (path.empty() || !FileSystem::Exists(fs::path(path)))
+    std::error_code ec;
+    const fs::path scenesDir = ScenesAbsPath();
+    fs::create_directories(scenesDir, ec);
+
+    fs::path target;
+    if (!name.empty())
     {
-        CHE_CORE_WARN("Project::Load: file not found: {}", path);
-        return nullptr;
+        target = scenesDir / (fs::path(name).stem().string() + ".chscene");
     }
-    const std::string text = FileSystem::ReadFileText(fs::path(path));
-    if (text.empty())
+    else
     {
-        CHE_CORE_WARN("Project::Load: empty file: {}", path);
-        return nullptr;
-    }
-    nlohmann::json j;
-    try {
-        j = nlohmann::json::parse(text);
-    } catch (const std::exception& e) {
-        CHE_CORE_ERROR("Project::Load: JSON parse error: {}", e.what());
-        return nullptr;
+        for (int i = 1; i < 10000; ++i)
+        {
+            target = scenesDir / ("Untitled_" + std::to_string(i) + ".chscene");
+            if (!fs::exists(target))
+                break;
+        }
     }
 
-    auto proj            = std::unique_ptr<Project>(new Project());
-    proj->m_Path         = fs::absolute(fs::path(path)).string();
-    proj->m_Name         = j.value("name", "Unnamed");
-    proj->m_EngineVersion = j.value("engine_version", "0.1");
-    proj->m_StartupScene = j.value("startup_scene", "");
-    proj->m_AssetsDir    = j.value("assets_dir", "Assets");
-    proj->m_ScenesDir    = j.value("scenes_dir", "Scenes");
+    if (!FileSystem::WriteFileText(target, R"({"version":3,"objects":[]})"))
+    {
+        CHE_CORE_ERROR("Project::CreateScene: failed to write '{}'", target.string());
+        return {};
+    }
 
-    CHE_CORE_INFO("Project loaded: {} ({})", proj->m_Name, proj->m_Path);
-    return proj;
+    const std::string rel = fs::relative(target, RootDir(), ec).generic_string();
+    CHE_CORE_INFO("Project::CreateScene: created '{}'", rel);
+    return rel;
+}
+
+bool Project::DeleteScene(const std::string& relPath)
+{
+    if (relPath.empty())
+        return false;
+
+    std::error_code ec;
+    fs::remove(RootDir() / relPath, ec);
+    if (ec)
+    {
+        CHE_CORE_ERROR("Project::DeleteScene: failed to remove '{}': {}", relPath, ec.message());
+        return false;
+    }
+
+    if (m_StartupScene == relPath)
+    {
+        m_StartupScene.clear();
+        Save();
+    }
+
+    CHE_CORE_INFO("Project::DeleteScene: removed '{}'", relPath);
+    return true;
+}
+
+std::string Project::RenameScene(const std::string& relPath, const std::string& newName)
+{
+    if (relPath.empty() || newName.empty())
+        return {};
+
+    const fs::path oldAbs = RootDir() / relPath;
+    const fs::path newAbs = oldAbs.parent_path() / (fs::path(newName).stem().string() + ".chscene");
+
+    if (newAbs == oldAbs)
+        return relPath;
+
+    std::error_code ec;
+    if (fs::exists(newAbs))
+    {
+        CHE_CORE_WARN("Project::RenameScene: target already exists: '{}'", newAbs.string());
+        return {};
+    }
+
+    fs::rename(oldAbs, newAbs, ec);
+    if (ec)
+    {
+        CHE_CORE_ERROR("Project::RenameScene: failed: {}", ec.message());
+        return {};
+    }
+
+    const std::string newRel = fs::relative(newAbs, RootDir(), ec).generic_string();
+
+    if (m_StartupScene == relPath)
+    {
+        m_StartupScene = newRel;
+        Save();
+    }
+
+    CHE_CORE_INFO("Project::RenameScene: '{}' -> '{}'", relPath, newRel);
+    return newRel;
 }
 
 bool Project::Save() const
@@ -124,40 +183,6 @@ bool Project::Save() const
         return false;
     }
     return true;
-}
-
-std::unique_ptr<Project> Project::Create(const std::string& parentDir, const std::string& name)
-{
-    if (parentDir.empty() || name.empty())
-        return nullptr;
-
-    const fs::path rootDir = fs::path(parentDir) / name;
-    std::error_code ec;
-    fs::create_directories(rootDir / "Scenes",            ec);
-    fs::create_directories(rootDir / "Assets" / "Models", ec);
-    fs::create_directories(rootDir / "Assets" / "Textures", ec);
-    if (ec)
-    {
-        CHE_CORE_ERROR("Project::Create: failed to create directories: {}", ec.message());
-        return nullptr;
-    }
-
-    FileSystem::WriteFileText(rootDir / "Scenes" / "Main.chscene",
-                              R"({"version":1,"entities":[],"meta":{}})");
-
-    auto proj            = std::unique_ptr<Project>(new Project());
-    proj->m_Name         = name;
-    proj->m_Path         = (rootDir / (name + ".cheproj")).string();
-    proj->m_StartupScene = "Scenes/Main.chscene";
-
-    if (!proj->Save())
-    {
-        CHE_CORE_ERROR("Project::Create: failed to save project file");
-        return nullptr;
-    }
-
-    CHE_CORE_INFO("Project created: {} ({})", proj->m_Name, proj->m_Path);
-    return proj;
 }
 
 } // namespace CHEngine

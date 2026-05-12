@@ -254,7 +254,7 @@ namespace CHEngine {
         mainColor.Pipeline        = m_MeshPipeline;
         mainColor.ColorLoadOp     = hasPreScene ? ELoadOp::Load : ELoadOp::Clear;
         mainColor.ColorStoreOp    = EStoreOp::Store;
-        mainColor.ClearColor      = { 0.18f, 0.18f, 0.20f, 1.0f };
+        mainColor.ClearColor      = { 0.0f, 0.0f, 0.0f, 0.0f };
         mainColor.DepthLoadOp     = hasPreScene ? ELoadOp::Load : ELoadOp::Clear;
         mainColor.ClearDepth      = 1.0f;
 
