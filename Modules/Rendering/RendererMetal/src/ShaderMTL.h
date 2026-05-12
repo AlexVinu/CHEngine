@@ -1,39 +1,38 @@
 #pragma once
 
-#include <Render/IShader.h>
-#include <Render/IBuffer.h>
-#include <Render/UniformBlocks.h>
 #include <CheStl/String.h>
+#include <Render/UniformBlocks.h>
+#include <Render/Pipeline/VertexLayout.h>
 
 #include <unordered_map>
 #include <cstdint>
 
 namespace CHModules
 {
-    class ShaderMTL : public CHEngine::IShader
+    class ShaderMTL
     {
     public:
         ShaderMTL(const CHEngine::String& slangSource,
                   const CHEngine::String& vertEntry,
                   const CHEngine::String& fragEntry,
                   const CHEngine::String& sourcePath = CHEngine::String());
-        ~ShaderMTL() override;
+        ~ShaderMTL();
 
 		void Bind() const;
 		void Unbind() const;
         bool Reload(const CHEngine::String& slangSource,
                     const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
                     const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-                    const CHEngine::String& sourcePath = CHEngine::String()) override;
+                    const CHEngine::String& sourcePath = CHEngine::String());
 
         // --- UBO ---
-        void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
+        void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size);
 
         // --- Sampler binding (no-op для Metal, текстуры через [[texture(N)]]) ---
-        void SetInt(const CHEngine::String& name, int value) override;
+        void SetInt(const CHEngine::String& name, int value);
 
         // Получить/создать pipeline state для данного vertex layout
-        void* GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
+        void* GetOrCreatePipelineState(const CHEngine::VertexInputLayout& layout,
                                        uint32_t colorPixelFormat,
                                        uint32_t depthPixelFormat,
                                        bool blendEnabled);

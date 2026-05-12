@@ -85,14 +85,14 @@ namespace CHModules
         bool CheckIsWorking() override { return true; }
 
         // ── Legacy raw-pointer API (old EditorViewport path) ──────────────────
-        CHEngine::IVertexBuffer* CreateVertexBuffer(float* vertices, uint32_t size);
-        CHEngine::IIndexBuffer*  CreateIndexBuffer(uint32_t* indices, uint32_t count);
-        CHEngine::IVertexArray*  CreateVertexArray();
-        CHEngine::IRenderApi*    CreateRenderAPI();
-        void Delete(CHEngine::IVertexBuffer* ptr);
-        void Delete(CHEngine::IIndexBuffer*  ptr);
-        void Delete(CHEngine::IVertexArray*  ptr);
-        void Delete(CHEngine::IRenderApi*    ptr);
+        class VertexBufferMTL* CreateVertexBuffer(float* vertices, uint32_t size);
+        class IndexBufferMTL*  CreateIndexBuffer(uint32_t* indices, uint32_t count);
+        class VertexArrayMTL*  CreateVertexArray();
+        class RenderApiMTL*    CreateRenderAPI();
+        void Delete(class VertexBufferMTL* ptr);
+        void Delete(class IndexBufferMTL*  ptr);
+        void Delete(class VertexArrayMTL*  ptr);
+        void Delete(class RenderApiMTL*    ptr);
 
     private:
         template<typename T, typename... Args>

@@ -1,20 +1,26 @@
 #pragma once
 
-#include "Render/IBuffer.h"
+#include <cstdint>
+#include <Render/Pipeline/VertexLayout.h>
 
 namespace CHModules
 {
-    class VertexBufferMTL : public CHEngine::IVertexBuffer
+    // Legacy buffer classes for old EditorViewport path
+    // Note: These don't inherit from IVertexBuffer/IIndexBuffer anymore
+    // as those interfaces were removed in the new architecture
+    
+    class VertexBufferMTL
     {
     public:
         VertexBufferMTL(float* vertices, uint32_t size);
-        ~VertexBufferMTL() override;
+        ~VertexBufferMTL();
 
-        void Bind() const override;
-        void Unbind() const override;
+        void Bind() const;
+        void Unbind() const;
 
-        const CHEngine::BufferLayout& GetLayout() const override;
-        void SetLayout(const CHEngine::BufferLayout& layout) override;
+        // Legacy methods (kept for compatibility)
+        const CHEngine::VertexInputLayout& GetLayout() const;
+        void SetLayout(const CHEngine::VertexInputLayout& layout);
 
         void* GetNativeBuffer() const { return m_Buffer; }
         uint32_t GetSize() const { return m_Size; }
@@ -22,18 +28,18 @@ namespace CHModules
     private:
         void* m_Buffer = nullptr; // id<MTLBuffer>
         uint32_t m_Size = 0;
-        CHEngine::BufferLayout m_Layout;
+        CHEngine::VertexInputLayout m_Layout;
     };
 
-    class IndexBufferMTL : public CHEngine::IIndexBuffer
+    class IndexBufferMTL
     {
     public:
         IndexBufferMTL(uint32_t* indices, uint32_t count);
-        ~IndexBufferMTL() override;
+        ~IndexBufferMTL();
 
-        void Bind() const override;
-        void Unbind() const override;
-        uint32_t GetCount() const override;
+        void Bind() const;
+        void Unbind() const;
+        uint32_t GetCount() const;
 
         void* GetNativeBuffer() const { return m_Buffer; }
 

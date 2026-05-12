@@ -3,7 +3,7 @@
 #include "MetalGlobals.h"
 
 #include <Log/Log.h>
-#include <Render/IBuffer.h>
+#include <Render/UniformBlocks.h>
 #include <SlangBackend/SlangBackend.h>
 
 #import <Metal/Metal.h>
@@ -18,10 +18,10 @@ namespace CHModules
 
 // ─── Compile .slang → MSL → MTLLibrary ──────────────────────────────────────
 
-bool ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
-                             const CHEngine::String& vertEntry,
-                             const CHEngine::String& fragEntry,
-                             const CHEngine::String& sourcePath)
+bool CHModules::ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
+                                        const CHEngine::String& vertEntry,
+                                        const CHEngine::String& fragEntry,
+                                        const CHEngine::String& sourcePath)
 {
     id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
     if (!device) {
@@ -107,78 +107,95 @@ bool ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
 
 // ─── Constructor / Destructor ───────────────────────────────────────────────
 
-ShaderMTL::ShaderMTL(const CHEngine::String& slangSource,
-                     const CHEngine::String& vertEntry,
-                     const CHEngine::String& fragEntry,
-                     const CHEngine::String& sourcePath)
+CHModules::ShaderMTL::ShaderMTL(const CHEngine::String& slangSource,
+                                const CHEngine::String& vertEntry,
+                                const CHEngine::String& fragEntry,
+                                const CHEngine::String& sourcePath)
 {
-    if (!CompileSlang(slangSource, vertEntry, fragEntry, sourcePath)) {
-        CHE_CORE_ERROR("ShaderMTL: failed to compile shader");
-    }
+    if (!CompileSlang(slangSource, vertEntry, fragEntry, sourcePath))
+        CHE_CORE_ERROR("ShaderMTL: failed to compile '{}'", sourcePath.c_str());
 }
 
-ShaderMTL::~ShaderMTL()
+CHModules::ShaderMTL::~ShaderMTL()
 {
     for (auto& [key, pso] : m_PipelineCache)
         [(id<MTLRenderPipelineState>)pso release];
-    m_PipelineCache.clear();
-
-    if (m_FragmentFunc) [(id<MTLFunction>)m_FragmentFunc release];
-    if (m_VertexFunc)   [(id<MTLFunction>)m_VertexFunc release];
-    if (m_Library)      [(id<MTLLibrary>)m_Library release];
+        
+    if (m_VertexFunc)
+        [(id<MTLFunction>)m_VertexFunc release];
+        
+    if (m_FragmentFunc)
+        [(id<MTLFunction>)m_FragmentFunc release];
+        
+    if (m_Library)
+        [(id<MTLLibrary>)m_Library release];
 }
 
 // ─── Bind / Unbind ──────────────────────────────────────────────────────────
 
-void ShaderMTL::Bind() const
+void CHModules::ShaderMTL::Bind() const
 {
-    MTLGlobals::g_BoundShader = const_cast<ShaderMTL*>(this);
+    // NOP for Metal: Shaders are bound via pipeline states
+    // Uniforms flushed in FlushUniforms() when setting up the encoder
 }
 
-void ShaderMTL::Unbind() const
+void CHModules::ShaderMTL::Unbind() const
 {
-    if (MTLGlobals::g_BoundShader == this)
-        MTLGlobals::g_BoundShader = nullptr;
+    // NOP for Metal: encoder lifetime handles binding/unbinding
 }
 
 // ─── Reload ─────────────────────────────────────────────────────────────────
 
-bool ShaderMTL::Reload(const CHEngine::String& slangSource,
-                       const CHEngine::String& vertEntry,
-                       const CHEngine::String& fragEntry,
-                       const CHEngine::String& sourcePath)
+bool CHModules::ShaderMTL::Reload(const CHEngine::String& slangSource,
+                                  const CHEngine::String& vertEntry,
+                                  const CHEngine::String& fragEntry,
+                                  const CHEngine::String& sourcePath)
 {
     return CompileSlang(slangSource, vertEntry, fragEntry, sourcePath);
 }
 
 // ─── Pipeline State ─────────────────────────────────────────────────────────
 
-static MTLVertexFormat ShaderDataTypeToMTLFormat(CHEngine::ShaderDataType type)
+static MTLVertexFormat VertexFormatToMTLFormat(CHEngine::VertexFormat format)
 {
-    switch (type)
+    using VF = CHEngine::VertexFormat;
+    switch (format)
     {
-    case CHEngine::ShaderDataType::Float:  return MTLVertexFormatFloat;
-    case CHEngine::ShaderDataType::Float2: return MTLVertexFormatFloat2;
-    case CHEngine::ShaderDataType::Float3: return MTLVertexFormatFloat3;
-    case CHEngine::ShaderDataType::Float4: return MTLVertexFormatFloat4;
-    case CHEngine::ShaderDataType::Int:    return MTLVertexFormatInt;
-    case CHEngine::ShaderDataType::Int2:   return MTLVertexFormatInt2;
-    case CHEngine::ShaderDataType::Int3:   return MTLVertexFormatInt3;
-    case CHEngine::ShaderDataType::Int4:   return MTLVertexFormatInt4;
-    default: return MTLVertexFormatFloat3;
+    case VF::Float:        return MTLVertexFormatFloat;
+    case VF::Float2:       return MTLVertexFormatFloat2;
+    case VF::Float3:       return MTLVertexFormatFloat3;
+    case VF::Float4:       return MTLVertexFormatFloat4;
+    case VF::Int:          return MTLVertexFormatInt;
+    case VF::Int2:         return MTLVertexFormatInt2;
+    case VF::Int3:         return MTLVertexFormatInt3;
+    case VF::Int4:         return MTLVertexFormatInt4;
+    case VF::UInt:         return MTLVertexFormatUInt;
+    case VF::UInt2:        return MTLVertexFormatUInt2;
+    case VF::UInt3:        return MTLVertexFormatUInt3;
+    case VF::UInt4:        return MTLVertexFormatUInt4;
+    case VF::UByte4:       return MTLVertexFormatUChar4;
+    case VF::UByte4_Norm:  return MTLVertexFormatUChar4Normalized;
+    default:               return MTLVertexFormatFloat3;
     }
 }
 
-void* ShaderMTL::GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
+void* CHModules::ShaderMTL::GetOrCreatePipelineState(const CHEngine::VertexInputLayout& layout,
                                            uint32_t colorPixelFormat,
                                            uint32_t depthPixelFormat,
                                            bool blendEnabled)
 {
-    PipelineCacheKey key;
-    key.stride      = layout.GetStride();
-    key.numAttribs  = (uint32_t)layout.GetElements().size();
-    key.colorFormat  = colorPixelFormat;
-    key.depthFormat  = depthPixelFormat;
+    CHE_CORE_ASSERT(m_VertexFunc, "ShaderMTL: vertex function not compiled");
+    CHE_CORE_ASSERT(m_FragmentFunc, "ShaderMTL: fragment function not compiled");
+
+    id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
+    CHE_CORE_ASSERT(device, "ShaderMTL: Metal device is null");
+
+    // Compute cache key
+    PipelineCacheKey key = {};
+    key.stride      = layout.Strides.empty() ? 0u : layout.Strides[0];  // Use first stride for key
+    key.numAttribs  = static_cast<uint32_t>(layout.Attributes.size());
+    key.colorFormat = colorPixelFormat;
+    key.depthFormat = depthPixelFormat;
     key.blend       = blendEnabled;
 
     auto it = m_PipelineCache.find(key);
@@ -188,57 +205,64 @@ void* ShaderMTL::GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
     // Build vertex descriptor
     MTLVertexDescriptor* vertDesc = [[MTLVertexDescriptor alloc] init];
     uint32_t attrIdx = 0;
-    for (const auto& elem : layout)
+    for (const auto& attr : layout.Attributes)
     {
-        vertDesc.attributes[attrIdx].format      = ShaderDataTypeToMTLFormat(elem.Type);
-        vertDesc.attributes[attrIdx].offset      = elem.Offset;
-        vertDesc.attributes[attrIdx].bufferIndex = 0;
+        // Map slot index safely - if beyond bounds, use slot 0
+        const uint32_t slotIndex = (attr.Slot < static_cast<uint32_t>(layout.Strides.size())) 
+                                        ? attr.Slot : 0u;
+        
+        vertDesc.attributes[attrIdx].format      = VertexFormatToMTLFormat(attr.Format);
+        vertDesc.attributes[attrIdx].offset      = attr.Offset;
+        vertDesc.attributes[attrIdx].bufferIndex = slotIndex;
         attrIdx++;
     }
-    vertDesc.layouts[0].stride       = layout.GetStride();
-    vertDesc.layouts[0].stepFunction = MTLVertexStepFunctionPerVertex;
-    vertDesc.layouts[0].stepRate     = 1;
+    
+    // Setup layouts for each vertex buffer slot
+    for (size_t slotIdx = 0; slotIdx < layout.Strides.size(); ++slotIdx) {
+        vertDesc.layouts[slotIdx].stride       = layout.Strides[slotIdx];
+        vertDesc.layouts[slotIdx].stepRate     = 1;
+        vertDesc.layouts[slotIdx].stepFunction = MTLVertexStepFunctionPerVertex;
+    }
 
-    // Create pipeline descriptor
+    // Build pipeline descriptor
     MTLRenderPipelineDescriptor* desc = [[MTLRenderPipelineDescriptor alloc] init];
-    desc.vertexFunction   = (id<MTLFunction>)m_VertexFunc;
-    desc.fragmentFunction = (id<MTLFunction>)m_FragmentFunc;
-    desc.vertexDescriptor = vertDesc;
+    desc.vertexFunction                  = (__bridge id<MTLFunction>)m_VertexFunc;
+    desc.fragmentFunction                = (__bridge id<MTLFunction>)m_FragmentFunc;
+    desc.vertexDescriptor                = vertDesc;
+    desc.rasterSampleCount               = 1;
+    
+    // Color attachment
     desc.colorAttachments[0].pixelFormat = (MTLPixelFormat)colorPixelFormat;
-
+    desc.colorAttachments[0].writeMask   = MTLColorWriteMaskAll;
     if (blendEnabled) {
         desc.colorAttachments[0].blendingEnabled             = YES;
         desc.colorAttachments[0].sourceRGBBlendFactor        = MTLBlendFactorSourceAlpha;
         desc.colorAttachments[0].destinationRGBBlendFactor   = MTLBlendFactorOneMinusSourceAlpha;
-        desc.colorAttachments[0].rgbBlendOperation           = MTLBlendOperationAdd;
         desc.colorAttachments[0].sourceAlphaBlendFactor      = MTLBlendFactorOne;
-        desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorOneMinusSourceAlpha;
+        desc.colorAttachments[0].destinationAlphaBlendFactor = MTLBlendFactorZero;
+        desc.colorAttachments[0].rgbBlendOperation           = MTLBlendOperationAdd;
         desc.colorAttachments[0].alphaBlendOperation         = MTLBlendOperationAdd;
+    } else {
+        desc.colorAttachments[0].blendingEnabled = NO;
     }
 
-    if (depthPixelFormat != 0)
-        desc.depthAttachmentPixelFormat = (MTLPixelFormat)depthPixelFormat;
+    // Depth attachment
+    desc.depthAttachmentPixelFormat = (MTLPixelFormat)depthPixelFormat;
 
     NSError* error = nil;
-    id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
-    id<MTLRenderPipelineState> pso = [device newRenderPipelineStateWithDescriptor:desc error:&error];
-
-    [desc release];
-    [vertDesc release];
-
-    if (!pso) {
-        CHE_CORE_ERROR("ShaderMTL: Pipeline state creation failed: {}",
-                       error ? [[error localizedDescription] UTF8String] : "unknown");
+    id<MTLRenderPipelineState> pipeline = [device newRenderPipelineStateWithDescriptor:desc error:&error];
+    if (!pipeline) {
+        CHE_CORE_ERROR("ShaderMTL: failed to create pipeline state:\n{}", 
+                      error.description.UTF8String);
         return nullptr;
     }
 
-    m_PipelineCache[key] = (void*)pso;
-    return (void*)pso;
+    void* pipelinePtr = (__bridge void*)pipeline;
+    m_PipelineCache[key] = pipelinePtr;
+    return pipelinePtr;
 }
 
-// ─── Flush uniforms to encoder ──────────────────────────────────────────────
-
-void ShaderMTL::FlushUniforms(void* encoderPtr) const
+void CHModules::ShaderMTL::FlushUniforms(void* encoderPtr) const
 {
     id<MTLRenderCommandEncoder> encoder = (id<MTLRenderCommandEncoder>)encoderPtr;
 
@@ -257,9 +281,7 @@ void ShaderMTL::FlushUniforms(void* encoderPtr) const
     [encoder setFragmentBytes:&m_Material length:sizeof(CHEngine::UBOMaterial) atIndex:4];
 }
 
-// ─── Uniform Block setter ───────────────────────────────────────────────────
-
-void ShaderMTL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size)
+void CHModules::ShaderMTL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size)
 {
     switch (block)
     {
@@ -275,15 +297,15 @@ void ShaderMTL::SetUniformBlock(CHEngine::EUniformBlock block, const void* data,
     case CHEngine::EUniformBlock::Material:
         std::memcpy(&m_Material, data, std::min(size, static_cast<uint32_t>(sizeof(m_Material))));
         break;
+    case CHEngine::EUniformBlock::COUNT:
+        // Ignore COUNT value
+        break;
     }
 }
 
-// ─── SetInt — no-op для Metal (текстуры через [[texture(N)]]) ──────────────
-
-void ShaderMTL::SetInt(const CHEngine::String& /*name*/, int /*value*/)
+void CHModules::ShaderMTL::SetInt(const CHEngine::String& /*name*/, int /*value*/)
 {
     // Metal привязывает текстуры напрямую через [[texture(N)]],
     // sampler slot не нужен.
 }
-
 } // namespace CHModules

@@ -8,15 +8,15 @@ namespace CHModules
     void VertexArrayMTL::Bind() const {}
     void VertexArrayMTL::Unbind() const {}
 
-    void VertexArrayMTL::AddVertexBuffer(const CHEngine::Ref<CHEngine::IVertexBuffer>& vb)
+    void VertexArrayMTL::AddVertexBuffer(class VertexBufferMTL* vb)
     { m_VertexBuffers.push_back(vb); }
 
-    void VertexArrayMTL::SetIndexBuffer(const CHEngine::Ref<CHEngine::IIndexBuffer>& ib)
+    void VertexArrayMTL::SetIndexBuffer(class IndexBufferMTL* ib)
     { m_IndexBuffer = ib; }
 
-    const CHEngine::Vector<CHEngine::Ref<CHEngine::IVertexBuffer>>& VertexArrayMTL::GetVertexBuffers() const
+    const CHEngine::Vector<class VertexBufferMTL*>& VertexArrayMTL::GetVertexBuffers() const
     { return m_VertexBuffers; }
 
-    const CHEngine::Ref<CHEngine::IIndexBuffer>& VertexArrayMTL::GetIndexBuffer() const
+    class IndexBufferMTL* VertexArrayMTL::GetIndexBuffer() const
     { return m_IndexBuffer; }
 }

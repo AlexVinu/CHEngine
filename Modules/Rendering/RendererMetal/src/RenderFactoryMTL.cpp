@@ -3,7 +3,6 @@
 
 #include "FrameGraphBackendMTL.h"
 #include "TextureMTL.h"    // Legacy TextureMTL
-#include "RendererMTL.h"   // RendererMTL (legacy)
 #include "CHEngine/UI/UIFacade.h"
 #include <Log/Log.h>
 
@@ -155,22 +154,22 @@ namespace CHModules
         m_RenderApi->EndFrame();
     }
 
-    CHEngine::IVertexBuffer* RenderFactoryMTL::CreateVertexBuffer(float* vertices, uint32_t size)
+    class VertexBufferMTL* RenderFactoryMTL::CreateVertexBuffer(float* vertices, uint32_t size)
     { return CreateImpl<VertexBufferMTL>(vertices, size); }
 
-    CHEngine::IIndexBuffer* RenderFactoryMTL::CreateIndexBuffer(uint32_t* indices, uint32_t count)
+    class IndexBufferMTL* RenderFactoryMTL::CreateIndexBuffer(uint32_t* indices, uint32_t count)
     { return CreateImpl<IndexBufferMTL>(indices, count); }
 
-    CHEngine::IVertexArray* RenderFactoryMTL::CreateVertexArray()
+    class VertexArrayMTL* RenderFactoryMTL::CreateVertexArray()
     { return CreateImpl<VertexArrayMTL>(); }
 
-    CHEngine::IRenderApi* RenderFactoryMTL::CreateRenderAPI()
+    class RenderApiMTL* RenderFactoryMTL::CreateRenderAPI()
     { return CreateImpl<RenderApiMTL>(); }
 
-    void RenderFactoryMTL::Delete(CHEngine::IVertexBuffer* ptr) { DestroyImpl(static_cast<VertexBufferMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::IIndexBuffer*  ptr) { DestroyImpl(static_cast<IndexBufferMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::IVertexArray*  ptr) { DestroyImpl(static_cast<VertexArrayMTL*>(ptr)); }
-    void RenderFactoryMTL::Delete(CHEngine::IRenderApi*    ptr) { DestroyImpl(static_cast<RenderApiMTL*>(ptr)); }
+    void RenderFactoryMTL::Delete(class VertexBufferMTL* ptr) { DestroyImpl(ptr); }
+    void RenderFactoryMTL::Delete(class IndexBufferMTL*  ptr) { DestroyImpl(ptr); }
+    void RenderFactoryMTL::Delete(class VertexArrayMTL*  ptr) { DestroyImpl(ptr); }
+    void RenderFactoryMTL::Delete(class RenderApiMTL*    ptr) { DestroyImpl(ptr); }
 }
 
 IMPLEMENT_MODULE_FACTORY(CHModules::RenderFactoryMTL)
