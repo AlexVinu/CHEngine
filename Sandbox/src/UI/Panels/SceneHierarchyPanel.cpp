@@ -46,6 +46,11 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
         host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
             [&host] { host.AddCubePrimitive(); }, [] {}, false));
     }
+    if (ImGui::Button("+ Sphere", ImVec2(-1.0f, 0.0f)))
+    {
+        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            [&host] { host.AddSpherePrimitive(); }, [] {}, false));
+    }
     ImGui::EndDisabled();
 
     ImGui::Spacing();

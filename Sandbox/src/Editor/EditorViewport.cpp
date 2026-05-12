@@ -23,6 +23,12 @@ EditorViewport::EditorViewport()
     m_GridShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
         std::string("Grid"), std::string("shaders/grid.slang"));
 
+    m_SphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        std::string("Sphere"), std::string("shaders/sphere.slang"));
+
+    m_PBRShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        std::string("PBR"), std::string("shaders/pbr.slang"));
+
     BuildGrid();
 }
 

@@ -72,8 +72,9 @@ std::string ProjectManager::Create(const std::string& parentDir, const std::stri
         return {};
     }
 
+    // Must match SceneSerializer kSceneFormatVersion=3 with "objects" array.
     FileSystem::WriteFileText(rootDir / "Scenes" / "Main.chscene",
-                              R"({"version":1,"entities":[],"meta":{}})");
+                              R"({"version":3,"objects":[]})");
 
     auto proj            = std::unique_ptr<Project>(new Project());
     proj->m_Name         = name;

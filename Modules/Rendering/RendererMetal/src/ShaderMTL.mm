@@ -308,4 +308,5 @@ void CHModules::ShaderMTL::SetInt(const CHEngine::String& /*name*/, int /*value*
     // Metal привязывает текстуры напрямую через [[texture(N)]],
     // sampler slot не нужен.
 }
-} // namespace CHModules
+// namespace CHModules
+}

@@ -383,6 +383,35 @@ void SceneViewLayerHost::AddCubePrimitive()
     activeSession.SelectedEntity = handle;
 }
 
+void SceneViewLayerHost::AddSpherePrimitive()
+{
+    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
+    auto scene_ref = activeSession.EditorScene;
+    if (!scene_ref)
+        return;
+
+    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Sphere", object_id);
+    auto* entity = scene_ref->TryGetEntity(handle);
+    if (!entity)
+        return;
+
+    if (!entity->HasComponent<CHEngine::MeshComponent>())
+        entity->AddComponent<CHEngine::MeshComponent>(CHEngine::MeshComponent{});
+
+    CHEngine::Mesh sphere_mesh = CHEngine::PrimitiveMeshFactory::CreateSphere(0.5f, 32, 24, { 0.6f, 0.7f, 0.9f });
+    sphere_mesh.Mat = CHEngine::MaterialInstance::FromBase(
+        std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereShader()));
+    entity->PatchComponent<CHEngine::MeshComponent>(
+        [sphere_mesh = std::move(sphere_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
+            mesh_component.Meshes.clear();
+            mesh_component.Meshes.push_back(std::move(sphere_mesh));
+            mesh_component.SourcePath = ":primitive:sphere";
+        });
+
+    activeSession.SelectedEntity = handle;
+}
+
 void SceneViewLayerHost::AddEmptyEntity()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);

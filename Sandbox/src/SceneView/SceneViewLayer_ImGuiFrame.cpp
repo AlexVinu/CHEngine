@@ -7,6 +7,7 @@
 #include "SceneViewLayer_IO.h"
 #include "SceneViewLayer_Render.h"
 #include "SceneViewLayer_CameraOps.h"
+#include "SceneViewLayer_MousePicking.h"
 
 #include "UIThemeActive.h"
 
@@ -65,6 +66,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
                            vpSize,
                            activeCtx->GizmoOperation,
                            activeCtx->GizmoMode);
+
+        SceneViewLayerMousePicking::TryPick(layer);
     }
 
     {

@@ -40,7 +40,9 @@ public:
                    ImGuizmo::OPERATION gizmo_operation,
                    ImGuizmo::MODE gizmo_mode);
 
-    CHEngine::ShaderHandle GetMeshShader() const { return m_MeshShader; }
+    CHEngine::ShaderHandle GetMeshShader()   const { return m_MeshShader; }
+    CHEngine::ShaderHandle GetSphereShader() const { return m_SphereShader; }
+    CHEngine::ShaderHandle GetPBRShader()    const { return m_PBRShader; }
 
     bool& ShowGrid() { return m_ShowGrid; }
     const ImVec2& GetViewportPos() const { return m_ViewportPos; }
@@ -52,6 +54,8 @@ private:
 
 private:
     CHEngine::ShaderHandle m_MeshShader{};
+    CHEngine::ShaderHandle m_SphereShader{};
+    CHEngine::ShaderHandle m_PBRShader{};
     CHEngine::ShaderHandle   m_GridShader{};
     CHEngine::PipelineHandle m_GridPipeline{};
     // Grid mesh buffers — fullscreen quad in NDC space.

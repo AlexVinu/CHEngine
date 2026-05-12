@@ -499,6 +499,82 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                         });
                 }
 
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::TextDisabled("PBR");
+                ImGui::Spacing();
+
+                bool usePBR = (mat_ref->GetMaterial()->MaterialFlags & CHEngine::kPBR_EnablePBR) != 0;
+                if (ImGui::Checkbox("Enable PBR##pbrEnable", &usePBR))
+                {
+                    const size_t submeshIndex = mi;
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>(
+                        [&](CHEngine::MeshComponent& mesh_component) {
+                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
+                            if (patchSubMesh.Mat)
+                            {
+                                if (usePBR)
+                                    patchSubMesh.Mat->GetMaterial()->MaterialFlags |= CHEngine::kPBR_EnablePBR;
+                                else
+                                    patchSubMesh.Mat->GetMaterial()->MaterialFlags &= ~CHEngine::kPBR_EnablePBR;
+                                patchSubMesh.Mat->GetMaterial()->ShaderHandler = usePBR
+                                    ? host.GetEditorViewport().GetPBRShader()
+                                    : host.GetEditorViewport().GetMeshShader();
+                            }
+                        });
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
+                ImGui::TextUnformatted("Roughness");
+                ImGui::PopStyleColor();
+                ImGui::SameLine(labelW);
+                ImGui::SetNextItemWidth(-1.0f);
+                float roughness = mat_ref->Roughness;
+                if (ImGui::DragFloat("##roughnessMesh", &roughness, 0.005f, 0.0f, 1.0f, "%.3f"))
+                {
+                    const size_t submeshIndex = mi;
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>(
+                        [&](CHEngine::MeshComponent& mesh_component) {
+                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
+                            if (patchSubMesh.Mat)
+                                patchSubMesh.Mat->Roughness = roughness;
+                        });
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
+                ImGui::TextUnformatted("Metallic");
+                ImGui::PopStyleColor();
+                ImGui::SameLine(labelW);
+                ImGui::SetNextItemWidth(-1.0f);
+                float metallic = mat_ref->Metallic;
+                if (ImGui::DragFloat("##metallicMesh", &metallic, 0.005f, 0.0f, 1.0f, "%.3f"))
+                {
+                    const size_t submeshIndex = mi;
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>(
+                        [&](CHEngine::MeshComponent& mesh_component) {
+                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
+                            if (patchSubMesh.Mat)
+                                patchSubMesh.Mat->Metallic = metallic;
+                        });
+                }
+
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
+                ImGui::TextUnformatted("AO");
+                ImGui::PopStyleColor();
+                ImGui::SameLine(labelW);
+                ImGui::SetNextItemWidth(-1.0f);
+                float ao = mat_ref->AO;
+                if (ImGui::DragFloat("##aoMesh", &ao, 0.005f, 0.0f, 1.0f, "%.3f"))
+                {
+                    const size_t submeshIndex = mi;
+                    selectedEntity->PatchComponent<CHEngine::MeshComponent>(
+                        [&](CHEngine::MeshComponent& mesh_component) {
+                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
+                            if (patchSubMesh.Mat)
+                                patchSubMesh.Mat->AO = ao;
+                        });
+                }
+
                 ImGui::PopID();
             }
         });

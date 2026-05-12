@@ -3,6 +3,9 @@
 
 #include <array>
 #include <vector>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace CHEngine {
 
@@ -80,6 +83,94 @@ Mesh PrimitiveMeshFactory::CreateCube(float size, const glm::vec3& color)
         indices.push_back(base_index + 0);
         indices.push_back(base_index + 2);
         indices.push_back(base_index + 3);
+    }
+
+    Mesh mesh;
+    mesh.Build(vertices, indices);
+    return mesh;
+}
+
+Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_t slices, const glm::vec3& color)
+{
+    segments = std::max(segments, 3u);
+    slices   = std::max(slices, 3u);
+
+    std::vector<Vertex> vertices;
+    std::vector<uint32_t> indices;
+
+    const uint32_t vertCount = (slices - 1) * segments + 2;
+    const uint32_t idxCount  = (slices - 2) * segments * 6 + segments * 6;
+    vertices.reserve(vertCount);
+    indices.reserve(idxCount);
+
+    // Top pole
+    vertices.push_back({ {0.0f, radius, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.5f, 0.0f}, color });
+
+    for (uint32_t j = 1; j < slices; ++j)
+    {
+            float theta = static_cast<float>(M_PI) * static_cast<float>(j) / static_cast<float>(slices);
+
+        for (uint32_t i = 0; i < segments; ++i)
+        {
+            float phi = 2.0f * static_cast<float>(M_PI) * static_cast<float>(i) / static_cast<float>(segments);
+
+            glm::vec3 pos{
+                radius * glm::sin(theta) * glm::cos(phi),
+                radius * glm::cos(theta),
+                radius * glm::sin(theta) * glm::sin(phi)
+            };
+            glm::vec3 normal = glm::normalize(pos);
+
+            float u = static_cast<float>(i) / static_cast<float>(segments);
+            float v = static_cast<float>(j) / static_cast<float>(slices);
+
+            vertices.push_back({ pos, normal, {u, v}, color });
+        }
+    }
+
+    // Bottom pole
+    vertices.push_back({ {0.0f, -radius, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.5f, 1.0f}, color });
+
+    const uint32_t poleTop = 0;
+    const uint32_t poleBot = 1 + (slices - 1) * segments;
+
+    // Top ring (triangles from top pole to first ring)
+    for (uint32_t i = 0; i < segments; ++i)
+    {
+        uint32_t a = 1 + i;
+        uint32_t b = 1 + ((i + 1) % segments);
+        indices.push_back(poleTop);
+        indices.push_back(a);
+        indices.push_back(b);
+    }
+
+    // Middle rings (quad strips)
+    for (uint32_t j = 0; j < slices - 2; ++j)
+    {
+        for (uint32_t i = 0; i < segments; ++i)
+        {
+            uint32_t a = 1 + j * segments + i;
+            uint32_t b = 1 + j * segments + ((i + 1) % segments);
+            uint32_t c = 1 + (j + 1) * segments + ((i + 1) % segments);
+            uint32_t d = 1 + (j + 1) * segments + i;
+
+            indices.push_back(a);
+            indices.push_back(b);
+            indices.push_back(c);
+            indices.push_back(a);
+            indices.push_back(c);
+            indices.push_back(d);
+        }
+    }
+
+    // Bottom ring (triangles from bottom pole to last ring)
+    for (uint32_t i = 0; i < segments; ++i)
+    {
+        uint32_t a = poleBot - segments + i;
+        uint32_t b = poleBot - segments + ((i + 1) % segments);
+        indices.push_back(poleBot);
+        indices.push_back(a);
+        indices.push_back(b);
     }
 
     Mesh mesh;

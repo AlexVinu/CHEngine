@@ -24,9 +24,9 @@ struct MaterialUBO
     float Shininess;
     uint  MaterialFlags;
     float SpecularScale;
-    float _mpad0;
-    float _mpad1;
-    float _mpad2;
+    float Roughness;
+    float Metallic;
+    float AO;
 };
 
 struct LightData

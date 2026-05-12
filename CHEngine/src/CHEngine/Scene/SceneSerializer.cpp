@@ -116,6 +116,14 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
 {
     mat.Shininess     = mj.value("shininess", 32.0f);
     mat.SpecularScale = mj.value("specularScale", 1.0f);
+    mat.Roughness     = mj.value("roughness", 0.5f);
+    mat.Metallic      = mj.value("metallic", 0.0f);
+    mat.AO            = mj.value("ao", 1.0f);
+
+    if (mj.value("usePBR", false))
+        mat.GetMaterial()->MaterialFlags |= kPBR_EnablePBR;
+    else
+        mat.GetMaterial()->MaterialFlags &= ~kPBR_EnablePBR;
 
     std::string diffPath = mj.value("diffusePath", "");
     if (!diffPath.empty() && diffPath != mat.EffectiveDiffuseMapPath())
@@ -269,6 +277,14 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                 cubeMesh.Mat = MaterialInstance::FromBase(
                     std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
                 importedMeshes.push_back(std::move(cubeMesh));
+                hasImportedMeshes = true;
+            }
+            else if (meshPath == ":primitive:sphere")
+            {
+                Mesh sphereMesh = PrimitiveMeshFactory::CreateSphere(0.5f, 32, 24, { 0.6f, 0.7f, 0.9f });
+                sphereMesh.Mat = MaterialInstance::FromBase(
+                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                importedMeshes.push_back(std::move(sphereMesh));
                 hasImportedMeshes = true;
             }
             else
@@ -500,6 +516,10 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
             matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
             matObj["shininess"]     = meshItem.Mat->Shininess;
             matObj["specularScale"] = meshItem.Mat->SpecularScale;
+            matObj["roughness"]     = meshItem.Mat->Roughness;
+            matObj["metallic"]      = meshItem.Mat->Metallic;
+            matObj["ao"]            = meshItem.Mat->AO;
+            matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
             materials.push_back(matObj);
         }
         o["materials"] = materials;
@@ -607,46 +627,12 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
             matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
             matObj["shininess"]     = meshItem.Mat->Shininess;
             matObj["specularScale"] = meshItem.Mat->SpecularScale;
+            matObj["roughness"]     = meshItem.Mat->Roughness;
+            matObj["metallic"]      = meshItem.Mat->Metallic;
+            matObj["ao"]            = meshItem.Mat->AO;
+            matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
             materials.push_back(matObj);
         }
-        o["materials"] = materials;
-
-        if (entity->HasComponent<LightComponent>()) {
-            const auto* lightComp = &entity->GetComponent<LightComponent>();
-            const auto& ld = lightComp->LightData;
-            json light;
-            light["type"]      = static_cast<int>(ld.Type);
-            light["color"]     = { ld.Color.r, ld.Color.g, ld.Color.b };
-            light["intensity"] = ld.Intensity;
-            light["range"]     = ld.Range;
-            light["innerCone"] = ld.InnerCone;
-            light["outerCone"] = ld.OuterCone;
-            o["light"] = light;
-        }
-
-        if (entity->HasComponent<RigidBody3DComponent>())
-            o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
-
-        if (entity->HasComponent<CameraComponent>()) {
-            const auto* cameraComp = &entity->GetComponent<CameraComponent>();
-            json camera;
-            camera["projectionType"] = static_cast<int>(cameraComp->Camera.GetProjectionType());
-            camera["perspective"] = {
-                { "verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV() },
-                { "nearClip", cameraComp->Camera.GetPerspectiveNearClip() },
-                { "farClip", cameraComp->Camera.GetPerspectiveFarClip() }
-            };
-            camera["orthographic"] = {
-                { "size", cameraComp->Camera.GetOrthographicSize() },
-                { "nearClip", cameraComp->Camera.GetOrthographicNearClip() },
-                { "farClip", cameraComp->Camera.GetOrthographicFarClip() }
-            };
-            camera["aspectRatio"] = 16.0f / 9.0f;
-            camera["fixedAspectRatio"] = cameraComp->FixedAspectRatio;
-            camera["primary"] = cameraComp->Primary;
-            o["camera"] = camera;
-        }
-
         j["objects"].push_back(o);
     });
 

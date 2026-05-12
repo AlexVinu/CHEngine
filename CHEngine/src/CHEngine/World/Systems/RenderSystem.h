@@ -50,8 +50,13 @@ namespace CHEngine {
     private:
         std::vector<DrawItem> m_DrawList;
 
-        // Persistent resources (created once, reused each frame).
-        PipelineHandle m_MeshPipeline;
+    // Pipeline cache: each unique shader gets its own pipeline.
+    PipelineHandle m_MeshPipeline;
+    ShaderHandle   m_PBRShader{};
+    PipelineHandle m_PBRPipeline{};
+
+    // Get or create a pipeline for a given shader handle.
+    PipelineHandle GetOrCreatePipeline(ShaderHandle shader);
         ShaderHandle   m_TonemapShader;
         PipelineHandle m_TonemapPipeline;
         BufferHandle   m_CameraUBO;
