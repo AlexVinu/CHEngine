@@ -9,14 +9,12 @@
 
 #include "CHEngine/Render/RenderFacade.h"
 #include "CHEngine/Mesh/Material.h"
+#include "CHEngine/ResourceManager/ResourceManager.h"
 
 // OBJ loader implementation (header-only lib — compile exactly once here)
 #define TINYOBJLOADER_IMPLEMENTATION
 #define TINYOBJLOADER_DISABLE_FAST_FLOAT
 #include <tiny_obj_loader.h>
-
-// stb_image — declaration only (implementation compiled in ModelLoader_GLTF.cpp)
-#include <stb_image.h>
 
 namespace CHEngine {
 
@@ -62,15 +60,11 @@ namespace CHEngine {
 			if (!texName.empty())
 			{
 				std::string texPath = baseDir + texName;
-				int w, h, ch;
-				stbi_set_flip_vertically_on_load(1);
-				uint8_t* pixels = stbi_load(texPath.c_str(), &w, &h, &ch, 0);
-				if (pixels)
+				TextureHandle texHandle = ResourceManager::Instance().Load<TextureHandle>(texPath);
+				if (texHandle.IsValid())
 				{
 					base->DiffuseMapPath = texPath;
-					base->DiffuseMap = RenderFacade::CreateTexture(
-						pixels, static_cast<uint32_t>(w), static_cast<uint32_t>(h), static_cast<uint32_t>(ch));
-					stbi_image_free(pixels);
+					base->DiffuseMap = texHandle;
 				}
 				else
 				{

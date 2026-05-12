@@ -5,6 +5,7 @@
 
 #include <CHEngine/Project/ProjectManager.h>
 #include <CHEngine/EngineConfig.h>
+#include <CHEngine/ResourceManager/ResourceManager.h>
 
 #include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
@@ -215,14 +216,8 @@ public:
 		if (!lastProj.empty())
 			CHEngine::ProjectManager::Open(lastProj);
 
-		CHEngine::RenderFacade::CreateShaderFromFile(
-			CHEngine::String("Flat"),
-			CHEngine::String("shaders/flat.slang")
-		);
-		CHEngine::RenderFacade::CreateShaderFromFile(
-			CHEngine::String("Neon"),
-			CHEngine::String("shaders/neon.slang")
-		);
+		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Flat", "shaders/flat.slang");
+		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Neon", "shaders/neon.slang");
 
 		// Scene editor (default)
 		PushLayer(new SceneViewLayer());

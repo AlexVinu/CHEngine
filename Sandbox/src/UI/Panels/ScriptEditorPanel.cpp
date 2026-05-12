@@ -75,11 +75,23 @@ ScriptEditorPanel::~ScriptEditorPanel() = default;
 void ScriptEditorPanel::Open(const std::string& filePath)
 {
     if (filePath.empty()) return;
+    m_Editor->SetLanguageDefinition(TextEditor::LanguageDefinition::Lua());
     m_FilePath = filePath;
     LoadFile(filePath);
     m_IsOpen = true;
     m_IsDirty = false;
     m_WindowTitle = "Script: " + std::filesystem::path(filePath).filename().string();
+}
+
+void ScriptEditorPanel::OpenShader(const std::string& filePath)
+{
+    if (filePath.empty()) return;
+    m_Editor->SetLanguageDefinition(TextEditor::LanguageDefinition::HLSL());
+    m_FilePath = filePath;
+    LoadFile(filePath);
+    m_IsOpen = true;
+    m_IsDirty = false;
+    m_WindowTitle = "Shader: " + std::filesystem::path(filePath).filename().string();
 }
 
 void ScriptEditorPanel::NewScript(const std::string& filePath)

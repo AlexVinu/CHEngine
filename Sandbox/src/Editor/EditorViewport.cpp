@@ -123,7 +123,7 @@ void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
     // Clear HDR to background color — grid is the first thing drawn.
     gridPass.ColorLoadOp   = CHEngine::ELoadOp::Clear;
     gridPass.ColorStoreOp  = CHEngine::EStoreOp::Store;
-    gridPass.ClearColor    = { 0.18f, 0.18f, 0.20f, 1.0f };  // editor background
+    gridPass.ClearColor    = { 0.0f, 0.0f, 0.0f, 0.0f };  // editor background
     gridPass.ViewportWidth  = CHEngine::RenderFacade::GetViewportWidth();
     gridPass.ViewportHeight = CHEngine::RenderFacade::GetViewportHeight();
 

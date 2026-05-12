@@ -24,10 +24,21 @@ bool ContentBrowserPanel::IsSceneFile(const fs::path& path) const {
     return path.extension().string() == ".chscene";
 }
 
+bool ContentBrowserPanel::IsScriptFile(const fs::path& path) const {
+    return path.extension().string() == ".lua";
+}
+
+bool ContentBrowserPanel::IsShaderFile(const fs::path& path) const {
+    auto ext = path.extension().string();
+    return ext == ".slang" || ext == ".glsl" || ext == ".hlsl";
+}
+
 const char* ContentBrowserPanel::GetFileIcon(const fs::path& path) const {
     if (fs::is_directory(path))    return "[DIR]";
     if (IsModelFile(path))         return "[3D] ";
     if (IsSceneFile(path))         return "[SCN]";
+    if (IsScriptFile(path))        return "[LUA]";
+    if (IsShaderFile(path))        return "[SHD]";
     auto ext = path.extension().string();
     if (ext == ".png" || ext == ".jpg" || ext == ".jpeg" || ext == ".tga")
         return "[IMG]";
@@ -134,9 +145,11 @@ void ContentBrowserPanel::DrawFileGrid() {
 
             std::string name = entry.path().filename().string();
             const char* icon = GetFileIcon(entry.path());
-            bool isDir   = fs::is_directory(entry.path());
-            bool isModel = !isDir && IsModelFile(entry.path());
-            bool isScene = !isDir && IsSceneFile(entry.path());
+            bool isDir    = fs::is_directory(entry.path());
+            bool isModel  = !isDir && IsModelFile(entry.path());
+            bool isScene  = !isDir && IsSceneFile(entry.path());
+            bool isScript = !isDir && IsScriptFile(entry.path());
+            bool isShader = !isDir && IsShaderFile(entry.path());
 
             // Truncate long names
             std::string display = name;
@@ -159,10 +172,12 @@ void ContentBrowserPanel::DrawFileGrid() {
             // Icon text centered
             ImVec2 iconPos = { p.x + cellW * 0.5f - ImGui::CalcTextSize(icon).x * 0.5f, p.y + 6.0f };
             dl->AddText(iconPos,
-                isModel ? IM_COL32(100,180,255,255) :
-                isScene ? IM_COL32(255,200, 80,255) :
-                isDir   ? IM_COL32(220,200,100,255) :
-                          IM_COL32(180,180,180,255), icon);
+                isModel  ? IM_COL32(100,180,255,255) :
+                isScene  ? IM_COL32(255,200, 80,255) :
+                isScript ? IM_COL32( 80,220,120,255) :
+                isShader ? IM_COL32(200,130,255,255) :
+                isDir    ? IM_COL32(220,200,100,255) :
+                           IM_COL32(180,180,180,255), icon);
 
             // Name text centered
             ImVec2 namePos = { p.x + cellW * 0.5f - ImGui::CalcTextSize(display.c_str()).x * 0.5f, p.y + 30.0f };
@@ -174,9 +189,13 @@ void ContentBrowserPanel::DrawFileGrid() {
                 if (isDir)
                     m_CurrentDir = entry.path();
                 else if (isModel)
-                    m_PendingAction = "model:" + entry.path().string();
+                    m_PendingAction = "model:"  + entry.path().string();
                 else if (isScene)
-                    m_PendingAction = "scene:" + entry.path().string();
+                    m_PendingAction = "scene:"  + entry.path().string();
+                else if (isScript)
+                    m_PendingAction = "script:" + entry.path().string();
+                else if (isShader)
+                    m_PendingAction = "shader:" + entry.path().string();
             }
 
             // Tooltip with full name if truncated
