@@ -1,0 +1,7 @@
+{
+  "name": "DemoProject",
+  "engine_version": "0.1",
+  "startup_scene": "Scenes/Main.chscene",
+  "assets_dir": "Assets",
+  "scenes_dir": "Scenes"
+}

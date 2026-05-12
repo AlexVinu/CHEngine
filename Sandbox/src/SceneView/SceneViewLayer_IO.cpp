@@ -4,9 +4,11 @@
 #include "SceneViewLayerAccess.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SetTransformCommand.h"
+#include "ProjectEditorState.h"
 
 #include <CHEngine/Application.h>
 #include <CHEngine/Mesh/Material.h>
+#include <CHEngine/Project/ProjectManager.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
@@ -19,6 +21,8 @@
 #include <boost/uuid/random_generator.hpp>
 #include <boost/uuid/uuid_io.hpp>
 
+#include <algorithm>
+#include <cctype>
 #include <cstddef>
 #include <filesystem>
 #include <memory>
@@ -127,17 +131,92 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
 
 void SceneViewLayerIO::LoadRecentFilesList()
 {
+    if (CHEngine::ProjectManager::HasProject())
+        return; // recent scenes live in the .cheproj file
     RecentFilesStore().LoadFromFile("recent_scenes.txt");
 }
 
-void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
+void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string& absPath)
 {
-    const char* filters[] = { "*.chscene" };
-    std::string path        = CHEngine::FileDialog::SaveFile("Save Scene", "scene.chscene", filters, 1, ".chscene");
-    if (path.empty())
+    if (absPath.empty())
         return;
 
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    ctx.CommandStack.Clear();
+    ctx.SelectedEntity = {};
+
+    CHEngine::SceneSerializer serializer{};
+    auto loadedScene = serializer.LoadFromFile(absPath);
+    if (!loadedScene)
+    {
+        CHE_CORE_ERROR("SceneViewLayerIO::LoadSceneSilent: failed to load '{}'", absPath);
+        return;
+    }
+    CHE_CORE_ASSERT(ctx.EditorScene, "SceneViewLayer: EditorScene must exist");
+    *ctx.EditorScene = std::move(*loadedScene);
+    ctx.ActivateEditorScene();
+
+    // Record the file this session is bound to.
+    if (CHEngine::ProjectManager::HasProject())
+    {
+        const std::string rel = CHEngine::ProjectManager::Current()->ToRelativePath(absPath);
+        ctx.SceneRelPath = std::filesystem::path(rel).generic_string();
+    }
+    else
+        ctx.SceneRelPath = absPath;
+
+    CHE_CORE_INFO("SceneViewLayerIO::LoadSceneSilent: loaded '{}'", absPath);
+}
+
+namespace {
+
+// Pick a non-conflicting "Untitled_N.chscene" in <project>/Scenes/.
+std::filesystem::path GenerateUntitledScenePath(const std::filesystem::path& scenesDir)
+{
+    namespace fs = std::filesystem;
+    std::error_code ec;
+    fs::create_directories(scenesDir, ec);
+    for (int i = 1; i < 10000; ++i)
+    {
+        fs::path candidate = scenesDir / ("Untitled_" + std::to_string(i) + ".chscene");
+        if (!fs::exists(candidate))
+            return candidate;
+    }
+    return scenesDir / "Untitled.chscene";
+}
+
+} // namespace
+
+void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
+{
+    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+
+    // No-dialog save: write to <project>/Scenes/<name>.chscene.
+    // Session's SceneRelPath is the source of truth for the destination.
+    std::string path;
+    if (CHEngine::ProjectManager::HasProject())
+    {
+        CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+        if (ctx.SceneRelPath.empty())
+        {
+            const std::filesystem::path gen = GenerateUntitledScenePath(proj->ScenesAbsPath());
+            ctx.SceneRelPath = std::filesystem::relative(gen, proj->RootDir()).generic_string();
+            path = gen.string();
+        }
+        else
+        {
+            path = (proj->RootDir() / ctx.SceneRelPath).string();
+        }
+    }
+    else
+    {
+        // Fallback for editor-without-project use (legacy): use dialog.
+        const char* filters[] = { "*.chscene" };
+        path = CHEngine::FileDialog::SaveFile("Save Scene", "scene.chscene", filters, 1, ".chscene");
+        if (path.empty())
+            return;
+    }
+
     Sandbox::EditorCameraState& camera_state = ctx.EditorCameraState;
 
     CHEngine::SceneSerializer serializer{};
@@ -160,8 +239,17 @@ void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
 
     if (CHEngine::FileSystem::WriteFileText(path, sceneJson.dump(4)))
     {
-        RecentFilesStore().AddPath(path);
-        RecentFilesStore().SaveToFile("recent_scenes.txt");
+        if (CHEngine::ProjectManager::HasProject())
+        {
+            auto& editorState = SceneViewLayerAccess::EditorState(layer);
+            editorState.AddRecentScene(path, *CHEngine::ProjectManager::Current());
+            editorState.Save(*CHEngine::ProjectManager::Current());
+        }
+        else
+        {
+            RecentFilesStore().AddPath(path);
+            RecentFilesStore().SaveToFile("recent_scenes.txt");
+        }
         CHE_CORE_INFO("Scene saved: {}", path);
     }
     else
@@ -209,6 +297,16 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
         CHE_CORE_ASSERT(ctx.EditorScene, "SceneViewLayer: EditorScene must exist");
         *ctx.EditorScene = std::move(*loadedScene);
         ctx.ActivateEditorScene();
+
+        // Bind the session to its file so future Saves can write without a dialog.
+        if (CHEngine::ProjectManager::HasProject())
+        {
+            const std::string rel = CHEngine::ProjectManager::Current()->ToRelativePath(filePath);
+            ctx.SceneRelPath = std::filesystem::path(rel).generic_string();
+        }
+        else
+            ctx.SceneRelPath = filePath;
+
         LogSceneRenderReadiness(ctx.EditorScene.get());
         auto tryReadVec3 = [](const nlohmann::json& value, glm::vec3* out_vec3) -> bool {
             if (!out_vec3 || !value.is_array() || value.size() < 3)
@@ -257,8 +355,17 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
             }
         }
 
-        RecentFilesStore().AddPath(filePath);
-        RecentFilesStore().SaveToFile("recent_scenes.txt");
+        if (CHEngine::ProjectManager::HasProject())
+        {
+            auto& editorState = SceneViewLayerAccess::EditorState(layer);
+            editorState.AddRecentScene(filePath, *CHEngine::ProjectManager::Current());
+            editorState.Save(*CHEngine::ProjectManager::Current());
+        }
+        else
+        {
+            RecentFilesStore().AddPath(filePath);
+            RecentFilesStore().SaveToFile("recent_scenes.txt");
+        }
         CHE_CORE_INFO("Scene loaded: {}", filePath);
     }
 }
@@ -402,8 +509,78 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 
 void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& filepath)
 {
+    namespace fs = std::filesystem;
+
+    // If a project is open and the source lives outside the project's Models folder,
+    // copy it in so the project stays self-contained and the scene can store a relative path.
+    std::string loadPath = filepath;        // what the loader actually reads
+    std::string sourceForScene = filepath;  // what gets stored in MeshComponent::SourcePath
+
+    if (CHEngine::ProjectManager::HasProject() && !filepath.empty())
+    {
+        CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+        const fs::path src = fs::absolute(fs::path(filepath));
+        const fs::path modelsDir = proj->AssetsAbsPath() / "Models";
+
+        std::error_code ec;
+        fs::create_directories(modelsDir, ec);
+
+        // Already inside the project's Models dir? Just record a relative path.
+        const fs::path srcParent = src.parent_path();
+        const bool insideModels = (srcParent == modelsDir);
+
+        if (!insideModels)
+        {
+            // Pick a non-conflicting destination filename.
+            const fs::path stem = src.stem();
+            const fs::path ext  = src.extension();
+            fs::path dst = modelsDir / src.filename();
+            for (int i = 1; fs::exists(dst); ++i)
+                dst = modelsDir / (stem.string() + "_" + std::to_string(i) + ext.string());
+
+            fs::copy_file(src, dst, fs::copy_options::overwrite_existing, ec);
+            if (ec)
+            {
+                CHE_CORE_WARN("ImportModel: failed to copy '{}' -> '{}': {}",
+                              src.string(), dst.string(), ec.message());
+                // Fall back to loading from the original location, but the scene
+                // will then reference an external absolute path.
+            }
+            else
+            {
+                // glTF often ships with a sibling .bin — copy it too if present.
+                const std::string extLower = [&]{
+                    std::string s = ext.string();
+                    std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+                    return s;
+                }();
+                if (extLower == ".gltf")
+                {
+                    const fs::path binSrc = srcParent / (stem.string() + ".bin");
+                    if (fs::exists(binSrc))
+                    {
+                        const fs::path binDst = dst.parent_path() / (dst.stem().string() + ".bin");
+                        std::error_code ec2;
+                        fs::copy_file(binSrc, binDst, fs::copy_options::overwrite_existing, ec2);
+                        if (ec2)
+                            CHE_CORE_WARN("ImportModel: failed to copy sidecar .bin: {}", ec2.message());
+                    }
+                }
+
+                loadPath = dst.string();
+            }
+        }
+
+        // Store path relative to project root, e.g. "Assets/Models/cube.obj".
+        const fs::path target = insideModels ? src : fs::path(loadPath);
+        std::error_code rel_ec;
+        const fs::path rel = fs::relative(target, proj->RootDir(), rel_ec);
+        if (!rel_ec)
+            sourceForScene = rel.generic_string();
+    }
+
     auto modelHandle = CHEngine::ResourceManager::Instance().Load<CHEngine::ModelHandle>(
-        filepath, CHEngine::RenderFacade::GetDefaultMeshShader());
+        loadPath, CHEngine::RenderFacade::GetDefaultMeshShader());
     const CHEngine::LoadedModel* result = modelHandle.IsValid()
         ? CHEngine::ResourceManager::Instance().GetModel(modelHandle) : nullptr;
 
@@ -452,7 +629,7 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
         return;
     entity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
         mesh_component.Meshes = std::move(meshes);
-        mesh_component.SourcePath = filepath;
+        mesh_component.SourcePath = sourceForScene;
     });
     entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {
         transform_component.ObjectTransform.Position = centroid;

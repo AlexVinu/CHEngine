@@ -1,5 +1,6 @@
 #include "TextureLoader.h"
 
+#include "ResourceManager.h"
 #include "CHEngine/Render/RenderFacade.h"
 
 namespace CHEngine
@@ -9,7 +10,8 @@ namespace CHEngine
 		if (auto handle = m_HandlesBimap.left.find(path); handle != m_HandlesBimap.left.end())
 			return handle->second;
 
-		auto handle = (Handle<void>)RenderFacade::CreateTextureFromFile(path);
+		const std::string resolved = ResourceManager::ResolveAssetPath(path).string();
+		auto handle = (Handle<void>)RenderFacade::CreateTextureFromFile(resolved);
 		m_HandlesBimap.insert({ path, handle });
 		return handle;
 	}

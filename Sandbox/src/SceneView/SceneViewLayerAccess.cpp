@@ -1,5 +1,6 @@
 #include "SceneViewLayerAccess.h"
 
+#include "ProjectEditorState.h"
 #include "SceneViewLayer.h"
 
 EditorWorldContext& SceneViewLayerAccess::Active(SceneViewLayer& layer)
@@ -76,4 +77,14 @@ Sandbox::UvEditorPanel& SceneViewLayerAccess::UvEditor(SceneViewLayer& layer)
 bool& SceneViewLayerAccess::ShowUVEditor(SceneViewLayer& layer)
 {
     return layer.m_ShowUVEditor;
+}
+
+Sandbox::ProjectEditorState& SceneViewLayerAccess::EditorState(SceneViewLayer& layer)
+{
+    return layer.m_EditorState;
+}
+
+Sandbox::SceneBrowserPanel& SceneViewLayerAccess::SceneBrowser(SceneViewLayer& layer)
+{
+    return layer.m_SceneBrowser;
 }

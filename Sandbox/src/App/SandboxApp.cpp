@@ -3,6 +3,9 @@
 #include <CHEngine.h>
 #include "SceneViewLayer.h"
 
+#include <CHEngine/Project/ProjectManager.h>
+#include <CHEngine/EngineConfig.h>
+
 #include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
 
@@ -207,6 +210,11 @@ public:
 	SandboxApp(const CHEngine::ApplicationConfig& config)
 		: CHEngine::Application(config)
 	{
+		// Try to restore the last used project so the editor can start immediately.
+		const std::string lastProj = CHEngine::EngineConfig::LoadLastProject();
+		if (!lastProj.empty())
+			CHEngine::ProjectManager::Open(lastProj);
+
 		CHEngine::RenderFacade::CreateShaderFromFile(
 			CHEngine::String("Flat"),
 			CHEngine::String("shaders/flat.slang")

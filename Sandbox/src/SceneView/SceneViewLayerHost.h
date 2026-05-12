@@ -25,6 +25,8 @@ public:
     size_t GetActiveSessionIndex() const override;
     void SetActiveSessionIndex(size_t session_index) override;
     void AddSceneSession() override;
+    void CloseSceneSession(size_t session_index) override;
+    void OpenSceneFile(const std::string& relOrAbsPath) override;
 
     CHEngine::Transform& GetTransformBeforeDrag() override;
 
@@ -38,6 +40,12 @@ public:
     void SaveScene() override;
     void OpenSceneDialog() override;
     void AutoSaveForRestart() override;
+
+    void ToggleSceneBrowser() override;
+    void NewSceneFile() override;
+    void DeleteSceneFile(const std::string& rel) override;
+    void RenameSceneFile(const std::string& oldRel, const std::string& newName) override;
+    void SetStartupSceneFile(const std::string& rel) override;
 
     void ImportModel(const std::string& filepath) override;
 
@@ -57,6 +65,7 @@ public:
 
     void OnRendererApiSelected(CHEngine::ERenderAPI api) override;
     void ToggleUiTheme() override;
+    void OnProjectChanged() override;
 
     void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) override;
     void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) override;

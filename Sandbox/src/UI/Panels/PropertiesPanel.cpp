@@ -211,6 +211,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
             DisplayAddComponentEntry<CHEngine::CameraComponent>("Camera", selectedEntity, activeSession);
             DisplayAddComponentEntry<CHEngine::RigidBody3DComponent>("RigidBody 3D", selectedEntity, activeSession);
             DisplayAddComponentEntry<CHEngine::LifetimeComponent>("Lifetime", selectedEntity, activeSession);
+            DisplayAddComponentEntry<CHEngine::ScriptComponent>("Script", selectedEntity, activeSession);
             ImGui::EndPopup();
         }
         ImGui::Spacing();
@@ -968,6 +969,34 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                     [&](CHEngine::LifetimeComponent& lifetime_component) {
                         lifetime_component.DestroyOnExpire = destroyOnExpire;
                     });
+            }
+            ImGui::Spacing();
+        });
+
+    DrawComponent<CHEngine::ScriptComponent>("Script",
+        true,
+        propsReadOnly,
+        activeSession,
+        selectedHandle,
+        selectedEntity,
+        "Script",
+        [&](CHEngine::ScriptComponent& script) {
+            char buf[512];
+            std::strncpy(buf, script.ScriptPath.c_str(), sizeof(buf) - 1);
+            buf[sizeof(buf) - 1] = '\0';
+            ImGui::Text("Path");
+            ImGui::SameLine();
+            ImGui::SetNextItemWidth(-1.0f);
+            if (ImGui::InputText("##scriptPath", buf, sizeof(buf)))
+            {
+                selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                    [&](CHEngine::ScriptComponent& sc) { sc.ScriptPath = buf; });
+            }
+            bool enabled = script.Enabled;
+            if (ImGui::Checkbox("Enabled##scriptEnabled", &enabled))
+            {
+                selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                    [&](CHEngine::ScriptComponent& sc) { sc.Enabled = enabled; });
             }
             ImGui::Spacing();
         });

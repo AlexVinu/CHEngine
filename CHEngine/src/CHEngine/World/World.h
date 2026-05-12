@@ -9,6 +9,7 @@
 #include "Physics/IPhysicsWorld.h"
 #include "CHEngine/Scene/Components.h"
 
+#include <string>
 #include <unordered_map>
 #include <boost/container_hash/hash.hpp>
 

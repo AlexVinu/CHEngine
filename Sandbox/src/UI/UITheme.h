@@ -1,5 +1,7 @@
 #pragma once
 
+#include <CHEngine/Utils/AppPaths.h>
+
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <filesystem>
@@ -87,16 +89,13 @@ namespace UITheme
 
         // ── Headings: PP Neue Montreal Mono Bold ──────────────────────────
         {
-            const char* paths[] = {
-                "assets/fonts/PPNeueMontrealMono-Bold.otf",   // copied by CMake (all platforms)
-            };
+            const std::string headingFont =
+                (CHEngine::AppPaths::EditorAssetsDir() / "fonts" / "PPNeueMontrealMono-Bold.otf").string();
             ImFontConfig cfg;
             cfg.OversampleH = 3;  cfg.OversampleV = 2;
             cfg.GlyphOffset  = ImVec2(0.0f, 1.0f);
-            for (const char* p : paths)
-                if (std::filesystem::exists(p)) {
-                    g_FontHeading = io.Fonts->AddFontFromFileTTF(p, 11.0f, &cfg);
-                    break; }
+            if (std::filesystem::exists(headingFont))
+                g_FontHeading = io.Fonts->AddFontFromFileTTF(headingFont.c_str(), 11.0f, &cfg);
         }
 
         // НЕ вызываем io.Fonts->Build() — современные бэкенды (Metal)

@@ -1,22 +1,29 @@
 #include "SceneViewLayerHost.h"
 
 #include "SceneViewLayer.h"
+#include "SceneViewLayer_IO.h"
 #include "SceneViewLayerAccess.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SceneViewLayer_IO.h"
 #include "SceneViewLayer_Play.h"
+#include "SceneBrowserPanel.h"
 
 #include <CHEngine/Application.h>
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Mesh/PrimitiveMeshFactory.h>
+#include <CHEngine/Project/Project.h>
+#include <CHEngine/Project/ProjectManager.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
 
+#include <FileSystem/FileSystem.h>
+
 #include "UIThemeActive.h"
 
 #include <boost/uuid/random_generator.hpp>
+#include <filesystem>
 #include <glm/glm.hpp>
 
 SceneViewLayerHost::SceneViewLayerHost(SceneViewLayer& layer)
@@ -101,6 +108,208 @@ void SceneViewLayerHost::AddSceneSession()
     SceneViewLayerAccess::SetActiveIndex(m_Layer, SceneViewLayerAccess::Sessions(m_Layer).size() - 1);
 }
 
+void SceneViewLayerHost::CloseSceneSession(size_t session_index)
+{
+    auto& sessions = SceneViewLayerAccess::Sessions(m_Layer);
+    if (sessions.size() <= 1)
+        return; // Always keep at least one session open.
+    if (session_index >= sessions.size())
+        return;
+
+    size_t active = SceneViewLayerAccess::ActiveIndex(m_Layer);
+    sessions.erase(sessions.begin() + static_cast<std::ptrdiff_t>(session_index));
+
+    if (active == session_index)
+    {
+        const size_t newIdx = (session_index > 0) ? session_index - 1 : 0;
+        SceneViewLayerAccess::SetActiveIndex(m_Layer, newIdx);
+    }
+    else if (active > session_index)
+    {
+        SceneViewLayerAccess::SetActiveIndex(m_Layer, active - 1);
+    }
+}
+
+void SceneViewLayerHost::OpenSceneFile(const std::string& relOrAbsPath)
+{
+    if (relOrAbsPath.empty())
+        return;
+
+    namespace fs = std::filesystem;
+    std::string absPath = relOrAbsPath;
+    std::string rel = relOrAbsPath;
+
+    if (CHEngine::ProjectManager::HasProject())
+    {
+        CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+        if (fs::path(relOrAbsPath).is_absolute())
+        {
+            rel = fs::path(proj->ToRelativePath(relOrAbsPath)).generic_string();
+        }
+        else
+        {
+            absPath = (proj->RootDir() / relOrAbsPath).string();
+        }
+    }
+
+    // If a session already shows this scene, just focus it.
+    auto& sessions = SceneViewLayerAccess::Sessions(m_Layer);
+    for (size_t i = 0; i < sessions.size(); ++i)
+    {
+        if (sessions[i].SceneRelPath == rel)
+        {
+            SceneViewLayerAccess::SetActiveIndex(m_Layer, i);
+            return;
+        }
+    }
+
+    // If the active session is empty/untitled, reuse it; otherwise open a new tab.
+    EditorWorldContext& cur = SceneViewLayerAccess::Active(m_Layer);
+    if (!cur.SceneRelPath.empty())
+        AddSceneSession();
+
+    SceneViewLayerIO::LoadSceneSilent(m_Layer, absPath);
+}
+
+void SceneViewLayerHost::ToggleSceneBrowser()
+{
+    SceneViewLayerAccess::SceneBrowser(m_Layer).Toggle();
+}
+
+void SceneViewLayerHost::NewSceneFile()
+{
+    if (!CHEngine::ProjectManager::HasProject())
+        return;
+    namespace fs = std::filesystem;
+    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+    const fs::path scenesDir = proj->ScenesAbsPath();
+    std::error_code ec;
+    fs::create_directories(scenesDir, ec);
+
+    fs::path target;
+    for (int i = 1; i < 10000; ++i)
+    {
+        target = scenesDir / ("Untitled_" + std::to_string(i) + ".chscene");
+        if (!fs::exists(target))
+            break;
+    }
+    CHEngine::FileSystem::WriteFileText(target, R"({"version":3,"objects":[]})");
+
+    const std::string rel = fs::relative(target, proj->RootDir(), ec).generic_string();
+    OpenSceneFile(rel);
+}
+
+void SceneViewLayerHost::DeleteSceneFile(const std::string& rel)
+{
+    if (!CHEngine::ProjectManager::HasProject() || rel.empty())
+        return;
+    namespace fs = std::filesystem;
+    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+    const fs::path abs = proj->RootDir() / rel;
+
+    std::error_code ec;
+    fs::remove(abs, ec);
+    if (ec)
+    {
+        CHE_CORE_ERROR("DeleteSceneFile: failed to remove '{}': {}", abs.string(), ec.message());
+        return;
+    }
+
+    // Close any tabs bound to it (but keep at least one session alive).
+    auto& sessions = SceneViewLayerAccess::Sessions(m_Layer);
+    for (size_t i = sessions.size(); i-- > 0;)
+    {
+        if (sessions[i].SceneRelPath == rel)
+        {
+            if (sessions.size() > 1)
+                CloseSceneSession(i);
+            else
+                sessions[i].SceneRelPath.clear(); // becomes a clean Untitled tab
+        }
+    }
+
+    // If we deleted the startup scene, clear that field.
+    if (proj->GetStartupScene() == rel)
+    {
+        proj->SetStartupScene("");
+        proj->Save();
+    }
+}
+
+void SceneViewLayerHost::RenameSceneFile(const std::string& oldRel, const std::string& newName)
+{
+    if (!CHEngine::ProjectManager::HasProject() || oldRel.empty() || newName.empty())
+        return;
+    namespace fs = std::filesystem;
+    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+
+    fs::path oldAbs = proj->RootDir() / oldRel;
+    fs::path parent = oldAbs.parent_path();
+
+    // Strip any extension the user might have typed; we always store as .chscene.
+    fs::path stem = fs::path(newName).stem();
+    if (stem.empty()) stem = newName;
+    fs::path newAbs = parent / (stem.string() + ".chscene");
+    if (newAbs == oldAbs)
+        return;
+
+    std::error_code ec;
+    if (fs::exists(newAbs))
+    {
+        CHE_CORE_WARN("RenameSceneFile: target already exists: {}", newAbs.string());
+        return;
+    }
+    fs::rename(oldAbs, newAbs, ec);
+    if (ec)
+    {
+        CHE_CORE_ERROR("RenameSceneFile: failed: {}", ec.message());
+        return;
+    }
+
+    const std::string newRel = fs::relative(newAbs, proj->RootDir(), ec).generic_string();
+
+    // Update any open tabs.
+    auto& sessions = SceneViewLayerAccess::Sessions(m_Layer);
+    for (auto& s : sessions)
+    {
+        if (s.SceneRelPath == oldRel)
+            s.SceneRelPath = newRel;
+    }
+
+    // Update startup scene reference if needed.
+    if (proj->GetStartupScene() == oldRel)
+    {
+        proj->SetStartupScene(newRel);
+        proj->Save();
+    }
+}
+
+void SceneViewLayerHost::SetStartupSceneFile(const std::string& rel)
+{
+    if (!CHEngine::ProjectManager::HasProject() || rel.empty())
+        return;
+    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+    proj->SetStartupScene(rel);
+    proj->Save();
+
+    // Move the matching open session (if any) to index 0. Otherwise just record the pref.
+    auto& sessions = SceneViewLayerAccess::Sessions(m_Layer);
+    for (size_t i = 0; i < sessions.size(); ++i)
+    {
+        if (sessions[i].SceneRelPath == rel && i != 0)
+        {
+            std::swap(sessions[0], sessions[i]);
+            // Keep active pointing at the same logical session.
+            const size_t active = SceneViewLayerAccess::ActiveIndex(m_Layer);
+            if (active == 0)
+                SceneViewLayerAccess::SetActiveIndex(m_Layer, i);
+            else if (active == i)
+                SceneViewLayerAccess::SetActiveIndex(m_Layer, 0);
+            break;
+        }
+    }
+}
+
 CHEngine::Transform& SceneViewLayerHost::GetTransformBeforeDrag()
 {
     return SceneViewLayerAccess::Active(m_Layer).TransformBeforeDrag;
@@ -115,6 +324,7 @@ void SceneViewLayerHost::RequestUndo()
 
 void SceneViewLayerHost::OpenSceneDialog()
 {
+    // Legacy: kept for compatibility. Prefer ToggleSceneBrowser().
     SceneViewLayerIO::LoadScene(m_Layer, "");
 }
 
@@ -271,6 +481,11 @@ void SceneViewLayerHost::ToggleUiTheme()
 {
     AppTheme next = (UIActive::g_Theme == AppTheme::RetroOS) ? AppTheme::Dark : AppTheme::RetroOS;
     UIActive::SetTheme(next);
+}
+
+void SceneViewLayerHost::OnProjectChanged()
+{
+    m_Layer.OnProjectOpened();
 }
 
 void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)

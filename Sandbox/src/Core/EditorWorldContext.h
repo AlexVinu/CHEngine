@@ -30,7 +30,14 @@ struct EditorWorldContext : public SceneSession
     float StepDt = 1.0f / 60.0f;
     Sandbox::EditorCameraState EditorCameraState{};
 
+    /// Relative scene file path from project root (e.g. "Scenes/Main.chscene").
+    /// Empty for new unsaved scenes.
+    std::string SceneRelPath{};
+
     void Update(CHEngine::Timestep dt);
     void ActivateActiveScene();
     void ActivateEditorScene();
+
+    /// Human-readable name for the tab/UI. Derived from SceneRelPath or "Untitled".
+    std::string DisplayName() const;
 };

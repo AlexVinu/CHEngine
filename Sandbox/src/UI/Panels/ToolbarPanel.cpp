@@ -5,10 +5,13 @@
 
 #include <CHEngine/Application.h>
 #include <CHEngine/EngineConfig.h>
+#include <CHEngine/Project/ProjectManager.h>
+#include <CHEngine/Utils/FileDialog.h>
 
 #include "UIThemeActive.h"
 
 #include <cstdio>
+#include <filesystem>
 
 namespace Sandbox {
 
@@ -199,12 +202,19 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
                     [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() - 1); }, [] {}, false));
             }
             ImGui::EndDisabled();
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Previous scene tab");
 
             ImGui::SameLine(0, 4);
             vcenter(ImGui::GetTextLineHeight());
-            ImGui::Text("Session %u/%u",
-                        static_cast<uint32_t>(host.GetActiveSessionIndex() + 1),
-                        static_cast<uint32_t>(host.GetSceneSessions().size()));
+            {
+                const auto& sessions = host.GetSceneSessions();
+                const size_t idx = host.GetActiveSessionIndex();
+                const std::string name = (idx < sessions.size()) ? sessions[idx].DisplayName() : std::string("?");
+                ImGui::Text("%s  %u/%u",
+                            name.c_str(),
+                            static_cast<uint32_t>(idx + 1),
+                            static_cast<uint32_t>(sessions.size()));
+            }
 
             ImGui::SameLine(0, 4);
             vcenter(ImGui::GetFrameHeight());
@@ -215,10 +225,23 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
                     [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() + 1); }, [] {}, false));
             }
             ImGui::EndDisabled();
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Next scene tab");
+
+            ImGui::SameLine(0, 6);
+            vcenter(ImGui::GetFrameHeight());
+            ImGui::BeginDisabled(host.GetSceneSessions().size() <= 1);
+            if (ImGui::Button("x##close_session"))
+            {
+                // Call directly — NOT via CommandStack, because CloseSceneSession
+                // erases the session that owns the active CommandStack (use-after-free).
+                host.CloseSceneSession(host.GetActiveSessionIndex());
+            }
+            ImGui::EndDisabled();
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Close current scene tab");
 
             ImGui::SameLine(0, 4);
             vcenter(ImGui::GetFrameHeight());
-            if (ImGui::Button("+ Session"))
+            if (ImGui::Button("+ Scene"))
             {
                 host.GetCommandStack().Push(
                     CHEngine::MakeScope<CallbackCommand>([&host] { host.AddSceneSession(); }, [] {}, false));
@@ -279,6 +302,120 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         snprintf(rendererLabel, sizeof(rendererLabel), "API: %s", availApis[apiIdx].name);
         float rendererComboW = ImGui::CalcTextSize(rendererLabel).x + pad * 2.0f + 8.0f;
 
+        // Project info / switcher
+        {
+            static char s_NameBuf[256] = "MyProject";
+            static std::string s_ParentDir;
+            static bool s_AwaitingName = false;
+            static bool s_OpenNamePopup = false;
+
+            const char* projLabel = CHEngine::ProjectManager::HasProject()
+                ? CHEngine::ProjectManager::Current()->GetName().c_str()
+                : "No Project";
+
+            ImGui::SameLine(0, 16);
+            vcenter(ImGui::GetFrameHeight());
+            if (ImGui::Button(projLabel))
+                ImGui::OpenPopup("##ProjectMenu");
+
+            if (ImGui::BeginPopup("##ProjectMenu"))
+            {
+                if (ImGui::MenuItem("New Project..."))
+                {
+                    std::string folder = CHEngine::FileDialog::SelectFolder("New Project: Select parent folder");
+                    if (!folder.empty())
+                    {
+                        s_ParentDir = folder;
+                        std::snprintf(s_NameBuf, sizeof(s_NameBuf), "MyProject");
+                        s_AwaitingName = true;
+                        s_OpenNamePopup = true;
+                    }
+                }
+                if (ImGui::MenuItem("Open Project..."))
+                {
+                    const char* filters[] = { "*.cheproj" };
+                    std::string path = CHEngine::FileDialog::OpenFile(
+                        "CHEngine Project (*.cheproj)", filters, 1, "Open Project");
+                    if (!path.empty() && CHEngine::ProjectManager::Open(path))
+                    {
+                        CHEngine::EngineConfig::SaveLastProject(path);
+                        CHEngine::EngineConfig::AddRecentProject(path);
+                        host.GetCommandStack().Push(
+                            CHEngine::MakeScope<CallbackCommand>(
+                                [&host] { host.OnProjectChanged(); }, [] {}, false));
+                    }
+                }
+
+                const auto recents = CHEngine::EngineConfig::LoadRecentProjects();
+                if (!recents.empty())
+                {
+                    ImGui::Separator();
+                    ImGui::TextDisabled("Recent");
+                    for (const auto& rp : recents)
+                    {
+                        const std::string stem = std::filesystem::path(rp).stem().string();
+                        if (ImGui::MenuItem(stem.c_str()))
+                        {
+                            if (CHEngine::ProjectManager::Open(rp))
+                            {
+                                CHEngine::EngineConfig::SaveLastProject(rp);
+                                CHEngine::EngineConfig::AddRecentProject(rp);
+                                host.GetCommandStack().Push(
+                                    CHEngine::MakeScope<CallbackCommand>(
+                                        [&host] { host.OnProjectChanged(); }, [] {}, false));
+                            }
+                        }
+                    }
+                }
+                ImGui::EndPopup();
+            }
+
+            // New-project name popup
+            if (s_AwaitingName)
+            {
+                if (s_OpenNamePopup)
+                {
+                    ImGui::OpenPopup("##NewProjNameTB");
+                    s_OpenNamePopup = false;
+                }
+                const ImGuiIO& io2 = ImGui::GetIO();
+                ImGui::SetNextWindowPos(
+                    ImVec2(io2.DisplaySize.x * 0.5f, io2.DisplaySize.y * 0.5f),
+                    ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+                if (ImGui::BeginPopupModal("##NewProjNameTB", nullptr,
+                                           ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar))
+                {
+                    ImGui::Text("Project name:");
+                    ImGui::SetNextItemWidth(280.0f);
+                    bool confirm = ImGui::InputText("##pname", s_NameBuf, sizeof(s_NameBuf),
+                                                    ImGuiInputTextFlags_EnterReturnsTrue);
+                    ImGui::SameLine();
+                    confirm |= ImGui::Button("Create");
+                    ImGui::SameLine();
+                    if (ImGui::Button("Cancel"))
+                    {
+                        s_AwaitingName = false;
+                        ImGui::CloseCurrentPopup();
+                    }
+                    if (confirm && s_NameBuf[0] != '\0')
+                    {
+                        std::string path = CHEngine::ProjectManager::Create(s_ParentDir, s_NameBuf);
+                        if (!path.empty())
+                        {
+                            CHEngine::EngineConfig::SaveLastProject(path);
+                            CHEngine::EngineConfig::AddRecentProject(path);
+                            host.GetCommandStack().Push(
+                                CHEngine::MakeScope<CallbackCommand>(
+                                    [&host] { host.OnProjectChanged(); }, [] {}, false));
+                        }
+                        s_AwaitingName = false;
+                        ImGui::CloseCurrentPopup();
+                    }
+                    ImGui::EndPopup();
+                }
+            }
+        }
+
         float saveSceneW = ImGui::CalcTextSize("Save Scene").x + pad * 2.0f;
         float openSceneW = ImGui::CalcTextSize("Open Scene").x + pad * 2.0f;
 
@@ -302,7 +439,7 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
             if (ImGui::Button("Open Scene"))
             {
                 host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.OpenSceneDialog(); }, [] {}, false));
+                    [&host] { host.ToggleSceneBrowser(); }, [] {}, false));
             }
 
             ImGui::SameLine(0, 12);

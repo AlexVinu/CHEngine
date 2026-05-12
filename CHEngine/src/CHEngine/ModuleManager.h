@@ -31,7 +31,9 @@ namespace CHEngine
     public:
         ModuleManager() = default;
 
-        ~ModuleManager() { UnloadAll(); }
+        // Don't call UnloadAll() here — DLL static destructors running under
+        // FreeLibrary crash on Windows. The OS reclaims all DLLs at process exit.
+        ~ModuleManager() {}
 
         bool LoadModule(const std::string& path)
         {
