@@ -25,6 +25,16 @@ set(SLANG_ENABLE_SLANGRT  OFF CACHE BOOL "" FORCE)
 # compilation paths used by current render backends.
 set(SLANG_ENABLE_DXIL     OFF CACHE BOOL "" FORCE)
 
+# Slang's build scripts emit generated helper tools under
+# ${CMAKE_BINARY_DIR}/generators/$<CONFIG>, but they do not always create that
+# directory before the first build step on single-config generators.
+foreach(_che_slang_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generators/${_che_slang_config}")
+endforeach()
+if(CMAKE_BUILD_TYPE)
+    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generators/${CMAKE_BUILD_TYPE}")
+endif()
+
 # Optional local DXC archive to avoid network issues with GitHub release assets.
 set(CHE_LOCAL_DXC_ARCHIVE
     ""
