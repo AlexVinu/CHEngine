@@ -25,22 +25,42 @@
 ## Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
 
 #
-# Build PhysXVehicle2
+# Build LowLevel
 #
 
-# Use generator expressions to set config specific preprocessor definitions
-SET(PHYSXVEHICLE_COMPILE_DEFS
 
-	# Common to all configurations
-	${PHYSX_LINUX_COMPILE_DEFS};PX_PHYSX_STATIC_LIB
-
-	$<$<CONFIG:debug>:${PHYSX_LINUX_DEBUG_COMPILE_DEFS};>
-	$<$<CONFIG:checked>:${PHYSX_LINUX_CHECKED_COMPILE_DEFS};>
-	$<$<CONFIG:profile>:${PHYSX_LINUX_PROFILE_COMPILE_DEFS};>
-	$<$<CONFIG:release>:${PHYSX_LINUX_RELEASE_COMPILE_DEFS};>
+SET(LOWLEVEL_PLATFORM_INCLUDES
+	${PHYSX_SOURCE_DIR}/Common/src/linux
+	${PHYSX_SOURCE_DIR}/LowLevel/software/include/linux
+	${PHYSX_SOURCE_DIR}/LowLevelDynamics/include/linux
+	${PHYSX_SOURCE_DIR}/LowLevel/common/include/pipeline/linux
 )
 
+SET(LOWLEVEL_COMPILE_DEFS
+	# Common to all configurations
+	${PHYSX_MAC_COMPILE_DEFS};PX_PHYSX_STATIC_LIB
+)
 
-SET(PHYSXVEHICLE_LIBTYPE STATIC)
+IF(PX_GENERATE_GPU_STATIC_LIBRARIES)
+	SET(LOWLEVEL_GPU_LIBTYPE_DEFS 
+		PX_PHYSX_GPU_STATIC;
+	)
+ENDIF()
 
+SET(LOWLEVEL_COMPILE_DEFS
+	# Common to all configurations
+	${PHYSX_MAC_COMPILE_DEFS};PX_PHYSX_STATIC_LIB;${LOWLEVEL_GPU_LIBTYPE_DEFS}
 
+	$<$<CONFIG:debug>:${PHYSX_MAC_DEBUG_COMPILE_DEFS};>
+	$<$<CONFIG:checked>:${PHYSX_MAC_CHECKED_COMPILE_DEFS};>
+	$<$<CONFIG:profile>:${PHYSX_MAC_PROFILE_COMPILE_DEFS};>
+	$<$<CONFIG:release>:${PHYSX_MAC_RELEASE_COMPILE_DEFS};>
+)
+
+SET(LOWLEVEL_PLATFORM_LINK_FLAGS " ")
+
+SET(LOWLEVEL_LIBTYPE OBJECT)
+
+# NOTE: Is this a UE4 specific change?
+# enable -fPIC so we can link static libs with the editor
+#SET_TARGET_PROPERTIES(LowLevel PROPERTIES POSITION_INDEPENDENT_CODE TRUE)

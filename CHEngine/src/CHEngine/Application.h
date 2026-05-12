@@ -30,12 +30,7 @@ namespace CHEngine {
         const char* RendererModuleOverride  = nullptr;
         const char* ImGuiModuleOverride     = nullptr;
         const char* PhysicsModuleOverride   = nullptr;
-        bool        PhysicsEnabled          =
-#if defined(CHE_PLATFORM_APPLE)
-            false;  // PhysX is not available on macOS
-#else
-            true;
-#endif
+        bool        PhysicsEnabled          = true;
     };
 
     class CHENGINE_API Application

@@ -25,22 +25,25 @@
 ## Copyright (c) 2008-2025 NVIDIA Corporation. All rights reserved.
 
 #
-# Build PhysXVehicle2
+# Build SceneQuery
 #
 
-# Use generator expressions to set config specific preprocessor definitions
-SET(PHYSXVEHICLE_COMPILE_DEFS
-
-	# Common to all configurations
-	${PHYSX_LINUX_COMPILE_DEFS};PX_PHYSX_STATIC_LIB
-
-	$<$<CONFIG:debug>:${PHYSX_LINUX_DEBUG_COMPILE_DEFS};>
-	$<$<CONFIG:checked>:${PHYSX_LINUX_CHECKED_COMPILE_DEFS};>
-	$<$<CONFIG:profile>:${PHYSX_LINUX_PROFILE_COMPILE_DEFS};>
-	$<$<CONFIG:release>:${PHYSX_LINUX_RELEASE_COMPILE_DEFS};>
+SET(SCENEQUERY_PLATFORM_INCLUDES
+	PRIVATE ${PHYSX_SOURCE_DIR}/Common/src/linux
 )
 
 
-SET(PHYSXVEHICLE_LIBTYPE STATIC)
+# Use generator expressions to set config specific preprocessor definitions
+SET(SCENEQUERY_COMPILE_DEFS
 
+	# Common to all configurations
+	${PHYSX_MAC_COMPILE_DEFS};PX_PHYSX_STATIC_LIB
+
+	$<$<CONFIG:debug>:${PHYSX_MAC_DEBUG_COMPILE_DEFS};>
+	$<$<CONFIG:checked>:${PHYSX_MAC_CHECKED_COMPILE_DEFS};>
+	$<$<CONFIG:profile>:${PHYSX_MAC_PROFILE_COMPILE_DEFS};>
+	$<$<CONFIG:release>:${PHYSX_MAC_RELEASE_COMPILE_DEFS};>
+)
+
+SET(SCENEQUERY_LIBTYPE OBJECT)
 
