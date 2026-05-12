@@ -77,9 +77,14 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
                 host.ImportModel(action.substr(6));
             else if (action.rfind("scene:", 0) == 0)
                 SceneViewLayerIO::LoadScene(layer, action.substr(6));
+            else if (action.rfind("script:", 0) == 0)
+                SceneViewLayerAccess::ScriptEditor(layer).Open(action.substr(7));
+            else if (action.rfind("shader:", 0) == 0)
+                SceneViewLayerAccess::ScriptEditor(layer).OpenShader(action.substr(7));
         }
     }
 
+    SceneViewLayerAccess::ScriptEditor(layer).Draw();
     SceneViewLayerAccess::Profiler(layer).Draw(host);
     SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
     SceneViewLayerRender::DrawOrbitIndicator(layer);

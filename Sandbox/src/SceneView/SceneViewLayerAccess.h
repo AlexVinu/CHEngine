@@ -19,6 +19,7 @@ class PropertiesPanel;
 class CameraPanel;
 class ProfilerPanel;
 class SceneBrowserPanel;
+class ScriptEditorPanel;
 } // namespace Sandbox
 
 /// Friend accessors for internal compilation units (host, IO, play mode, etc.).
@@ -41,4 +42,5 @@ struct SceneViewLayerAccess
     static Sandbox::ProfilerPanel& Profiler(SceneViewLayer& layer);
     static Sandbox::ProjectEditorState& EditorState(SceneViewLayer& layer);
     static Sandbox::SceneBrowserPanel& SceneBrowser(SceneViewLayer& layer);
+    static Sandbox::ScriptEditorPanel& ScriptEditor(SceneViewLayer& layer);
 };

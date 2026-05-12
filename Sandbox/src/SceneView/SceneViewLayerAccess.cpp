@@ -78,3 +78,8 @@ Sandbox::SceneBrowserPanel& SceneViewLayerAccess::SceneBrowser(SceneViewLayer& l
 {
     return layer.m_SceneBrowser;
 }
+
+Sandbox::ScriptEditorPanel& SceneViewLayerAccess::ScriptEditor(SceneViewLayer& layer)
+{
+    return layer.m_ScriptEditor;
+}

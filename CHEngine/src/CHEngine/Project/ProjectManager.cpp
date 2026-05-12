@@ -43,8 +43,10 @@ bool ProjectManager::Open(const std::string& projPath)
     proj->m_Name          = j.value("name", "Unnamed");
     proj->m_EngineVersion = j.value("engine_version", "0.1");
     proj->m_StartupScene  = j.value("startup_scene", "");
-    proj->m_AssetsDir     = j.value("assets_dir", "Assets");
-    proj->m_ScenesDir     = j.value("scenes_dir", "Scenes");
+    proj->m_AssetsDir     = j.value("assets_dir",  "Assets");
+    proj->m_ScenesDir     = j.value("scenes_dir",  "Scenes");
+    proj->m_ScriptsDir    = j.value("scripts_dir", "Assets/Scripts");
+    proj->m_ShadersDir    = j.value("shaders_dir", "Assets/Shaders");
 
     CHE_CORE_INFO("Project loaded: {} ({})", proj->m_Name, proj->m_Path);
     s_Current = std::move(proj);
@@ -59,9 +61,11 @@ std::string ProjectManager::Create(const std::string& parentDir, const std::stri
 
     const fs::path rootDir = fs::path(parentDir) / name;
     std::error_code ec;
-    fs::create_directories(rootDir / "Scenes",              ec);
+    fs::create_directories(rootDir / "Scenes",               ec);
     fs::create_directories(rootDir / "Assets" / "Models",   ec);
     fs::create_directories(rootDir / "Assets" / "Textures", ec);
+    fs::create_directories(rootDir / "Assets" / "Scripts",  ec);
+    fs::create_directories(rootDir / "Assets" / "Shaders",  ec);
     if (ec)
     {
         CHE_CORE_ERROR("ProjectManager::Create: failed to create directories: {}", ec.message());

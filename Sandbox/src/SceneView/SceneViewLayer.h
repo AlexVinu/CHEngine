@@ -15,6 +15,7 @@
 #include "SceneHierarchyPanel.h"
 #include "ToolbarPanel.h"
 #include "ProjectBrowserWindow.h"
+#include "ScriptEditorPanel.h"
 
 #include <vector>
 
@@ -50,4 +51,5 @@ private:
 
     Sandbox::ProjectEditorState m_EditorState;
     ProjectBrowserWindow m_ProjectBrowser;
+    Sandbox::ScriptEditorPanel m_ScriptEditor;
 };

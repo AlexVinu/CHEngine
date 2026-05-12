@@ -27,6 +27,16 @@ fs::path Project::ScenesAbsPath() const
     return RootDir() / m_ScenesDir;
 }
 
+fs::path Project::ScriptsAbsPath() const
+{
+    return RootDir() / m_ScriptsDir;
+}
+
+fs::path Project::ShadersAbsPath() const
+{
+    return RootDir() / m_ShadersDir;
+}
+
 std::string Project::ToRelativePath(const std::string& absolutePath) const
 {
     try {
@@ -175,6 +185,8 @@ bool Project::Save() const
     j["startup_scene"]  = m_StartupScene;
     j["assets_dir"]     = m_AssetsDir;
     j["scenes_dir"]     = m_ScenesDir;
+    j["scripts_dir"]    = m_ScriptsDir;
+    j["shaders_dir"]    = m_ShadersDir;
 
     const std::string dump = j.dump(2) + "\n";
     if (!FileSystem::WriteFileText(fs::path(m_Path), dump))

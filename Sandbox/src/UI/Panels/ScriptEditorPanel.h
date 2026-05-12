@@ -35,8 +35,11 @@ public:
     ScriptEditorPanel();
     ~ScriptEditorPanel();
 
-    // Открыть файл в редакторе
+    // Открыть Lua-скрипт
     void Open(const std::string& filePath);
+
+    // Открыть шейдер (.slang/.glsl/.hlsl) с HLSL-подсветкой
+    void OpenShader(const std::string& filePath);
 
     // Создать новый пустой скрипт и открыть его
     void NewScript(const std::string& filePath);

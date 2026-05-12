@@ -17,9 +17,11 @@ public:
     const std::string& GetStartupScene() const { return m_StartupScene; }
     void SetStartupScene(const std::string& relPath) { m_StartupScene = relPath; }
 
-    std::filesystem::path RootDir()       const;
-    std::filesystem::path AssetsAbsPath() const;
-    std::filesystem::path ScenesAbsPath() const;
+    std::filesystem::path RootDir()        const;
+    std::filesystem::path AssetsAbsPath()  const;
+    std::filesystem::path ScenesAbsPath()  const;
+    std::filesystem::path ScriptsAbsPath() const;
+    std::filesystem::path ShadersAbsPath() const;
 
     std::string ToRelativePath(const std::string& absolutePath) const;
     std::string ResolveScenePath(const std::string& relPath)    const;
@@ -40,8 +42,10 @@ private:
     std::string m_Name;
     std::string m_EngineVersion = "0.1";
     std::string m_StartupScene;
-    std::string m_AssetsDir = "Assets";
-    std::string m_ScenesDir = "Scenes";
+    std::string m_AssetsDir  = "Assets";
+    std::string m_ScenesDir  = "Scenes";
+    std::string m_ScriptsDir = "Assets/Scripts";
+    std::string m_ShadersDir = "Assets/Shaders";
 };
 
 } // namespace CHEngine
