@@ -10,6 +10,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <imgui.h>
+#include <ImGuizmo.h>
 
 #include <algorithm>
 #include <limits>
@@ -74,6 +75,10 @@ void TryPick(SceneViewLayer& layer)
         return;
 
     if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        return;
+
+    // Don't pick when the gizmo is active/under cursor — gizmo handles its own LMB drag.
+    if (ImGuizmo::IsOver() || ImGuizmo::IsUsing())
         return;
 
     const ImVec2 vpPos  = SceneViewLayerAccess::Viewport(layer).GetViewportPos();

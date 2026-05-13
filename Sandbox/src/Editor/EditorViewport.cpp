@@ -8,7 +8,12 @@
 #include <Render/Descriptors.h>
 
 #include <CHEngine/Camera/EditorCamera.h>
+#include <CHEngine/Scene/Components.h>
+#include <CHEngine/Scene/Scene.h>
+#include <CHEngine/Scene/Entity.h>
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/euler_angles.hpp>
 #include <glm/matrix.hpp>
 #include <cstring>
 
@@ -171,6 +176,140 @@ void EditorViewport::EndSceneRender()
     CHE_PROFILE_FUNCTION();
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Вспомогательные функции визуализации камеры (ImGui overlay)
+// ─────────────────────────────────────────────────────────────────────────────
+namespace {
+
+// World → viewport pixel coordinates. Returns false if behind camera or far outside.
+bool WorldToViewport(const glm::vec3& worldPos,
+                     const glm::mat4& editorVP,
+                     const ImVec2& vpPos,
+                     const ImVec2& vpSize,
+                     ImVec2& outScreen)
+{
+    glm::vec4 clip = editorVP * glm::vec4(worldPos, 1.0f);
+    if (clip.w < 0.001f) return false;
+
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    if (ndc.x < -1.5f || ndc.x > 1.5f ||
+        ndc.y < -1.5f || ndc.y > 1.5f) return false;
+
+    outScreen.x = vpPos.x + (ndc.x * 0.5f + 0.5f) * vpSize.x;
+    outScreen.y = vpPos.y + (1.0f - (ndc.y * 0.5f + 0.5f)) * vpSize.y;
+    return true;
+}
+
+void DrawWorldLine(ImDrawList* dl,
+                   const glm::vec3& a, const glm::vec3& b,
+                   const glm::mat4& editorVP,
+                   const ImVec2& vpPos, const ImVec2& vpSize,
+                   ImU32 color, float thickness = 1.5f)
+{
+    ImVec2 sa, sb;
+    if (WorldToViewport(a, editorVP, vpPos, vpSize, sa) &&
+        WorldToViewport(b, editorVP, vpPos, vpSize, sb))
+    {
+        dl->AddLine(sa, sb, color, thickness);
+    }
+}
+
+void DrawCameraFrustum(ImDrawList* dl,
+                       const CHEngine::Transform& transform,
+                       const CHEngine::SceneCamera& cam,
+                       const glm::mat4& editorVP,
+                       const ImVec2& vpPos, const ImVec2& vpSize,
+                       bool isSelected)
+{
+    const ImU32 colorFrustum  = isSelected
+        ? IM_COL32(255, 220,  50, 220)
+        : IM_COL32(180, 220, 255, 160);
+    const ImU32 colorBody     = IM_COL32(255, 255, 255, 200);
+    const float lineW         = isSelected ? 2.0f : 1.2f;
+
+    glm::mat4 rot = glm::eulerAngleYXZ(
+        glm::radians(transform.Rotation.y),
+        glm::radians(transform.Rotation.x),
+        glm::radians(transform.Rotation.z));
+
+    glm::vec3 camPos   = transform.Position;
+    glm::vec3 forward  = glm::vec3(rot * glm::vec4(0, 0, -1, 0));
+    glm::vec3 right2   = glm::vec3(rot * glm::vec4(1,  0,  0, 0));
+    glm::vec3 up2      = glm::vec3(rot * glm::vec4(0,  1,  0, 0));
+
+    float fov    = cam.GetPerspectiveVerticalFOV();
+    float aspect = cam.GetProjectionType() ==
+                   CHEngine::SceneCamera::ProjectionType::Perspective
+                   ? 16.0f / 9.0f : 1.0f;
+    float nearD  = cam.GetPerspectiveNearClip();
+    float farD   = std::min(cam.GetPerspectiveFarClip(), 8.0f);
+
+    auto frustumCorners = [&](float d, float halfH) -> std::array<glm::vec3, 4>
+    {
+        float halfW = halfH * aspect;
+        glm::vec3 center = camPos + forward * d;
+        return {{
+            center - right2 * halfW - up2 * halfH,
+            center + right2 * halfW - up2 * halfH,
+            center + right2 * halfW + up2 * halfH,
+            center - right2 * halfW + up2 * halfH
+        }};
+    };
+
+    float halfHNear = nearD * std::tan(fov * 0.5f);
+    float halfHFar  = farD  * std::tan(fov * 0.5f);
+
+    auto nearCorners = frustumCorners(nearD, halfHNear);
+    auto farCorners  = frustumCorners(farD,  halfHFar);
+
+    glm::vec3 wPts[8];
+    for (int i = 0; i < 4; ++i) wPts[i]     = nearCorners[i];
+    for (int i = 0; i < 4; ++i) wPts[i + 4] = farCorners[i];
+
+    for (int i = 0; i < 4; ++i)
+        DrawWorldLine(dl, wPts[i], wPts[(i + 1) % 4], editorVP, vpPos, vpSize, colorFrustum, lineW);
+    for (int i = 0; i < 4; ++i)
+        DrawWorldLine(dl, wPts[i + 4], wPts[((i + 1) % 4) + 4], editorVP, vpPos, vpSize, colorFrustum, lineW);
+    for (int i = 0; i < 4; ++i)
+        DrawWorldLine(dl, wPts[i], wPts[i + 4], editorVP, vpPos, vpSize, colorFrustum, lineW);
+
+    auto rotVec = [&](glm::vec3 v) -> glm::vec3 {
+        return glm::vec3(rot * glm::vec4(v, 0.0f));
+    };
+
+    const float bW = 0.18f, bH = 0.12f, bD = 0.24f;
+
+    glm::vec3 right   = rotVec({ 1, 0, 0 });
+    glm::vec3 up      = rotVec({ 0, 1, 0 });
+    glm::vec3 fwd     = rotVec({ 0, 0, -1 });
+
+    glm::vec3 box[8];
+    for (int xi = -1; xi <= 1; xi += 2)
+    for (int yi = -1; yi <= 1; yi += 2)
+    for (int zi =  0; zi <= 1; zi += 1)
+    {
+        int idx = ((xi + 1) / 2) * 4 + ((yi + 1) / 2) * 2 + zi;
+        box[idx] = camPos + right * ((float)xi * bW) + up * ((float)yi * bH) + fwd * (zi == 0 ? bD * 0.5f : -bD * 0.5f);
+    }
+
+    int edges[12][2] = {
+        {0,2},{2,6},{6,4},{4,0},
+        {1,3},{3,7},{7,5},{5,1},
+        {0,1},{2,3},{4,5},{6,7}
+    };
+    for (auto& e : edges)
+        DrawWorldLine(dl, box[e[0]], box[e[1]], editorVP, vpPos, vpSize, colorBody, 1.0f);
+
+    glm::vec3 tvBase1 = camPos + right * (bW) + up * (bH) + fwd * (bD * 0.45f);
+    glm::vec3 tvBase2 = camPos + right * (-bW) + up * (bH) + fwd * (bD * 0.45f);
+    glm::vec3 tvTip   = camPos + up * (bH * 2.2f) + fwd * (bD * 0.2f);
+    DrawWorldLine(dl, tvBase1, tvTip,   editorVP, vpPos, vpSize, colorBody, 1.0f);
+    DrawWorldLine(dl, tvBase2, tvTip,   editorVP, vpPos, vpSize, colorBody, 1.0f);
+    DrawWorldLine(dl, tvBase1, tvBase2, editorVP, vpPos, vpSize, colorBody, 1.0f);
+}
+
+} // anonymous namespace
+
 void EditorViewport::DrawImGui(GizmoSystem& gizmo,
                                EditorCameraController& camera_controller,
                                SceneSession* scene_session,
@@ -233,6 +372,25 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
     }
 
     gizmo.Draw(scene_session, gizmo_operation, gizmo_mode, m_ViewportPos, m_ViewportSize);
+
+    // ── Визуализация камер (только в Edit-режиме) ─────────────────────────────
+    if (scene_session->SessionState == SceneSession::State::Edit
+        && scene_session->ViewportCamera
+        && scene_session->EditorScene)
+    {
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        glm::mat4 editorVP = scene_session->ViewportCamera->GetViewProjection();
+
+        scene_session->EditorScene->ForEach<CHEngine::CameraComponent, CHEngine::TransformComponent>(
+            [&](CHEngine::EntityHandle handle, const CHEngine::UUID&,
+                CHEngine::CameraComponent& camComp,
+                CHEngine::TransformComponent& tc)
+            {
+                bool selected = (handle == scene_session->SelectedEntity);
+                DrawCameraFrustum(dl, tc.ObjectTransform, camComp.Camera,
+                                  editorVP, m_ViewportPos, m_ViewportSize, selected);
+            });
+    }
 
     if (scene_session->SessionState != SceneSession::State::Edit)
     {

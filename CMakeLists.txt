@@ -111,62 +111,66 @@ endif()
 
 if(CHE_BUILD_PHYSICS)
     if(WIN32 OR UNIX)
-        set(PHYSX_ROOT_DIR "${CHE_VENDOR_DIR}/PhysX/physx" CACHE PATH "PhysX root path" FORCE)
-
-        if(WIN32)
-            set(TARGET_BUILD_PLATFORM "windows" CACHE STRING "PhysX target platform" FORCE)
-        elseif(APPLE)
+        if(APPLE)
+            # Use o3de fork which has macOS ARM64/Intel support
+            set(PHYSX_ROOT_DIR "${CHE_VENDOR_DIR}/PhysX/o3de_physx/physx" CACHE PATH "PhysX root path" FORCE)
             set(TARGET_BUILD_PLATFORM "mac" CACHE STRING "PhysX target platform" FORCE)
+        elseif(WIN32)
+            set(PHYSX_ROOT_DIR "${CHE_VENDOR_DIR}/PhysX/physx" CACHE PATH "PhysX root path" FORCE)
+            set(TARGET_BUILD_PLATFORM "windows" CACHE STRING "PhysX target platform" FORCE)
         else()
+            set(PHYSX_ROOT_DIR "${CHE_VENDOR_DIR}/PhysX/physx" CACHE PATH "PhysX root path" FORCE)
             set(TARGET_BUILD_PLATFORM "linux" CACHE STRING "PhysX target platform" FORCE)
         endif()
 
-        set(PX_BUILDSNIPPETS OFF CACHE BOOL "" FORCE)
-        set(PX_BUILDPVDRUNTIME OFF CACHE BOOL "" FORCE)
-        set(PX_GENERATE_GPU_PROJECTS OFF CACHE BOOL "" FORCE)
-        set(PX_GENERATE_GPU_PROJECTS_ONLY OFF CACHE BOOL "" FORCE)
-        set(PX_CMAKE_SUPPRESS_REGENERATION ON CACHE BOOL "" FORCE)
-        set(NV_USE_DEBUG_WINCRT ON CACHE BOOL "" FORCE)
         set(PUBLIC_RELEASE 1 CACHE BOOL "Build PhysX as embedded dependency" FORCE)
-        set(PX_OUTPUT_LIB_DIR "${CMAKE_BINARY_DIR}/physx" CACHE PATH "PhysX output lib directory" FORCE)
-        set(PX_OUTPUT_BIN_DIR "${CMAKE_BINARY_DIR}/physx" CACHE PATH "PhysX output bin directory" FORCE)
-        list(APPEND CMAKE_MODULE_PATH "${PHYSX_ROOT_DIR}/source/compiler/cmake/modules")
 
-        # PhysX rewrites configuration types in its own CMake.
-        # Save and restore project configs to keep CHEngine's Dist profile.
-        set(_CHE_SAVED_CONFIG_TYPES "${CMAKE_CONFIGURATION_TYPES}")
-        set(_CHE_SAVED_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+        if(APPLE)
+            # macOS (o3de fork): unified build — CMakeLists.txt lives OUTSIDE the submodule
+            add_subdirectory(${CHE_VENDOR_DIR}/PhysX/build_physx_o3de vendors/PhysX)
+        else()
+            # Windows/Linux: vendored cmake
+            set(PX_BUILDSNIPPETS OFF CACHE BOOL "" FORCE)
+            set(PX_BUILDPVDRUNTIME OFF CACHE BOOL "" FORCE)
+            set(PX_GENERATE_GPU_PROJECTS OFF CACHE BOOL "" FORCE)
+            set(PX_GENERATE_GPU_PROJECTS_ONLY OFF CACHE BOOL "" FORCE)
+            set(PX_CMAKE_SUPPRESS_REGENERATION ON CACHE BOOL "" FORCE)
+            set(NV_USE_DEBUG_WINCRT ON CACHE BOOL "" FORCE)
+            set(PX_OUTPUT_LIB_DIR "${CMAKE_BINARY_DIR}/physx" CACHE PATH "PhysX output lib directory" FORCE)
+            set(PX_OUTPUT_BIN_DIR "${CMAKE_BINARY_DIR}/physx" CACHE PATH "PhysX output bin directory" FORCE)
+            list(APPEND CMAKE_MODULE_PATH "${PHYSX_ROOT_DIR}/source/compiler/cmake/modules")
 
-        add_subdirectory(${CHE_VENDOR_DIR}/PhysX/physx/source/compiler/cmake vendors/PhysX)
+            # PhysX rewrites configuration types in its own CMake.
+            # Save and restore project configs to keep CHEngine's Dist profile.
+            set(_CHE_SAVED_CONFIG_TYPES "${CMAKE_CONFIGURATION_TYPES}")
+            set(_CHE_SAVED_BUILD_TYPE "${CMAKE_BUILD_TYPE}")
+
+            add_subdirectory(${PHYSX_ROOT_DIR}/source/compiler/cmake vendors/PhysX)
+
+            set(CMAKE_CONFIGURATION_TYPES "${_CHE_SAVED_CONFIG_TYPES}" CACHE STRING "" FORCE)
+            set(CMAKE_BUILD_TYPE "${_CHE_SAVED_BUILD_TYPE}" CACHE STRING "Choose build type: Debug, Release, Dist" FORCE)
+        endif()
 
         set(CHE_PHYSX_TARGETS
-            PhysXFoundation
-            LowLevel
-            LowLevelAABB
-            LowLevelDynamics
-            PhysX
-            PhysXCharacterKinematic
-            PhysXCommon
-            PhysXCooking
-            PhysXExtensions
-            PhysXVehicle2
-            SceneQuery
-            SimulationController
-            PhysXPvdSDK
-            PhysXTask
+            PhysXFoundation LowLevel LowLevelAABB LowLevelDynamics PhysX
+            PhysXCharacterKinematic PhysXCommon PhysXCooking PhysXExtensions
+            PhysXVehicle2 SceneQuery SimulationController PhysXPvdSDK PhysXTask
         )
-
         foreach(physx_target IN LISTS CHE_PHYSX_TARGETS)
             if(TARGET ${physx_target})
-                target_compile_definitions(${physx_target} PRIVATE
+                # macOS: aliases point to PhysX, apply defines only to the real target
+                get_target_property(_aliasof ${physx_target} ALIASED_TARGET)
+                if(_aliasof)
+                    set(_real_target ${_aliasof})
+                else()
+                    set(_real_target ${physx_target})
+                endif()
+                target_compile_definitions(${_real_target} PRIVATE
                     $<$<CONFIG:Debug>:_DEBUG;PX_DEBUG=1;PX_CHECKED=1;PX_SUPPORT_PVD=1;PX_SUPPORT_OMNI_PVD=1>
                     $<$<OR:$<CONFIG:Release>,$<CONFIG:Dist>>:NDEBUG;PX_SUPPORT_PVD=0;PX_SUPPORT_OMNI_PVD=0>
                 )
             endif()
         endforeach()
-
-        set(CMAKE_CONFIGURATION_TYPES "${_CHE_SAVED_CONFIG_TYPES}" CACHE STRING "" FORCE)
-        set(CMAKE_BUILD_TYPE "${_CHE_SAVED_BUILD_TYPE}" CACHE STRING "Choose build type: Debug, Release, Dist" FORCE)
 
         add_subdirectory(${MODULES_DIR}/Physics/PhysicsPhysX)
     else()

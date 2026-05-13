@@ -35,7 +35,7 @@ endif()
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     CHE_BUILD_MODULE_DLL
     CHE_ENABLE_ASSERTS
-    $<$<CONFIG:Debug>:CHE_DEBUG>
+    $<$<CONFIG:Debug>:CHE_DEBUG;_DEBUG>
     $<$<CONFIG:Release>:CHE_RELEASE>
     $<$<CONFIG:Dist>:CHE_DIST>
 )
@@ -43,7 +43,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 target_include_directories(${PROJECT_NAME} PRIVATE
     ${CHE_INTERFACES_DIR}
     ${CHE_CORE_DIR}
-    ${CHE_VENDOR_DIR}/PhysX/physx/include
+    ${PHYSX_ROOT_DIR}/include
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE
