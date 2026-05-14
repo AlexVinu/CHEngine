@@ -92,9 +92,8 @@ float3 CalcLight(int index, float3 normal, float3 fragPos, float3 viewDir)
 [shader("fragment")]
 float4 fragMain(VSOut input) : SV_Target
 {
-    // Analytic normal: re-project from sphere center for perfect smoothness
-    float3 sphereNormal = normalize(input.FragPos - input.SphereCenter);
-    float3 norm         = normalize(lerp(sphereNormal, normalize(input.Normal), 0.3));
+    // Analytic normal: pixel-perfect smoothness regardless of tessellation level
+    float3 norm = normalize(input.FragPos - input.SphereCenter);
 
     float3 viewDir = normalize(camera.CameraPos.xyz - input.FragPos);
 

@@ -178,4 +178,23 @@ Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_
     return mesh;
 }
 
+Mesh PrimitiveMeshFactory::CreateSphereImpostor(const glm::vec3& color)
+{
+    // A camera-facing billboard quad. Vertex positions are billboard offsets
+    // in [-1,1] space; the vertex shader scales them by the entity's world radius
+    // (encoded as transform scale) and orients them toward the camera.
+    // The fragment shader does analytic ray-sphere intersection.
+    const std::vector<Vertex> vertices = {
+        { {-1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, color },
+        { { 1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}, color },
+        { { 1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, color },
+        { {-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, color },
+    };
+    const std::vector<uint32_t> indices = { 0, 1, 2,  0, 2, 3 };
+
+    Mesh mesh;
+    mesh.Build(vertices, indices);
+    return mesh;
+}
+
 } // namespace CHEngine

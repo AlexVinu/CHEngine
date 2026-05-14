@@ -155,8 +155,14 @@ void UvEditorPanel::Draw(EditorUiHost& host)
                     IM_COL32(100, 100, 100, 180));
     }
 
-    // --- 5. Build UV vertex groups (welded = same position) ---
-    auto uvGroups = BuildUVGroups(vertices);
+    // --- 5. Build UV vertex groups (welded = same position), cached per entity ---
+    if (sel != m_CachedEntity || m_UVGroupsDirty)
+    {
+        m_CachedUVGroups = BuildUVGroups(vertices);
+        m_CachedEntity   = sel;
+        m_UVGroupsDirty  = false;
+    }
+    auto& uvGroups = m_CachedUVGroups;
 
     // --- 6. Mouse interaction: find closest UV group and drag ---
     float mx = (mousePos.x - canvasOrigin.x) / canvasW;
@@ -164,8 +170,6 @@ void UvEditorPanel::Draw(EditorUiHost& host)
 
     if (isActive && isHovered && mouseDown)
     {
-        const float pickRadius = 15.0f / canvasW;
-
         // Acquire: first press on a vertex → lock the group
         if (!m_Dragging)
         {
@@ -173,9 +177,9 @@ void UvEditorPanel::Draw(EditorUiHost& host)
             for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
             {
                 int vi = uvGroups[g][0];
-                float dx = vertices[vi].TexCoords.x - mx;
-                float dy = vertices[vi].TexCoords.y - my;
-                if ((dx * dx + dy * dy) < pickRadius * pickRadius)
+                float dx_px = (vertices[vi].TexCoords.x - mx) * canvasW;
+                float dy_px = (vertices[vi].TexCoords.y - my) * canvasH;
+                if (dx_px * dx_px + dy_px * dy_px < 15.0f * 15.0f)
                 {
                     m_DraggedGroup = g;
                     m_Dragging = true;
@@ -202,6 +206,7 @@ void UvEditorPanel::Draw(EditorUiHost& host)
                     newUVs[vi].y = std::clamp(newUVs[vi].y + dv, 0.0f, 1.0f);
                 }
                 mesh.UpdateUVs(newUVs);
+                m_UVGroupsDirty = true;
             }
         }
     }
@@ -219,14 +224,13 @@ void UvEditorPanel::Draw(EditorUiHost& host)
     }
     else if (isHovered)
     {
-        const float pickRadius = 15.0f / canvasW;
         m_SelectedVertex = -1;
         for (int g = 0; g < static_cast<int>(uvGroups.size()); ++g)
         {
             int vi = uvGroups[g][0];
-            float dx = vertices[vi].TexCoords.x - mx;
-            float dy = vertices[vi].TexCoords.y - my;
-            if ((dx * dx + dy * dy) < pickRadius * pickRadius)
+            float dx_px = (vertices[vi].TexCoords.x - mx) * canvasW;
+            float dy_px = (vertices[vi].TexCoords.y - my) * canvasH;
+            if (dx_px * dx_px + dy_px * dy_px < 15.0f * 15.0f)
             {
                 m_SelectedVertex = vi;
                 break;

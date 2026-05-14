@@ -305,7 +305,7 @@ namespace CHEngine {
             pass.Pipeline         = GetOrCreatePipeline(sh);
             pass.ColorLoadOp      = (hasPreScene || !isFirstPass) ? ELoadOp::Load : ELoadOp::Clear;
             pass.ColorStoreOp     = EStoreOp::Store;
-            pass.ClearColor       = { 0.0f, 0.0f, 0.0f, 0.0f };
+            pass.ClearColor       = { 0.033f, 0.038f, 0.050f, 1.0f };
             pass.DepthLoadOp      = (hasPreScene || !isFirstPass) ? ELoadOp::Load : ELoadOp::Clear;
             pass.ClearDepth       = 1.0f;
             pass.ViewportWidth    = vw;
@@ -544,7 +544,7 @@ namespace CHEngine {
         int entityCount = 0, meshCount = 0, skippedInvisible = 0, skippedNoBuffer = 0;
 
         scene.ForEach<MeshComponent, TransformComponent, ColorComponent, VisibilityComponent>(
-            [&](EntityHandle, const UUID&, MeshComponent& meshComp,
+            [&](EntityHandle handle, const UUID&, MeshComponent& meshComp,
                 TransformComponent& transformComp, ColorComponent& colorComp,
                 VisibilityComponent& visibilityComp)
             {
@@ -600,6 +600,7 @@ namespace CHEngine {
                     item.modelMatrix  = model;
                     item.object       = objectUBO;
                     item.material     = mesh.Mat;
+                    item.entity       = handle;
 
                     m_DrawList.push_back(std::move(item));
                 }
@@ -752,6 +753,55 @@ namespace CHEngine {
         }
 
         out.NumLights = lightCount;
+    }
+
+    void RenderSystem::RefreshTransforms(Scene& scene)
+    {
+        const uint32_t drawCount = static_cast<uint32_t>(m_DrawList.size());
+        if (drawCount == 0 || !m_ObjectUBORing.IsValid())
+            return;
+
+        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        if (!factory)
+            return;
+
+        std::vector<std::byte> staging(
+            static_cast<size_t>(drawCount) * m_ObjectUBOAlignedStride, std::byte{0});
+
+        for (uint32_t i = 0; i < drawCount; ++i)
+        {
+            DrawItem& item = m_DrawList[i];
+            UBOObject objectUBO = item.object; // preserves Color, Selected, etc.
+
+            // Re-read transform from the entity — it may have been updated by the gizmo
+            // after the original BuildDrawList + ring-buffer upload in OnUpdate.
+            auto* entity = scene.TryGetEntity(item.entity);
+            if (entity && entity->HasComponent<TransformComponent>())
+            {
+                const Transform& t = entity->GetComponent<TransformComponent>().ObjectTransform;
+                const glm::mat4 model =
+                    glm::translate(glm::mat4(1.0f), t.Position)
+                    * glm::mat4_cast(MathUtils::QuatFromEulerDegrees(t.Rotation))
+                    * glm::scale(glm::mat4(1.0f), t.Scale);
+
+                const glm::mat4 normalMat = glm::transpose(glm::inverse(model));
+                std::memcpy(objectUBO.Transform,    glm::value_ptr(model),     sizeof(objectUBO.Transform));
+                std::memcpy(objectUBO.NormalMatrix, glm::value_ptr(normalMat), sizeof(objectUBO.NormalMatrix));
+
+                // Update the cached draw item too so subsequent passes (e.g. shadow)
+                // see the corrected matrix.
+                item.object = objectUBO;
+            }
+
+            std::memcpy(staging.data() + static_cast<size_t>(i) * m_ObjectUBOAlignedStride,
+                        &objectUBO, sizeof(UBOObject));
+        }
+
+        // Re-upload the ring buffer. Because Metal buffers are MTLStorageModeShared,
+        // the GPU reads the latest CPU-side data at command-buffer commit time
+        // (RenderFacade::EndFrame), which runs after this call.
+        factory->UpdateBuffer(m_ObjectUBORing,
+            std::span<const std::byte>(staging.data(), staging.size()), 0);
     }
 
 } // namespace CHEngine

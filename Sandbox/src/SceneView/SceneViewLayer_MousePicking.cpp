@@ -135,9 +135,35 @@ void TryPick(SceneViewLayer& layer)
                             * glm::mat4_cast(glm::quat(glm::radians(t.Rotation)))
                             * glm::scale(glm::mat4(1.0f), t.Scale);
 
-            AABB aabb = ComputeWorldAABB(meshComp, model);
-            float tHit;
-            if (RayAABBIntersect(rayOrigin, rayDir, aabb, tHit) && tHit > 0.0f && tHit < closestT)
+            float tHit = std::numeric_limits<float>::max();
+            bool hit = false;
+
+            // Sphere impostors: the mesh is a flat billboard quad (z=0 vertices),
+            // so AABB-based picking fails. Use analytic ray-sphere intersection instead.
+            if (meshComp.SourcePath == ":primitive:sphere")
+            {
+                // Sphere center = translation column; radius = scale magnitude
+                glm::vec3 center = glm::vec3(model[3]);
+                // scale * base mesh radius (0.5) — matches sphere_impostor.slang
+                float radius     = glm::length(glm::vec3(model[0])) * 0.5f;
+
+                glm::vec3 oc = rayOrigin - center;
+                float b = glm::dot(rayDir, oc);
+                float c = glm::dot(oc, oc) - radius * radius;
+                float disc = b * b - c;
+                if (disc >= 0.0f)
+                {
+                    float tt = -b - glm::sqrt(disc);
+                    if (tt > 0.0f) { tHit = tt; hit = true; }
+                }
+            }
+            else
+            {
+                AABB aabb = ComputeWorldAABB(meshComp, model);
+                hit = RayAABBIntersect(rayOrigin, rayDir, aabb, tHit) && tHit > 0.0f;
+            }
+
+            if (hit && tHit < closestT)
             {
                 closestT = tHit;
                 closestHandle = handle;

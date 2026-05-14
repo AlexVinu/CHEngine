@@ -318,8 +318,18 @@ namespace CHEngine {
 
         constexpr float ShaderPollInterval = 0.5f; // шейдеры — раз в полсекунды
 
+        // Flush any pending OS events before the first frame so that macOS
+        // fullscreen state (restored from the previous session) is applied
+        // before ImGui_ImplGlfw_NewFrame reads the window size.
+        if (m_Window)
+            m_Window->GetPlatformWindow()->PollEvents();
+
         while (m_Running)
         {
+            // ── Poll OS events at frame START so ImGui_ImplGlfw_NewFrame sees
+            //    the correct window size (critical for macOS fullscreen) ──────
+            m_Window->GetPlatformWindow()->PollEvents();
+
             // ── Delta time ──────────────────────────────────────────────────
             auto now = std::chrono::steady_clock::now();
             Timestep dt = std::chrono::duration<float>(now - m_LastFrameTime).count();

@@ -38,6 +38,9 @@ struct EditorWorldContext : public SceneSession
     void ActivateActiveScene();
     void ActivateEditorScene();
 
+    /// Re-upload object UBOs from current transforms (call after gizmo, before EndFrame).
+    void RefreshRender() { if (RuntimeWorld) RuntimeWorld->RefreshRenderTransforms(); }
+
     /// Human-readable name for the tab/UI. Derived from SceneRelPath or "Untitled".
     std::string DisplayName() const;
 };

@@ -112,4 +112,12 @@ void SceneViewLayer::OnImGuiRender()
         return;
     }
     RunSceneViewImGuiFrame(*this);
+
+    // After gizmo and other ImGui interactions may have updated TransformComponents,
+    // re-upload the object UBO ring buffer so the GPU sees the latest transforms
+    // at EndFrame commit time (MTLStorageModeShared — no encoding barrier needed).
+    auto& sessions = SceneViewLayerAccess::Sessions(*this);
+    const size_t activeIdx = SceneViewLayerAccess::ActiveIndex(*this);
+    if (activeIdx < sessions.size())
+        sessions[activeIdx].RefreshRender();
 }

@@ -399,15 +399,18 @@ void SceneViewLayerHost::AddSpherePrimitive()
     if (!entity->HasComponent<CHEngine::MeshComponent>())
         entity->AddComponent<CHEngine::MeshComponent>(CHEngine::MeshComponent{});
 
-    CHEngine::Mesh sphere_mesh = CHEngine::PrimitiveMeshFactory::CreateSphere(0.5f, 32, 24, { 0.6f, 0.7f, 0.9f });
+    // Sphere impostor: 2 triangles + ray-sphere intersection in shader.
+    // World radius is encoded as the entity's transform scale (scale == radius).
+    CHEngine::Mesh sphere_mesh = CHEngine::PrimitiveMeshFactory::CreateSphereImpostor({ 0.6f, 0.7f, 0.9f });
     sphere_mesh.Mat = CHEngine::MaterialInstance::FromBase(
-        std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereShader()));
+        std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereImpostorShader()));
     entity->PatchComponent<CHEngine::MeshComponent>(
         [sphere_mesh = std::move(sphere_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
             mesh_component.Meshes.clear();
             mesh_component.Meshes.push_back(std::move(sphere_mesh));
             mesh_component.SourcePath = ":primitive:sphere";
         });
+
 
     activeSession.SelectedEntity = handle;
 }

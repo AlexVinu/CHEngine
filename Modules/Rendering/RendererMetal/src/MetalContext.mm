@@ -115,6 +115,27 @@ namespace CHModules {
 
     bool MetalContext::BeginFrame()
     {
+        // Sync CAMetalLayer size directly from NSWindow every frame.
+        // This handles macOS native fullscreen (Space fullscreen via green button)
+        // where the GLFW window size callback may never fire.
+        if (m_NSWindow && m_MetalLayer) {
+            NSWindow* ns = (NSWindow*)m_NSWindow;
+            CGFloat scale = ns.backingScaleFactor;
+            NSSize contentSize = ns.contentView.bounds.size;
+            uint32_t newW = static_cast<uint32_t>(contentSize.width  * scale);
+            uint32_t newH = static_cast<uint32_t>(contentSize.height * scale);
+            if (newW > 0 && newH > 0 && (newW != m_Width || newH != m_Height)) {
+                m_Width  = newW;
+                m_Height = newH;
+                CAMetalLayer* l = (CAMetalLayer*)m_MetalLayer;
+                l.drawableSize  = CGSizeMake(m_Width, m_Height);
+                l.contentsScale = scale;
+                MTLGlobals::g_Width  = m_Width;
+                MTLGlobals::g_Height = m_Height;
+                CreateDepthTexture();
+            }
+        }
+
         @autoreleasepool {
             CAMetalLayer* layer = (CAMetalLayer*)m_MetalLayer;
             id<CAMetalDrawable> drawable = [layer nextDrawable];

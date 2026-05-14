@@ -41,6 +41,10 @@ namespace CHEngine
         void Update(Timestep dt);
         void OnEvent(Event& event);
 
+        // Re-upload object transform UBOs from current TransformComponents.
+        // Call after late-frame transform updates (gizmo drag) and before EndFrame.
+        void RefreshRenderTransforms();
+
         // ── Play / Pause / Edit mode control ─────────────────────────────────
         void SetState(WorldState new_state);
         WorldState GetState() const { return m_State; }
@@ -68,7 +72,8 @@ namespace CHEngine
         void RegisterDefaultSystems();
         void ApplyStateTransition(WorldState new_state);
 
-        SystemScheduler m_Scheduler;
+        SystemScheduler  m_Scheduler;
+        class RenderSystem* m_RenderSystem = nullptr; // cached pointer, owned by m_Scheduler
         DeferredOps m_DeferredOps;
         EventBus m_EventBus;
         PhysicsWorldDesc m_PhysicsWorldDesc{};

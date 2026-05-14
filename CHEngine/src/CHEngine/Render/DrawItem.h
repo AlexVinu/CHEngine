@@ -6,6 +6,7 @@
 #include <CheStl/MemoryTypes.h>
 #include <glm/glm.hpp>
 #include <memory>
+#include "CHEngine/Scene/Scene.h"
 
 namespace CHEngine {
 
@@ -27,6 +28,7 @@ namespace CHEngine {
         glm::mat4             modelMatrix; // pre-computed model transform
         UBOObject             object;      // Transform, NormalMatrix, Color, Selected
         Ref<MaterialInstance> material;    // kept alive for ApplyMaterial()
+        EntityHandle          entity;      // source entity for late transform refresh
     };
 
 } // namespace CHEngine

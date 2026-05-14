@@ -28,6 +28,11 @@ namespace CHEngine {
         const char* GetName() const override { return "RenderSystem"; }
         void Run(World& world, DeferredOps& deferred_ops, Timestep ts) override;
 
+        // Re-read TransformComponent for every draw item and re-upload the object UBO
+        // ring buffer. Call this after any late transform update (e.g. gizmo drag) but
+        // before RenderFacade::EndFrame() so the GPU sees the latest transforms.
+        void RefreshTransforms(Scene& scene);
+
     private:
         // Build cameraUBO, returns false when no camera is available.
         bool ResolveCamera(World& world, Scene& scene, UBOCamera& out);

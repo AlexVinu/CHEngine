@@ -31,6 +31,9 @@ EditorViewport::EditorViewport()
     m_SphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
         std::string("Sphere"), std::string("shaders/sphere.slang"));
 
+    m_SphereImpostorShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        std::string("SphereImpostor"), std::string("shaders/sphere_impostor.slang"));
+
     m_PBRShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
         std::string("PBR"), std::string("shaders/pbr.slang"));
 
@@ -134,7 +137,7 @@ void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
     // Clear HDR to background color — grid is the first thing drawn.
     gridPass.ColorLoadOp   = CHEngine::ELoadOp::Clear;
     gridPass.ColorStoreOp  = CHEngine::EStoreOp::Store;
-    gridPass.ClearColor    = { 0.0f, 0.0f, 0.0f, 0.0f };  // editor background
+    gridPass.ClearColor    = { 0.033f, 0.038f, 0.050f, 1.0f };  // editor background
     gridPass.ViewportWidth  = CHEngine::RenderFacade::GetViewportWidth();
     gridPass.ViewportHeight = CHEngine::RenderFacade::GetViewportHeight();
 

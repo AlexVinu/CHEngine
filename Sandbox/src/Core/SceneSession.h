@@ -23,7 +23,8 @@ struct SceneSession
         RuntimeWorld = CHEngine::MakeScope<CHEngine::World>(EditorScene);
         ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
         ViewportCamera->SetViewportSize(ViewportSize.x, ViewportSize.y);
-        ViewportCamera->SetPitch(glm::radians(-30.0f));
+        ViewportCamera->SetYaw(glm::radians(-45.0f));
+        ViewportCamera->SetPitch(glm::radians(25.0f));
     }
 
     State SessionState = State::Edit;

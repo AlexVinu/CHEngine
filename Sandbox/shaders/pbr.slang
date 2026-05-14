@@ -136,8 +136,8 @@ float4 fragMain(VSOut input) : SV_Target
 
         float3 H = normalize(V + L);
 
-        float NdL = max(dot(N, L), 0.001);
-        float NdV = max(dot(N, V), 0.001);
+        float NdL = max(dot(N, L), 0.0);
+        float NdV = max(dot(N, V), 0.0);
 
         float3 radiance  = lightCol * atten;
 
@@ -164,8 +164,6 @@ float4 fragMain(VSOut input) : SV_Target
     // Emissive
     if ((material.MaterialFlags & 8u) != 0u) // kPBR_UseEmissiveMap
         color += u_EmissiveMap.Sample(input.TexCoords).rgb;
-    else if ((material.MaterialFlags & 16u) != 0u) // kPBR_EnablePBR
-        color += float3(0.0, 0.0, 0.0); // emissiveColor placeholder
 
     if (object.Selected > 0.5)
         color = lerp(color, float3(1.0, 0.6, 0.0), 0.15);

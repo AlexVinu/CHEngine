@@ -8,6 +8,7 @@
 #include "SceneViewLayer_Render.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SceneViewLayer_MousePicking.h"
+#include "SceneViewLayer_ShiftAMenu.h"
 
 #include "UIThemeActive.h"
 
@@ -68,6 +69,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
                            activeCtx->GizmoMode);
 
         SceneViewLayerMousePicking::TryPick(layer);
+        SceneViewLayerShiftAMenu::Draw(layer);
     }
 
     {
