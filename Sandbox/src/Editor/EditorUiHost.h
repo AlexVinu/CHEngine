@@ -80,6 +80,7 @@ public:
     virtual void AddSpotLight() = 0;
     virtual void AddCubePrimitive() = 0;
     virtual void AddSpherePrimitive() = 0;
+    virtual void AddCameraEntity() = 0;
     virtual void AddEmptyEntity() = 0;
     virtual void SetSelection(CHEngine::EntityHandle handle) = 0;
     virtual void DestroyEntityByUuid(const CHEngine::UUID& object_id) = 0;

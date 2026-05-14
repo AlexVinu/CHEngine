@@ -415,6 +415,23 @@ void SceneViewLayerHost::AddSpherePrimitive()
     activeSession.SelectedEntity = handle;
 }
 
+void SceneViewLayerHost::AddCameraEntity()
+{
+    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
+    auto scene_ref = activeSession.EditorScene;
+    if (!scene_ref)
+        return;
+
+    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Camera", object_id);
+    auto* entity = scene_ref->TryGetEntity(handle);
+    if (!entity)
+        return;
+
+    entity->AddComponent<CHEngine::CameraComponent>();
+    activeSession.SelectedEntity = handle;
+}
+
 void SceneViewLayerHost::AddEmptyEntity()
 {
     EditorWorldContext& activeSession = SceneViewLayerAccess::Active(m_Layer);
