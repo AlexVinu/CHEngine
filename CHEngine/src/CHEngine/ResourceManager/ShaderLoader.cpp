@@ -4,12 +4,14 @@
 
 namespace CHEngine
 {
-	ShaderHandle ShaderLoader::Load(const std::string& name, const std::string& filepath)
+	ShaderHandle ShaderLoader::Load(const std::string& name, const std::filesystem::path& filepath)
 	{
+		CHE_CORE_ASSERT(filepath.is_absolute(), "ShaderLoader::Load - filepath must be absolute");
+
 		if (auto handle = m_HandlesBimap.left.find(filepath); handle != m_HandlesBimap.left.end())
 			return handle->second;
 
-		auto handle = RenderFacade::CreateShaderFromFile(String(name), String(filepath));
+		auto handle = RenderFacade::CreateShaderFromFile(String(name), String(filepath.string()));
 		m_HandlesBimap.insert({ filepath, handle });
 		return handle;
 	}

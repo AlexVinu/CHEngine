@@ -104,10 +104,10 @@ namespace CHModules
     }
 
     CompiledShader SlangBackend::Compile(
-        const CHEngine::String& source,
-        const CHEngine::String& vertEntry,
-        const CHEngine::String& fragEntry,
-        const CHEngine::String& sourcePath)
+        const String& source,
+        const String& vertEntry,
+        const String& fragEntry,
+        const String& sourcePath)
     {
         CompiledShader result;
 

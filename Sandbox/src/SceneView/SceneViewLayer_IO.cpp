@@ -4,15 +4,13 @@
 #include "SceneViewLayerAccess.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SetTransformCommand.h"
-#include "ProjectEditorState.h"
+#include "ProjectManager.h"
 
 #include <CHEngine/Application.h>
 #include <CHEngine/Mesh/Material.h>
-#include <CHEngine/Project/ProjectManager.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
-#include <CHEngine/Scene/RecentFiles.h>
 #include <CHEngine/Scene/SceneSerializer.h>
 #include <CHEngine/Utils/FileDialog.h>
 #include <FileSystem/FileSystem.h>
@@ -33,12 +31,6 @@ namespace {
 
 constexpr const char* k_SessionFile = ".che_session.chscene";
 constexpr const char* k_SessionStateFile = ".che_session_state";
-
-CHEngine::RecentFiles& RecentFilesStore()
-{
-    static CHEngine::RecentFiles s_RecentFiles;
-    return s_RecentFiles;
-}
 
 int HexToNibble(char c)
 {
@@ -129,21 +121,14 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
 
 } // namespace
 
-void SceneViewLayerIO::LoadRecentFilesList()
-{
-    if (CHEngine::ProjectManager::HasProject())
-        return; // recent scenes live in the .cheproj file
-    RecentFilesStore().LoadFromFile("recent_scenes.txt");
-}
-
 void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string& absPath)
 {
     if (absPath.empty())
         return;
 
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    ctx.CommandStack.Clear();
-    ctx.SelectedEntity = {};
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    ctx->CommandStack.Clear();
+    ctx->SelectedEntity = {};
 
     CHEngine::SceneSerializer serializer{};
     auto loadedScene = serializer.LoadFromFile(absPath);
@@ -152,18 +137,19 @@ void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string&
         CHE_CORE_ERROR("SceneViewLayerIO::LoadSceneSilent: failed to load '{}'", absPath);
         return;
     }
-    CHE_CORE_ASSERT(ctx.EditorScene, "SceneViewLayer: EditorScene must exist");
-    *ctx.EditorScene = std::move(*loadedScene);
-    ctx.ActivateEditorScene();
+    CHE_CORE_ASSERT(ctx->EditorScene, "SceneViewLayer: EditorScene must exist");
+    *ctx->EditorScene = std::move(*loadedScene);
+    ctx->ActivateEditorScene();
 
+    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
     // Record the file this session is bound to.
-    if (CHEngine::ProjectManager::HasProject())
+    if (proj_manager->HasProject())
     {
-        const std::string rel = CHEngine::ProjectManager::Current()->ToRelativePath(absPath);
-        ctx.SceneRelPath = std::filesystem::path(rel).generic_string();
+        const std::string rel = proj_manager->Current()->ToRelativePath(absPath);
+        ctx->SceneRelPath = std::filesystem::path(rel).generic_string();
     }
     else
-        ctx.SceneRelPath = absPath;
+        ctx->SceneRelPath = absPath;
 
     CHE_CORE_INFO("SceneViewLayerIO::LoadSceneSilent: loaded '{}'", absPath);
 }
@@ -189,23 +175,24 @@ std::filesystem::path GenerateUntitledScenePath(const std::filesystem::path& sce
 
 void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
 {
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
 
     // No-dialog save: write to <project>/Scenes/<name>.chscene.
     // Session's SceneRelPath is the source of truth for the destination.
     std::string path;
-    if (CHEngine::ProjectManager::HasProject())
+    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    if (proj_manager->HasProject())
     {
-        CHEngine::Project* proj = CHEngine::ProjectManager::Current();
-        if (ctx.SceneRelPath.empty())
+        Project* proj = proj_manager->Current();
+        if (ctx->SceneRelPath.empty())
         {
             const std::filesystem::path gen = GenerateUntitledScenePath(proj->ScenesAbsPath());
-            ctx.SceneRelPath = std::filesystem::relative(gen, proj->RootDir()).generic_string();
+            ctx->SceneRelPath = std::filesystem::relative(gen, proj->RootDir()).generic_string();
             path = gen.string();
         }
         else
         {
-            path = (proj->RootDir() / ctx.SceneRelPath).string();
+            path = (proj->RootDir() / ctx->SceneRelPath).string();
         }
     }
     else
@@ -217,11 +204,11 @@ void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
             return;
     }
 
-    Sandbox::EditorCameraState& camera_state = ctx.EditorCameraState;
+    Sandbox::EditorCameraState& camera_state = ctx->EditorCameraState;
 
     CHEngine::SceneSerializer serializer{};
-    auto scene_ref = ctx.EditorScene;
-    auto* viewport_camera = ctx.ViewportCamera.get();
+    auto scene_ref = ctx->EditorScene;
+    auto* viewport_camera = ctx->ViewportCamera.get();
     if (!scene_ref || !viewport_camera)
         return;
     nlohmann::json sceneJson = serializer.SerializeToJson(scene_ref);
@@ -239,16 +226,12 @@ void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
 
     if (CHEngine::FileSystem::WriteFileText(path, sceneJson.dump(4)))
     {
-        if (CHEngine::ProjectManager::HasProject())
+
+		Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+		if (proj_manager->HasProject())
         {
-            auto& editorState = SceneViewLayerAccess::EditorState(layer);
-            editorState.AddRecentScene(path, *CHEngine::ProjectManager::Current());
-            editorState.Save(*CHEngine::ProjectManager::Current());
-        }
-        else
-        {
-            RecentFilesStore().AddPath(path);
-            RecentFilesStore().SaveToFile("recent_scenes.txt");
+            proj_manager->AddRecentScene(path);
+            proj_manager->Save();
         }
         CHE_CORE_INFO("Scene saved: {}", path);
     }
@@ -267,9 +250,9 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
     if (filePath.empty())
         return;
 
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    ctx.CommandStack.Clear();
-    ctx.SelectedEntity = {};
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    ctx->CommandStack.Clear();
+    ctx->SelectedEntity = {};
 
     CHEngine::SceneSerializer serializer{};
     {
@@ -294,20 +277,21 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
         auto loadedScene = serializer.DeserializeFromJson(sceneJson);
         if (!loadedScene)
             return;
-        CHE_CORE_ASSERT(ctx.EditorScene, "SceneViewLayer: EditorScene must exist");
-        *ctx.EditorScene = std::move(*loadedScene);
-        ctx.ActivateEditorScene();
+        CHE_CORE_ASSERT(ctx->EditorScene, "SceneViewLayer: EditorScene must exist");
+        *ctx->EditorScene = std::move(*loadedScene);
+        ctx->ActivateEditorScene();
 
         // Bind the session to its file so future Saves can write without a dialog.
-        if (CHEngine::ProjectManager::HasProject())
+        Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+        if (proj_manager->HasProject())
         {
-            const std::string rel = CHEngine::ProjectManager::Current()->ToRelativePath(filePath);
-            ctx.SceneRelPath = std::filesystem::path(rel).generic_string();
+            const std::string rel = proj_manager->Current()->ToRelativePath(filePath);
+            ctx->SceneRelPath = std::filesystem::path(rel).generic_string();
         }
         else
-            ctx.SceneRelPath = filePath;
+            ctx->SceneRelPath = filePath;
 
-        LogSceneRenderReadiness(ctx.EditorScene.get());
+        LogSceneRenderReadiness(ctx->EditorScene.get());
         auto tryReadVec3 = [](const nlohmann::json& value, glm::vec3* out_vec3) -> bool {
             if (!out_vec3 || !value.is_array() || value.size() < 3)
                 return false;
@@ -325,11 +309,11 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
             if (metaJson.contains("editorCamera") && metaJson["editorCamera"].is_object())
             {
                 const auto& cameraMeta = metaJson["editorCamera"];
-                auto* viewport_camera = ctx.ViewportCamera.get();
+                auto* viewport_camera = ctx->ViewportCamera.get();
                 if (!viewport_camera)
                     return;
                 glm::vec3 savedPosition = viewport_camera->GetPosition();
-                glm::vec3 savedOrbitTarget = ctx.EditorCameraState.OrbitTarget;
+                glm::vec3 savedOrbitTarget = ctx->EditorCameraState.OrbitTarget;
                 bool hasPosition = false;
                 bool hasOrbitTarget = false;
 
@@ -340,14 +324,14 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
                 viewport_camera->SetPitch(
                     glm::radians(cameraMeta.value("pitch", glm::degrees(viewport_camera->GetPitch()))));
                 viewport_camera->SetFOV(cameraMeta.value("fov", viewport_camera->GetFOV()));
-                ctx.EditorCameraState.OrbitDist =
-                    cameraMeta.value("orbitDist", ctx.EditorCameraState.OrbitDist);
-                ctx.EditorCameraState.FollowObject =
-                    cameraMeta.value("followObject", ctx.EditorCameraState.FollowObject);
+                ctx->EditorCameraState.OrbitDist =
+                    cameraMeta.value("orbitDist", ctx->EditorCameraState.OrbitDist);
+                ctx->EditorCameraState.FollowObject =
+                    cameraMeta.value("followObject", ctx->EditorCameraState.FollowObject);
 
                 if (hasOrbitTarget)
                 {
-                    ctx.EditorCameraState.OrbitTarget = savedOrbitTarget;
+                    ctx->EditorCameraState.OrbitTarget = savedOrbitTarget;
                     SceneViewLayerCameraOps::ApplyOrbit(layer);
                 }
                 else if (hasPosition)
@@ -355,17 +339,14 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
             }
         }
 
-        if (CHEngine::ProjectManager::HasProject())
+
+		Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+		if (proj_manager->HasProject())
         {
-            auto& editorState = SceneViewLayerAccess::EditorState(layer);
-            editorState.AddRecentScene(filePath, *CHEngine::ProjectManager::Current());
-            editorState.Save(*CHEngine::ProjectManager::Current());
+            proj_manager->AddRecentScene(filePath);
+            proj_manager->Save();
         }
-        else
-        {
-            RecentFilesStore().AddPath(filePath);
-            RecentFilesStore().SaveToFile("recent_scenes.txt");
-        }
+
         CHE_CORE_INFO("Scene loaded: {}", filePath);
     }
 }
@@ -373,10 +354,10 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
 void SceneViewLayerIO::AutoSaveForRestart(SceneViewLayer& layer)
 {
     CHEngine::SceneSerializer serializer{};
-    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(layer);
-    CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
-    auto scene_ref = activeSession.EditorScene;
-    auto* viewport_camera = activeSession.ViewportCamera.get();
+    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
+    CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
+    auto scene_ref = activeSession->EditorScene;
+    auto* viewport_camera = activeSession->ViewportCamera.get();
     if (!scene_ref || !viewport_camera)
         return;
     if (serializer.SaveToFile(scene_ref, k_SessionFile))
@@ -391,13 +372,13 @@ void SceneViewLayerIO::AutoSaveForRestart(SceneViewLayer& layer)
     oss << glm::degrees(viewport_camera->GetPitch()) << "\n";
     oss << viewport_camera->GetFOV() << "\n";
 
-    const glm::vec3 orbitTarget = activeSession.EditorCameraState.OrbitTarget;
+    const glm::vec3 orbitTarget = activeSession->EditorCameraState.OrbitTarget;
     oss << orbitTarget.x << " " << orbitTarget.y << " " << orbitTarget.z << "\n";
-    oss << activeSession.EditorCameraState.OrbitDist << "\n";
-    oss << (activeSession.EditorCameraState.FollowObject ? 1 : 0) << "\n";
+    oss << activeSession->EditorCameraState.OrbitDist << "\n";
+    oss << (activeSession->EditorCameraState.FollowObject ? 1 : 0) << "\n";
 
-    if (activeSession.EditorScene && scene_ref->IsEntityHandleValid(activeSession.SelectedEntity))
-        oss << boost::uuids::to_string(scene_ref->GetUUID(activeSession.SelectedEntity)) << "\n";
+    if (activeSession->EditorScene && scene_ref->IsEntityHandleValid(activeSession->SelectedEntity))
+        oss << boost::uuids::to_string(scene_ref->GetUUID(activeSession->SelectedEntity)) << "\n";
     else
         oss << boost::uuids::to_string(boost::uuids::nil_uuid()) << "\n";
 
@@ -425,16 +406,16 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 {
     if (std::filesystem::exists(k_SessionFile))
     {
-        EditorWorldContext& activeSession = SceneViewLayerAccess::Active(layer);
+        Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
 
         CHEngine::SceneSerializer serializer{};
         {
             auto loadedScene = serializer.LoadFromFile(k_SessionFile);
             if (loadedScene)
             {
-                CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
-                *activeSession.EditorScene = std::move(*loadedScene);
-                activeSession.ActivateEditorScene();
+                CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
+                *activeSession->EditorScene = std::move(*loadedScene);
+                activeSession->ActivateEditorScene();
                 CHE_CORE_INFO("SceneViewLayer: scene restored from {}", k_SessionFile);
             }
             else
@@ -456,8 +437,8 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 
     glm::vec3 pos{};
     f >> pos.x >> pos.y >> pos.z;
-    EditorWorldContext& activeSession2 = SceneViewLayerAccess::Active(layer);
-    auto* viewport_camera = activeSession2.ViewportCamera.get();
+    Ref<EditorWorldContext> activeSession2 = SceneViewLayerAccess::ActiveRef(layer);
+    auto* viewport_camera = activeSession2->ViewportCamera.get();
     if (!viewport_camera)
         return;
     viewport_camera->SetPosition(pos);
@@ -470,22 +451,22 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 
     glm::vec3 orbitTarget{};
     f >> orbitTarget.x >> orbitTarget.y >> orbitTarget.z;
-    activeSession2.EditorCameraState.OrbitTarget = orbitTarget;
-    float orbitDist = activeSession2.EditorCameraState.OrbitDist;
+    activeSession2->EditorCameraState.OrbitTarget = orbitTarget;
+    float orbitDist = activeSession2->EditorCameraState.OrbitDist;
     f >> orbitDist;
-    activeSession2.EditorCameraState.OrbitDist = orbitDist;
+    activeSession2->EditorCameraState.OrbitDist = orbitDist;
     int follow;
     f >> follow;
-    activeSession2.EditorCameraState.FollowObject = (follow != 0);
+    activeSession2->EditorCameraState.FollowObject = (follow != 0);
 
     std::string selectedUUIDStr;
     f >> selectedUUIDStr;
     {
         CHEngine::UUID selectedUUID = boost::uuids::nil_uuid();
-        if (TryParseUUIDString(selectedUUIDStr, selectedUUID) && activeSession2.EditorScene)
-            activeSession2.SelectedEntity = activeSession2.EditorScene->TryGetEntityHandleByUUID(selectedUUID);
+        if (TryParseUUIDString(selectedUUIDStr, selectedUUID) && activeSession2->EditorScene)
+            activeSession2->SelectedEntity = activeSession2->EditorScene->TryGetEntityHandleByUUID(selectedUUID);
         else
-            activeSession2.SelectedEntity = {};
+            activeSession2->SelectedEntity = {};
     }
 
     {
@@ -516,9 +497,10 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     std::string loadPath = filepath;        // what the loader actually reads
     std::string sourceForScene = filepath;  // what gets stored in MeshComponent::SourcePath
 
-    if (CHEngine::ProjectManager::HasProject() && !filepath.empty())
+    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    if (proj_manager->HasProject() && !filepath.empty())
     {
-        CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+        Project* proj = proj_manager->Current();
         const fs::path src = fs::absolute(fs::path(filepath));
         const fs::path modelsDir = proj->AssetsAbsPath() / "Models";
 
@@ -579,8 +561,12 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
             sourceForScene = rel.generic_string();
     }
 
+    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    Project* proj = proj_manager->Current(); 
+    const auto& abs_path = proj->AssetsAbsPath();
+
     auto modelHandle = CHEngine::ResourceManager::Instance().Load<CHEngine::ModelHandle>(
-        loadPath, CHEngine::RenderFacade::GetDefaultMeshShader());
+        abs_path / loadPath, CHEngine::RenderFacade::GetDefaultMeshShader());
     const CHEngine::LoadedModel* result = modelHandle.IsValid()
         ? CHEngine::ResourceManager::Instance().GetModel(modelHandle) : nullptr;
 
@@ -618,9 +604,9 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     }
 
     const CHEngine::UUID objectID = boost::uuids::random_generator()();
-    EditorWorldContext& activeSession = SceneViewLayerAccess::Active(layer);
-    CHE_CORE_ASSERT(activeSession.EditorScene, "SceneViewLayer: EditorScene must exist");
-    auto scene_ref = activeSession.EditorScene;
+    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
+    CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
+    auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity(result->name, objectID);
@@ -634,13 +620,13 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {
         transform_component.ObjectTransform.Position = centroid;
     });
-    activeSession.SelectedEntity = handle;
-    activeSession.CommandStack.Push(CHEngine::MakeScope<Sandbox::CallbackCommand>(
+    activeSession->SelectedEntity = handle;
+    activeSession->CommandStack.Push(MakeScope<Sandbox::CallbackCommand>(
         []() {},
         [scene_ref, objectID, handle, &activeSession]()
         {
-            if (activeSession.SelectedEntity == handle)
-                activeSession.SelectedEntity = {};
+            if (activeSession->SelectedEntity == handle)
+                activeSession->SelectedEntity = {};
             if (scene_ref)
                 scene_ref->DestroyEntity(objectID);
         },

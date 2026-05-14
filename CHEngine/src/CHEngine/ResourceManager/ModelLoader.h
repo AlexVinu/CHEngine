@@ -4,6 +4,7 @@
 #include "CHEngine/Mesh/LoadedModel.h"
 #include "Memory/HandlePool.h"
 #include "Render/Handles.h"
+#include <filesystem>
 
 namespace CHEngine
 {
@@ -19,7 +20,7 @@ namespace CHEngine
 		bool Initialize() override { return true; }
 		void Shutdown() override {}
 
-		ModelHandle        Load(const std::string& filepath, ShaderHandle meshShader);
+		ModelHandle        Load(const std::filesystem::path& filepath, ShaderHandle meshShader);
 		void               Unload(ModelHandle handle);
 		const LoadedModel* Get(ModelHandle h) const { return m_Models.Get(h); }
 
@@ -29,10 +30,10 @@ namespace CHEngine
 
 		size_t GetCachedCount() const override;
 	private:
-		ModelHandle LoadOBJ(const std::string& filepath, ShaderHandle meshShader);
-		ModelHandle LoadGLTF(const std::string& filepath, ShaderHandle meshShader);
+		ModelHandle LoadOBJ(const std::filesystem::path& filepath, ShaderHandle meshShader);
+		ModelHandle LoadGLTF(const std::filesystem::path& filepath, ShaderHandle meshShader);
 
 		HandlePool<LoadedModel, ModelHandleTag> m_Models{ [](LoadedModel* p) { delete p; } };
-		ResourceBimap<std::string, ModelHandle> m_HandlesBimap;
+		ResourceBimap<std::filesystem::path, ModelHandle> m_HandlesBimap;
 	};
 }

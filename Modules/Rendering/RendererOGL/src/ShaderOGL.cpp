@@ -131,10 +131,10 @@ namespace CHModules
 		}
 	}
 
-	GLuint ShaderOGL::CompileSlangProgram(const CHEngine::String& slangSource,
-	                                      const CHEngine::String& vertEntry,
-	                                      const CHEngine::String& fragEntry,
-	                                      const CHEngine::String& sourcePath)
+	GLuint ShaderOGL::CompileSlangProgram(const String& slangSource,
+	                                      const String& vertEntry,
+	                                      const String& fragEntry,
+	                                      const String& sourcePath)
 	{
 		SlangBackend* backend = SlangBackend::GetForApi(CHEngine::ERenderAPI::OPENGL);
 		if (!backend)
@@ -328,10 +328,10 @@ namespace CHModules
 		glUseProgram(0);
 	}
 
-	ShaderOGL::ShaderOGL(const CHEngine::String& slangSource,
-	                     const CHEngine::String& vertEntry,
-	                     const CHEngine::String& fragEntry,
-	                     const CHEngine::String& sourcePath)
+	ShaderOGL::ShaderOGL(const String& slangSource,
+	                     const String& vertEntry,
+	                     const String& fragEntry,
+	                     const String& sourcePath)
 	{
 		m_ProgramID = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
 		CHE_CORE_ASSERT(m_ProgramID, "ShaderOGL: failed to compile/link shader");
@@ -370,10 +370,10 @@ namespace CHModules
 		glUseProgram(0);
 	}
 
-	bool ShaderOGL::Reload(const CHEngine::String& slangSource,
-	                       const CHEngine::String& vertEntry,
-	                       const CHEngine::String& fragEntry,
-	                       const CHEngine::String& sourcePath)
+	bool ShaderOGL::Reload(const String& slangSource,
+	                       const String& vertEntry,
+	                       const String& fragEntry,
+	                       const String& sourcePath)
 	{
 		GLuint newProgram = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
 		if (!newProgram)
@@ -397,7 +397,7 @@ namespace CHModules
 		glBindBuffer(GL_UNIFORM_BUFFER, 0);
 	}
 
-	void ShaderOGL::SetInt(const CHEngine::String& name, int value)
+	void ShaderOGL::SetInt(const String& name, int value)
 	{
 		GLint location = glGetUniformLocation(m_ProgramID, name.c_str());
 		if (location == -1) return;

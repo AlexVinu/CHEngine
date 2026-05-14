@@ -9,12 +9,7 @@
 
 namespace Sandbox {
 
-SceneSerializer::SceneSerializer()
-{
-    m_RecentFiles.LoadFromFile(k_RecentScenesListPath);
-}
-
-bool SceneSerializer::Save(CHEngine::Ref<CHEngine::Scene> editor_scene, const std::string& path)
+bool SceneSerializer::Save(Ref<CHEngine::Scene> editor_scene, const std::string& path)
 {
     if (path.empty())
         return false;
@@ -28,13 +23,11 @@ bool SceneSerializer::Save(CHEngine::Ref<CHEngine::Scene> editor_scene, const st
         return false;
     }
 
-    m_RecentFiles.AddPath(path);
-    m_RecentFiles.SaveToFile(k_RecentScenesListPath);
     CHE_CORE_INFO("Scene saved: {}", path);
     return true;
 }
 
-CHEngine::Ref<CHEngine::Scene> SceneSerializer::Load(const std::string& path)
+Ref<CHEngine::Scene> SceneSerializer::Load(const std::string& path)
 {
     if (path.empty())
         return {};
@@ -58,12 +51,10 @@ CHEngine::Ref<CHEngine::Scene> SceneSerializer::Load(const std::string& path)
     }
 
     CHEngine::SceneSerializer engineSerializer{};
-    CHEngine::Ref<CHEngine::Scene> loadedScene = engineSerializer.DeserializeFromJson(sceneJson);
+    Ref<CHEngine::Scene> loadedScene = engineSerializer.DeserializeFromJson(sceneJson);
     if (!loadedScene)
         return {};
 
-    m_RecentFiles.AddPath(path);
-    m_RecentFiles.SaveToFile(k_RecentScenesListPath);
     CHE_CORE_INFO("Scene loaded: {}", path);
     return loadedScene;
 }

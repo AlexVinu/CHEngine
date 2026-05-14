@@ -13,17 +13,17 @@ namespace CHModules
 
     CHEngine::BufferHandle RenderFactoryMTL::CreateBuffer(
         uint64_t size, CHEngine::BufferUsage usage, CHEngine::MemoryType memory,
-        std::span<const std::byte> initialData, const CHEngine::String& /*debugName*/)
+        std::span<const std::byte> initialData, const String& /*debugName*/)
     {
         auto* buf = new UnifiedBufferMTL(size, usage, memory, initialData);
         return Buffers.Add(buf);
     }
 
     CHEngine::ShaderHandle RenderFactoryMTL::CreateShader(
-        const CHEngine::String& slangSource,
-        const CHEngine::String& vertEntry,
-        const CHEngine::String& fragEntry,
-        const CHEngine::String& sourcePath)
+        const String& slangSource,
+        const String& vertEntry,
+        const String& fragEntry,
+        const String& sourcePath)
     {
         auto* sh = new ShaderMTL(slangSource, vertEntry, fragEntry, sourcePath);
         return Shaders.Add(sh);
@@ -37,7 +37,7 @@ namespace CHModules
         CHEngine::TextureType   /*type*/,
         CHEngine::TextureUsage  usage,
         CHEngine::MemoryType    /*memory*/,
-        const CHEngine::String& /*debugName*/)
+        const String& /*debugName*/)
     {
         TextureMTLFull* tex = nullptr;
 
@@ -97,10 +97,10 @@ namespace CHModules
     }
 
     bool RenderFactoryMTL::ReloadShader(CHEngine::ShaderHandle h,
-                                        const CHEngine::String& slangSource,
-                                        const CHEngine::String& vertEntry,
-                                        const CHEngine::String& fragEntry,
-                                        const CHEngine::String& sourcePath)
+                                        const String& slangSource,
+                                        const String& vertEntry,
+                                        const String& fragEntry,
+                                        const String& sourcePath)
     {
         auto* sh = Shaders.Get(h);
         if (!sh) return false;

@@ -19,7 +19,7 @@ namespace CHModules {
         explicit FrameGraphBackendOGL(RenderFactoryOGL& factory);
         ~FrameGraphBackendOGL() override;
 
-        void Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes) override;
+        void Execute(const Vector<CHEngine::PassDesc>& passes) override;
 
     private:
         // ── VAO cache ─────────────────────────────────────────────────────────

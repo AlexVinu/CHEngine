@@ -13,12 +13,12 @@
 
 namespace Sandbox {
 
-void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void SceneHierarchyPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Scene", pos, size, 0, reset_layout);
-    SceneSession& activeSession = host.GetActiveSceneSession();
+    Ref<SceneSession> activeSession = host.GetActiveSceneSession();
 
-    auto scene_ptr = activeSession.EditorScene;
+    auto scene_ptr = activeSession->EditorScene;
     if (!scene_ptr)
     {
         ImGui::Spacing();
@@ -29,13 +29,13 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
         return;
     }
 
-    ImGui::BeginDisabled(activeSession.SessionState != SceneSession::State::Edit);
+    ImGui::BeginDisabled(activeSession->GetSessionState() != SceneSession::State::Edit);
     if (UIActive::PrimaryButton("+ Import Model", ImVec2(-1.0f, 0.0f)))
     {
         std::string path = CHEngine::FileDialog::OpenModelFile();
         if (!path.empty())
         {
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host, path] { host.ImportModel(path); }, [] {}, false));
         }
     }
@@ -43,7 +43,7 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
         host.AddEmptyEntity();
     if (ImGui::Button("+ Cube", ImVec2(-1.0f, 0.0f)))
     {
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host] { host.AddCubePrimitive(); }, [] {}, false));
     }
     ImGui::EndDisabled();
@@ -53,18 +53,18 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
     float halfW = (ImGui::GetContentRegionAvail().x - 4.0f) * 0.5f;
     if (ImGui::Button("+ Dir Light", ImVec2(halfW, 0.0f)))
     {
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host] { host.AddDirectionalLight(); }, [] {}, false));
     }
     ImGui::SameLine(0, 4);
     if (ImGui::Button("+ Point Light", ImVec2(halfW, 0.0f)))
     {
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host] { host.AddPointLight(); }, [] {}, false));
     }
     if (ImGui::Button("+ Spot Light", ImVec2(-1.0f, 0.0f)))
     {
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host] { host.AddSpotLight(); }, [] {}, false));
     }
 
@@ -79,7 +79,7 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
     scene_ptr->ForEach<CHEngine::TagComponent>([&](CHEngine::EntityHandle handle, const CHEngine::UUID& objectID,
                                                 CHEngine::TagComponent& tag) {
         ++objectCount;
-        bool isSelected = (handle == activeSession.SelectedEntity);
+        bool isSelected = (handle == activeSession->SelectedEntity);
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth
             | ImGuiTreeNodeFlags_FramePadding;
         if (isSelected)
@@ -108,7 +108,7 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
         {
             if (ImGui::MenuItem("Focus (F)"))
             {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                     [&host] { host.FocusOnSelected(); }, [] {}, false));
             }
             ImGui::Separator();
@@ -134,7 +134,7 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
     if (ImGui::BeginPopupContextWindow("scene_hierarchy_ctx",
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
     {
-        if (activeSession.SessionState == SceneSession::State::Edit)
+        if (activeSession->GetSessionState() == SceneSession::State::Edit)
         {
             if (ImGui::MenuItem("Create empty entity"))
                 host.AddEmptyEntity();
@@ -144,7 +144,7 @@ void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool
 
     if (deleteID.has_value())
     {
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host, id = *deleteID] { host.DestroyEntityByUuid(id); }, [] {}, false));
     }
 

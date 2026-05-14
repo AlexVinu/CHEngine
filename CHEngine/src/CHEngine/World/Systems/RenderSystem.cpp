@@ -1,6 +1,7 @@
 #include "chepch.h"
 #include "RenderSystem.h"
 #include "CHEngine/Utils/MathUtils.h"
+#include "CHEngine/Utils/AppPaths.h"
 
 #include "CHEngine/Mesh/Material.h"
 #include "CHEngine/Mesh/Mesh.h"
@@ -157,7 +158,7 @@ namespace CHEngine {
         if (!m_TonemapShader.IsValid())
         {
             m_TonemapShader = ResourceManager::Instance().Load<ShaderHandle>(
-                std::string("Tonemap"), std::string("shaders/tonemap.slang"));
+                std::string("Tonemap"), AppPaths::ExecutableDir() / "shaders/tonemap.slang");
             if (!m_TonemapShader.IsValid())
                 CHE_CORE_ERROR("RenderSystem: failed to load tonemap shader");
         }

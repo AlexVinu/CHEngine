@@ -1,6 +1,6 @@
 #pragma once
 
-#include "EditorUiHost.h"
+#include "SceneViewLayerHost.h"
 
 #include <imgui.h>
 
@@ -9,7 +9,7 @@ namespace Sandbox {
 class ToolbarPanel
 {
 public:
-    void Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size);
+    void Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size);
 };
 
 } // namespace Sandbox

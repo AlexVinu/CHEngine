@@ -11,23 +11,23 @@
 
 namespace Sandbox {
 
-void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Camera", pos, size, 0, reset_layout);
-    SceneSession& activeSession = host.GetActiveSceneSession();
-    auto* viewport_camera = activeSession.ViewportCamera.get();
+    Ref<SceneSession> activeSession = host.GetActiveSceneSession();
+    auto* viewport_camera = activeSession->ViewportCamera.get();
     if (!viewport_camera)
     {
         UIActive::EndPanel();
         return;
     }
-    Sandbox::EditorCameraState& cameraState = host.GetActiveSceneSession().EditorCameraState;
+    Sandbox::EditorCameraState& cameraState = host.GetActiveSceneSession()->EditorCameraState;
 
     UIActive::SectionHeader("VIEW");
 
     if (UIActive::PrimaryButton("Perspective", ImVec2(-1.0f, 0.0f)))
     {
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host] {
                 host.SetViewPreset(-90.0f, -15.0f);
                 host.SetViewportFov(45.0f);
@@ -60,7 +60,7 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
         {
             const float yaw = presets[i].yaw;
             const float pitch = presets[i].pitch;
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host, yaw, pitch] { host.SetViewPreset(yaw, pitch); }, [] {}, false));
         }
     }
@@ -141,7 +141,7 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
     if (UIActive::DestructiveButton("Reset Camera", ImVec2(-1.0f, 0.0f)))
     {
         host.GetCommandStack().Push(
-            CHEngine::MakeScope<CallbackCommand>([&host] { host.ResetViewportCamera(); }, [] {}, false));
+            MakeScope<CallbackCommand>([&host] { host.ResetViewportCamera(); }, [] {}, false));
     }
 
     UIActive::EndPanel();

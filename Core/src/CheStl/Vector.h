@@ -4,12 +4,6 @@
 
 #include "Memory/EngineAllocator.h"
 
-namespace CHEngine
-{
-    template<typename T>
-    using Vector = std::vector<T, EngineAllocator<T>>;
-}
-
 template<typename T>
-using Vector = CHEngine::Vector<T>;
+using Vector = std::vector<T, CHEngine::EngineAllocator<T>>;
 

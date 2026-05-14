@@ -13,7 +13,7 @@ namespace CHModules {
 			CHEngine::BufferUsage usage,
 			CHEngine::MemoryType memory,
 			std::span<const std::byte> initialData,
-			const CHEngine::String& debugName);
+			const String& debugName);
 
 		~BufferOGL();
 

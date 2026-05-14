@@ -245,7 +245,7 @@ namespace CHEngine {
         // ─── 5. Create default shader ─────────────────────────────────────────────
         m_Shader = ResourceManager::Instance().Load<ShaderHandle>(
             std::string("Basic"),
-            std::string("shaders/basic.slang")
+            std::filesystem::path("shaders/basic.slang")
         );
 
         // ─── 6. Physics ────────────────────────────────────────────────────────────
@@ -340,7 +340,7 @@ namespace CHEngine {
 
             RenderFacade::BeginFrameGraph();
 
-            for (Layer* layer : m_LayerStack)
+            for (Scope<Layer>& layer : m_LayerStack)
                 layer->OnUpdate(dt);
 
             RenderFacade::EndFrameGraph();
@@ -348,7 +348,7 @@ namespace CHEngine {
             if (UIFacade::GetLayer())
             {
                 UIFacade::Begin();
-                for (Layer* layer : m_LayerStack)
+                for (Scope<Layer>& layer : m_LayerStack)
                     layer->OnImGuiRender();
                 UIFacade::End();
             }
@@ -390,5 +390,7 @@ namespace CHEngine {
 
             m_Window->OnUpdate();
         }
+
+        m_LayerStack.Flush();
     }
 }

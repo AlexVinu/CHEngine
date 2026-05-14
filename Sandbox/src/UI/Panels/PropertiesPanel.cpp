@@ -131,12 +131,12 @@ void DisplayAddComponentEntry(const char* menuLabel, CHEngine::Entity* entity, [
 
 } // namespace
 
-void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Properties", pos, size, 0, reset_layout);
-    SceneSession& activeSession = host.GetActiveSceneSession();
+    Ref<SceneSession> activeSession = host.GetActiveSceneSession();
 
-    auto scene_ptr = activeSession.EditorScene;
+    auto scene_ptr = activeSession->EditorScene;
     if (!scene_ptr)
     {
         ImGui::Spacing();
@@ -147,7 +147,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         return;
     }
 
-    const CHEngine::EntityHandle selectedHandle = activeSession.SelectedEntity;
+    const CHEngine::EntityHandle selectedHandle = activeSession->SelectedEntity;
     if (!scene_ptr->IsEntityHandleValid(selectedHandle))
     {
         ImGui::Spacing();
@@ -169,11 +169,11 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         return;
     }
 
-    const bool propsReadOnly = (activeSession.SessionState != SceneSession::State::Edit);
+    const bool propsReadOnly = (activeSession->GetSessionState() != SceneSession::State::Edit);
     if (propsReadOnly)
     {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.7f, 0.1f, 1.0f));
-        ImGui::TextUnformatted(activeSession.SessionState == SceneSession::State::Play ? "\xe2\x96\xb6 Play mode — read only"
+        ImGui::TextUnformatted(activeSession->GetSessionState() == SceneSession::State::Play ? "\xe2\x96\xb6 Play mode — read only"
                 : "\xe2\x8f\xb8 Paused — read only");
         ImGui::PopStyleColor();
         ImGui::Spacing();
@@ -200,18 +200,18 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
         if (ImGui::BeginPopup("AddComponentPopup"))
         {
             DisplayAddComponentEntry<CHEngine::TagComponent>(
-                "Tag", selectedEntity, activeSession, CHEngine::TagComponent{ "Object" });
-            DisplayAddComponentEntry<CHEngine::MeshComponent>("Mesh", selectedEntity, activeSession);
-            DisplayAddComponentEntry<CHEngine::ColorComponent>("Color", selectedEntity, activeSession);
-            DisplayAddComponentEntry<CHEngine::VisibilityComponent>("Visibility", selectedEntity, activeSession);
+                "Tag", selectedEntity, *activeSession, CHEngine::TagComponent{ "Object" });
+            DisplayAddComponentEntry<CHEngine::MeshComponent>("Mesh", selectedEntity, *activeSession);
+            DisplayAddComponentEntry<CHEngine::ColorComponent>("Color", selectedEntity, *activeSession);
+            DisplayAddComponentEntry<CHEngine::VisibilityComponent>("Visibility", selectedEntity, *activeSession);
             DisplayAddComponentEntry<CHEngine::LightComponent>("Light",
                 selectedEntity,
-                activeSession,
+                *activeSession,
                 CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
-            DisplayAddComponentEntry<CHEngine::CameraComponent>("Camera", selectedEntity, activeSession);
-            DisplayAddComponentEntry<CHEngine::RigidBody3DComponent>("RigidBody 3D", selectedEntity, activeSession);
-            DisplayAddComponentEntry<CHEngine::LifetimeComponent>("Lifetime", selectedEntity, activeSession);
-            DisplayAddComponentEntry<CHEngine::ScriptComponent>("Script", selectedEntity, activeSession);
+            DisplayAddComponentEntry<CHEngine::CameraComponent>("Camera", selectedEntity, *activeSession);
+            DisplayAddComponentEntry<CHEngine::RigidBody3DComponent>("RigidBody 3D", selectedEntity, *activeSession);
+            DisplayAddComponentEntry<CHEngine::LifetimeComponent>("Lifetime", selectedEntity, *activeSession);
+            DisplayAddComponentEntry<CHEngine::ScriptComponent>("Script", selectedEntity, *activeSession);
             ImGui::EndPopup();
         }
         ImGui::Spacing();
@@ -222,7 +222,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::TagComponent>("Tag",
         false,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Tag",
@@ -241,7 +241,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::TransformComponent>("Transform",
         false,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Transform",
@@ -270,7 +270,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                 if (ImGui::IsItemDeactivatedAfterEdit())
                 {
                     CHEngine::Transform after = selectedEntity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
-                    host.GetCommandStack().Push(CHEngine::MakeScope<SetTransformCommand>(
+                    host.GetCommandStack().Push(MakeScope<SetTransformCommand>(
                         scene_ptr, selectedHandle, host.GetTransformBeforeDrag(), after));
                 }
             };
@@ -285,7 +285,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
             if (ImGui::Button("Reset Transform##resetTr", ImVec2(-1.0f, 0.0f)))
             {
                 CHEngine::Transform before = tc.ObjectTransform;
-                host.GetCommandStack().Push(CHEngine::MakeScope<SetTransformCommand>(
+                host.GetCommandStack().Push(MakeScope<SetTransformCommand>(
                     scene_ptr, selectedHandle, before, CHEngine::Transform{}));
             }
         });
@@ -293,7 +293,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::ColorComponent>("Color",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Color",
@@ -311,7 +311,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::VisibilityComponent>("Visibility",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Visibility",
@@ -322,7 +322,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
             {
                 selectedEntity->PatchComponent<CHEngine::VisibilityComponent>(
                     [&](CHEngine::VisibilityComponent& visibility_component) { visibility_component.Visible = visible; });
-                host.GetCommandStack().Push(CHEngine::MakeScope<SetVisibilityCommand>(
+                host.GetCommandStack().Push(MakeScope<SetVisibilityCommand>(
                     scene_ptr, scene_ptr->GetUUID(selectedHandle), before, visible));
             }
             ImGui::Spacing();
@@ -331,7 +331,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::MeshComponent>("Mesh",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Mesh",
@@ -402,7 +402,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                         if (!path.empty())
                         {
                             const size_t submeshIndex = mi;
-                            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                                 [&host, submeshIndex, path] {
                                     host.ApplyDiffuseTextureToSelectedSubmesh(submeshIndex, path);
                                 },
@@ -415,7 +415,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                     if (ImGui::Button("X##difMesh", ImVec2(20, 0)))
                     {
                         const size_t submeshIndex = mi;
-                        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                             [&host, submeshIndex] { host.ClearDiffuseTextureOnSelectedSubmesh(submeshIndex); },
                             [] {}, false));
                     }
@@ -444,7 +444,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                         if (!path.empty())
                         {
                             const size_t submeshIndex = mi;
-                            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                                 [&host, submeshIndex, path] {
                                     host.ApplySpecularTextureToSelectedSubmesh(submeshIndex, path);
                                 },
@@ -457,7 +457,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
                     if (ImGui::Button("X##specMesh", ImVec2(20, 0)))
                     {
                         const size_t submeshIndex = mi;
-                        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                             [&host, submeshIndex] { host.ClearSpecularTextureOnSelectedSubmesh(submeshIndex); },
                             [] {}, false));
                     }
@@ -506,7 +506,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::LightComponent>("Light",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Light",
@@ -609,15 +609,15 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::CameraComponent>("Camera",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Camera",
         [&](CHEngine::CameraComponent& camComp) {
             const CHEngine::SceneCamera& cam = camComp.Camera;
 
-            const uint32_t vw = std::max(1u, static_cast<uint32_t>(activeSession.ViewportSize.x));
-            const uint32_t vh = std::max(1u, static_cast<uint32_t>(activeSession.ViewportSize.y));
+            const uint32_t vw = std::max(1u, static_cast<uint32_t>(activeSession->ViewportSize.x));
+            const uint32_t vh = std::max(1u, static_cast<uint32_t>(activeSession->ViewportSize.y));
             auto syncViewport = [&] {
                 selectedEntity->PatchComponent<CHEngine::CameraComponent>([&](CHEngine::CameraComponent& camera_component) {
                     camera_component.Camera.SetViewportSize(vw, vh);
@@ -762,7 +762,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::RigidBody3DComponent>("RigidBody 3D",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "RigidBody3D",
@@ -948,7 +948,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::LifetimeComponent>("Lifetime",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Lifetime",
@@ -976,7 +976,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     DrawComponent<CHEngine::ScriptComponent>("Script",
         true,
         propsReadOnly,
-        activeSession,
+        *activeSession,
         selectedHandle,
         selectedEntity,
         "Script",
@@ -1027,7 +1027,7 @@ void PropertiesPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool res
     ImGui::Spacing();
     if (ImGui::Button("Focus Camera  (F)", ImVec2(-1.0f, 0.0f)))
     {
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host] { host.FocusOnSelected(); }, [] {}, false));
     }
 

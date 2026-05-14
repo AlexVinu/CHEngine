@@ -4,9 +4,8 @@
 #include <filesystem>
 #include <memory>
 
-namespace CHEngine {
 
-class CHENGINE_API Project
+class Project
 {
     friend class ProjectManager;
 public:
@@ -48,4 +47,3 @@ private:
     std::string m_ShadersDir = "Assets/Shaders";
 };
 
-} // namespace CHEngine

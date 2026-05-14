@@ -1,9 +1,8 @@
 #include "SceneBrowserPanel.h"
 
-#include "EditorUiHost.h"
-
-#include <CHEngine/Project/Project.h>
-#include <CHEngine/Project/ProjectManager.h>
+#include "SceneViewLayerHost.h"
+#include "SceneViewLayerAccess.h"
+#include "ProjectManager.h"
 
 #include <algorithm>
 #include <cstring>
@@ -24,7 +23,7 @@ struct SceneEntry
     bool isStartup = false;
 };
 
-std::vector<SceneEntry> CollectScenes(const CHEngine::Project& proj)
+std::vector<SceneEntry> CollectScenes(const Project& proj)
 {
     std::vector<SceneEntry> out;
     const fs::path scenesDir = proj.ScenesAbsPath();
@@ -55,17 +54,18 @@ std::vector<SceneEntry> CollectScenes(const CHEngine::Project& proj)
 
 } // namespace
 
-void SceneBrowserPanel::OnImGuiRender(EditorUiHost& host)
+void SceneBrowserPanel::OnImGuiRender(SceneViewLayerHost& host)
 {
     if (!m_Open)
         return;
 
-    if (!CHEngine::ProjectManager::HasProject())
+    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef();
+    if (!proj_manager->HasProject())
     {
         m_Open = false;
         return;
     }
-    CHEngine::Project& proj = *CHEngine::ProjectManager::Current();
+    Project* proj = proj_manager->Current();
 
     ImGui::SetNextWindowSize(ImVec2(460, 360), ImGuiCond_FirstUseEver);
     if (!ImGui::Begin("Scene Browser", &m_Open))
@@ -74,7 +74,7 @@ void SceneBrowserPanel::OnImGuiRender(EditorUiHost& host)
         return;
     }
 
-    ImGui::Text("Project: %s", proj.GetName().c_str());
+    ImGui::Text("Project: %s", proj->GetName().c_str());
     ImGui::Separator();
 
     if (ImGui::Button("+ New Scene"))

@@ -10,7 +10,6 @@
 
 namespace fs = std::filesystem;
 
-namespace CHEngine {
 
 fs::path Project::RootDir() const
 {
@@ -48,7 +47,7 @@ std::string Project::ToRelativePath(const std::string& absolutePath) const
 
 void Project::SyncEditorAssets() const
 {
-    const fs::path src = AppPaths::EditorAssetsDir();
+    const fs::path src = CHEngine::AppPaths::EditorAssetsDir();
     const fs::path dst = AssetsAbsPath();
 
     std::error_code ec;
@@ -106,7 +105,7 @@ std::string Project::CreateScene(const std::string& name)
         }
     }
 
-    if (!FileSystem::WriteFileText(target, R"({"version":3,"objects":[]})"))
+    if (!CHEngine::FileSystem::WriteFileText(target, R"({"version":3,"objects":[]})"))
     {
         CHE_CORE_ERROR("Project::CreateScene: failed to write '{}'", target.string());
         return {};
@@ -189,12 +188,10 @@ bool Project::Save() const
     j["shaders_dir"]    = m_ShadersDir;
 
     const std::string dump = j.dump(2) + "\n";
-    if (!FileSystem::WriteFileText(fs::path(m_Path), dump))
+    if (!CHEngine::FileSystem::WriteFileText(fs::path(m_Path), dump))
     {
         CHE_CORE_ERROR("Project::Save: failed to write {}", m_Path);
         return false;
     }
     return true;
 }
-
-} // namespace CHEngine

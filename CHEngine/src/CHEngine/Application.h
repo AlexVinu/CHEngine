@@ -64,6 +64,8 @@ namespace CHEngine {
         void         SetActiveShader(ShaderHandle h) { m_Shader = h; }
 
     private:
+        friend Layer;
+
         bool OnWindowClosed(WindowCloseEvent& e);
         bool OnWindowResized(WindowResizeEvent& e);
 

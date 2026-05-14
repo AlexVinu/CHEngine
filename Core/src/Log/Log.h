@@ -5,6 +5,8 @@
 #include "CheStl/MemoryTypes.h"
 
 #include <memory>
+#include <filesystem>
+
 #include "spdlog/spdlog.h"
 
 namespace CHEngine {

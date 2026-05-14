@@ -129,7 +129,7 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
             mat.m_Material->DiffuseMap = TextureHandle{};
             mat.m_Material->DiffuseMapPath.clear();
         }
-        mat.DiffuseMap     = ResourceManager::Instance().Load<TextureHandle>(diffPath);
+        mat.DiffuseMap     = ResourceManager::Instance().Load<TextureHandle>(std::filesystem::path(diffPath));
         mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
     }
 
@@ -145,7 +145,7 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
             mat.m_Material->SpecularMap = TextureHandle{};
             mat.m_Material->SpecularMapPath.clear();
         }
-        mat.SpecularMap     = ResourceManager::Instance().Load<TextureHandle>(specPath);
+        mat.SpecularMap     = ResourceManager::Instance().Load<TextureHandle>(std::filesystem::path(specPath));
         mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
     }
 }
@@ -274,7 +274,7 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             else
             {
                 auto modelHandle = ResourceManager::Instance().Load<ModelHandle>(
-                    meshPath, RenderFacade::GetDefaultMeshShader());
+                    std::filesystem::path(meshPath), RenderFacade::GetDefaultMeshShader());
                 const LoadedModel* result = modelHandle.IsValid()
                     ? ResourceManager::Instance().GetModel(modelHandle) : nullptr;
                 if (result && !result->meshes.empty()) {

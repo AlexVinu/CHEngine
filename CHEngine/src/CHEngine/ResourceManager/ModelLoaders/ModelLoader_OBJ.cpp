@@ -18,21 +18,21 @@
 
 namespace CHEngine {
 
-	ModelHandle ModelLoader::LoadOBJ(const std::string& filepath, ShaderHandle meshShader)
+	ModelHandle ModelLoader::LoadOBJ(const std::filesystem::path& filepath, ShaderHandle meshShader)
 	{
 		LoadedModel* result = new LoadedModel();
-		result->name = std::filesystem::path(filepath).stem().string();
+		result->name = filepath.stem().string();
 
 		tinyobj::attrib_t attrib;
 		std::vector<tinyobj::shape_t> shapes;
 		std::vector<tinyobj::material_t> materials;
 		std::string warn, err;
 
-		std::string baseDir = std::filesystem::path(filepath).parent_path().string();
+		std::string baseDir = filepath.parent_path().string();
 		if (!baseDir.empty()) baseDir += "/";
 
 		bool ok = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-		                           filepath.c_str(), baseDir.c_str());
+		                           filepath.string().c_str(), baseDir.c_str());
 
 		if (!warn.empty())
 			CHE_CORE_WARN("OBJ warning: {0}", warn.c_str());
@@ -60,7 +60,7 @@ namespace CHEngine {
 			if (!texName.empty())
 			{
 				std::string texPath = baseDir + texName;
-				TextureHandle texHandle = ResourceManager::Instance().Load<TextureHandle>(texPath);
+				TextureHandle texHandle = ResourceManager::Instance().Load<TextureHandle>(std::filesystem::path(texPath));
 				if (texHandle.IsValid())
 				{
 					base->DiffuseMapPath = texPath;
@@ -201,7 +201,7 @@ namespace CHEngine {
 
 		if (result->meshes.empty())
 		{
-			CHE_CORE_WARN("No geometry found in OBJ file: {}", filepath);
+			CHE_CORE_WARN("No geometry found in OBJ file: {}", filepath.string());
 			delete result;
 			return {};
 		}

@@ -13,6 +13,5 @@ void LoadSceneSilent(SceneViewLayer& layer, const std::string& absPath);
 void AutoSaveForRestart(SceneViewLayer& layer);
 void TryRestoreSession(SceneViewLayer& layer);
 void ImportModel(SceneViewLayer& layer, const std::string& filepath);
-void LoadRecentFilesList();
 
 } // namespace SceneViewLayerIO

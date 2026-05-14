@@ -6,33 +6,50 @@
 #include <FileSystem/FileSystem.h>
 #include <Log/Log.h>
 #include <nlohmann/json.hpp>
-#include <filesystem>
 
 namespace fs = std::filesystem;
 
-namespace CHEngine {
+// TODO: Make constants
 
-static std::unique_ptr<Project> s_Current;
+// PROJECT MANAGER
+ProjectManager::ProjectManager()
+	:m_CurrentProject(nullptr)
+{
+
+}
+
+ProjectManager::~ProjectManager()
+{
+
+}
 
 bool ProjectManager::Open(const std::string& projPath)
 {
     if (projPath.empty())
         return false;
 
-    if (!FileSystem::Exists(fs::path(projPath)))
+    if (!CHEngine::FileSystem::Exists(fs::path(projPath)))
     {
         CHE_CORE_WARN("ProjectManager::Open: file not found: {}", projPath);
         return false;
     }
-    const std::string text = FileSystem::ReadFileText(fs::path(projPath));
+    const std::string text = CHEngine::FileSystem::ReadFileText(fs::path(projPath));
     if (text.empty())
     {
         CHE_CORE_WARN("ProjectManager::Open: empty file: {}", projPath);
         return false;
     }
     nlohmann::json j;
+
     try {
         j = nlohmann::json::parse(text);
+		if (j.contains("recent_scenes") && j["recent_scenes"].is_array())
+		{
+            m_RecentScenes.clear();
+			for (const auto& s : j["recent_scenes"])
+				if (s.is_string())
+					m_RecentScenes.push_back(s.get<std::string>());
+		}
     } catch (const std::exception& e) {
         CHE_CORE_ERROR("ProjectManager::Open: JSON parse error: {}", e.what());
         return false;
@@ -49,8 +66,8 @@ bool ProjectManager::Open(const std::string& projPath)
     proj->m_ShadersDir    = j.value("shaders_dir", "Assets/Shaders");
 
     CHE_CORE_INFO("Project loaded: {} ({})", proj->m_Name, proj->m_Path);
-    s_Current = std::move(proj);
-    s_Current->SyncEditorAssets();
+    m_CurrentProject = std::move(proj);
+    m_CurrentProject->SyncEditorAssets();
     return true;
 }
 
@@ -72,7 +89,7 @@ std::string ProjectManager::Create(const std::string& parentDir, const std::stri
         return {};
     }
 
-    FileSystem::WriteFileText(rootDir / "Scenes" / "Main.chscene",
+    CHEngine::FileSystem::WriteFileText(rootDir / "Scenes" / "Main.chscene",
                               R"({"version":1,"entities":[],"meta":{}})");
 
     auto proj            = std::unique_ptr<Project>(new Project());
@@ -88,24 +105,46 @@ std::string ProjectManager::Create(const std::string& parentDir, const std::stri
 
     CHE_CORE_INFO("Project created: {} ({})", proj->m_Name, proj->m_Path);
     const std::string path = proj->GetPath();
-    s_Current = std::move(proj);
-    s_Current->SyncEditorAssets();
+    m_CurrentProject = std::move(proj);
+    m_CurrentProject->SyncEditorAssets();
     return path;
 }
 
 void ProjectManager::Close()
 {
-    s_Current.reset();
+    m_CurrentProject.reset();
 }
 
 Project* ProjectManager::Current()
 {
-    return s_Current.get();
+    return m_CurrentProject.get();
 }
 
 bool ProjectManager::HasProject()
 {
-    return s_Current != nullptr;
+    return m_CurrentProject != nullptr;
 }
 
-} // namespace CHEngine
+void ProjectManager::Save() const
+{
+	nlohmann::json j;
+	nlohmann::json arr = nlohmann::json::array();
+	for (const auto& s : m_RecentScenes)
+		arr.push_back(s);
+	j["recent_scenes"] = arr;
+
+	const fs::path path = m_CurrentProject->RootDir() / ".editor_state.json";
+	if (!CHEngine::FileSystem::WriteFileText(path, j.dump(2) + "\n"))
+		CHE_CORE_WARN("ProjectEditorState::Save: failed to write {}", path.string());
+}
+
+void ProjectManager::AddRecentScene(const std::string& absolutePath)
+{
+	const std::string rel = m_CurrentProject->ToRelativePath(absolutePath);
+	auto it = std::find(m_RecentScenes.begin(), m_RecentScenes.end(), rel);
+	if (it != m_RecentScenes.end())
+		m_RecentScenes.erase(it);
+	m_RecentScenes.insert(m_RecentScenes.begin(), rel);
+	if (static_cast<int>(m_RecentScenes.size()) > k_MaxRecentScenes)
+		m_RecentScenes.resize(k_MaxRecentScenes);
+}

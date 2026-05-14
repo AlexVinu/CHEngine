@@ -13,24 +13,24 @@ namespace CHModules
     class ShaderMTL : public CHEngine::IShader
     {
     public:
-        ShaderMTL(const CHEngine::String& slangSource,
-                  const CHEngine::String& vertEntry,
-                  const CHEngine::String& fragEntry,
-                  const CHEngine::String& sourcePath = CHEngine::String());
+        ShaderMTL(const String& slangSource,
+                  const String& vertEntry,
+                  const String& fragEntry,
+                  const String& sourcePath = String());
         ~ShaderMTL() override;
 
 		void Bind() const;
 		void Unbind() const;
-        bool Reload(const CHEngine::String& slangSource,
-                    const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
-                    const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-                    const CHEngine::String& sourcePath = CHEngine::String()) override;
+        bool Reload(const String& slangSource,
+                    const String& vertEntry  = String("vertMain"),
+                    const String& fragEntry  = String("fragMain"),
+                    const String& sourcePath = String()) override;
 
         // --- UBO ---
         void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
 
         // --- Sampler binding (no-op для Metal, текстуры через [[texture(N)]]) ---
-        void SetInt(const CHEngine::String& name, int value) override;
+        void SetInt(const String& name, int value) override;
 
         // Получить/создать pipeline state для данного vertex layout
         void* GetOrCreatePipelineState(const CHEngine::BufferLayout& layout,
@@ -46,10 +46,10 @@ namespace CHModules
         void* GetFragmentFunc() const { return m_FragmentFunc; }
 
     private:
-        bool CompileSlang(const CHEngine::String& slangSource,
-                          const CHEngine::String& vertEntry,
-                          const CHEngine::String& fragEntry,
-                          const CHEngine::String& sourcePath);
+        bool CompileSlang(const String& slangSource,
+                          const String& vertEntry,
+                          const String& fragEntry,
+                          const String& sourcePath);
 
         void* m_Library      = nullptr;  // id<MTLLibrary>
         void* m_VertexFunc   = nullptr;  // id<MTLFunction>

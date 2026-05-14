@@ -29,7 +29,7 @@ void GizmoSystem::Draw(SceneSession* scene_session,
     if (!scene_session)
         return;
 
-    if (scene_session->SessionState != SceneSession::State::Edit)
+    if (scene_session->GetSessionState() != SceneSession::State::Edit)
     {
         m_GizmoWasUsing = false;
         return;
@@ -104,7 +104,7 @@ void GizmoSystem::Draw(SceneSession* scene_session,
 
     if (m_GizmoWasUsing && !ImGuizmo::IsUsing() && m_CommandStack)
     {
-        auto command = CHEngine::MakeScope<SetTransformCommand>(
+        auto command = MakeScope<SetTransformCommand>(
             scene_ref,
             selectedHandle,
             m_TransformBeforeDrag,
