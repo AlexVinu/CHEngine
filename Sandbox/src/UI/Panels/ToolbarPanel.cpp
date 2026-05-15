@@ -26,6 +26,7 @@ void ToolbarPanel::LoadIcons()
     m_IconRotate    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_rotate.png");
     m_IconScale     = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_scale.png");
     m_IconPlay      = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_play.png");
+    m_IconPause     = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_pause.png");
     m_IconStop      = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_stop.png");
     m_IconResume    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_resume.png");
     m_IconsLoaded   = true;
@@ -196,8 +197,9 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
 
         // Сначала вычисляем суммарную ширину блока для центровки
         const char* playLabel = isPlay ? "Pause" : (isPause ? "Resume" : "Play");
-        CHEngine::TextureHandle playIcon = isPlay ? m_IconResume
-                                         : (isPause ? m_IconResume : m_IconPlay);
+        CHEngine::TextureHandle playIcon = isPlay  ? m_IconPause    // играет  → кнопка "Pause"
+                                         : isPause ? m_IconResume   // пауза   → кнопка "Resume"
+                                         : m_IconPlay;              // редактор → кнопка "Play"
         float playTextW  = ImGui::CalcTextSize(playLabel).x;
         float playIconW  = ToImTex(playIcon) ? kTextGap + kIcoH : 0.0f;
         float playBtnW   = playTextW + playIconW + kPadX * 2.0f;

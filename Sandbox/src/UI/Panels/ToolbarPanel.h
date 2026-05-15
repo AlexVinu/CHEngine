@@ -23,6 +23,7 @@ private:
     CHEngine::TextureHandle m_IconRotate;
     CHEngine::TextureHandle m_IconScale;
     CHEngine::TextureHandle m_IconPlay;
+    CHEngine::TextureHandle m_IconPause;
     CHEngine::TextureHandle m_IconStop;
     CHEngine::TextureHandle m_IconResume;
     bool m_IconsLoaded = false;
