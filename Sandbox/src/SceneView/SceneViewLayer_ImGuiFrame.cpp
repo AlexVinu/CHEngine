@@ -12,15 +12,21 @@
 #include "SceneViewLayer_GizmoBar.h"
 
 #include "UIThemeActive.h"
+#include "TilingManager.h"
 
 #include <imgui.h>
 #include <Profiler.h>
+
+// ── Helper: draw a panel in a tiling rect ─────────────────────────────────────
+// Panels that receive (pos, size) keep their old signatures for now.
+// Collapsed panels show only a title bar drawn by TilingManager — we skip Draw().
 
 void RunSceneViewImGuiFrame(SceneViewLayer& layer)
 {
     CHE_PROFILE_FUNCTION();
     SceneViewLayerHost host(layer);
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(layer);
+    Sandbox::TilingManager&  tiling   = SceneViewLayerAccess::Tiling(layer);
 
     viewport.Begin();
     SceneViewLayerCameraOps::PrepareEditorCameraFrame(layer);
@@ -29,56 +35,97 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const ImVec2 disp = ImGui::GetIO().DisplaySize;
     const float W = disp.x;
     const float H = disp.y;
-
     const auto& L = UIActive::g_Layout;
-    const float rightW = W * L.rightFrac;
-    const float sH = H - L.toolbarH;
 
     EditorWorldContext* activeCtx = &SceneViewLayerAccess::Active(layer);
     const bool reset = activeCtx->ResetLayout;
     activeCtx->ResetLayout = false;
+    if (reset)
+        tiling.ResetLayout();
 
-    const ImVec2 tbPos   = { 0.0f, 0.0f };
-    const ImVec2 tbSize  = { W, L.toolbarH };
-
-    // Right column: Inspector (top) + Properties (bottom)
-    const ImVec2 camPos    = { W - rightW, L.toolbarH };
-    const ImVec2 camSize   = { rightW, sH * L.propsFrac };
-    const ImVec2 propsPos  = { W - rightW, L.toolbarH + sH * L.propsFrac };
-    const ImVec2 propsSize = { rightW, sH * (1.0f - L.propsFrac) };
-
+    // ── Toolbar (always fixed at top, not part of tiling) ─────────────────────
+    const ImVec2 tbPos  = { 0.0f, 0.0f };
+    const ImVec2 tbSize = { W, L.toolbarH };
     SceneViewLayerAccess::Toolbar(layer).Draw(host, tbPos, tbSize);
-    // Toolbar runs commands immediately (e.g. + Session → push_back may reallocate Sessions).
     activeCtx = &SceneViewLayerAccess::Active(layer);
 
-    SceneViewLayerAccess::Properties(layer).Draw(host, propsPos, propsSize, reset);
-    SceneViewLayerAccess::CameraPanel(layer).Draw(host, camPos, camSize, reset);
-    activeCtx = &SceneViewLayerAccess::Active(layer);
+    // ── Tiling work area (below toolbar) ──────────────────────────────────────
+    const ImVec2 workPos  = { 0.0f, L.toolbarH };
+    const ImVec2 workSize = { W, H - L.toolbarH };
+    tiling.BeginFrame(workPos, workSize);
 
+    // ── Draw each tiled panel ─────────────────────────────────────────────────
+    using PID = Sandbox::PanelID;
+
+    // Helper lambda: draw panel if visible and not collapsed
+    auto drawIfVisible = [&](PID id, auto drawFn)
     {
-        const float vpH = sH - activeCtx->ContentBrowserHeight;
-        // Viewport now spans the full width minus the right panel (no left panel)
-        const ImVec2 vpPos  = { 0.0f, L.toolbarH };
-        const ImVec2 vpSize = { W - rightW, vpH };
+        if (!tiling.IsVisible(id)) return;
+        if (tiling.IsCollapsed(id))
+        {
+            // Collapsed: draw only a minimal title bar panel
+            Sandbox::TileRect r = tiling.GetRect(id);
+            if (r.valid)
+            {
+                ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
+                ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
+                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6,0));
+                const ImGuiWindowFlags kCollapsed =
+                    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar |
+                    ImGuiWindowFlags_NoMove     | ImGuiWindowFlags_NoResize    |
+                    ImGuiWindowFlags_NoBringToFrontOnFocus;
+                if (ImGui::Begin(Sandbox::PanelTitle(id), nullptr, kCollapsed))
+                {
+                    ImGui::TextDisabled("%s", Sandbox::PanelTitle(id));
+                }
+                ImGui::End();
+                ImGui::PopStyleVar();
+            }
+            return;
+        }
+        drawFn();
+    };
 
+    // Viewport
+    drawIfVisible(PID::Viewport, [&]()
+    {
+        Sandbox::TileRect r = tiling.GetRect(PID::Viewport);
+        if (!r.valid) return;
         viewport.DrawImGui(SceneViewLayerAccess::Gizmo(layer),
                            SceneViewLayerAccess::CameraController(layer),
                            activeCtx,
-                           vpPos,
-                           vpSize,
+                           r.pos, r.size,
                            activeCtx->GizmoOperation,
                            activeCtx->GizmoMode);
-
         SceneViewLayerMousePicking::TryPick(layer);
         SceneViewLayerShiftAMenu::Draw(layer);
         SceneViewLayerGizmoBar::Draw(layer);
-    }
+    });
 
+    // Inspector (Camera + Scene tabs)
+    drawIfVisible(PID::Inspector, [&]()
     {
-        const float bottomY    = L.toolbarH + (sH - activeCtx->ContentBrowserHeight);
-        const ImVec2 browserPos  = { 0.0f, bottomY };
-        const ImVec2 browserSize = { W - rightW, activeCtx->ContentBrowserHeight };
-        std::string action = SceneViewLayerAccess::ContentBrowser(layer).OnImGuiRender(browserPos, browserSize);
+        Sandbox::TileRect r = tiling.GetRect(PID::Inspector);
+        if (r.valid)
+            SceneViewLayerAccess::CameraPanel(layer).Draw(host, r.pos, r.size, reset);
+        activeCtx = &SceneViewLayerAccess::Active(layer);
+    });
+
+    // Properties
+    drawIfVisible(PID::Properties, [&]()
+    {
+        Sandbox::TileRect r = tiling.GetRect(PID::Properties);
+        if (r.valid)
+            SceneViewLayerAccess::Properties(layer).Draw(host, r.pos, r.size, reset);
+    });
+
+    // Content Browser
+    drawIfVisible(PID::ContentBrowser, [&]()
+    {
+        Sandbox::TileRect r = tiling.GetRect(PID::ContentBrowser);
+        if (!r.valid) return;
+        std::string action = SceneViewLayerAccess::ContentBrowser(layer)
+                                .OnImGuiRender(r.pos, r.size);
         if (!action.empty())
         {
             if (action.rfind("model:", 0) == 0)
@@ -90,13 +137,49 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
             else if (action.rfind("shader:", 0) == 0)
                 SceneViewLayerAccess::ScriptEditor(layer).OpenShader(action.substr(7));
         }
-    }
+    });
 
-    SceneViewLayerAccess::ScriptEditor(layer).Draw();
-    SceneViewLayerAccess::Profiler(layer).Draw(host);
-    if (SceneViewLayerAccess::ShowUVEditor(layer))
-        SceneViewLayerAccess::UvEditor(layer).Draw(host);
-    SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
+    // Profiler (tiled or free-floating depending on visibility)
+    drawIfVisible(PID::Profiler, [&]()
+    {
+        Sandbox::TileRect r = tiling.GetRect(PID::Profiler);
+        if (r.valid)
+        {
+            // Profiler has its own window management; just set pos/size hint
+            ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
+            ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
+        }
+        SceneViewLayerAccess::Profiler(layer).Draw(host);
+    });
+
+    // UV Editor
+    drawIfVisible(PID::UVEditor, [&]()
+    {
+        Sandbox::TileRect r = tiling.GetRect(PID::UVEditor);
+        if (r.valid)
+        {
+            ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
+            ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
+        }
+        if (SceneViewLayerAccess::ShowUVEditor(layer))
+            SceneViewLayerAccess::UvEditor(layer).Draw(host);
+    });
+
+    // Scene Browser
+    drawIfVisible(PID::SceneBrowser, [&]()
+    {
+        SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
+    });
+
+    // Script Editor
+    drawIfVisible(PID::ScriptEditor, [&]()
+    {
+        SceneViewLayerAccess::ScriptEditor(layer).Draw();
+    });
+
+    // ── Orbit indicator, tiling overlays ──────────────────────────────────────
     SceneViewLayerRender::DrawOrbitIndicator(layer);
+    tiling.EndFrame();  // separators, close/collapse buttons, ghost, Shift+W popup
+
     viewport.End();
 }

@@ -17,6 +17,7 @@
 #include "UvEditorPanel.h"
 #include "ProjectBrowserWindow.h"
 #include "ScriptEditorPanel.h"
+#include "TilingManager.h"
 
 #include <vector>
 
@@ -56,4 +57,7 @@ private:
     Sandbox::ProjectEditorState m_EditorState;
     ProjectBrowserWindow m_ProjectBrowser;
     Sandbox::ScriptEditorPanel m_ScriptEditor;
+
+    // Tiling workspace manager
+    Sandbox::TilingManager m_TilingManager{ "tiling_layout.txt" };
 };

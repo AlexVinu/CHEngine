@@ -2,6 +2,7 @@
 
 #include "ProjectEditorState.h"
 #include "SceneViewLayer.h"
+#include "TilingManager.h"
 
 EditorWorldContext& SceneViewLayerAccess::Active(SceneViewLayer& layer)
 {
@@ -92,4 +93,9 @@ Sandbox::SceneBrowserPanel& SceneViewLayerAccess::SceneBrowser(SceneViewLayer& l
 Sandbox::ScriptEditorPanel& SceneViewLayerAccess::ScriptEditor(SceneViewLayer& layer)
 {
     return layer.m_ScriptEditor;
+}
+
+Sandbox::TilingManager& SceneViewLayerAccess::Tiling(SceneViewLayer& layer)
+{
+    return layer.m_TilingManager;
 }
