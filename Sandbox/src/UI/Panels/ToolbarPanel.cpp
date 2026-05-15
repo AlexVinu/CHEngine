@@ -15,474 +15,335 @@
 
 namespace Sandbox {
 
+ToolbarPanel::ToolbarPanel()
+{
+    LoadIcons();
+}
+
+void ToolbarPanel::LoadIcons()
+{
+    m_IconTranslate = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_translate.png");
+    m_IconRotate    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_rotate.png");
+    m_IconScale     = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_scale.png");
+    m_IconsLoaded   = m_IconTranslate.IsValid() && m_IconRotate.IsValid() && m_IconScale.IsValid();
+}
+
+// Возвращает ImTextureID из TextureHandle (работает для Metal и OGL)
+static ImTextureID ToImTex(CHEngine::TextureHandle h)
+{
+    if (!h.IsValid()) return static_cast<ImTextureID>(0);
+    auto* f = CHEngine::RenderFacade::GetRenderFactory();
+    if (!f) return static_cast<ImTextureID>(0);
+    return static_cast<ImTextureID>(f->GetTextureNativeID(h));
+}
+
 void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
 {
+    // Ленивая загрузка: при первом Draw factory точно уже готова
+    if (!m_IconsLoaded)
+        LoadIcons();
     UIActive::BeginToolbar(pos, size);
     SceneSession& activeSession = host.GetActiveSceneSession();
 
+    const float winH = ImGui::GetWindowHeight();
+    const float startY = ImGui::GetCursorPosY();
+    const float centerY = startY + (winH - 18.0f) * 0.5f;
+
+    struct VC {
+        float cy;
+        void operator()(float itemH) const { ImGui::SetCursorPosY(cy - itemH * 0.5f); }
+    } vcenter{ centerY };
+
+    // ── Keyboard shortcuts (T/R/S, Cmd+Z, Cmd+P, Escape) ─────────────────────
+    if (!ImGui::GetIO().WantTextInput)
     {
-        const float winH = ImGui::GetWindowHeight();
-        const float padY = 9.0f;
-        const float startY = ImGui::GetCursorPosY();
-        const float centerY = startY + (winH - padY * 2.0f) * 0.5f;
+        if (ImGui::IsKeyPressed(ImGuiKey_T, false))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.GetGizmoOperation() = ImGuizmo::TRANSLATE; }, [] {}, false));
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.GetGizmoOperation() = ImGuizmo::ROTATE; }, [] {}, false));
+        if (ImGui::IsKeyPressed(ImGuiKey_S, false))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.GetGizmoOperation() = ImGuizmo::SCALE; }, [] {}, false));
+        if (ImGui::IsKeyPressed(ImGuiKey_F3, false))
+            host.GetShowProfiler() = !host.GetShowProfiler();
 
-        struct VC {
-            float cy;
-            void operator()(float itemH) const { ImGui::SetCursorPosY(cy - itemH * 0.5f); }
-        } vcenter{ centerY };
+        const bool undoMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyAlt;
+        if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.RequestUndo(); }, [] {}, false));
 
-        if (!ImGui::GetIO().WantTextInput)
+        const bool playMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyCtrl;
+        if (playMod && ImGui::IsKeyPressed(ImGuiKey_P, false))
         {
-            if (ImGui::IsKeyPressed(ImGuiKey_T, false))
-            {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.GetGizmoOperation() = ImGuizmo::TRANSLATE; }, [] {}, false));
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_R, false))
-            {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.GetGizmoOperation() = ImGuizmo::ROTATE; }, [] {}, false));
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_S, false))
-            {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.GetGizmoOperation() = ImGuizmo::SCALE; }, [] {}, false));
-            }
-            if (ImGui::IsKeyPressed(ImGuiKey_F3, false))
-            {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.GetShowProfiler() = !host.GetShowProfiler(); }, [] {}, false));
-            }
-
-            const bool undoMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyAlt;
-            if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
-            {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.RequestUndo(); }, [] {}, false));
-            }
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] {
+                    SceneSession& s = host.GetActiveSceneSession();
+                    if (s.SessionState == SceneSession::State::Edit)        host.EnterPlayMode();
+                    else if (s.SessionState == SceneSession::State::Play)   host.EnterPauseMode();
+                    else if (s.SessionState == SceneSession::State::Pause)  host.ResumeFromPause();
+                }, [] {}, false));
         }
+        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
+            activeSession.SessionState != SceneSession::State::Edit)
+        {
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.StopPlayMode(); }, [] {}, false));
+        }
+    }
 
-        const char* gizmoLabels[] = { "Translate", "Rotate", "Scale" };
-        int gizmoSel = (host.GetGizmoOperation() == ImGuizmo::TRANSLATE)   ? 0
- : (host.GetGizmoOperation() == ImGuizmo::ROTATE) ? 1
- : 2;
-
+    // ── Session navigation (left side) ────────────────────────────────────────
+    {
         vcenter(ImGui::GetFrameHeight());
-        if (UIActive::SegmentedControl("##gizmo", gizmoLabels, 3, &gizmoSel, ImVec2(272.0f, 0.0f)))
+        ImGui::BeginDisabled(host.GetActiveSessionIndex() == 0);
+        if (ImGui::ArrowButton("##prev", ImGuiDir_Left))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() - 1); }, [] {}, false));
+        ImGui::EndDisabled();
+
+        ImGui::SameLine(0, 4);
+        vcenter(ImGui::GetTextLineHeight());
         {
-            host.GetGizmoOperation() = (gizmoSel == 0) ? ImGuizmo::TRANSLATE : (gizmoSel == 1) ? ImGuizmo::ROTATE : ImGuizmo::SCALE;
+            const auto& sessions = host.GetSceneSessions();
+            const size_t idx = host.GetActiveSessionIndex();
+            const std::string name = (idx < sessions.size()) ? sessions[idx].DisplayName() : "?";
+            ImGui::Text("%s  %u/%u", name.c_str(),
+                        static_cast<uint32_t>(idx + 1),
+                        static_cast<uint32_t>(sessions.size()));
         }
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip("T  Translate\nR  Rotate\nS  Scale");
 
-        ImGui::SameLine(0, 20);
-        vcenter(20.0f);
-        if (UIActive::Toggle("Local", &host.GetLocalMode()))
-            host.GetGizmoMode() = host.GetLocalMode() ? ImGuizmo::LOCAL : ImGuizmo::WORLD;
+        ImGui::SameLine(0, 4);
+        vcenter(ImGui::GetFrameHeight());
+        ImGui::BeginDisabled(host.GetActiveSessionIndex() + 1 >= host.GetSceneSessions().size());
+        if (ImGui::ArrowButton("##next", ImGuiDir_Right))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() + 1); }, [] {}, false));
+        ImGui::EndDisabled();
 
-        ImGui::SameLine(0, 20);
-        vcenter(20.0f);
-        UIActive::Toggle("Grid", &host.GetEditorViewport().ShowGrid());
+        ImGui::SameLine(0, 6);
+        vcenter(ImGui::GetFrameHeight());
+        ImGui::BeginDisabled(host.GetSceneSessions().size() <= 1);
+        if (ImGui::Button("x##close"))
+            host.CloseSceneSession(host.GetActiveSessionIndex());
+        ImGui::EndDisabled();
+    }
 
+    // ── Gizmo mode icons (Translate / Rotate / Scale) ─────────────────────────
+    {
         ImGui::SameLine(0, 12);
-        vcenter(20.0f);
-        UIActive::Toggle("Profiler", &host.GetShowProfiler());
 
-        ImGui::SameLine(0, 12);
-        vcenter(20.0f);
-        UIActive::Toggle("UV Editor", &host.GetShowUVEditor());
+        const ImGuizmo::OPERATION curOp = host.GetGizmoOperation();
+        const float iconSize = 22.0f;   // размер кнопки (иконка 32x32 масштабируется)
+        const ImVec2 btnSize(iconSize, iconSize);
 
+        struct GizmoBtn {
+            ImGuizmo::OPERATION op;
+            CHEngine::TextureHandle tex;
+            const char* fallback; // текст если иконка не загружена
+            const char* tooltip;
+        } btns[] = {
+            { ImGuizmo::TRANSLATE, m_IconTranslate, "T", "Translate (T)" },
+            { ImGuizmo::ROTATE,    m_IconRotate,    "R", "Rotate (R)"    },
+            { ImGuizmo::SCALE,     m_IconScale,     "S", "Scale (S)"     },
+        };
+
+        for (auto& btn : btns)
         {
-            if (!ImGui::GetIO().WantTextInput)
+            const bool active = (curOp == btn.op);
+
+            // Подсветка активной кнопки
+            if (active)
             {
-                const bool mod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyCtrl;
-                if (mod && ImGui::IsKeyPressed(ImGuiKey_P, false))
-                {
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                        [&host] {
-                            SceneSession& s = host.GetActiveSceneSession();
-                            if (s.SessionState == SceneSession::State::Edit)
-                                host.EnterPlayMode();
-                            else if (s.SessionState == SceneSession::State::Play)
-                                host.EnterPauseMode();
-                            else if (s.SessionState == SceneSession::State::Pause)
-                                host.ResumeFromPause();
-                        },
-                        [] {}, false));
-                }
-                if (ImGui::IsKeyPressed(ImGuiKey_Escape, false)
-                    && host.GetActiveSceneSession().SessionState != SceneSession::State::Edit)
-                {
-                    host.GetCommandStack().Push(
-                        CHEngine::MakeScope<CallbackCommand>([&host] { host.StopPlayMode(); }, [] {}, false));
-                }
-            }
-
-            const bool isEdit = (activeSession.SessionState == SceneSession::State::Edit);
-            const bool isPlay = (activeSession.SessionState == SceneSession::State::Play);
-            const bool isPause = (activeSession.SessionState == SceneSession::State::Pause);
-
-            const float pad = ImGui::GetStyle().FramePadding.x;
-            const float btnW = ImGui::CalcTextSize("Pause").x + pad * 2.0f + 14.0f;
-            const float stopW = ImGui::CalcTextSize("Stop").x + pad * 2.0f + 14.0f;
-            const float stepW = ImGui::CalcTextSize("Step").x + pad * 2.0f + 10.0f;
-            const float gap = 4.0f;
-            const float blockW = btnW + stopW + stepW + gap * 2.0f;
-
-            ImVec2 winPos = ImGui::GetWindowPos();
-            float winW = ImGui::GetWindowWidth();
-            float winH2 = ImGui::GetWindowHeight();
-            float screenX = winPos.x + (winW - blockW) * 0.5f;
-            float screenY = winPos.y + (winH2 - ImGui::GetFrameHeight()) * 0.5f;
-            ImGui::SetCursorScreenPos(ImVec2(screenX, screenY));
-
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.15f, 0.50f, 0.15f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.62f, 0.20f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.10f, 0.38f, 0.10f, 1.0f));
-            if (isPlay)
-            {
-                if (ImGui::Button("Pause##playctrl", ImVec2(btnW, 0)))
-                {
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                        [&host] { host.EnterPauseMode(); }, [] {}, false));
-                }
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip("Pause  (Cmd+P)");
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.26f, 0.59f, 0.98f, 0.80f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.26f, 0.59f, 0.98f, 1.00f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.06f, 0.39f, 0.78f, 1.00f));
             }
             else
             {
-                const char* label = isPause ? "Resume##playctrl" : "Play##playctrl";
-                if (ImGui::Button(label, ImVec2(btnW, 0)))
-                {
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                        [&host, isEdit] {
-                            if (isEdit)
-                                host.EnterPlayMode();
-                            else
-                                host.ResumeFromPause();
-                        },
-                        [] {}, false));
-                }
-                if (ImGui::IsItemHovered())
-                    ImGui::SetTooltip(isEdit ? "Play  (Cmd+P)" : "Resume  (Cmd+P)");
+                ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.0f, 0.0f, 0.0f, 0.0f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f, 1.0f, 1.0f, 0.12f));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(1.0f, 1.0f, 1.0f, 0.25f));
             }
+
+            // Убираем границу кнопки
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1, 1));
+            vcenter(btnSize.y + 2.0f);
+
+            bool clicked = false;
+            ImTextureID texId = ToImTex(btn.tex);
+            if (texId)
+            {
+                // Иконка загружена — рисуем как ImageButton
+                // Metal: UV (0,0)→(1,1); OGL: перевёрнуто (0,1)→(1,0)
+                const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
+                ImVec2 uv0 = isMetal ? ImVec2(0,0) : ImVec2(0,1);
+                ImVec2 uv1 = isMetal ? ImVec2(1,1) : ImVec2(1,0);
+                // Иконки белые — tint для активного: ярко, для неактивного: тускло
+                ImVec4 tint = active ? ImVec4(1,1,1,1) : ImVec4(0.75f, 0.75f, 0.75f, 0.85f);
+                clicked = ImGui::ImageButton(btn.fallback, texId, btnSize, uv0, uv1,
+                                             ImVec4(0,0,0,0), tint);
+            }
+            else
+            {
+                // Fallback: текстовая кнопка
+                clicked = ImGui::Button(btn.fallback, ImVec2(iconSize, iconSize));
+            }
+
+            ImGui::PopStyleVar();
             ImGui::PopStyleColor(3);
 
-            ImGui::SameLine(0, gap);
-            vcenter(ImGui::GetFrameHeight());
-
-            ImGui::BeginDisabled(isEdit);
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.50f, 0.15f, 0.15f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.62f, 0.20f, 0.20f, 1.0f));
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(0.38f, 0.10f, 0.10f, 1.0f));
-            if (ImGui::Button("Stop##playctrl", ImVec2(stopW, 0)))
+            if (clicked)
             {
-                host.GetCommandStack().Push(
-                    CHEngine::MakeScope<CallbackCommand>([&host] { host.StopPlayMode(); }, [] {}, false));
-            }
-            ImGui::PopStyleColor(3);
-            ImGui::EndDisabled();
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Stop  (Esc)");
-
-            ImGui::SameLine(0, gap);
-            vcenter(ImGui::GetFrameHeight());
-
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Step one frame  (Cmd+Shift+Right)");
-        }
-
-        {
-            ImGui::SameLine(0, 12);
-            vcenter(ImGui::GetFrameHeight());
-            ImGui::BeginDisabled(host.GetActiveSessionIndex() == 0);
-            if (ImGui::ArrowButton("##session_prev", ImGuiDir_Left))
-            {
+                const ImGuizmo::OPERATION newOp = btn.op;
                 host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() - 1); }, [] {}, false));
-            }
-            ImGui::EndDisabled();
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Previous scene tab");
-
-            ImGui::SameLine(0, 4);
-            vcenter(ImGui::GetTextLineHeight());
-            {
-                const auto& sessions = host.GetSceneSessions();
-                const size_t idx = host.GetActiveSessionIndex();
-                const std::string name = (idx < sessions.size()) ? sessions[idx].DisplayName() : std::string("?");
-                ImGui::Text("%s  %u/%u",
-                            name.c_str(),
-                            static_cast<uint32_t>(idx + 1),
-                            static_cast<uint32_t>(sessions.size()));
+                    [&host, newOp] { host.GetGizmoOperation() = newOp; }, [] {}, false));
             }
 
-            ImGui::SameLine(0, 4);
-            vcenter(ImGui::GetFrameHeight());
-            ImGui::BeginDisabled(host.GetActiveSessionIndex() + 1 >= host.GetSceneSessions().size());
-            if (ImGui::ArrowButton("##session_next", ImGuiDir_Right))
-            {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() + 1); }, [] {}, false));
-            }
-            ImGui::EndDisabled();
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Next scene tab");
-
-            ImGui::SameLine(0, 6);
-            vcenter(ImGui::GetFrameHeight());
-            ImGui::BeginDisabled(host.GetSceneSessions().size() <= 1);
-            if (ImGui::Button("x##close_session"))
-            {
-                // Call directly — NOT via CommandStack, because CloseSceneSession
-                // erases the session that owns the active CommandStack (use-after-free).
-                host.CloseSceneSession(host.GetActiveSessionIndex());
-            }
-            ImGui::EndDisabled();
-            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Close current scene tab");
-
-            ImGui::SameLine(0, 4);
-            vcenter(ImGui::GetFrameHeight());
-            if (ImGui::Button("+ Scene"))
-            {
-                host.GetCommandStack().Push(
-                    CHEngine::MakeScope<CallbackCommand>([&host] { host.AddSceneSession(); }, [] {}, false));
-            }
-        }
-
-        {
-            bool shiftHeld = ImGui::GetIO().KeyShift;
-            ImVec4 col = shiftHeld ? ImVec4(0.20f, 0.60f, 1.00f, 1.0f) : ImVec4(0.43f, 0.43f, 0.45f, 1.0f);
-            ImGui::SameLine(0, 20);
-            vcenter(ImGui::GetTextLineHeight());
-            ImGui::PushStyleColor(ImGuiCol_Text, col);
-            ImGui::TextUnformatted(shiftHeld ? "\xe2\x87\xa7 Snap ON" : "\xe2\x87\xa7 Snap");
-            ImGui::PopStyleColor();
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Hold Shift to snap:\n"
-                                  "  Translate  1 unit\n"
-                                  "  Rotate     45\xc2\xb0\n"
-                                  "  Scale      0.1 unit");
-        }
+                ImGui::SetTooltip("%s", btn.tooltip);
 
-        float fps = ImGui::GetIO().Framerate;
-        char fpsBuf[32];
-        snprintf(fpsBuf, sizeof(fpsBuf), "%.0f fps", fps);
-        const char* themeLabel = (UIActive::g_Theme == AppTheme::RetroOS) ? "Theme: Retro" : "Theme: Dark";
+            ImGui::SameLine(0, 2);
+        }
+    }
+
+    // ── Play / Stop (centered) ────────────────────────────────────────────────
+    {
+        const bool isEdit  = (activeSession.SessionState == SceneSession::State::Edit);
+        const bool isPlay  = (activeSession.SessionState == SceneSession::State::Play);
+        const bool isPause = (activeSession.SessionState == SceneSession::State::Pause);
+
+        const float pad    = ImGui::GetStyle().FramePadding.x;
+        const float playW  = ImGui::CalcTextSize(isPlay ? "Pause" : (isPause ? "Resume" : "Play")).x + pad * 2.0f + 14.0f;
+        const float stopW  = ImGui::CalcTextSize("Stop").x + pad * 2.0f + 14.0f;
+        const float gap    = 4.0f;
+        const float blockW = playW + stopW + gap;
+
+        float screenX = ImGui::GetWindowPos().x + (ImGui::GetWindowWidth() - blockW) * 0.5f;
+        float screenY = ImGui::GetWindowPos().y + (winH - ImGui::GetFrameHeight()) * 0.5f;
+        ImGui::SetCursorScreenPos(ImVec2(screenX, screenY));
+
+        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.50f, 0.15f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.62f, 0.20f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.10f, 0.38f, 0.10f, 1.0f));
+        if (isPlay)
+        {
+            if (ImGui::Button("Pause##pc", ImVec2(playW, 0)))
+                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    [&host] { host.EnterPauseMode(); }, [] {}, false));
+        }
+        else
+        {
+            const char* lbl = isPause ? "Resume##pc" : "Play##pc";
+            if (ImGui::Button(lbl, ImVec2(playW, 0)))
+                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    [&host, isEdit] {
+                        if (isEdit) host.EnterPlayMode(); else host.ResumeFromPause();
+                    }, [] {}, false));
+        }
+        ImGui::PopStyleColor(3);
+
+        ImGui::SameLine(0, gap);
+        ImGui::BeginDisabled(isEdit);
+        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.50f, 0.15f, 0.15f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.62f, 0.20f, 0.20f, 1.0f));
+        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.38f, 0.10f, 0.10f, 1.0f));
+        if (ImGui::Button("Stop##pc", ImVec2(stopW, 0)))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.StopPlayMode(); }, [] {}, false));
+        ImGui::PopStyleColor(3);
+        ImGui::EndDisabled();
+    }
+
+    // ── Right side: Scene | API | ⚙ Settings ─────────────────────────────────
+    {
         const float pad = ImGui::GetStyle().FramePadding.x;
 
-        struct ApiEntry {
-            const char* name;
-            CHEngine::ERenderAPI api;
-        };
-        static const ApiEntry allApis[] = {
+        // Build API label
+        static const struct { const char* name; CHEngine::ERenderAPI api; } kApis[] = {
             { "OpenGL", CHEngine::ERenderAPI::OPENGL },
-            { "Vulkan", CHEngine::ERenderAPI::VULKAN },
-            { "Metal", CHEngine::ERenderAPI::METAL },
+            { "Vulkan",  CHEngine::ERenderAPI::VULKAN },
+            { "Metal",   CHEngine::ERenderAPI::METAL  },
         };
-
-        ApiEntry availApis[3];
-        int availCount = 0;
-        for (auto& e : allApis)
-        {
-            if (CHEngine::RenderModuleResolver::IsSupportedOnPlatform(e.api))
-                availApis[availCount++] = e;
-        }
-
         CHEngine::ERenderAPI curApi = CHEngine::Application::Get().GetRenderAPIType();
-        int apiIdx = 0;
-        for (int i = 0; i < availCount; ++i)
+        const char* apiName = "?";
+        for (auto& e : kApis) if (e.api == curApi) { apiName = e.name; break; }
+        char apiLabel[32]; snprintf(apiLabel, sizeof(apiLabel), "API: %s", apiName);
+
+        const float sceneW    = ImGui::CalcTextSize("Scene \xe2\x96\xbe").x + pad * 2.0f + 6.0f; // "Scene ▾"
+        const float apiW      = ImGui::CalcTextSize(apiLabel).x + pad * 2.0f + 6.0f;
+        const float settingsW = ImGui::CalcTextSize("\xe2\x9a\x99").x + pad * 2.0f + 10.0f;       // "⚙"
+        const float rightBlock = sceneW + 4.0f + apiW + 4.0f + settingsW + ImGui::GetStyle().WindowPadding.x;
+
+        float rx = ImGui::GetWindowWidth() - rightBlock;
+        if (rx > ImGui::GetCursorPosX() + 10.0f)
         {
-            if (availApis[i].api == curApi)
-            {
-                apiIdx = i;
-                break;
-            }
-        }
+            ImGui::SetCursorPosX(rx);
 
-        char rendererLabel[32];
-        snprintf(rendererLabel, sizeof(rendererLabel), "API: %s", availApis[apiIdx].name);
-        float rendererComboW = ImGui::CalcTextSize(rendererLabel).x + pad * 2.0f + 8.0f;
-
-        // Project info / switcher
-        {
-            static char s_NameBuf[256] = "MyProject";
-            static std::string s_ParentDir;
-            static bool s_AwaitingName = false;
-            static bool s_OpenNamePopup = false;
-
-            const char* projLabel = CHEngine::ProjectManager::HasProject()
-                ? CHEngine::ProjectManager::Current()->GetName().c_str()
-                : "No Project";
-
-            ImGui::SameLine(0, 16);
+            // Scene ▾
             vcenter(ImGui::GetFrameHeight());
-            if (ImGui::Button(projLabel))
-                ImGui::OpenPopup("##ProjectMenu");
+            if (ImGui::Button("Scene \xe2\x96\xbe##scenemenu", ImVec2(sceneW, 0)))
+                ImGui::OpenPopup("##scene_dropdown");
 
-            if (ImGui::BeginPopup("##ProjectMenu"))
+            if (ImGui::BeginPopup("##scene_dropdown"))
             {
-                if (ImGui::MenuItem("New Project..."))
-                {
-                    std::string folder = CHEngine::FileDialog::SelectFolder("New Project: Select parent folder");
-                    if (!folder.empty())
-                    {
-                        s_ParentDir = folder;
-                        std::snprintf(s_NameBuf, sizeof(s_NameBuf), "MyProject");
-                        s_AwaitingName = true;
-                        s_OpenNamePopup = true;
-                    }
-                }
-                if (ImGui::MenuItem("Open Project..."))
-                {
-                    const char* filters[] = { "*.cheproj" };
-                    std::string path = CHEngine::FileDialog::OpenFile(
-                        "CHEngine Project (*.cheproj)", filters, 1, "Open Project");
-                    if (!path.empty() && CHEngine::ProjectManager::Open(path))
-                    {
-                        CHEngine::EngineConfig::SaveLastProject(path);
-                        CHEngine::EngineConfig::AddRecentProject(path);
-                        host.GetCommandStack().Push(
-                            CHEngine::MakeScope<CallbackCommand>(
-                                [&host] { host.OnProjectChanged(); }, [] {}, false));
-                    }
-                }
+                if (ImGui::MenuItem("Save Scene"))
+                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        [&host] { host.SaveScene(); }, [] {}, false));
+                if (ImGui::MenuItem("Open Scene..."))
+                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        [&host] { host.ToggleSceneBrowser(); }, [] {}, false));
+                ImGui::Separator();
+                if (ImGui::MenuItem("+ New Session"))
+                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        [&host] { host.AddSceneSession(); }, [] {}, false));
+                ImGui::EndPopup();
+            }
 
-                const auto recents = CHEngine::EngineConfig::LoadRecentProjects();
-                if (!recents.empty())
+            // API
+            ImGui::SameLine(0, 4);
+            vcenter(ImGui::GetFrameHeight());
+            if (ImGui::Button(apiLabel, ImVec2(apiW, 0)))
+                ImGui::OpenPopup("##api_dropdown");
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Switch render API (restarts engine)");
+
+            if (ImGui::BeginPopup("##api_dropdown"))
+            {
+                for (auto& e : kApis)
                 {
-                    ImGui::Separator();
-                    ImGui::TextDisabled("Recent");
-                    for (const auto& rp : recents)
+                    if (!CHEngine::RenderModuleResolver::IsSupportedOnPlatform(e.api)) continue;
+                    bool sel = (e.api == curApi);
+                    if (ImGui::MenuItem(e.name, nullptr, sel) && !sel)
                     {
-                        const std::string stem = std::filesystem::path(rp).stem().string();
-                        if (ImGui::MenuItem(stem.c_str()))
-                        {
-                            if (CHEngine::ProjectManager::Open(rp))
-                            {
-                                CHEngine::EngineConfig::SaveLastProject(rp);
-                                CHEngine::EngineConfig::AddRecentProject(rp);
-                                host.GetCommandStack().Push(
-                                    CHEngine::MakeScope<CallbackCommand>(
-                                        [&host] { host.OnProjectChanged(); }, [] {}, false));
-                            }
-                        }
+                        const CHEngine::ERenderAPI chosen = e.api;
+                        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                            [&host, chosen] { host.OnRendererApiSelected(chosen); }, [] {}, false));
                     }
                 }
                 ImGui::EndPopup();
             }
 
-            // New-project name popup
-            if (s_AwaitingName)
-            {
-                if (s_OpenNamePopup)
-                {
-                    ImGui::OpenPopup("##NewProjNameTB");
-                    s_OpenNamePopup = false;
-                }
-                const ImGuiIO& io2 = ImGui::GetIO();
-                ImGui::SetNextWindowPos(
-                    ImVec2(io2.DisplaySize.x * 0.5f, io2.DisplaySize.y * 0.5f),
-                    ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-                if (ImGui::BeginPopupModal("##NewProjNameTB", nullptr,
-                                           ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoTitleBar))
-                {
-                    ImGui::Text("Project name:");
-                    ImGui::SetNextItemWidth(280.0f);
-                    bool confirm = ImGui::InputText("##pname", s_NameBuf, sizeof(s_NameBuf),
-                                                    ImGuiInputTextFlags_EnterReturnsTrue);
-                    ImGui::SameLine();
-                    confirm |= ImGui::Button("Create");
-                    ImGui::SameLine();
-                    if (ImGui::Button("Cancel"))
-                    {
-                        s_AwaitingName = false;
-                        ImGui::CloseCurrentPopup();
-                    }
-                    if (confirm && s_NameBuf[0] != '\0')
-                    {
-                        std::string path = CHEngine::ProjectManager::Create(s_ParentDir, s_NameBuf);
-                        if (!path.empty())
-                        {
-                            CHEngine::EngineConfig::SaveLastProject(path);
-                            CHEngine::EngineConfig::AddRecentProject(path);
-                            host.GetCommandStack().Push(
-                                CHEngine::MakeScope<CallbackCommand>(
-                                    [&host] { host.OnProjectChanged(); }, [] {}, false));
-                        }
-                        s_AwaitingName = false;
-                        ImGui::CloseCurrentPopup();
-                    }
-                    ImGui::EndPopup();
-                }
-            }
-        }
-
-        float saveSceneW = ImGui::CalcTextSize("Save Scene").x + pad * 2.0f;
-        float openSceneW = ImGui::CalcTextSize("Open Scene").x + pad * 2.0f;
-
-        float rightBlockW = saveSceneW + 4.0f + openSceneW + 12.0f + ImGui::CalcTextSize("|").x + 12.0f
- + rendererComboW + 8.0f + ImGui::CalcTextSize(themeLabel).x + pad * 2.0f + 8.0f
-            + ImGui::CalcTextSize(fpsBuf).x + ImGui::GetStyle().WindowPadding.x;
-
-        float startX = ImGui::GetWindowWidth() - rightBlockW;
-        if (startX > ImGui::GetCursorPosX() + 10.0f)
-        {
-            ImGui::SetCursorPosX(startX);
-
-            vcenter(ImGui::GetFrameHeight());
-            if (ImGui::Button("Save Scene"))
-            {
-                host.GetCommandStack().Push(
-                    CHEngine::MakeScope<CallbackCommand>([&host] { host.SaveScene(); }, [] {}, false));
-            }
+            // ⚙ Settings
             ImGui::SameLine(0, 4);
             vcenter(ImGui::GetFrameHeight());
-            if (ImGui::Button("Open Scene"))
-            {
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.ToggleSceneBrowser(); }, [] {}, false));
-            }
-
-            ImGui::SameLine(0, 12);
-            vcenter(20.0f);
-            ImGui::SeparatorEx(ImGuiSeparatorFlags_Vertical);
-            ImGui::SameLine(0, 12);
-
-            vcenter(ImGui::GetFrameHeight());
-            ImGui::SetNextItemWidth(rendererComboW);
-            if (ImGui::BeginCombo("##renderer", rendererLabel, ImGuiComboFlags_NoArrowButton))
-            {
-                for (int i = 0; i < availCount; ++i)
-                {
-                    bool selected = (i == apiIdx);
-                    if (ImGui::Selectable(availApis[i].name, selected))
-                    {
-                        if (i != apiIdx)
-                        {
-                            const CHEngine::ERenderAPI chosen = availApis[i].api;
-                            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                                [&host, chosen] { host.OnRendererApiSelected(chosen); }, [] {}, false));
-                        }
-                    }
-                }
-                ImGui::EndCombo();
-            }
+            if (ImGui::Button("\xe2\x9a\x99##settings", ImVec2(settingsW, 0)))
+                ImGui::OpenPopup("##settings_popup");
             if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Switch render API (restarts engine)");
+                ImGui::SetTooltip("Settings");
 
-            ImGui::SameLine(0, 8);
-            vcenter(ImGui::GetFrameHeight());
-            if (ImGui::Button(themeLabel))
+            if (ImGui::BeginPopup("##settings_popup"))
             {
-                host.GetCommandStack().Push(
-                    CHEngine::MakeScope<CallbackCommand>([&host] { host.ToggleUiTheme(); }, [] {}, false));
+                UIActive::Toggle("Grid",       &host.GetEditorViewport().ShowGrid());
+                UIActive::Toggle("Profiler",   &host.GetShowProfiler());
+                UIActive::Toggle("UV Editor",  &host.GetShowUVEditor());
+                ImGui::Separator();
+                const char* themeLabel = (UIActive::g_Theme == AppTheme::RetroOS) ? "Theme: Retro" : "Theme: Dark";
+                if (ImGui::MenuItem(themeLabel))
+                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        [&host] { host.ToggleUiTheme(); }, [] {}, false));
+                ImGui::EndPopup();
             }
-            if (ImGui::IsItemHovered())
-                ImGui::SetTooltip("Switch UI theme");
-            ImGui::SameLine(0, 8);
-            vcenter(ImGui::GetTextLineHeight());
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
-            ImGui::TextUnformatted(fpsBuf);
-            ImGui::PopStyleColor();
         }
     }
 
