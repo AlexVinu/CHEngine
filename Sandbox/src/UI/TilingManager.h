@@ -50,6 +50,10 @@ public:
     // True while user is dragging a new-panel ghost
     bool IsPlacingPanel() const { return m_GhostPanel != PanelID::None; }
 
+    // Call this INSIDE each panel's Begin/End to draw close+collapse buttons
+    // into the panel's own draw list (so they appear above content, below popups)
+    void DrawOverlayForPanel(PanelID id);
+
 private:
     TilingLayout m_Layout;
     std::string  m_SavePath;

@@ -1,5 +1,6 @@
 #include "TilingManager.h"
 #include "UIThemeRetroOS.h"
+#include "EditorPopupState.h"
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <cstdio>
@@ -36,9 +37,9 @@ void TilingManager::EndFrame()
 {
     DrawSeparators();
 
-    // Draw overlay buttons for all visible panels
+    // Draw close/collapse buttons for every visible panel
     for (int i = 1; i < static_cast<int>(PanelID::COUNT); ++i)
-        DrawPanelOverlay(static_cast<PanelID>(i));
+        DrawOverlayForPanel(static_cast<PanelID>(i));
 
     DrawGhost();
     // Shift+W popup is drawn by SceneViewLayer_ShiftWMenu::Draw() (called from ImGuiFrame)
@@ -174,19 +175,19 @@ void TilingManager::DrawSeparators()
 }
 
 // ── Panel overlay (close + collapse buttons) ──────────────────────────────────
-void TilingManager::DrawPanelOverlay(PanelID id)
+// Draw close + collapse buttons for a panel.
+// Uses GetForegroundDrawList() so buttons are always visible above content.
+// Hidden while any popup is open (popup is on top anyway).
+void TilingManager::DrawOverlayForPanel(PanelID id)
 {
+    // Don't draw over popups — they handle their own Z-order
+    if (EditorPopup::AnyOpen()) return;
+
     if (!m_Layout.IsVisible(id)) return;
     TileRect r = m_Layout.GetRect(id);
     if (!r.valid) return;
 
-    // We draw buttons in the top-right corner of the panel's rect,
-    // just above it (in the title bar region of the ImGui window).
-    // Since panels use BeginPanel which draws its own title bar,
-    // we overlay our close/collapse on the foreground draw list.
-
-    // Use background drawlist so buttons appear BELOW popups
-    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
     ImGuiIO&    io = ImGui::GetIO();
 
     // Position our buttons inside the panel title bar
@@ -308,10 +309,20 @@ void TilingManager::DrawGhost()
     m_DropTarget = m_Layout.HitTestDrop(io.MousePos);
 
     // ── Draw drop preview zone ────────────────────────────────────────────────
-    if (m_DropTarget.panel != PanelID::None
-        && m_DropTarget.panel != m_GhostPanel  // don't drop onto itself
-        && m_DropTarget.edge  != DropEdge::Center
-        && m_DropTarget.previewRect.valid)
+    bool layoutEmpty = m_Layout.VisiblePanels().empty();
+
+    if (layoutEmpty)
+    {
+        // Empty workspace — highlight the whole area as drop zone
+        ImVec2 pMin = m_WorkPos;
+        ImVec2 pMax = ImVec2(m_WorkPos.x + m_WorkSize.x, m_WorkPos.y + m_WorkSize.y);
+        dl->AddRectFilled(pMin, pMax, IM_COL32(60, 120, 220, 30));
+        dl->AddRect(pMin, pMax, IM_COL32(80, 150, 255, 180), 0.0f, 0, 2.0f);
+    }
+    else if (m_DropTarget.panel != PanelID::None
+             && m_DropTarget.panel != m_GhostPanel
+             && m_DropTarget.edge  != DropEdge::Center
+             && m_DropTarget.previewRect.valid)
     {
         ImVec2 pMin = m_DropTarget.previewRect.pos;
         ImVec2 pMax = ImVec2(pMin.x + m_DropTarget.previewRect.size.x,
@@ -367,6 +378,8 @@ void TilingManager::DrawGhost()
 
     if (confirm)
     {
+        bool placed = false;
+
         if (m_DropTarget.panel != PanelID::None
             && m_DropTarget.panel != m_GhostPanel
             && m_DropTarget.edge  != DropEdge::None
@@ -380,11 +393,22 @@ void TilingManager::DrawGhost()
             m_Layout.ComputeRects();
             m_LayoutChanged = true;
             m_Layout.Save(m_SavePath);
+            placed = true;
         }
-        else if (m_DragFromPanel != PanelID::None)
+        else if (m_Layout.VisiblePanels().empty())
         {
-            // Dropped nowhere useful — panel stays where it was (already in layout)
-            // nothing to do
+            // Layout is empty — place as the only panel (becomes root)
+            m_Layout.InsertFirstPanel(m_GhostPanel);
+            m_Layout.ComputeRects();
+            m_LayoutChanged = true;
+            m_Layout.Save(m_SavePath);
+            placed = true;
+        }
+        (void)placed;
+
+        if (m_DragFromPanel != PanelID::None && !placed)
+        {
+            // Dropped nowhere useful — panel stays where it was
         }
         m_GhostPanel        = PanelID::None;
         m_DragFromPanel     = PanelID::None;

@@ -90,6 +90,8 @@ public:
     // Insert newPanel by splitting the node that contains nearPanel.
     // edge: which side of nearPanel the new panel appears on.
     void InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge);
+    // Place the very first panel when layout is empty
+    void InsertFirstPanel(PanelID id);
     // Direct ratio update from separator drag
     void UpdateRatio(TileNode* node, float newRatio);
 

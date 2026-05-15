@@ -296,6 +296,11 @@ void TilingLayout::UpdateRatio(TileNode* node, float newRatio)
     node->ratio = ImClamp(newRatio, 0.05f, 0.95f);
 }
 
+void TilingLayout::InsertFirstPanel(PanelID id)
+{
+    m_Root = MakeLeaf(id);
+}
+
 void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge)
 {
     if (edge == DropEdge::None || edge == DropEdge::Center) return;
