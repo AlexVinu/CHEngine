@@ -139,12 +139,12 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         const bool isPlay  = (activeSession.SessionState == SceneSession::State::Play);
         const bool isPause = (activeSession.SessionState == SceneSession::State::Pause);
 
-        const float kBtnH    = winH * 0.72f;       // высота кнопки
-        const float kPadX    = 10.0f;              // горизонтальный отступ внутри кнопки
-        const float kIcoH    = kBtnH - 8.0f;       // размер иконки (квадрат)
-        const float kTextGap = 6.0f;               // отступ между текстом и иконкой
-        const float kRound   = 5.0f;               // скругление углов
-        const float gap      = 6.0f;               // зазор между двумя кнопками
+        const float kBtnH    = winH * 0.60f;       // высота кнопки (чуть меньше)
+        const float kPadX    = 10.0f;              // горизонтальный отступ
+        const float kIcoH    = kBtnH - 6.0f;       // размер иконки (квадрат)
+        const float kTextGap = 5.0f;               // отступ между текстом и иконкой
+        const float kRound   = 4.0f;               // скругление углов
+        const float gap      = 5.0f;               // зазор между двумя кнопками
 
         const bool   isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
         const ImVec2 uv0     = isMetal ? ImVec2(0,0) : ImVec2(0,1);
@@ -176,15 +176,18 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
             dl->AddRectFilled(pos, ImVec2(pos.x + btnW, pos.y + kBtnH),
                               ImGui::ColorConvertFloat4ToU32(col4), kRound);
 
-            // Текст — по вертикали по центру
+            // Контент (текст + иконка) центрируем горизонтально и вертикально
+            float contentX = pos.x + (btnW - contentW) * 0.5f;
+
+            // Текст — центр по вертикали
             float textY = pos.y + (kBtnH - ImGui::GetTextLineHeight()) * 0.5f;
             ImU32 textCol = disabled ? IM_COL32(200,200,200,100) : IM_COL32(255,255,255,255);
-            dl->AddText(ImVec2(pos.x + kPadX, textY), textCol, label);
+            dl->AddText(ImVec2(contentX, textY), textCol, label);
 
-            // Иконка — по вертикали по центру, справа от текста
+            // Иконка — центр по вертикали, сразу после текста
             if (tex)
             {
-                float ix = pos.x + kPadX + textW + kTextGap;
+                float ix = contentX + textW + kTextGap;
                 float iy = pos.y + (kBtnH - kIcoH) * 0.5f;
                 ImU32 tintCol = disabled ? IM_COL32(255,255,255,100) : IM_COL32(255,255,255,255);
                 dl->AddImage(tex, ImVec2(ix, iy), ImVec2(ix + kIcoH, iy + kIcoH),
