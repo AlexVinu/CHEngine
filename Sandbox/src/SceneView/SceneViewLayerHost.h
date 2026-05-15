@@ -85,16 +85,35 @@ public:
     void OpenScriptInEditor(const std::string& path) ;
     void CreateAndAttachScript(CHEngine::EntityHandle handle, const std::string& entityName) ;
 
-    // Global AI overlay commands
+    // ── Global AI overlay commands ────────────────────────────────────────────
     void ApplyLayoutPreset(const std::string& presetName) ;
     void SelectEntityByName(const std::string& name) ;
+    void FocusOnEntityByName(const std::string& name) ;
     void OpenScriptForEntity(const std::string& entityName) ;
     void CreateAndAttachScriptToEntityByName(const std::string& entityName) ;
-    // Set position on currently selected entity (call right after Add*Primitive)
-    void SetSelectedEntityPosition(float x, float y, float z) ;
-    // Create script with specific Lua content and attach to currently selected entity
     void CreateAndAttachScriptWithContent(const std::string& entityName,
                                           const std::string& luaContent) ;
+
+    // Transform on selected entity (use right after Add*Primitive)
+    void SetSelectedEntityPosition(float x, float y, float z) ;
+    void SetSelectedEntityRotation(float x, float y, float z) ;
+    void SetSelectedEntityScale(float x, float y, float z) ;
+    void RenameSelectedEntity(const std::string& newName) ;
+
+    // Transform / properties on named entity
+    void SetEntityPositionByName(const std::string& name, float x, float y, float z) ;
+    void SetEntityRotationByName(const std::string& name, float x, float y, float z) ;
+    void SetEntityScaleByName(const std::string& name, float x, float y, float z) ;
+    void SetEntityColorByName(const std::string& name, float r, float g, float b, float a) ;
+    void SetEntityVisibleByName(const std::string& name, bool visible) ;
+    void RenameEntityByName(const std::string& oldName, const std::string& newName) ;
+    void DeleteEntityByName(const std::string& name) ;
+    void SetEntityLightByName(const std::string& name,
+                               const std::string& lightType,
+                               float r, float g, float b, float intensity) ;
+
+    // Editor state
+    void SetViewportFovValue(float fov) ;   // alias for SetViewportFov
 
     void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;
     void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) ;

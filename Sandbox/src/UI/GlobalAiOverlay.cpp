@@ -13,6 +13,7 @@
 #include <cstring>
 #include <cstdlib>
 #include <algorithm>
+#include <stdexcept>
 
 namespace Sandbox {
 
@@ -199,121 +200,198 @@ static std::string GetScriptTemplate(const std::string& name)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// System prompt
+// JSON array parser helpers
 // ─────────────────────────────────────────────────────────────────────────────
-static const char* kSystemPrompt = R"(You are a command parser for CHEngine 3D editor. Parse the user request and return ONLY a valid JSON object. No markdown, no explanation, no extra text — ONLY the JSON.
 
-═══════════════════════════════════════════
-JSON SCHEMA (all fields required):
+// Extract each {...} object from "key": [...] array
+static std::vector<std::string> ParseJsonActionsArray(const std::string& json)
 {
-  "layout":          "<preset>",
-  "creates":         "<comma_separated_or_empty>",
-  "positions":       "<x:y:z per create, comma_separated, or empty>",
-  "script_for":      "<entity_name_or_empty>",
-  "script_template": "<template_name_or_empty>",
-  "focus_on":        "<entity_name_or_empty>",
-  "entity":          "<entity_name_or_empty>",
-  "message":         "<short_confirmation_same_language_max_12_words>"
+    std::vector<std::string> result;
+    size_t pos = json.find("\"actions\"");
+    if (pos == std::string::npos) return result;
+    pos += 9;
+    while (pos < json.size() && json[pos] != '[') ++pos;
+    if (pos >= json.size()) return result;
+    ++pos;
+    int depth = 0; size_t start = std::string::npos;
+    for (size_t i = pos; i < json.size(); ++i) {
+        if      (json[i] == '{') { if (!depth) start = i; ++depth; }
+        else if (json[i] == '}') { --depth; if (!depth && start != std::string::npos) { result.push_back(json.substr(start, i-start+1)); start = std::string::npos; } }
+        else if (json[i] == ']' && !depth) break;
+    }
+    return result;
 }
-═══════════════════════════════════════════
 
-━━━ FIELD: layout ━━━
-Choose EXACTLY ONE. Default to "model_focus" when in doubt about objects/scene.
+// Parse [x, y, z] or [r, g, b, a] float array from a JSON object
+static std::vector<float> ParseJsonVec(const std::string& obj, const std::string& key)
+{
+    std::vector<float> result;
+    std::string searchKey = "\"" + key + "\"";
+    size_t pos = obj.find(searchKey);
+    if (pos == std::string::npos) return result;
+    pos += searchKey.size();
+    while (pos < obj.size() && obj[pos] != '[') ++pos;
+    if (pos >= obj.size()) return result;
+    ++pos;
+    std::string num;
+    for (; pos < obj.size() && obj[pos] != ']'; ++pos) {
+        char c = obj[pos];
+        if (c == ',' || c == ']') { if (!num.empty()) { try { result.push_back(std::stof(num)); } catch(...){} num.clear(); } }
+        else if (c == '-' || (c >= '0' && c <= '9') || c == '.') num += c;
+    }
+    if (!num.empty()) { try { result.push_back(std::stof(num)); } catch(...){} }
+    return result;
+}
 
-  "model_focus"  — Use when: creating objects, working with 3D scene, lights, camera, transforms
-  "script_focus" — Use ONLY when: user explicitly says script/code/lua/logic
-  "uv_focus"     — Use ONLY when: user explicitly says texture/UV/material/unwrap
-  "default"      — Use ONLY when: user says reset/standard layout
+static float ParseJsonFloat(const std::string& obj, const std::string& key, float def = 0.0f)
+{
+    auto v = ParseJsonVec(obj, key); // won't find array, try scalar
+    if (!v.empty()) return v[0];
+    // Try scalar "key": 1.0
+    std::string searchKey = "\"" + key + "\"";
+    size_t pos = obj.find(searchKey);
+    if (pos == std::string::npos) return def;
+    pos += searchKey.size();
+    while (pos < obj.size() && (obj[pos] == ' ' || obj[pos] == ':')) ++pos;
+    std::string num;
+    for (; pos < obj.size(); ++pos) {
+        char c = obj[pos];
+        if (c == ',' || c == '}' || c == '\n') break;
+        if (c == '-' || (c >= '0' && c <= '9') || c == '.') num += c;
+    }
+    if (!num.empty()) { try { return std::stof(num); } catch(...){} }
+    return def;
+}
 
-⚠ ANTI-HALLUCINATION RULES FOR LAYOUT:
-  - "добавь куб" → "model_focus"  (NOT uv_focus, NOT script_focus)
-  - "создай сцену" → "model_focus"
-  - "добавь свет" → "model_focus"
-  - NEVER use "uv_focus" unless words: texture, UV, unwrap, material, текстур, материал, UV, развёртк
-  - NEVER use "script_focus" unless words: script, код, lua, скрипт, logic, логик, code
+static bool ParseJsonBool(const std::string& obj, const std::string& key, bool def = true)
+{
+    std::string searchKey = "\"" + key + "\"";
+    size_t pos = obj.find(searchKey);
+    if (pos == std::string::npos) return def;
+    pos += searchKey.size();
+    while (pos < obj.size() && (obj[pos] == ' ' || obj[pos] == ':')) ++pos;
+    if (pos < obj.size()) {
+        if (obj[pos] == 't') return true;
+        if (obj[pos] == 'f') return false;
+    }
+    return def;
+}
 
-━━━ FIELD: creates ━━━
-Comma-separated list of objects to create. Leave "" if user is NOT asking to add new objects.
-Values: cube, sphere, empty, camera, dir_light, point_light, spot_light
+// ─────────────────────────────────────────────────────────────────────────────
+// System prompt — full engine capabilities
+// ─────────────────────────────────────────────────────────────────────────────
+static const char* kSystemPrompt = R"(You are a command executor for CHEngine 3D editor. Parse user request and return ONLY valid JSON — no markdown, no explanation, nothing else.
 
-Word → value mapping:
-  cube/куб/кубик/box → cube
-  sphere/шар/шарик/мяч/сфера → sphere
-  empty/пустой/empty object → empty
-  camera/камера → camera
-  directional light/направленный свет → dir_light
-  point light/точечный свет → point_light
-  spot light/прожектор/spot → spot_light
+FORMAT:
+{"message":"<short confirmation same language as user>","actions":[...]}
 
-Order matters: create objects BEFORE focusing camera on them.
-Example: "sphere,cube,camera" creates sphere first, then cube, then camera.
+AVAILABLE ACTIONS (use as many as needed, in logical order):
 
-━━━ FIELD: positions ━━━
-Comma-separated x:y:z positions, one per item in "creates" (same order).
-Use to place objects apart from each other. Default scene center is 0:0:0.
-Leave "" to place everything at default position.
-Example: creates="sphere,sphere,cube", positions="-3:0:0,3:0:0,0:0:0"
-  → sphere 1 at (-3,0,0), sphere 2 at (3,0,0), cube at origin
-Use Y=0 for ground level. Spacing of 2-5 units looks good.
-Leave "" if position doesn't matter or user didn't specify.
+── CREATE OBJECTS ──
+{"type":"create","object":"<kind>","name":"<optional_name>","pos":[x,y,z],"rot":[x,y,z],"scale":[x,y,z]}
+  object values: cube, sphere, empty, camera, dir_light, point_light, spot_light
+  pos/rot/scale are optional (default: [0,0,0] and [1,1,1])
+  name: optional custom name; default names: cube→Cube, sphere→Sphere, camera→Camera, dir_light→Directional Light, point_light→Point Light, spot_light→Spot Light
 
-━━━ FIELD: script_for ━━━
-Entity name that needs a script created and attached.
-Use when user says "добавь скрипт [объекту]", "пусть [объект] двигается/прыгает/вращается".
-The entity will be created from "creates" field first, then script attached.
-Default names after creation: cube→"Cube", sphere→"Sphere", camera→"Camera"
-Leave "" if no script needed.
+── TRANSFORM ──
+{"type":"set_pos","entity":"<name>","pos":[x,y,z]}
+{"type":"set_rot","entity":"<name>","rot":[x,y,z]}
+{"type":"set_scale","entity":"<name>","scale":[x,y,z]}
 
-━━━ FIELD: script_template ━━━
-Template name for the script assigned via script_for. Choose based on user description:
-  "wasd"     → WASD keyboard movement + Space to jump
-  "rotate_y" → slow continuous Y-axis rotation
-  "bounce"   → bounces up and down
-  "orbit"    → orbits around scene origin
-  ""         → empty template (default, use when user didn't describe behavior)
+── APPEARANCE ──
+{"type":"set_color","entity":"<name>","color":[r,g,b,a]}  (values 0.0-1.0)
+{"type":"set_visible","entity":"<name>","visible":false}
 
-Match keywords:
-  move/движен/WASD/управлен → "wasd"
-  rotate/вращ/spin/крутится → "rotate_y"
-  bounce/прыга/подпрыг → "bounce"
-  orbit/летит вокруг → "orbit"
+── LIGHT ──
+{"type":"set_light","entity":"<name>","light_type":"directional|point|spot","color":[r,g,b],"intensity":1.0}
 
-━━━ FIELD: focus_on ━━━
-Entity name to focus the viewport camera on.
-Use when: "камера смотрит на X", "наведи камеру на X", "camera looks at X", "camera targets X"
-Leave "" if not requested.
+── NAMING / DELETION ──
+{"type":"rename","entity":"<old_name>","name":"<new_name>"}
+{"type":"delete","entity":"<name>"}
 
-━━━ FIELD: entity ━━━
-Name of EXISTING entity to select (for script editing or UV work).
-Leave "" when creating new objects.
+── SCRIPTS ──
+{"type":"add_script","entity":"<name>","template":"<wasd|rotate_y|bounce|orbit>"}
+  wasd     = WASD movement + Space jump
+  rotate_y = continuous Y rotation
+  bounce   = up/down bouncing
+  orbit    = orbits around origin
+  (omit template or leave "" for empty script)
 
-═══════════════════════════════════════════
+── EDITOR ACTIONS ──
+{"type":"select","entity":"<name>"}
+{"type":"focus","entity":"<name>"}
+{"type":"layout","preset":"script_focus|uv_focus|model_focus|default"}
+{"type":"play"}
+{"type":"stop"}
+{"type":"save"}
+{"type":"reset_camera"}
+{"type":"set_fov","value":60.0}
+
+IMPORTANT RULES:
+1. Create objects BEFORE modifying them by name
+2. Positions: Y=0 is ground level; space objects 3-6 units apart
+3. Color values are 0.0-1.0 (not 0-255); red=[1,0,0,1], blue=[0,0.5,1,1]
+4. Light intensity: 1.0=normal, 2.0=bright, 0.5=dim
+5. Layout: use script_focus when working on scripts, model_focus for 3D work, uv_focus for textures
+6. Output ONLY the JSON object, nothing else
+
 EXAMPLES:
-═══════════════════════════════════════════
 
-User: "добавь куб"
-{"layout":"model_focus","creates":"cube","positions":"","script_for":"","script_template":"","focus_on":"","entity":"","message":"Добавил куб"}
+User: "добавь красный куб"
+{"message":"Добавил красный куб","actions":[
+  {"type":"create","object":"cube"},
+  {"type":"set_color","entity":"Cube","color":[1,0,0,1]}
+]}
 
-User: "добавь два шара в стороне и кубик, камера смотрит только на кубик"
-{"layout":"model_focus","creates":"sphere,sphere,cube,camera","positions":"-3:0:0,3:0:0,0:0:0,0:3:3","script_for":"","script_template":"","focus_on":"Cube","entity":"","message":"Добавил два шара, куб и камеру"}
+User: "создай сцену: два шара по бокам и кубик в центре, камера смотрит на куб"
+{"message":"Создал сцену с двумя шарами и кубом","actions":[
+  {"type":"create","object":"sphere","pos":[-4,0,0]},
+  {"type":"create","object":"sphere","pos":[4,0,0]},
+  {"type":"create","object":"cube","pos":[0,0,0]},
+  {"type":"create","object":"camera","pos":[0,3,8]},
+  {"type":"layout","preset":"model_focus"},
+  {"type":"focus","entity":"Cube"}
+]}
 
-User: "создай сцену: шарик и кубик, камера смотрит на шарик, кубик двигается по WASD"
-{"layout":"script_focus","creates":"sphere,cube,camera","positions":"0:0:0,3:0:0,0:2:5","script_for":"Cube","script_template":"wasd","focus_on":"Sphere","entity":"","message":"Создал сцену, куб управляется WASD"}
+User: "добавь кубик с WASD управлением"
+{"message":"Добавил куб с WASD скриптом","actions":[
+  {"type":"create","object":"cube"},
+  {"type":"add_script","entity":"Cube","template":"wasd"},
+  {"type":"layout","preset":"script_focus"}
+]}
 
-User: "добавь сферу которая вращается"
-{"layout":"model_focus","creates":"sphere","positions":"","script_for":"Sphere","script_template":"rotate_y","focus_on":"","entity":"","message":"Добавил вращающуюся сферу"}
+User: "сделай направленный свет желтоватым и увеличь его яркость"
+{"message":"Обновил направленный свет","actions":[
+  {"type":"set_light","entity":"Directional Light","light_type":"directional","color":[1,0.95,0.7],"intensity":2.0}
+]}
 
-User: "создай сферу и точечный свет рядом"
-{"layout":"model_focus","creates":"sphere,point_light","positions":"0:0:0,2:2:0","script_for":"","script_template":"","focus_on":"","entity":"","message":"Добавил сферу и свет"}
+User: "создай сцену: шарик и кубик, шарик вращается, кубик двигается WASD, камера смотрит на куб"
+{"message":"Создал сцену с анимацией","actions":[
+  {"type":"create","object":"sphere","pos":[-3,0,0]},
+  {"type":"add_script","entity":"Sphere","template":"rotate_y"},
+  {"type":"create","object":"cube","pos":[3,0,0]},
+  {"type":"add_script","entity":"Cube","template":"wasd"},
+  {"type":"create","object":"camera","pos":[0,3,8]},
+  {"type":"layout","preset":"script_focus"},
+  {"type":"focus","entity":"Cube"}
+]}
 
-User: "хочу написать скрипт для объекта Cube"
-{"layout":"script_focus","creates":"","positions":"","script_for":"","script_template":"","focus_on":"","entity":"Cube","message":"Открываю скрипт для Cube"}
+User: "скрой объект Sphere и переименуй Cube в Floor"
+{"message":"Скрыл Sphere, переименовал Cube в Floor","actions":[
+  {"type":"set_visible","entity":"Sphere","visible":false},
+  {"type":"rename","entity":"Cube","name":"Floor"}
+]}
 
-User: "хочу работать с текстурами Sphere"
-{"layout":"uv_focus","creates":"","positions":"","script_for":"","script_template":"","focus_on":"","entity":"Sphere","message":"UV-режим для Sphere"}
+User: "сохрани сцену и запусти игру"
+{"message":"Сохранил и запустил","actions":[
+  {"type":"save"},
+  {"type":"play"}
+]}
 
 User: "верни стандартный layout"
-{"layout":"default","creates":"","positions":"","script_for":"","script_template":"","focus_on":"","entity":"","message":"Восстановил стандартный layout"}
+{"message":"Восстановил стандартный layout","actions":[
+  {"type":"layout","preset":"default"}
+]}
 )";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -323,7 +401,7 @@ std::string GlobalAiOverlay::BuildRequestBody(const std::string& userMsg) const
     ss << "{"
        << "\"model\":\"" << JsonEscape(m_Model) << "\","
        << "\"temperature\":0.1,"
-       << "\"max_tokens\":256,"
+       << "\"max_tokens\":1024,"
        << "\"messages\":["
        <<   "{\"role\":\"system\",\"content\":\"" << JsonEscape(kSystemPrompt) << "\"},"
        <<   "{\"role\":\"user\",\"content\":\"" << JsonEscape(userMsg) << "\"}"
@@ -331,7 +409,6 @@ std::string GlobalAiOverlay::BuildRequestBody(const std::string& userMsg) const
     return ss.str();
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 std::string GlobalAiOverlay::CallHttp(const std::string& body)
 {
 #ifdef CHE_HAS_CURL
@@ -352,7 +429,7 @@ std::string GlobalAiOverlay::CallHttp(const std::string& body)
     curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE,  (long)body.size());
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,  CurlWriteCb);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA,      &response);
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT,        30L);
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT,        60L);
     curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
 
@@ -368,11 +445,10 @@ std::string GlobalAiOverlay::CallHttp(const std::string& body)
     return "__HTTP__" + std::to_string(httpCode) + "__BODY__" + response;
 #else
     (void)body;
-    return "__ERR__CURL not available in this build";
+    return "__ERR__CURL not available";
 #endif
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 std::string GlobalAiOverlay::ExtractContent(const std::string& httpResponse)
 {
     if (httpResponse.rfind("__ERR__", 0) == 0)
@@ -382,7 +458,6 @@ std::string GlobalAiOverlay::ExtractContent(const std::string& httpResponse)
     if (bodyPos == std::string::npos) return "__ERR__no body";
     const std::string& json = httpResponse.substr(bodyPos + 8);
 
-    // OpenAI-compatible: choices[0].message.content
     auto extractStr = [&](const std::string& key) -> std::string {
         std::string searchKey = "\"" + key + "\":\"";
         size_t pos = json.find(searchKey);
@@ -420,7 +495,6 @@ std::string GlobalAiOverlay::ExtractContent(const std::string& httpResponse)
     return content;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 void GlobalAiOverlay::WorkerFn(std::string userMsg)
 {
     std::string body    = BuildRequestBody(userMsg);
@@ -432,7 +506,6 @@ void GlobalAiOverlay::WorkerFn(std::string userMsg)
     m_HasPending      = true;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
 void GlobalAiOverlay::Submit(const std::string& userMsg, SceneViewLayerHost& /*host*/)
 {
     if (m_Worker.joinable())
@@ -452,115 +525,134 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
         return;
     }
 
-    // Find JSON object in response (AI might add extra text)
+    // Extract outermost JSON object from response
     std::string json = raw;
-    size_t jStart = json.find('{');
-    size_t jEnd   = json.rfind('}');
-    if (jStart != std::string::npos && jEnd != std::string::npos && jEnd > jStart)
-        json = json.substr(jStart, jEnd - jStart + 1);
+    {
+        size_t s = json.find('{'), e = json.rfind('}');
+        if (s != std::string::npos && e != std::string::npos && e > s)
+            json = json.substr(s, e - s + 1);
+    }
 
-    std::string layout          = JsonField(json, "layout");
-    std::string creates         = JsonField(json, "creates");
-    std::string positions_str   = JsonField(json, "positions");
-    std::string script_for      = JsonField(json, "script_for");
-    std::string script_template = JsonField(json, "script_template");
-    std::string entity          = JsonField(json, "entity");
-    std::string focus_on        = JsonField(json, "focus_on");
-    std::string message         = JsonField(json, "message");
-
-    if (layout.empty()) layout = "default";
+    std::string message = JsonField(json, "message");
     if (message.empty()) message = "Готово";
 
-    // Parse positions: "x:y:z,x:y:z,..." → vector of {x,y,z}
-    struct Vec3 { float x = 0, y = 0, z = 0; };
-    std::vector<Vec3> positions;
-    if (!positions_str.empty())
+    // Parse and execute each action
+    auto actions = ParseJsonActionsArray(json);
+    for (auto& act : actions)
     {
-        std::string posToken;
-        auto parsePos = [&](const std::string& s) {
-            Vec3 v; int i = 0; std::string num;
-            for (char c : s + ":") {
-                if (c == ':') {
-                    float val = num.empty() ? 0.0f : std::stof(num);
-                    if (i == 0) v.x = val;
-                    else if (i == 1) v.y = val;
-                    else if (i == 2) v.z = val;
-                    ++i; num.clear();
-                } else if (c == '-' || (c >= '0' && c <= '9') || c == '.') {
-                    num += c;
-                }
-            }
-            positions.push_back(v);
-        };
-        for (char c : positions_str + ",") {
-            if (c == ',') { if (!posToken.empty()) parsePos(posToken); posToken.clear(); }
-            else posToken += c;
-        }
-    }
+        std::string type = JsonField(act, "type");
 
-    // Create objects — parse comma-separated list, apply positions in order
-    if (!creates.empty())
-    {
-        int posIdx = 0;
-        auto createOne = [&](const std::string& type)
+        if (type == "create")
         {
-            if      (type == "cube")        host.AddCubePrimitive();
-            else if (type == "sphere")      host.AddSpherePrimitive();
-            else if (type == "empty")       host.AddEmptyEntity();
-            else if (type == "camera")      host.AddCameraEntity();
-            else if (type == "dir_light")   host.AddDirectionalLight();
-            else if (type == "point_light") host.AddPointLight();
-            else if (type == "spot_light")  host.AddSpotLight();
-            else return;
+            std::string object = JsonField(act, "object");
+            std::string name   = JsonField(act, "name");
+            auto pos   = ParseJsonVec(act, "pos");
+            auto rot   = ParseJsonVec(act, "rot");
+            auto scale = ParseJsonVec(act, "scale");
 
-            // Apply position to the just-created (auto-selected) entity
-            if (posIdx < (int)positions.size())
-            {
-                const Vec3& p = positions[posIdx];
-                if (p.x != 0 || p.y != 0 || p.z != 0)
-                    host.SetSelectedEntityPosition(p.x, p.y, p.z);
-            }
-            ++posIdx;
-        };
+            if      (object == "cube")        host.AddCubePrimitive();
+            else if (object == "sphere")      host.AddSpherePrimitive();
+            else if (object == "empty")       host.AddEmptyEntity();
+            else if (object == "camera")      host.AddCameraEntity();
+            else if (object == "dir_light")   host.AddDirectionalLight();
+            else if (object == "point_light") host.AddPointLight();
+            else if (object == "spot_light")  host.AddSpotLight();
+            else continue;
 
-        std::string token;
-        for (char c : creates + ",") {
-            if (c == ',') { if (!token.empty()) { createOne(token); token.clear(); } }
-            else if (c != ' ') token += c;
+            if (!name.empty())
+                host.RenameSelectedEntity(name);
+
+            if (pos.size()   >= 3) host.SetSelectedEntityPosition(pos[0],   pos[1],   pos[2]);
+            if (rot.size()   >= 3) host.SetSelectedEntityRotation(rot[0],   rot[1],   rot[2]);
+            if (scale.size() >= 3) host.SetSelectedEntityScale   (scale[0], scale[1], scale[2]);
         }
-    }
-
-    // Apply layout
-    host.ApplyLayoutPreset(layout);
-
-    // Select entity by name if provided
-    if (!entity.empty())
-        host.SelectEntityByName(entity);
-
-    // Create and attach script (with optional template content)
-    if (!script_for.empty())
-    {
-        std::string luaContent = GetScriptTemplate(script_template);
-        if (!luaContent.empty())
-            host.CreateAndAttachScriptWithContent(script_for, luaContent);
-        else
-            host.CreateAndAttachScriptToEntityByName(script_for);
-    }
-
-    // If script_focus, open the entity's existing script in editor
-    if (layout == "script_focus" && !entity.empty())
-        host.OpenScriptForEntity(entity);
-
-    // Focus viewport camera on target entity
-    if (!focus_on.empty())
-    {
-        host.SelectEntityByName(focus_on);
-        host.FocusOnSelected();
+        else if (type == "set_pos")
+        {
+            auto pos = ParseJsonVec(act, "pos");
+            std::string ent = JsonField(act, "entity");
+            if (pos.size() >= 3) host.SetEntityPositionByName(ent, pos[0], pos[1], pos[2]);
+        }
+        else if (type == "set_rot")
+        {
+            auto rot = ParseJsonVec(act, "rot");
+            std::string ent = JsonField(act, "entity");
+            if (rot.size() >= 3) host.SetEntityRotationByName(ent, rot[0], rot[1], rot[2]);
+        }
+        else if (type == "set_scale")
+        {
+            auto sc = ParseJsonVec(act, "scale");
+            std::string ent = JsonField(act, "entity");
+            if (sc.size() >= 3) host.SetEntityScaleByName(ent, sc[0], sc[1], sc[2]);
+        }
+        else if (type == "set_color")
+        {
+            auto col = ParseJsonVec(act, "color");
+            std::string ent = JsonField(act, "entity");
+            float a = col.size() >= 4 ? col[3] : 1.0f;
+            if (col.size() >= 3) host.SetEntityColorByName(ent, col[0], col[1], col[2], a);
+        }
+        else if (type == "set_visible")
+        {
+            std::string ent = JsonField(act, "entity");
+            bool vis = ParseJsonBool(act, "visible", true);
+            host.SetEntityVisibleByName(ent, vis);
+        }
+        else if (type == "set_light")
+        {
+            std::string ent       = JsonField(act, "entity");
+            std::string lightType = JsonField(act, "light_type");
+            auto col              = ParseJsonVec(act, "color");
+            float intensity       = ParseJsonFloat(act, "intensity", 1.0f);
+            float r = col.size()>0?col[0]:1.0f, g=col.size()>1?col[1]:1.0f, b=col.size()>2?col[2]:1.0f;
+            host.SetEntityLightByName(ent, lightType, r, g, b, intensity);
+        }
+        else if (type == "rename")
+        {
+            std::string ent  = JsonField(act, "entity");
+            std::string name = JsonField(act, "name");
+            host.RenameEntityByName(ent, name);
+        }
+        else if (type == "delete")
+        {
+            host.DeleteEntityByName(JsonField(act, "entity"));
+        }
+        else if (type == "add_script")
+        {
+            std::string ent  = JsonField(act, "entity");
+            std::string tmpl = JsonField(act, "template");
+            std::string lua  = GetScriptTemplate(tmpl);
+            if (!lua.empty())
+                host.CreateAndAttachScriptWithContent(ent, lua);
+            else
+                host.CreateAndAttachScriptToEntityByName(ent);
+        }
+        else if (type == "select")
+        {
+            host.SelectEntityByName(JsonField(act, "entity"));
+        }
+        else if (type == "focus")
+        {
+            host.FocusOnEntityByName(JsonField(act, "entity"));
+        }
+        else if (type == "layout")
+        {
+            host.ApplyLayoutPreset(JsonField(act, "preset"));
+        }
+        else if (type == "play")  { host.EnterPlayMode();  }
+        else if (type == "stop")  { host.StopPlayMode();   }
+        else if (type == "save")  { host.SaveScene();      }
+        else if (type == "reset_camera") { host.ResetViewportCamera(); }
+        else if (type == "set_fov")
+        {
+            float fov = ParseJsonFloat(act, "value", 45.0f);
+            host.SetViewportFovValue(fov);
+        }
     }
 
     m_Messages.push_back({ false, message });
     m_Status.clear();
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 void GlobalAiOverlay::DrawSettingsPanel()

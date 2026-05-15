@@ -647,6 +647,176 @@ void SceneViewLayerHost::CreateAndAttachScriptWithContent(const std::string& ent
             [&](CHEngine::ScriptComponent& sc) { sc.ScriptPath = absPath; });
 }
 
+// ── Helper: run lambda on every entity with given name ───────────────────────
+static void ForEntityByName(CHEngine::Scene* scene, const std::string& name,
+    std::function<void(CHEngine::Entity*)> fn)
+{
+    if (!scene || name.empty()) return;
+    scene->ForEach<CHEngine::TagComponent>(
+        [&](CHEngine::EntityHandle h, const CHEngine::UUID&, CHEngine::TagComponent& tag) {
+            if (tag.Name == name) {
+                auto* e = scene->TryGetEntity(h);
+                if (e) fn(e);
+            }
+        });
+}
+
+void SceneViewLayerHost::SetSelectedEntityRotation(float x, float y, float z)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto* e = scene->TryGetEntity(session->SelectedEntity);
+    if (!e || !e->HasComponent<CHEngine::TransformComponent>()) return;
+    e->PatchComponent<CHEngine::TransformComponent>(
+        [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Rotation = {x,y,z}; });
+}
+
+void SceneViewLayerHost::SetSelectedEntityScale(float x, float y, float z)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto* e = scene->TryGetEntity(session->SelectedEntity);
+    if (!e || !e->HasComponent<CHEngine::TransformComponent>()) return;
+    e->PatchComponent<CHEngine::TransformComponent>(
+        [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Scale = {x,y,z}; });
+}
+
+void SceneViewLayerHost::RenameSelectedEntity(const std::string& newName)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene || newName.empty()) return;
+    auto* e = scene->TryGetEntity(session->SelectedEntity);
+    if (!e || !e->HasComponent<CHEngine::TagComponent>()) return;
+    e->PatchComponent<CHEngine::TagComponent>(
+        [&](CHEngine::TagComponent& tag) { tag.Name = newName; });
+}
+
+void SceneViewLayerHost::FocusOnEntityByName(const std::string& name)
+{
+    SelectEntityByName(name);
+    FocusOnSelected();
+}
+
+void SceneViewLayerHost::SetEntityPositionByName(const std::string& name,
+                                                  float x, float y, float z)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    ForEntityByName(session->EditorScene.get(), name, [x,y,z](CHEngine::Entity* e) {
+        if (e->HasComponent<CHEngine::TransformComponent>())
+            e->PatchComponent<CHEngine::TransformComponent>(
+                [x,y,z](CHEngine::TransformComponent& tc) {
+                    tc.ObjectTransform.Position = {x,y,z};
+                });
+    });
+}
+
+void SceneViewLayerHost::SetEntityRotationByName(const std::string& name,
+                                                  float x, float y, float z)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    ForEntityByName(session->EditorScene.get(), name, [x,y,z](CHEngine::Entity* e) {
+        if (e->HasComponent<CHEngine::TransformComponent>())
+            e->PatchComponent<CHEngine::TransformComponent>(
+                [x,y,z](CHEngine::TransformComponent& tc) {
+                    tc.ObjectTransform.Rotation = {x,y,z};
+                });
+    });
+}
+
+void SceneViewLayerHost::SetEntityScaleByName(const std::string& name,
+                                               float x, float y, float z)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    ForEntityByName(session->EditorScene.get(), name, [x,y,z](CHEngine::Entity* e) {
+        if (e->HasComponent<CHEngine::TransformComponent>())
+            e->PatchComponent<CHEngine::TransformComponent>(
+                [x,y,z](CHEngine::TransformComponent& tc) {
+                    tc.ObjectTransform.Scale = {x,y,z};
+                });
+    });
+}
+
+void SceneViewLayerHost::SetEntityColorByName(const std::string& name,
+                                               float r, float g, float b, float a)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    ForEntityByName(session->EditorScene.get(), name, [r,g,b,a](CHEngine::Entity* e) {
+        if (!e->HasComponent<CHEngine::ColorComponent>())
+            e->AddComponent<CHEngine::ColorComponent>();
+        e->PatchComponent<CHEngine::ColorComponent>(
+            [r,g,b,a](CHEngine::ColorComponent& cc) { cc.Color = {r,g,b,a}; });
+    });
+}
+
+void SceneViewLayerHost::SetEntityVisibleByName(const std::string& name, bool visible)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    ForEntityByName(session->EditorScene.get(), name, [visible](CHEngine::Entity* e) {
+        if (!e->HasComponent<CHEngine::VisibilityComponent>())
+            e->AddComponent<CHEngine::VisibilityComponent>();
+        e->PatchComponent<CHEngine::VisibilityComponent>(
+            [visible](CHEngine::VisibilityComponent& vc) { vc.Visible = visible; });
+    });
+}
+
+void SceneViewLayerHost::RenameEntityByName(const std::string& oldName,
+                                             const std::string& newName)
+{
+    if (newName.empty()) return;
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    ForEntityByName(session->EditorScene.get(), oldName, [&](CHEngine::Entity* e) {
+        if (e->HasComponent<CHEngine::TagComponent>())
+            e->PatchComponent<CHEngine::TagComponent>(
+                [&](CHEngine::TagComponent& tag) { tag.Name = newName; });
+    });
+}
+
+void SceneViewLayerHost::DeleteEntityByName(const std::string& name)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene || name.empty()) return;
+
+    CHEngine::UUID targetUuid{};
+    bool found = false;
+    scene->ForEach<CHEngine::TagComponent>(
+        [&](CHEngine::EntityHandle h, const CHEngine::UUID& uuid, CHEngine::TagComponent& tag) {
+            if (tag.Name == name && !found) { targetUuid = uuid; found = true; }
+        });
+
+    if (found) DestroyEntityByUuid(targetUuid);
+}
+
+void SceneViewLayerHost::SetEntityLightByName(const std::string& name,
+                                               const std::string& lightType,
+                                               float r, float g, float b, float intensity)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    ForEntityByName(session->EditorScene.get(), name, [&](CHEngine::Entity* e) {
+        if (!e->HasComponent<CHEngine::LightComponent>())
+            e->AddComponent<CHEngine::LightComponent>();
+
+        CHEngine::LightType ltype = CHEngine::LightType::Directional;
+        if (lightType == "point")  ltype = CHEngine::LightType::Point;
+        if (lightType == "spot")   ltype = CHEngine::LightType::Spot;
+
+        e->PatchComponent<CHEngine::LightComponent>(
+            [ltype, r, g, b, intensity](CHEngine::LightComponent& lc) {
+                lc.LightData.Type      = ltype;
+                lc.LightData.Color     = { r, g, b };
+                lc.LightData.Intensity = intensity;
+            });
+    });
+}
+
+void SceneViewLayerHost::SetViewportFovValue(float fov)
+{
+    SetViewportFov(fov);
+}
+
 void SceneViewLayerHost::CreateAndAttachScriptToEntityByName(const std::string& entityName)
 {
     // Find entity by name
