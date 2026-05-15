@@ -73,10 +73,10 @@ GlobalAiOverlay::GlobalAiOverlay()
     welcome.text   =
         "Привет! Я помогу настроить рабочее пространство.\n\n"
         "Примеры:\n"
+        "• \"Добавь куб\"\n"
         "• \"Буду работать над скриптами объекта Cube\"\n"
-        "• \"Хочу расставить объекты на сцене\"\n"
-        "• \"Верни стандартный layout\"\n\n"
-        "Введи API ключ в настройках (кнопка ⚙ справа).";
+        "• \"Хочу работать с текстурами\"\n"
+        "• \"Верни стандартный layout\"";
     m_Messages.push_back(welcome);
 
     std::strncpy(m_EndpointBuf, m_Endpoint.c_str(), sizeof(m_EndpointBuf) - 1);
@@ -99,53 +99,57 @@ void GlobalAiOverlay::Toggle()
 // ─────────────────────────────────────────────────────────────────────────────
 // System prompt
 // ─────────────────────────────────────────────────────────────────────────────
-static const char* kSystemPrompt = R"(You are a layout assistant inside CHEngine 3D editor. Classify the user intent and return ONLY a JSON object, no other text.
+static const char* kSystemPrompt = R"(You are an assistant inside CHEngine 3D editor. Classify user intent and return ONLY a JSON object, no other text, no markdown.
 
-LAYOUT PRESETS — choose exactly one:
+JSON format:
+{"layout":"<preset>","create":"<object_or_empty>","entity":"<name_or_empty>","message":"<max_8_words_same_language>"}
 
-"script_focus"
-  USE FOR: scripting, code, lua, programming, logic, скрипт, код, программирование, логика
-  PANELS: small Viewport left, large ScriptEditor center, ContentBrowser right
+━━━ LAYOUT PRESETS (choose one) ━━━
+"script_focus"  → scripts, code, lua, logic / скрипт, код, программирование
+"uv_focus"      → textures, UV, unwrap, materials / текстуры, UV, развёртка, материалы
+"model_focus"   → scene, placing, 3D objects, transform / сцена, расстановка, объекты
+"default"       → reset, standard / сброс, стандарт
 
-"uv_focus"
-  USE FOR: textures, UV, unwrap, materials, mapping, текстуры, UV, развёртка, материалы, текстурирование
-  PANELS: Viewport left, large UVEditor right, Properties below
+RULES for layout:
+- texture/UV/material/unwrap → ALWAYS "uv_focus"
+- script/code/lua → ALWAYS "script_focus"
+- scene/place/3D → "model_focus"
+- reset → "default"
+- ambiguous → "default"
 
-"model_focus"
-  USE FOR: modeling, scene, placing objects, transform, 3D, layout, расстановка, сцена, моделирование, объекты, трансформация
-  PANELS: large Viewport, ContentBrowser below, Inspector right
+━━━ CREATE FIELD ━━━
+If user wants to ADD/CREATE an object, set "create" to one of:
+"cube", "sphere", "empty", "camera", "dir_light", "point_light", "spot_light"
+Otherwise set "create" to "".
 
-"default"
-  USE FOR: reset, standard, back to normal, стандарт, сброс, обычный
+RULES for create:
+- cube/куб/box → "cube"
+- sphere/сфера/шар → "sphere"
+- empty/пустой → "empty"
+- camera/камера → "camera"
+- directional light/направленный свет → "dir_light"
+- point light/точечный свет → "point_light"
+- spot light/прожектор → "spot_light"
+- no creation requested → ""
 
-DECISION RULES (strict):
-- Any mention of texture/UV/material/unwrap → ALWAYS "uv_focus", never anything else
-- Any mention of script/code/lua/logic → ALWAYS "script_focus"
-- Any mention of placing/moving/scene/3D objects → "model_focus"
-- Reset request → "default"
-- Ambiguous → "default"
+━━━ EXAMPLES ━━━
+User: "добавь куб"
+{"layout":"model_focus","create":"cube","entity":"","message":"Добавил куб на сцену"}
 
-JSON format (respond with ONLY this, no markdown, no explanation):
-{"layout":"<preset>","entity":"<exact_entity_name_or_empty_string>","message":"<max_8_words_same_language_as_user>"}
+User: "создай сферу и назови её Ball"
+{"layout":"model_focus","create":"sphere","entity":"Ball","message":"Добавил сферу Ball"}
 
-EXAMPLES:
 User: "хочу работать с текстурами объекта Cube"
-{"layout":"uv_focus","entity":"Cube","message":"Открываю UV-режим для Cube"}
+{"layout":"uv_focus","create":"","entity":"Cube","message":"UV-режим для Cube"}
 
-User: "буду работать над скриптами объекта Sphere"
-{"layout":"script_focus","entity":"Sphere","message":"Открываю скрипт-режим для Sphere"}
+User: "буду писать скрипт для Sphere"
+{"layout":"script_focus","create":"","entity":"Sphere","message":"Скрипт-режим для Sphere"}
 
-User: "хочу расставить объекты на сцене"
-{"layout":"model_focus","entity":"","message":"Переключаю на режим сцены"}
-
-User: "I want to work on textures"
-{"layout":"uv_focus","entity":"","message":"Switching to UV editor mode"}
+User: "добавь точечный свет и поставь камеру"
+{"layout":"model_focus","create":"point_light","entity":"","message":"Добавил точечный свет"}
 
 User: "верни стандартный layout"
-{"layout":"default","entity":"","message":"Восстановил стандартный layout"}
-
-User: "материалы и UV развёртка для Wall"
-{"layout":"uv_focus","entity":"Wall","message":"UV-режим для Wall"}
+{"layout":"default","create":"","entity":"","message":"Восстановил стандартный layout"}
 )";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -292,11 +296,24 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
         json = json.substr(jStart, jEnd - jStart + 1);
 
     std::string layout  = JsonField(json, "layout");
+    std::string create  = JsonField(json, "create");
     std::string entity  = JsonField(json, "entity");
     std::string message = JsonField(json, "message");
 
     if (layout.empty()) layout = "default";
-    if (message.empty()) message = "Layout применён: " + layout;
+    if (message.empty()) message = "Готово";
+
+    // Create object if requested
+    if (!create.empty())
+    {
+        if      (create == "cube")        host.AddCubePrimitive();
+        else if (create == "sphere")      host.AddSpherePrimitive();
+        else if (create == "empty")       host.AddEmptyEntity();
+        else if (create == "camera")      host.AddCameraEntity();
+        else if (create == "dir_light")   host.AddDirectionalLight();
+        else if (create == "point_light") host.AddPointLight();
+        else if (create == "spot_light")  host.AddSpotLight();
+    }
 
     // Apply layout
     host.ApplyLayoutPreset(layout);
