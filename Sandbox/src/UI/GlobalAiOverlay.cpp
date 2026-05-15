@@ -382,6 +382,15 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
     // Always render above every other panel
     ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
 
+    // macOS focus recovery: если окно кликнули после потери фокуса (запись экрана и т.п.)
+    // — возвращаем фокус на поле ввода
+    if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
+        !ImGui::IsAnyItemActive() &&
+        ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        m_FocusInput = true;
+    }
+
     // ── Header bar ────────────────────────────────────────────────────────────
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.75f, 1.00f, 1.0f));
     ImGui::TextUnformatted("  AI Assistant  [double-Z to close]");
