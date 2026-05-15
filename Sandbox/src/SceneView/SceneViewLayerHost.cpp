@@ -581,6 +581,72 @@ void SceneViewLayerHost::SelectEntityByName(const std::string& name)
         session->SelectedEntity = found;
 }
 
+void SceneViewLayerHost::SetSelectedEntityPosition(float x, float y, float z)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto* entity = scene->TryGetEntity(session->SelectedEntity);
+    if (!entity || !entity->HasComponent<CHEngine::TransformComponent>()) return;
+    entity->PatchComponent<CHEngine::TransformComponent>(
+        [x, y, z](CHEngine::TransformComponent& tc) {
+            tc.ObjectTransform.Position = { x, y, z };
+        });
+}
+
+void SceneViewLayerHost::CreateAndAttachScriptWithContent(const std::string& entityName,
+                                                           const std::string& luaContent)
+{
+    namespace fs = std::filesystem;
+    Ref<ProjectManager> pm = SceneViewLayerAccess::ProjectManagerRef(m_Layer);
+    if (!pm->HasProject()) return;
+
+    Project* proj = pm->Current();
+    fs::path scriptsDir = proj->ScriptsAbsPath();
+    if (!fs::exists(scriptsDir)) fs::create_directories(scriptsDir);
+
+    std::string base = entityName.empty() ? "Entity" : entityName;
+    for (auto& c : base)
+        if (c == ' ' || c == '/' || c == '\\' || c == ':') c = '_';
+
+    fs::path scriptPath = scriptsDir / (base + ".lua");
+    int suffix = 1;
+    while (fs::exists(scriptPath))
+        scriptPath = scriptsDir / (base + "_" + std::to_string(suffix++) + ".lua");
+
+    // Write the Lua content directly
+    {
+        std::ofstream f(scriptPath);
+        if (f) f << luaContent;
+    }
+
+    // Open in editor
+    SceneViewLayerAccess::ScriptEditor(m_Layer).Open(scriptPath.string());
+
+    // Ensure Script Editor is visible in tiling
+    Sandbox::TilingManager& tiling = SceneViewLayerAccess::Tiling(m_Layer);
+    if (!tiling.IsVisible(Sandbox::PanelID::ScriptEditor))
+    {
+        Sandbox::PanelID near = tiling.IsVisible(Sandbox::PanelID::ContentBrowser)
+            ? Sandbox::PanelID::ContentBrowser : Sandbox::PanelID::Viewport;
+        tiling.InsertPanel(Sandbox::PanelID::ScriptEditor, near, Sandbox::DropEdge::Right);
+    }
+
+    // Attach to selected entity
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto* entity = scene->TryGetEntity(session->SelectedEntity);
+    if (!entity) return;
+
+    std::string absPath = scriptPath.string();
+    if (!entity->HasComponent<CHEngine::ScriptComponent>())
+        entity->AddComponent<CHEngine::ScriptComponent>(CHEngine::ScriptComponent{ absPath, true });
+    else
+        entity->PatchComponent<CHEngine::ScriptComponent>(
+            [&](CHEngine::ScriptComponent& sc) { sc.ScriptPath = absPath; });
+}
+
 void SceneViewLayerHost::CreateAndAttachScriptToEntityByName(const std::string& entityName)
 {
     // Find entity by name

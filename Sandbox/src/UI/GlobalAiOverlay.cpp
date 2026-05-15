@@ -9,7 +9,9 @@
 #endif
 
 #include <sstream>
+#include <fstream>
 #include <cstring>
+#include <cstdlib>
 #include <algorithm>
 
 namespace Sandbox {
@@ -97,6 +99,106 @@ void GlobalAiOverlay::Toggle()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Script templates (pre-made Lua scripts the AI can assign by name)
+// ─────────────────────────────────────────────────────────────────────────────
+static const char* kScriptWasd = R"(-- WASD movement + Space to jump
+local speed     = 5.0
+local jumpForce = 8.0
+local gravity   = -20.0
+local velY      = 0.0
+local grounded  = false
+local groundY   = 0.0
+local spaceWas  = false
+
+function OnStart(entity)
+    groundY = entity:GetPosition().y
+end
+
+function OnUpdate(entity, dt)
+    local pos = entity:GetPosition()
+    if Input.IsKeyDown(Key.W) then pos.z = pos.z - speed * dt end
+    if Input.IsKeyDown(Key.S) then pos.z = pos.z + speed * dt end
+    if Input.IsKeyDown(Key.A) then pos.x = pos.x - speed * dt end
+    if Input.IsKeyDown(Key.D) then pos.x = pos.x + speed * dt end
+    local spaceNow = Input.IsKeyDown(Key.Space)
+    if spaceNow and not spaceWas and grounded then
+        velY = jumpForce; grounded = false
+    end
+    spaceWas = spaceNow
+    velY = velY + gravity * dt
+    pos.y = pos.y + velY * dt
+    if pos.y <= groundY then pos.y = groundY; velY = 0; grounded = true end
+    entity:SetPosition(pos.x, pos.y, pos.z)
+end
+
+function OnStop(entity) end
+)";
+
+static const char* kScriptRotateY = R"(-- Slow rotation around Y axis
+local speed = 45.0  -- degrees per second
+
+function OnStart(entity) end
+
+function OnUpdate(entity, dt)
+    local rot = entity:GetRotation()
+    entity:SetRotation(rot.x, rot.y + speed * dt, rot.z)
+end
+
+function OnStop(entity) end
+)";
+
+static const char* kScriptBounce = R"(-- Bounce up and down
+local amplitude = 1.5   -- meters
+local frequency = 1.2   -- bounces per second
+local baseY     = 0.0
+
+function OnStart(entity)
+    baseY = entity:GetPosition().y
+end
+
+function OnUpdate(entity, dt)
+    local t   = Input.IsKeyDown(Key.Space) and 2.0 or 1.0  -- faster when Space held
+    local pos = entity:GetPosition()
+    local y   = baseY + amplitude * math.abs(math.sin(os.clock() * frequency * t * math.pi))
+    entity:SetPosition(pos.x, y, pos.z)
+end
+
+function OnStop(entity) end
+)";
+
+static const char* kScriptOrbit = R"(-- Orbit around origin
+local radius  = 3.0
+local speed   = 60.0  -- degrees per second
+local angle   = 0.0
+
+function OnStart(entity)
+    local pos = entity:GetPosition()
+    radius = math.sqrt(pos.x * pos.x + pos.z * pos.z)
+    if radius < 0.1 then radius = 3.0 end
+    angle = math.atan(pos.z, pos.x) * 180.0 / math.pi
+end
+
+function OnUpdate(entity, dt)
+    angle = angle + speed * dt
+    local rad = angle * math.pi / 180.0
+    local pos = entity:GetPosition()
+    entity:SetPosition(radius * math.cos(rad), pos.y, radius * math.sin(rad))
+end
+
+function OnStop(entity) end
+)";
+
+// Returns Lua source for a named template, or "" if unknown
+static std::string GetScriptTemplate(const std::string& name)
+{
+    if (name == "wasd")     return kScriptWasd;
+    if (name == "rotate_y") return kScriptRotateY;
+    if (name == "bounce")   return kScriptBounce;
+    if (name == "orbit")    return kScriptOrbit;
+    return "";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // System prompt
 // ─────────────────────────────────────────────────────────────────────────────
 static const char* kSystemPrompt = R"(You are a command parser for CHEngine 3D editor. Parse the user request and return ONLY a valid JSON object. No markdown, no explanation, no extra text — ONLY the JSON.
@@ -104,12 +206,14 @@ static const char* kSystemPrompt = R"(You are a command parser for CHEngine 3D e
 ═══════════════════════════════════════════
 JSON SCHEMA (all fields required):
 {
-  "layout":     "<preset>",
-  "creates":    "<comma_separated_or_empty>",
-  "script_for": "<entity_name_or_empty>",
-  "focus_on":   "<entity_name_or_empty>",
-  "entity":     "<entity_name_or_empty>",
-  "message":    "<short_confirmation_same_language_max_12_words>"
+  "layout":          "<preset>",
+  "creates":         "<comma_separated_or_empty>",
+  "positions":       "<x:y:z per create, comma_separated, or empty>",
+  "script_for":      "<entity_name_or_empty>",
+  "script_template": "<template_name_or_empty>",
+  "focus_on":        "<entity_name_or_empty>",
+  "entity":          "<entity_name_or_empty>",
+  "message":         "<short_confirmation_same_language_max_12_words>"
 }
 ═══════════════════════════════════════════
 
@@ -144,12 +248,35 @@ Word → value mapping:
 Order matters: create objects BEFORE focusing camera on them.
 Example: "sphere,cube,camera" creates sphere first, then cube, then camera.
 
+━━━ FIELD: positions ━━━
+Comma-separated x:y:z positions, one per item in "creates" (same order).
+Use to place objects apart from each other. Default scene center is 0:0:0.
+Leave "" to place everything at default position.
+Example: creates="sphere,sphere,cube", positions="-3:0:0,3:0:0,0:0:0"
+  → sphere 1 at (-3,0,0), sphere 2 at (3,0,0), cube at origin
+Use Y=0 for ground level. Spacing of 2-5 units looks good.
+Leave "" if position doesn't matter or user didn't specify.
+
 ━━━ FIELD: script_for ━━━
 Entity name that needs a script created and attached.
 Use when user says "добавь скрипт [объекту]", "пусть [объект] двигается/прыгает/вращается".
 The entity will be created from "creates" field first, then script attached.
 Default names after creation: cube→"Cube", sphere→"Sphere", camera→"Camera"
 Leave "" if no script needed.
+
+━━━ FIELD: script_template ━━━
+Template name for the script assigned via script_for. Choose based on user description:
+  "wasd"     → WASD keyboard movement + Space to jump
+  "rotate_y" → slow continuous Y-axis rotation
+  "bounce"   → bounces up and down
+  "orbit"    → orbits around scene origin
+  ""         → empty template (default, use when user didn't describe behavior)
+
+Match keywords:
+  move/движен/WASD/управлен → "wasd"
+  rotate/вращ/spin/крутится → "rotate_y"
+  bounce/прыга/подпрыг → "bounce"
+  orbit/летит вокруг → "orbit"
 
 ━━━ FIELD: focus_on ━━━
 Entity name to focus the viewport camera on.
@@ -165,28 +292,28 @@ EXAMPLES:
 ═══════════════════════════════════════════
 
 User: "добавь куб"
-{"layout":"model_focus","creates":"cube","script_for":"","focus_on":"","entity":"","message":"Добавил куб"}
+{"layout":"model_focus","creates":"cube","positions":"","script_for":"","script_template":"","focus_on":"","entity":"","message":"Добавил куб"}
 
-User: "создай сферу и точечный свет"
-{"layout":"model_focus","creates":"sphere,point_light","script_for":"","focus_on":"","entity":"","message":"Добавил сферу и точечный свет"}
+User: "добавь два шара в стороне и кубик, камера смотрит только на кубик"
+{"layout":"model_focus","creates":"sphere,sphere,cube,camera","positions":"-3:0:0,3:0:0,0:0:0,0:3:3","script_for":"","script_template":"","focus_on":"Cube","entity":"","message":"Добавил два шара, куб и камеру"}
 
-User: "создай сцену: шарик и кубик, камера смотрит на шарик, кубик двигается — добавь ему скрипт"
-{"layout":"script_focus","creates":"sphere,cube,camera","script_for":"Cube","focus_on":"Sphere","entity":"","message":"Создал сцену: шар+куб+камера, скрипт на кубе"}
+User: "создай сцену: шарик и кубик, камера смотрит на шарик, кубик двигается по WASD"
+{"layout":"script_focus","creates":"sphere,cube,camera","positions":"0:0:0,3:0:0,0:2:5","script_for":"Cube","script_template":"wasd","focus_on":"Sphere","entity":"","message":"Создал сцену, куб управляется WASD"}
 
-User: "добавь камеру направленный свет и куб"
-{"layout":"model_focus","creates":"cube,dir_light,camera","script_for":"","focus_on":"","entity":"","message":"Добавил куб, свет и камеру"}
+User: "добавь сферу которая вращается"
+{"layout":"model_focus","creates":"sphere","positions":"","script_for":"Sphere","script_template":"rotate_y","focus_on":"","entity":"","message":"Добавил вращающуюся сферу"}
+
+User: "создай сферу и точечный свет рядом"
+{"layout":"model_focus","creates":"sphere,point_light","positions":"0:0:0,2:2:0","script_for":"","script_template":"","focus_on":"","entity":"","message":"Добавил сферу и свет"}
 
 User: "хочу написать скрипт для объекта Cube"
-{"layout":"script_focus","creates":"","script_for":"","focus_on":"","entity":"Cube","message":"Открываю скрипт для Cube"}
+{"layout":"script_focus","creates":"","positions":"","script_for":"","script_template":"","focus_on":"","entity":"Cube","message":"Открываю скрипт для Cube"}
 
 User: "хочу работать с текстурами Sphere"
-{"layout":"uv_focus","creates":"","script_for":"","focus_on":"","entity":"Sphere","message":"UV-режим для Sphere"}
+{"layout":"uv_focus","creates":"","positions":"","script_for":"","script_template":"","focus_on":"","entity":"Sphere","message":"UV-режим для Sphere"}
 
 User: "верни стандартный layout"
-{"layout":"default","creates":"","script_for":"","focus_on":"","entity":"","message":"Восстановил стандартный layout"}
-
-User: "добавь пустой объект и камеру, камера смотрит на объект"
-{"layout":"model_focus","creates":"empty,camera","script_for":"","focus_on":"New Object","entity":"","message":"Добавил объект и камеру"}
+{"layout":"default","creates":"","positions":"","script_for":"","script_template":"","focus_on":"","entity":"","message":"Восстановил стандартный layout"}
 )";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -332,19 +459,49 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
     if (jStart != std::string::npos && jEnd != std::string::npos && jEnd > jStart)
         json = json.substr(jStart, jEnd - jStart + 1);
 
-    std::string layout     = JsonField(json, "layout");
-    std::string creates    = JsonField(json, "creates");
-    std::string script_for = JsonField(json, "script_for");
-    std::string entity     = JsonField(json, "entity");
-    std::string focus_on   = JsonField(json, "focus_on");
-    std::string message    = JsonField(json, "message");
+    std::string layout          = JsonField(json, "layout");
+    std::string creates         = JsonField(json, "creates");
+    std::string positions_str   = JsonField(json, "positions");
+    std::string script_for      = JsonField(json, "script_for");
+    std::string script_template = JsonField(json, "script_template");
+    std::string entity          = JsonField(json, "entity");
+    std::string focus_on        = JsonField(json, "focus_on");
+    std::string message         = JsonField(json, "message");
 
     if (layout.empty()) layout = "default";
     if (message.empty()) message = "Готово";
 
-    // Create objects — parse comma-separated list
+    // Parse positions: "x:y:z,x:y:z,..." → vector of {x,y,z}
+    struct Vec3 { float x = 0, y = 0, z = 0; };
+    std::vector<Vec3> positions;
+    if (!positions_str.empty())
+    {
+        std::string posToken;
+        auto parsePos = [&](const std::string& s) {
+            Vec3 v; int i = 0; std::string num;
+            for (char c : s + ":") {
+                if (c == ':') {
+                    float val = num.empty() ? 0.0f : std::stof(num);
+                    if (i == 0) v.x = val;
+                    else if (i == 1) v.y = val;
+                    else if (i == 2) v.z = val;
+                    ++i; num.clear();
+                } else if (c == '-' || (c >= '0' && c <= '9') || c == '.') {
+                    num += c;
+                }
+            }
+            positions.push_back(v);
+        };
+        for (char c : positions_str + ",") {
+            if (c == ',') { if (!posToken.empty()) parsePos(posToken); posToken.clear(); }
+            else posToken += c;
+        }
+    }
+
+    // Create objects — parse comma-separated list, apply positions in order
     if (!creates.empty())
     {
+        int posIdx = 0;
         auto createOne = [&](const std::string& type)
         {
             if      (type == "cube")        host.AddCubePrimitive();
@@ -354,16 +511,23 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
             else if (type == "dir_light")   host.AddDirectionalLight();
             else if (type == "point_light") host.AddPointLight();
             else if (type == "spot_light")  host.AddSpotLight();
+            else return;
+
+            // Apply position to the just-created (auto-selected) entity
+            if (posIdx < (int)positions.size())
+            {
+                const Vec3& p = positions[posIdx];
+                if (p.x != 0 || p.y != 0 || p.z != 0)
+                    host.SetSelectedEntityPosition(p.x, p.y, p.z);
+            }
+            ++posIdx;
         };
 
-        // Split by comma
         std::string token;
-        for (char c : creates)
-        {
+        for (char c : creates + ",") {
             if (c == ',') { if (!token.empty()) { createOne(token); token.clear(); } }
             else if (c != ' ') token += c;
         }
-        if (!token.empty()) createOne(token);
     }
 
     // Apply layout
@@ -373,9 +537,15 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
     if (!entity.empty())
         host.SelectEntityByName(entity);
 
-    // Create and attach script to a newly created (or existing) entity
+    // Create and attach script (with optional template content)
     if (!script_for.empty())
-        host.CreateAndAttachScriptToEntityByName(script_for);
+    {
+        std::string luaContent = GetScriptTemplate(script_template);
+        if (!luaContent.empty())
+            host.CreateAndAttachScriptWithContent(script_for, luaContent);
+        else
+            host.CreateAndAttachScriptToEntityByName(script_for);
+    }
 
     // If script_focus, open the entity's existing script in editor
     if (layout == "script_focus" && !entity.empty())

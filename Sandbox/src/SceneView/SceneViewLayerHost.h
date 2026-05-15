@@ -90,6 +90,11 @@ public:
     void SelectEntityByName(const std::string& name) ;
     void OpenScriptForEntity(const std::string& entityName) ;
     void CreateAndAttachScriptToEntityByName(const std::string& entityName) ;
+    // Set position on currently selected entity (call right after Add*Primitive)
+    void SetSelectedEntityPosition(float x, float y, float z) ;
+    // Create script with specific Lua content and attach to currently selected entity
+    void CreateAndAttachScriptWithContent(const std::string& entityName,
+                                          const std::string& luaContent) ;
 
     void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;
     void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) ;
