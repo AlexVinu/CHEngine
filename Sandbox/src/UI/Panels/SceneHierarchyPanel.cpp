@@ -99,30 +99,23 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
 
     if (objectCount == 0)
     {
-        // ── Подсказка сверху, логотип снизу ──────────────────────────────────
-        const float panelW = ImGui::GetContentRegionAvail().x;
-        const float pad    = 10.0f;
-        const float logoW  = panelW - pad * 2.0f;
-        const float logoH  = (m_LogoAspect > 0.0f && logoW > 0.0f)
-                             ? logoW / m_LogoAspect : logoW;
+        const float pad   = 10.0f;
+        const float avail = ImGui::GetContentRegionAvail().x;
+        const float logoW = avail - pad * 2.0f;
+        const float logoH = (m_LogoAspect > 0.0f && logoW > 0.0f)
+                            ? logoW / m_LogoAspect : logoW;
 
-        // 1. Подсказка — по центру
+        // 1. Подсказка
         ImGui::Spacing();
-        {
-            const char* hint  = "Press Shift+A to add objects";
-            const float textW = ImGui::CalcTextSize(hint).x;
-            const float ind   = (panelW - textW) * 0.5f;
-            if (ind > 0.0f) ImGui::Indent(ind);
-            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
-            ImGui::TextUnformatted(hint);
-            ImGui::PopStyleColor();
-            if (ind > 0.0f) ImGui::Unindent(ind);
-        }
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
+        ImGui::TextUnformatted("Press Shift+A to add objects");
+        ImGui::PopStyleColor();
 
-        // 2. Пустое пространство
-        ImGui::Dummy(ImVec2(panelW, 14.0f));
+        // 2. Отступ
+        ImGui::Spacing();
+        ImGui::Spacing();
 
-        // 3. Логотип через DrawList — AddImage не глючит с UV-флипом
+        // 3. Логотип
         if (m_Logo.IsValid() && logoW > 0.0f)
         {
             auto* f = CHEngine::RenderFacade::GetRenderFactory();
@@ -130,23 +123,15 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
                                   : static_cast<ImTextureID>(0);
             if (texId)
             {
-                // Сдвигаем курсор X на pad ПЕРЕД получением screen pos
-                ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMin().x + pad);
+                ImGui::Indent(pad);
                 ImVec2 p = ImGui::GetCursorScreenPos();
-
-                // UV флип по Y — пользователь подтвердил что это верно
-                const ImVec2 uv0(0.0f, 1.0f);
-                const ImVec2 uv1(1.0f, 0.0f);
-
+                ImGui::Dummy(ImVec2(logoW, logoH));  // сначала резервируем место
+                // рисуем НА ТОМ ЖЕ месте через DrawList
                 ImGui::GetWindowDrawList()->AddImage(
-                    texId,
-                    p,
-                    ImVec2(p.x + logoW, p.y + logoH),
-                    uv0, uv1,
-                    IM_COL32(255, 255, 255, 220));
-
-                // Резервируем место в layout ПОСЛЕ рисования
-                ImGui::Dummy(ImVec2(logoW, logoH));
+                    texId, p, ImVec2(p.x + logoW, p.y + logoH),
+                    ImVec2(0,1), ImVec2(1,0),
+                    IM_COL32(255,255,255,220));
+                ImGui::Unindent(pad);
             }
         }
     }
