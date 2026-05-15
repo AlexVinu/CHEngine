@@ -5,6 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build commands
 
 ```bash
+# Configure (Windows — OpenGL, Physics не собирается на Windows)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_PHYSICS=OFF
+
 # Configure (macOS — OpenGL + Metal, Physics не собирается на macOS)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
   -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON -DCHE_BUILD_PHYSICS=OFF
