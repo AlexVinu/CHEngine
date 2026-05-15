@@ -107,6 +107,17 @@ void TilingLayout::ApplyPreset(const std::string& name)
                 MakeLeaf(PanelID::Inspector),
                 MakeLeaf(PanelID::Properties)));
     }
+    else if (name == "uv_focus")
+    {
+        // UV Editor 55% center-right | Viewport 30% left | ContentBrowser 15% bottom-left
+        m_Root = MakeSplit(SplitDir::Vertical, 0.35f,
+            MakeSplit(SplitDir::Horizontal, 0.75f,
+                MakeLeaf(PanelID::Viewport),
+                MakeLeaf(PanelID::ContentBrowser)),
+            MakeSplit(SplitDir::Horizontal, 0.80f,
+                MakeLeaf(PanelID::UVEditor),
+                MakeLeaf(PanelID::Properties)));
+    }
     else // "default"
     {
         ResetToDefault();
