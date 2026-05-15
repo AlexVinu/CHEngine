@@ -147,29 +147,44 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
         ImGui::PopStyleColor();
         ImGui::Spacing();
 
-        // ── ASCII арт ─────────────────────────────────────────────────────────
-        // Вычисляем размер символа чтобы арт вписался в ширину панели.
-        // Арт занимает ~90 символов в ширину; масштаб ≈ avail / (90 * charW).
-        // Используем моноширинный шрифт (g_FontMono) через SetWindowFontScale.
-        const float kArtCols = 90.0f;
-        // Примерная ширина символа = 0.55 * fontHeight при дефолтном масштабе
-        const float defaultFontH = ImGui::GetFontSize();
-        const float defaultCharW = defaultFontH * 0.55f;
-        float scale = avail / (kArtCols * defaultCharW);
-        scale = ImClamp(scale, 0.20f, 0.55f); // не меньше 20% и не больше 55%
+        // ── ASCII арт — посимвольный рендеринг в строгой моноширинной сетке ────
+        //
+        // Каждый символ рисуется вручную через DrawList::AddText с фиксированным
+        // шагом cellW по X и cellH по Y — гарантированная равномерная сетка.
+        //
+        // Арт занимает ~90 колонок. cellW = avail / 90.
+        // cellH = cellW * 1.7  (типичное соотношение для моноширинных шрифтов).
 
-        const float lineH = defaultFontH * scale;
+        const float kCols  = 90.0f;
+        const float cellW  = avail / kCols;
+        const float cellH  = cellW * 1.7f;
 
-        ImGui::SetWindowFontScale(scale);
-        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.35f, 0.45f, 0.70f, 0.7f));
+        // Берём моноширинный шрифт если есть, иначе дефолтный
+        ImFont* font = UIThemeRetro::g_FontMono ? UIThemeRetro::g_FontMono : ImGui::GetFont();
+        const ImU32 artColor = IM_COL32(90, 115, 180, 178);
 
-        for (int i = 0; i < kAsciiArtLines; ++i)
-            ImGui::TextUnformatted(kAsciiArt[i]);
+        // Резервируем место в layout сразу — никаких frame-lag артефактов
+        const float totalH = cellH * kAsciiArtLines;
+        const ImVec2 origin = ImGui::GetCursorScreenPos();
+        ImGui::Dummy(ImVec2(avail, totalH));
 
-        ImGui::PopStyleColor();
-        ImGui::PopStyleVar();
-        ImGui::SetWindowFontScale(1.0f); // возвращаем масштаб
+        // Рисуем поверх зарезервированного места
+        ImDrawList* dl = ImGui::GetWindowDrawList();
+        char buf[2] = { 0, 0 };
+
+        for (int row = 0; row < kAsciiArtLines; ++row)
+        {
+            const char* line = kAsciiArt[row];
+            const float y    = origin.y + row * cellH;
+
+            for (int col = 0; line[col] != '\0'; ++col)
+            {
+                if (line[col] == ' ') continue; // пробелы пропускаем
+                buf[0] = line[col];
+                dl->AddText(font, cellH, ImVec2(origin.x + col * cellW, y),
+                            artColor, buf, buf + 1);
+            }
+        }
     }
 
     if (ImGui::BeginPopupContextWindow("scene_hierarchy_ctx",
