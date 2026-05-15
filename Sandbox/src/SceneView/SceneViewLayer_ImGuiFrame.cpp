@@ -9,6 +9,7 @@
 #include "SceneViewLayer_CameraOps.h"
 #include "SceneViewLayer_MousePicking.h"
 #include "SceneViewLayer_ShiftAMenu.h"
+#include "SceneViewLayer_GizmoBar.h"
 
 #include "UIThemeActive.h"
 
@@ -30,7 +31,6 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const float H = disp.y;
 
     const auto& L = UIActive::g_Layout;
-    const float leftW = W * L.leftFrac;
     const float rightW = W * L.rightFrac;
     const float sH = H - L.toolbarH;
 
@@ -38,28 +38,29 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const bool reset = activeCtx->ResetLayout;
     activeCtx->ResetLayout = false;
 
-    const ImVec2 tbPos = { 0.0f, 0.0f };
-    const ImVec2 tbSize = { W, L.toolbarH };
-    const ImVec2 scenePos = { 0.0f, L.toolbarH };
-    const ImVec2 sceneSize = { leftW, sH };
-    const ImVec2 propsPos = { W - rightW, L.toolbarH };
-    const ImVec2 propsSize = { rightW, sH * L.propsFrac };
-    const ImVec2 camPos = { W - rightW, L.toolbarH + sH * L.propsFrac };
-    const ImVec2 camSize = { rightW, sH * (1.0f - L.propsFrac) };
+    const ImVec2 tbPos   = { 0.0f, 0.0f };
+    const ImVec2 tbSize  = { W, L.toolbarH };
+
+    // Right column: Inspector (top) + Properties (bottom)
+    const ImVec2 camPos    = { W - rightW, L.toolbarH };
+    const ImVec2 camSize   = { rightW, sH * L.propsFrac };
+    const ImVec2 propsPos  = { W - rightW, L.toolbarH + sH * L.propsFrac };
+    const ImVec2 propsSize = { rightW, sH * (1.0f - L.propsFrac) };
 
     SceneViewLayerAccess::Toolbar(layer).Draw(host, tbPos, tbSize);
     // Toolbar runs commands immediately (e.g. + Session → push_back may reallocate Sessions).
     activeCtx = &SceneViewLayerAccess::Active(layer);
 
-    SceneViewLayerAccess::Hierarchy(layer).Draw(host, scenePos, sceneSize, reset);
     SceneViewLayerAccess::Properties(layer).Draw(host, propsPos, propsSize, reset);
     SceneViewLayerAccess::CameraPanel(layer).Draw(host, camPos, camSize, reset);
     activeCtx = &SceneViewLayerAccess::Active(layer);
 
     {
         const float vpH = sH - activeCtx->ContentBrowserHeight;
-        const ImVec2 vpPos = { leftW, L.toolbarH };
-        const ImVec2 vpSize = { W - leftW - rightW, vpH };
+        // Viewport now spans the full width minus the right panel (no left panel)
+        const ImVec2 vpPos  = { 0.0f, L.toolbarH };
+        const ImVec2 vpSize = { W - rightW, vpH };
+
         viewport.DrawImGui(SceneViewLayerAccess::Gizmo(layer),
                            SceneViewLayerAccess::CameraController(layer),
                            activeCtx,
@@ -70,12 +71,13 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
 
         SceneViewLayerMousePicking::TryPick(layer);
         SceneViewLayerShiftAMenu::Draw(layer);
+        SceneViewLayerGizmoBar::Draw(layer);
     }
 
     {
-        const float bottomY = L.toolbarH + (sH - activeCtx->ContentBrowserHeight);
-        const ImVec2 browserPos = { leftW, bottomY };
-        const ImVec2 browserSize = { W - leftW - rightW, activeCtx->ContentBrowserHeight };
+        const float bottomY    = L.toolbarH + (sH - activeCtx->ContentBrowserHeight);
+        const ImVec2 browserPos  = { 0.0f, bottomY };
+        const ImVec2 browserSize = { W - rightW, activeCtx->ContentBrowserHeight };
         std::string action = SceneViewLayerAccess::ContentBrowser(layer).OnImGuiRender(browserPos, browserSize);
         if (!action.empty())
         {
