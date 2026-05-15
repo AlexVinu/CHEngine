@@ -25,7 +25,10 @@ void ToolbarPanel::LoadIcons()
     m_IconTranslate = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_translate.png");
     m_IconRotate    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_rotate.png");
     m_IconScale     = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_scale.png");
-    m_IconsLoaded   = m_IconTranslate.IsValid() && m_IconRotate.IsValid() && m_IconScale.IsValid();
+    m_IconPlay      = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_play.png");
+    m_IconStop      = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_stop.png");
+    m_IconResume    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_resume.png");
+    m_IconsLoaded   = true;
 }
 
 // Возвращает ImTextureID из TextureHandle (работает для Metal и OGL)
@@ -135,46 +138,76 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         const bool isPlay  = (activeSession.SessionState == SceneSession::State::Play);
         const bool isPause = (activeSession.SessionState == SceneSession::State::Pause);
 
-        const float pad    = ImGui::GetStyle().FramePadding.x;
-        const float playW  = ImGui::CalcTextSize(isPlay ? "Pause" : (isPause ? "Resume" : "Play")).x + pad * 2.0f + 14.0f;
-        const float stopW  = ImGui::CalcTextSize("Stop").x + pad * 2.0f + 14.0f;
-        const float gap    = 4.0f;
-        const float blockW = playW + stopW + gap;
+        // Иконка и размер кнопки
+        const float  kBtnH   = winH * 0.72f;                 // кнопка чуть меньше высоты тулбара
+        const float  kBtnW   = kBtnH * 1.6f;                 // чуть шире — как было у текстовых кнопок
+        const float  kPad    = 4.0f;
+        const ImVec2 kIcoSz  = ImVec2(kBtnH - kPad * 2.0f, kBtnH - kPad * 2.0f);
+        const float  gap     = 4.0f;
+        const float  blockW  = kBtnW * 2.0f + gap;
+
+        const bool   isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
+        const ImVec2 uv0     = isMetal ? ImVec2(0,0) : ImVec2(0,1);
+        const ImVec2 uv1     = isMetal ? ImVec2(1,1) : ImVec2(1,0);
 
         float screenX = ImGui::GetWindowPos().x + (ImGui::GetWindowWidth() - blockW) * 0.5f;
-        float screenY = ImGui::GetWindowPos().y + (winH - ImGui::GetFrameHeight()) * 0.5f;
+        float screenY = ImGui::GetWindowPos().y + (winH - kBtnH) * 0.5f;
         ImGui::SetCursorScreenPos(ImVec2(screenX, screenY));
 
-        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.15f, 0.50f, 0.15f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.20f, 0.62f, 0.20f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.10f, 0.38f, 0.10f, 1.0f));
-        if (isPlay)
+        // Хелпер: рисует кнопку с иконкой (или текстом-fallback)
+        auto playBtn = [&](const char* strId, const char* fallback,
+                           CHEngine::TextureHandle icon,
+                           ImVec4 colNorm, ImVec4 colHov, ImVec4 colAct,
+                           bool disabled) -> bool
         {
-            if (ImGui::Button("Pause##pc", ImVec2(playW, 0)))
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.EnterPauseMode(); }, [] {}, false));
-        }
-        else
+            ImGui::BeginDisabled(disabled);
+            ImGui::PushStyleColor(ImGuiCol_Button,        colNorm);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colHov);
+            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  colAct);
+            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(kPad, kPad));
+
+            bool clicked = false;
+            ImTextureID tex = ToImTex(icon);
+            if (tex)
+                clicked = ImGui::ImageButton(strId, tex, kIcoSz, uv0, uv1,
+                                             ImVec4(0,0,0,0), ImVec4(1,1,1,1));
+            else
+                clicked = ImGui::Button(fallback, ImVec2(kBtnW, kBtnH));
+
+            ImGui::PopStyleVar();
+            ImGui::PopStyleColor(3);
+            ImGui::EndDisabled();
+            return clicked;
+        };
+
+        // ── Play / Pause / Resume ────
         {
-            const char* lbl = isPause ? "Resume##pc" : "Play##pc";
-            if (ImGui::Button(lbl, ImVec2(playW, 0)))
+            CHEngine::TextureHandle icon   = isPlay ? m_IconResume : (isPause ? m_IconResume : m_IconPlay);
+            const char*             strId  = isPlay ? "##btn_pause" : "##btn_play";
+            const char*             fallb  = isPlay ? "Pause" : (isPause ? "Resume" : "Play");
+            ImVec4 cn = ImVec4(0.15f, 0.50f, 0.15f, 1.0f);
+            ImVec4 ch = ImVec4(0.20f, 0.62f, 0.20f, 1.0f);
+            ImVec4 ca = ImVec4(0.10f, 0.38f, 0.10f, 1.0f);
+            if (playBtn(strId, fallb, icon, cn, ch, ca, false))
                 host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host, isEdit] {
-                        if (isEdit) host.EnterPlayMode(); else host.ResumeFromPause();
+                    [&host, isPlay, isEdit] {
+                        if (isPlay)      host.EnterPauseMode();
+                        else if (isEdit) host.EnterPlayMode();
+                        else             host.ResumeFromPause();
                     }, [] {}, false));
         }
-        ImGui::PopStyleColor(3);
 
         ImGui::SameLine(0, gap);
-        ImGui::BeginDisabled(isEdit);
-        ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.50f, 0.15f, 0.15f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(0.62f, 0.20f, 0.20f, 1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive,  ImVec4(0.38f, 0.10f, 0.10f, 1.0f));
-        if (ImGui::Button("Stop##pc", ImVec2(stopW, 0)))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                [&host] { host.StopPlayMode(); }, [] {}, false));
-        ImGui::PopStyleColor(3);
-        ImGui::EndDisabled();
+
+        // ── Stop ────
+        {
+            ImVec4 cn = ImVec4(0.50f, 0.15f, 0.15f, 1.0f);
+            ImVec4 ch = ImVec4(0.62f, 0.20f, 0.20f, 1.0f);
+            ImVec4 ca = ImVec4(0.38f, 0.10f, 0.10f, 1.0f);
+            if (playBtn("##btn_stop", "Stop", m_IconStop, cn, ch, ca, isEdit))
+                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    [&host] { host.StopPlayMode(); }, [] {}, false));
+        }
     }
 
     // ── Right side: Scene | API | ⚙ Settings ─────────────────────────────────
