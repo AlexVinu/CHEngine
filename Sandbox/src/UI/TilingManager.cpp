@@ -162,6 +162,18 @@ void TilingManager::DrawOverlayForPanel(PanelID id)
     TileRect r = m_Layout.GetRect(id);
     if (!r.valid) return;
 
+    // Don't draw buttons that fall inside a blocked screen rect (e.g. GlobalAiOverlay)
+    if (m_BlockActive)
+    {
+        // Check if the panel's button area (top-right corner) overlaps the block rect
+        float btnRightX = r.pos.x + r.size.x;
+        float btnTopY   = r.pos.y;
+        float btnBotY   = r.pos.y + kOverlayH;
+        bool inBlockX   = btnRightX > m_BlockPos.x && r.pos.x < m_BlockPos.x + m_BlockSize.x;
+        bool inBlockY   = btnBotY   > m_BlockPos.y && btnTopY < m_BlockPos.y + m_BlockSize.y;
+        if (inBlockX && inBlockY) return;
+    }
+
     ImDrawList* dl = ImGui::GetForegroundDrawList();
     ImGuiIO&    io = ImGui::GetIO();
 

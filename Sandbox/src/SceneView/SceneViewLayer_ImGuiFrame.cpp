@@ -212,6 +212,24 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
 
     // ── Orbit indicator, tiling overlays ──────────────────────────────────────
     SceneViewLayerRender::DrawOrbitIndicator(layer);
+
+    // Tell tiling to skip drawing buttons inside the AI overlay area
+    {
+        auto& globalAi = SceneViewLayerAccess::GlobalAi(layer);
+        if (globalAi.IsOpen())
+        {
+            const float oW = std::min(W * 0.60f, 800.0f);
+            const float oH = 340.0f; // max height (settings open)
+            tiling.SetOverlayBlock(
+                ImVec2((W - oW) * 0.5f, H - oH - 48.0f),
+                ImVec2(oW, oH), true);
+        }
+        else
+        {
+            tiling.SetOverlayBlock({}, {}, false);
+        }
+    }
+
     tiling.EndFrame();  // separators, close/collapse buttons, ghost
     SceneViewLayerShiftWMenu::Draw(layer);  // Shift+W panel picker popup
 

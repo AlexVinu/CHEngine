@@ -52,6 +52,15 @@ public:
         m_LayoutChanged = true;
     }
 
+    // Block a screen rect from receiving panel overlay buttons (e.g. GlobalAiOverlay).
+    // Call before EndFrame. Pass active=false to clear.
+    void SetOverlayBlock(ImVec2 pos, ImVec2 size, bool active)
+    {
+        m_BlockPos    = pos;
+        m_BlockSize   = size;
+        m_BlockActive = active;
+    }
+
     // Called from ShiftWMenu when user picks a panel to place
     void StartGhostPlacement(PanelID id)
     {
@@ -90,6 +99,11 @@ private:
     PanelID    m_DragFromPanel     = PanelID::None; // set when dragging from title bar
     bool       m_GhostWaitingPlace = false;         // skip first frame after popup click
     DropTarget m_DropTarget;
+
+    // ── Overlay block (e.g. GlobalAiOverlay) ─────────────────────────────────
+    ImVec2 m_BlockPos    = {0, 0};
+    ImVec2 m_BlockSize   = {0, 0};
+    bool   m_BlockActive = false;
 
     // ── Shift+W popup ─────────────────────────────────────────────────────────
     bool   m_ShiftWOpen = false;
