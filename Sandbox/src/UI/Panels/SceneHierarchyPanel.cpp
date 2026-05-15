@@ -101,43 +101,43 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
     {
         // ── Подсказка сверху, логотип снизу ──────────────────────────────────
         const float panelW = ImGui::GetContentRegionAvail().x;
+        const float pad    = 10.0f;
+        const float logoW  = panelW - pad * 2.0f;
+        const float logoH  = (m_LogoAspect > 0.0f && logoW > 0.0f)
+                             ? logoW / m_LogoAspect : logoW;
 
-        // 1. Подсказка — по центру
+        // 1. Подсказка — по центру через Indent
         ImGui::Spacing();
         {
-            const char* hint = "Press Shift+A to add objects";
-            float textW = ImGui::CalcTextSize(hint).x;
-            float offsetX = (panelW - textW) * 0.5f;
-            if (offsetX > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
+            const char* hint  = "Press Shift+A to add objects";
+            const float textW = ImGui::CalcTextSize(hint).x;
+            const float ind   = (panelW - textW) * 0.5f;
+            if (ind > 0.0f) ImGui::Indent(ind);
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
             ImGui::TextUnformatted(hint);
             ImGui::PopStyleColor();
+            if (ind > 0.0f) ImGui::Unindent(ind);
         }
 
         // 2. Пустое пространство
-        ImGui::Dummy(ImVec2(1.0f, 12.0f));
+        ImGui::Dummy(ImVec2(panelW, 14.0f));
 
-        // 3. Логотип через ImGui::Image — стабильно вписан в layout
-        if (m_Logo.IsValid())
+        // 3. Логотип — UV зависит от API (Metal не флипает, OGL флипает Y)
+        if (m_Logo.IsValid() && logoW > 0.0f)
         {
             auto* f = CHEngine::RenderFacade::GetRenderFactory();
             ImTextureID texId = f ? static_cast<ImTextureID>(f->GetTextureNativeID(m_Logo))
                                   : static_cast<ImTextureID>(0);
             if (texId)
             {
-                const float logoW = panelW - 20.0f;
-                const float logoH = (m_LogoAspect > 0.0f) ? logoW / m_LogoAspect : logoW;
+                const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType()
+                                      == CHEngine::ERenderAPI::METAL);
+                const ImVec2 uv0 = isMetal ? ImVec2(0,0) : ImVec2(0,1);
+                const ImVec2 uv1 = isMetal ? ImVec2(1,1) : ImVec2(1,0);
 
-                // Центрируем по X
-                float offsetX = (panelW - logoW) * 0.5f;
-                if (offsetX > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
-
-                // Флип Y через UV — картинка хранится перевёрнутой в OGL
-                const ImVec2 uv0(0.0f, 1.0f);
-                const ImVec2 uv1(1.0f, 0.0f);
-
-                // ImGui::Image корректно интегрируется в layout (без Dummy)
+                ImGui::Indent(pad);
                 ImGui::Image(texId, ImVec2(logoW, logoH), uv0, uv1);
+                ImGui::Unindent(pad);
             }
         }
     }
