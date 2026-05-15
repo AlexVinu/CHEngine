@@ -40,11 +40,12 @@ namespace CHEngine
 
 	void LayerStack::PopOverlay(Layer* overlay)
 	{
-		auto it = std::find(m_Layers.begin(), m_Layers.end(), overlay);
+		// m_Layers contains Scope<Layer> (unique_ptr), compare via .get()
+		auto it = std::find_if(m_Layers.begin(), m_Layers.end(),
+			[overlay](const Scope<Layer>& ptr) { return ptr.get() == overlay; });
 		if (it != m_Layers.end())
 		{
 			(*it)->OnDetach();
-			it->reset();
 			m_Layers.erase(it);
 		}
 	}
