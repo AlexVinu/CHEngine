@@ -102,21 +102,22 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
         // ── Подсказка сверху, логотип снизу ──────────────────────────────────
         const float panelW = ImGui::GetContentRegionAvail().x;
 
-        // 1. Подсказка — по центру сверху
+        // 1. Подсказка — по центру
         ImGui::Spacing();
-        const char* hint = "Press Shift+A to add objects";
-        float textW = ImGui::CalcTextSize(hint).x;
-        ImGui::SetCursorPosX((panelW - textW) * 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
-        ImGui::TextUnformatted(hint);
-        ImGui::PopStyleColor();
+        {
+            const char* hint = "Press Shift+A to add objects";
+            float textW = ImGui::CalcTextSize(hint).x;
+            float offsetX = (panelW - textW) * 0.5f;
+            if (offsetX > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
+            ImGui::TextUnformatted(hint);
+            ImGui::PopStyleColor();
+        }
 
         // 2. Пустое пространство
-        ImGui::Spacing();
-        ImGui::Spacing();
-        ImGui::Spacing();
+        ImGui::Dummy(ImVec2(1.0f, 12.0f));
 
-        // 3. Логотип — центрируем, флипаем Y (ImGui/OGL хранит текстуры перевёрнутыми)
+        // 3. Логотип через ImGui::Image — стабильно вписан в layout
         if (m_Logo.IsValid())
         {
             auto* f = CHEngine::RenderFacade::GetRenderFactory();
@@ -127,16 +128,16 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
                 const float logoW = panelW - 20.0f;
                 const float logoH = (m_LogoAspect > 0.0f) ? logoW / m_LogoAspect : logoW;
 
-                // Флип по Y: uv0=(0,1), uv1=(1,0) — картинка была перевёрнута
+                // Центрируем по X
+                float offsetX = (panelW - logoW) * 0.5f;
+                if (offsetX > 0.0f) ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
+
+                // Флип Y через UV — картинка хранится перевёрнутой в OGL
                 const ImVec2 uv0(0.0f, 1.0f);
                 const ImVec2 uv1(1.0f, 0.0f);
 
-                ImGui::SetCursorPosX((panelW - logoW) * 0.5f);
-                ImVec2 p = ImGui::GetCursorScreenPos();
-                ImGui::GetWindowDrawList()->AddImage(
-                    texId, p, ImVec2(p.x + logoW, p.y + logoH),
-                    uv0, uv1, IM_COL32(255, 255, 255, 90)); // ~35% opacity
-                ImGui::Dummy(ImVec2(logoW, logoH));
+                // ImGui::Image корректно интегрируется в layout (без Dummy)
+                ImGui::Image(texId, ImVec2(logoW, logoH), uv0, uv1);
             }
         }
     }
