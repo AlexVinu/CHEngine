@@ -1,6 +1,6 @@
 #pragma once
 
-#include "EditorUiHost.h"
+#include "SceneViewLayerHost.h"
 
 #include <CHEngine.h>
 
@@ -12,7 +12,7 @@ namespace Sandbox {
 class UvEditorPanel
 {
 public:
-    void Draw(EditorUiHost& host);
+    void Draw(SceneViewLayerHost& host);
 
 private:
     int m_SelectedVertex = -1;

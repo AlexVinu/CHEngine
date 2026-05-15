@@ -1,11 +1,13 @@
 #include "EditorViewport.h"
 
 #include <CHEngine/Application.h>
+#include <CHEngine/Utils/AppPaths.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <Render/UniformBlocks.h>
 #include <Render/IRenderFactory.h>
 #include <Render/Descriptors.h>
+#include <Log/Log.h>
 
 #include <CHEngine/Camera/EditorCamera.h>
 #include <CHEngine/Scene/Components.h>
@@ -20,13 +22,14 @@
 namespace Sandbox {
 
 EditorViewport::EditorViewport()
+    : m_FbScale{ 1.0f, 1.0f }
 {
     m_MeshShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-        std::string("Mesh"), std::string("shaders/mesh.slang"));
+        std::string("Mesh"), CHEngine::AppPaths::ExecutableDir() / "shaders/mesh.slang");
     CHEngine::RenderFacade::SetDefaultMeshShader(m_MeshShader);
 
     m_GridShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-        std::string("Grid"), std::string("shaders/grid.slang"));
+        std::string("Grid"), CHEngine::AppPaths::ExecutableDir() / "shaders/grid.slang");
 
     m_SphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
         std::string("Sphere"), std::string("shaders/sphere.slang"));
@@ -43,34 +46,36 @@ EditorViewport::EditorViewport()
 void EditorViewport::Begin()
 {
     ImGuizmo::BeginFrame();
+    static bool is_checked = false;  if (!is_checked) { CHE_INFO("IMGUIZMO: Begin Frame"); is_checked = true; }
+    // Cache DisplayFramebufferScale here since we're now in ImGui frame scope
+    m_FbScale = ImGui::GetIO().DisplayFramebufferScale;
 }
 
 void EditorViewport::End()
 {
 }
 
-void EditorViewport::BeginSceneRender(SceneSession* scene_session)
+void EditorViewport::BeginSceneRender(Ref<SceneSession> scene_session)
 {
     CHE_PROFILE_FUNCTION();
     if (!scene_session)
         return;
 
     if (!scene_session->ViewportCamera)
-        scene_session->ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
+        scene_session->ViewportCamera = MakeScope<CHEngine::EditorCamera>();
 
     auto* viewport_camera = scene_session->ViewportCamera.get();
     if (!viewport_camera)
         return;
 
     {
-        ImVec2 fbScale = ImGui::GetIO().DisplayFramebufferScale;
-        const uint32_t vpW = static_cast<uint32_t>(m_ViewportSize.x * fbScale.x);
-        const uint32_t vpH = static_cast<uint32_t>(m_ViewportSize.y * fbScale.y);
+        const uint32_t vpW = static_cast<uint32_t>(m_ViewportSize.x * m_FbScale.x);
+        const uint32_t vpH = static_cast<uint32_t>(m_ViewportSize.y * m_FbScale.y);
         if (vpW > 0 && vpH > 0)
             CHEngine::RenderFacade::SetViewportSize(vpW, vpH);
     }
 
-    if (scene_session->SessionState != SceneSession::State::Play)
+    if (scene_session->GetSessionState() != SceneSession::State::Play)
     {
         glm::mat4 vp    = viewport_camera->GetViewProjection();
         glm::mat4 invVP = glm::inverse(vp);
@@ -88,7 +93,7 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
 
         // Register grid as a PRE-SCENE callback: grid is drawn FIRST (clears HDR),
         // then MainColorPass draws objects ON TOP of the grid.
-        if (m_ShowGrid && scene_session->SessionState == SceneSession::State::Edit
+        if (m_ShowGrid && scene_session->GetSessionState() == SceneSession::State::Edit
             && m_GridVB.IsValid() && m_GridIB.IsValid() && m_GridPipeline.IsValid())
         {
             CHEngine::RenderFacade::SetPreSceneCallback([this, scene_session]() {
@@ -116,7 +121,7 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
     }
 }
 
-void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
+void EditorViewport::RegisterEditorPasses(Ref<SceneSession> scene_session)
 {
     // Guards checked by caller (BeginSceneRender callback)
 
@@ -313,6 +318,7 @@ void DrawCameraFrustum(ImDrawList* dl,
 
 } // anonymous namespace
 
+
 void EditorViewport::DrawImGui(GizmoSystem& gizmo,
                                EditorCameraController& camera_controller,
                                SceneSession* scene_session,
@@ -346,15 +352,14 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
     {
         m_ViewportSize = panelSize;
 
-        ImVec2 fbScale = ImGui::GetIO().DisplayFramebufferScale;
-        const uint32_t newW = static_cast<uint32_t>(panelSize.x * fbScale.x);
-        const uint32_t newH = static_cast<uint32_t>(panelSize.y * fbScale.y);
+        const uint32_t newW = static_cast<uint32_t>(panelSize.x * m_FbScale.x);
+        const uint32_t newH = static_cast<uint32_t>(panelSize.y * m_FbScale.y);
         CHEngine::RenderFacade::SetViewportSize(newW, newH);
 
         camera_controller.SetAspectRatio(panelSize.x / panelSize.y);
         scene_session->ViewportSize = { panelSize.x, panelSize.y };
         if (!scene_session->ViewportCamera)
-            scene_session->ViewportCamera = CHEngine::MakeScope<CHEngine::EditorCamera>();
+            scene_session->ViewportCamera = MakeScope<CHEngine::EditorCamera>();
         scene_session->ViewportCamera->SetViewportSize(panelSize.x, panelSize.y);
     }
 
@@ -377,7 +382,7 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
     gizmo.Draw(scene_session, gizmo_operation, gizmo_mode, m_ViewportPos, m_ViewportSize);
 
     // ── Визуализация камер (только в Edit-режиме) ─────────────────────────────
-    if (scene_session->SessionState == SceneSession::State::Edit
+    if (scene_session->GetSessionState() == SceneSession::State::Edit
         && scene_session->ViewportCamera
         && scene_session->EditorScene)
     {
@@ -395,9 +400,9 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
             });
     }
 
-    if (scene_session->SessionState != SceneSession::State::Edit)
+    if (scene_session->GetSessionState() != SceneSession::State::Edit)
     {
-        const ImVec4 col = (scene_session->SessionState == SceneSession::State::Play)
+        const ImVec4 col = (scene_session->GetSessionState() == SceneSession::State::Play)
             ? ImVec4(0.20f, 0.75f, 0.20f, 0.85f)
             : ImVec4(0.90f, 0.70f, 0.10f, 0.85f);
         const float thick = 3.0f;
@@ -421,18 +426,18 @@ void EditorViewport::BuildGrid()
 
     std::span<const std::byte> vbBytes{reinterpret_cast<const std::byte*>(verts), sizeof(verts)};
     m_GridVB = f->CreateBuffer(sizeof(verts), CHEngine::BufferUsage::Vertex,
-                                CHEngine::MemoryType::GpuOnly, vbBytes, CHEngine::String("grid_vb"));
+                                CHEngine::MemoryType::GpuOnly, vbBytes, String("grid_vb"));
 
     std::span<const std::byte> ibBytes{reinterpret_cast<const std::byte*>(idx), sizeof(idx)};
     m_GridIB = f->CreateBuffer(sizeof(idx), CHEngine::BufferUsage::Index,
-                                CHEngine::MemoryType::GpuOnly, ibBytes, CHEngine::String("grid_ib"));
+                                CHEngine::MemoryType::GpuOnly, ibBytes, String("grid_ib"));
     m_GridIndexCount = 6;
 
     // Camera UBO for grid shader
     m_GridCameraUBO = f->CreateBuffer(sizeof(CHEngine::UBOCamera),
                                        CHEngine::BufferUsage::Uniform,
                                        CHEngine::MemoryType::CpuToGpu, {},
-                                       CHEngine::String("grid_camera_ubo"));
+                                       String("grid_camera_ubo"));
 
     // Create grid pipeline — blending ON so transparent areas let scene show through.
     if (m_GridShader.IsValid()) {

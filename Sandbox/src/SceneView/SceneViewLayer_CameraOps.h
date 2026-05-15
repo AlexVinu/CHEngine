@@ -11,3 +11,9 @@ void UpdateEditorCameraInput(SceneViewLayer& layer);
 void PrepareEditorCameraFrame(SceneViewLayer& layer);
 
 } // namespace SceneViewLayerCameraOps
+
+namespace SceneViewLayerRender {
+
+void DrawOrbitIndicator(SceneViewLayer& layer);
+
+} // namespace SceneViewLayerRender

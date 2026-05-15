@@ -34,13 +34,13 @@ namespace CHModules
             CHEngine::BufferUsage usage,
             CHEngine::MemoryType  memory,
             std::span<const std::byte> initialData,
-            const CHEngine::String& debugName = CHEngine::String("buffer")) override;
+            const String& debugName = String("buffer")) override;
 
         CHEngine::ShaderHandle CreateShader(
-            const CHEngine::String& slangSource,
-            const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
-            const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-            const CHEngine::String& sourcePath = CHEngine::String()) override;
+            const String& slangSource,
+            const String& vertEntry  = String("vertMain"),
+            const String& fragEntry  = String("fragMain"),
+            const String& sourcePath = String()) override;
 
         CHEngine::TextureHandle CreateTexture(
             const uint8_t* data,
@@ -50,7 +50,7 @@ namespace CHModules
             CHEngine::TextureType   type,
             CHEngine::TextureUsage  usage,
             CHEngine::MemoryType    memory,
-            const CHEngine::String& debugName = CHEngine::String()) override;
+            const String& debugName = String()) override;
 
         void Delete(CHEngine::BufferHandle   h) override;
         void Delete(CHEngine::ShaderHandle   h) override;
@@ -64,10 +64,10 @@ namespace CHModules
         uint64_t GetTextureNativeID(CHEngine::TextureHandle h) override;
 
         bool ReloadShader(CHEngine::ShaderHandle h,
-                          const CHEngine::String& slangSource,
-                          const CHEngine::String& vertEntry,
-                          const CHEngine::String& fragEntry,
-                          const CHEngine::String& sourcePath) override;
+                          const String& slangSource,
+                          const String& vertEntry,
+                          const String& fragEntry,
+                          const String& sourcePath) override;
 
         CHEngine::PipelineHandle CreatePipeline(CHEngine::PipelineDesc desc) override;
 

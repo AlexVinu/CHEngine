@@ -9,40 +9,46 @@
 EditorWorldContext::EditorWorldContext()
     : SceneSession()
 {
+	UpdateState(std::nullopt, std::nullopt);
 }
 
-void EditorWorldContext::Update(CHEngine::Timestep dt)
+void EditorWorldContext::UpdateState(std::optional<SceneSession::State> new_state, std::optional<bool> is_active)
 {
-    CHE_CORE_ASSERT(EditorScene, "EditorWorldContext must have EditorScene");
+	CHE_CORE_ASSERT(EditorScene, "EditorWorldContext must have EditorScene");
+    m_IsActive = is_active.value_or(m_IsActive);
+	m_SessionState = new_state.value_or(m_SessionState);
 
-    switch (SessionState)
-    {
-    case SceneSession::State::Edit:
-        if (!IsActive) return;
-        RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
-        RuntimeWorld->SetActiveCamera(ViewportCamera.get());
-        RuntimeWorld->Update(dt);
-        break;
+	// Ensure scene is set when becoming active
+	if (m_IsActive && !RuntimeWorld->GetSceneRef())
+	{
+		ActivateEditorScene();
+	}
 
-    case SceneSession::State::Play:
-        if (IsActive)
-        {
-            RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
-            RuntimeWorld->SetActiveCamera(nullptr);
-        }
-        else
-            RuntimeWorld->SetState(CHEngine::WorldState::SimulatingWithoutPresenting);
+	switch (m_SessionState)
+	{
+	case SceneSession::State::Edit:
+		if (!m_IsActive) return;
+		RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
+		RuntimeWorld->SetActiveCamera(ViewportCamera.get());
+		break;
 
-        RuntimeWorld->Update(dt);
-        break;
+	case SceneSession::State::Play:
+		if (m_IsActive)
+		{
+			RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
+			RuntimeWorld->SetActiveCamera(nullptr);
+		}
+		else
+			RuntimeWorld->SetState(CHEngine::WorldState::SimulatingWithoutPresenting);
 
-    case SceneSession::State::Pause:
-        if (!IsActive) return;
-        RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
-        RuntimeWorld->SetActiveCamera(ViewportCamera.get());
-        RuntimeWorld->Update(dt);
-        break;
-    }
+		break;
+
+	case SceneSession::State::Pause:
+		if (!m_IsActive) return;
+		RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
+		RuntimeWorld->SetActiveCamera(nullptr);
+		break;
+	}
 }
 
 void EditorWorldContext::ActivateActiveScene()

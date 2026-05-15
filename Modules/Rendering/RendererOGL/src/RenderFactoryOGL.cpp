@@ -17,7 +17,7 @@ namespace CHModules {
         CHEngine::BufferUsage usage,
         CHEngine::MemoryType memory,
         std::span<const std::byte> initialData,
-        const CHEngine::String& debugName)
+        const String& debugName)
     {
         auto* buf = new BufferOGL(size, usage, memory, initialData, debugName);
         return Buffers.Add(buf);
@@ -35,10 +35,10 @@ namespace CHModules {
     // ============================================================
 
     CHEngine::ShaderHandle RenderFactoryOGL::CreateShader(
-        const CHEngine::String& slangSource,
-        const CHEngine::String& vertEntry,
-        const CHEngine::String& fragEntry,
-        const CHEngine::String& sourcePath)
+        const String& slangSource,
+        const String& vertEntry,
+        const String& fragEntry,
+        const String& sourcePath)
     {
         auto* shader = new ShaderOGL(slangSource, vertEntry, fragEntry, sourcePath);
         return Shaders.Add(shader);
@@ -66,7 +66,7 @@ namespace CHModules {
         CHEngine::TextureType type,
         CHEngine::TextureUsage usage,
         CHEngine::MemoryType memory,
-        const CHEngine::String& debugName)
+        const String& debugName)
     {
         auto* tex = new TextureOGL(data, width, height, channels,
                                    mipLevels, arrayLayers,
@@ -106,10 +106,10 @@ namespace CHModules {
     // ============================================================
 
     bool RenderFactoryOGL::ReloadShader(CHEngine::ShaderHandle h,
-                                        const CHEngine::String& slangSource,
-                                        const CHEngine::String& vertEntry,
-                                        const CHEngine::String& fragEntry,
-                                        const CHEngine::String& sourcePath)
+                                        const String& slangSource,
+                                        const String& vertEntry,
+                                        const String& fragEntry,
+                                        const String& sourcePath)
     {
         ShaderOGL* shader = Shaders.Get(h);
         if (!shader) return false;

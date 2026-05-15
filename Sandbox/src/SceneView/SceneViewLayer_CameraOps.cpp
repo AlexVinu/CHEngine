@@ -17,24 +17,24 @@ namespace SceneViewLayerCameraOps {
 
 void ApplyOrbit(SceneViewLayer& layer)
 {
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    SceneViewLayerAccess::CameraController(layer).ApplyOrbit(ctx.ViewportCamera.get(), ctx.EditorCameraState);
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    SceneViewLayerAccess::CameraController(layer).ApplyOrbit(ctx->ViewportCamera.get(), ctx->EditorCameraState);
 }
 
 void SetViewPreset(SceneViewLayer& layer, float yaw_degrees, float pitch_degrees)
 {
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
     SceneViewLayerAccess::CameraController(layer).SetViewPreset(
-        yaw_degrees, pitch_degrees, ctx.ViewportCamera.get(), ctx.EditorCameraState);
+        yaw_degrees, pitch_degrees, ctx->ViewportCamera.get(), ctx->EditorCameraState);
 }
 
 void FocusOnSelected(SceneViewLayer& layer)
 {
     constexpr float k_DefaultFocusRadius = 0.5f;
 
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    auto active_scene = ctx.EditorScene;
-    CHEngine::Entity* entity = active_scene ? active_scene->TryGetEntity(ctx.SelectedEntity) : nullptr;
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    auto active_scene = ctx->EditorScene;
+    CHEngine::Entity* entity = active_scene ? active_scene->TryGetEntity(ctx->SelectedEntity) : nullptr;
     if (!entity
         || !entity->HasComponent<CHEngine::TransformComponent>()
         || !entity->HasComponent<CHEngine::MeshComponent>())
@@ -56,7 +56,7 @@ void FocusOnSelected(SceneViewLayer& layer)
 
     const float scale_max = std::max({ transform.Scale.x, transform.Scale.y, transform.Scale.z });
     SceneViewLayerAccess::CameraController(layer).FocusOnPoint(
-        transform.Position, max_radius * scale_max, ctx.ViewportCamera.get(), ctx.EditorCameraState);
+        transform.Position, max_radius * scale_max, ctx->ViewportCamera.get(), ctx->EditorCameraState);
 }
 
 void UpdateEditorCameraInput(SceneViewLayer& layer)
@@ -86,25 +86,75 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
     inputSnapshot.IsPanByShiftRmbDrag = io.KeyShift && !io.KeyAlt
         && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f);
 
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
     SceneViewLayerAccess::CameraController(layer).UpdateCameraInput(
-        inputSnapshot, ctx.ViewportCamera.get(), ctx.EditorCameraState, ctx.EditorScene, ctx.SelectedEntity);
+        inputSnapshot, ctx->ViewportCamera.get(), ctx->EditorCameraState, ctx->EditorScene, ctx->SelectedEntity);
 
-    if (inputSnapshot.IsFocusPressed && ctx.SelectedEntity.IsValid())
+    if (inputSnapshot.IsFocusPressed && ctx->SelectedEntity.IsValid())
         FocusOnSelected(layer);
 
     SceneViewLayerAccess::CameraController(layer).OnUpdate(
-        ctx.ViewportCamera.get(), ctx.EditorCameraState, ctx.EditorScene, ctx.SelectedEntity, inputSnapshot);
+        ctx->ViewportCamera.get(), ctx->EditorCameraState, ctx->EditorScene, ctx->SelectedEntity, inputSnapshot);
 }
 
 void PrepareEditorCameraFrame(SceneViewLayer& layer)
 {
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
     // In Play the world uses scene cameras only; editor orbit camera must not move or consume input.
-    if (ctx.SessionState == SceneSession::State::Play)
+    if (ctx->GetSessionState() == SceneSession::State::Play)
         return;
 
     UpdateEditorCameraInput(layer);
 }
 
 } // namespace SceneViewLayerCameraOps
+
+namespace SceneViewLayerRender {
+
+void DrawOrbitIndicator(SceneViewLayer& layer)
+{
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    if (ctx->GetSessionState() == SceneSession::State::Play || ctx->GetSessionState() == SceneSession::State::Pause)
+        return;
+
+    ImGuiIO& io = ImGui::GetIO();
+    const float W = io.DisplaySize.x;
+    const float H = io.DisplaySize.y;
+
+    auto* viewport_camera = ctx->ViewportCamera.get();
+    if (!viewport_camera)
+        return;
+    glm::mat4 view = viewport_camera->GetViewMatrix();
+    glm::mat4 proj = viewport_camera->GetProjectionMatrix();
+
+    glm::vec4 clip = proj * view * glm::vec4(ctx->EditorCameraState.OrbitTarget, 1.0f);
+    if (clip.w <= 0.0f)
+        return;
+
+    glm::vec3 ndc = glm::vec3(clip) / clip.w;
+    if (glm::abs(ndc.x) > 1.0f || glm::abs(ndc.y) > 1.0f)
+        return;
+
+    float sx = (ndc.x + 1.0f) * 0.5f * W;
+    float sy = (1.0f - ndc.y) * 0.5f * H;
+
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
+    const float r = 6.0f;
+    const float gap = 2.5f;
+    const ImU32 col = IM_COL32(255, 255, 255, 140);
+    const ImU32 out = IM_COL32(0, 0, 0, 80);
+
+    dl->AddLine({ sx - r - 1, sy }, { sx - gap - 1, sy }, out, 1.5f);
+    dl->AddLine({ sx + gap - 1, sy }, { sx + r - 1, sy }, out, 1.5f);
+    dl->AddLine({ sx, sy - r - 1 }, { sx, sy - gap - 1 }, out, 1.5f);
+    dl->AddLine({ sx, sy + gap - 1 }, { sx, sy + r - 1 }, out, 1.5f);
+
+    dl->AddLine({ sx - r, sy }, { sx - gap, sy }, col, 1.5f);
+    dl->AddLine({ sx + gap, sy }, { sx + r, sy }, col, 1.5f);
+    dl->AddLine({ sx, sy - r }, { sx, sy - gap }, col, 1.5f);
+    dl->AddLine({ sx, sy + gap }, { sx, sy + r }, col, 1.5f);
+
+    dl->AddCircleFilled({ sx, sy }, 1.8f, col);
+}
+
+} // namespace SceneViewLayerRender

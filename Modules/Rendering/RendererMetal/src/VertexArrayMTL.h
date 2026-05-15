@@ -22,11 +22,11 @@ namespace CHModules {
         void AddVertexBuffer(class VertexBufferMTL* vertexBuffer);
         void SetIndexBuffer(class IndexBufferMTL* indexBuffer);
 
-        const CHEngine::Vector<class VertexBufferMTL*>& GetVertexBuffers() const;
+        const Vector<class VertexBufferMTL*>& GetVertexBuffers() const;
         class IndexBufferMTL* GetIndexBuffer() const;
 
     private:
-        CHEngine::Vector<class VertexBufferMTL*> m_VertexBuffers;
+        Vector<class VertexBufferMTL*> m_VertexBuffers;
         class IndexBufferMTL* m_IndexBuffer;
     };
 

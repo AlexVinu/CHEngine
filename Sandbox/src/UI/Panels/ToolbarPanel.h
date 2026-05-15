@@ -1,6 +1,6 @@
 #pragma once
 
-#include "EditorUiHost.h"
+#include "SceneViewLayerHost.h"
 
 #include <CHEngine/Render/RenderFacade.h>
 #include <Render/Handles.h>
@@ -13,10 +13,9 @@ class ToolbarPanel
 public:
     ToolbarPanel();
 
-    void Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size);
+    void Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size);
 
 private:
-    // Загружаем иконки один раз при создании панели
     void LoadIcons();
 
     CHEngine::TextureHandle m_IconTranslate;

@@ -13,14 +13,17 @@ namespace CHEngine
 {
 	namespace
 	{
-		uint64_t HashBytes(const void* data, size_t size, uint64_t seed = 0xCBF29CE484222325ULL)
+		constexpr uint64_t SEED = 0xCBF29CE484222325ULL;
+		constexpr uint64_t MUL = 0x100000001B3ULL;
+
+		uint64_t HashBytes(const void* data, size_t size, uint64_t seed = SEED)
 		{
 			const uint8_t* p = static_cast<const uint8_t*>(data);
 			uint64_t h = seed;
 			for (size_t i = 0; i < size; ++i)
 			{
 				h ^= static_cast<uint64_t>(p[i]);
-				h *= 0x100000001B3ULL;
+				h *= MUL;
 			}
 			return h;
 		}

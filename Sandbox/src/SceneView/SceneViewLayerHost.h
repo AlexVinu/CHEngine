@@ -1,79 +1,94 @@
 #pragma once
 
-#include "EditorUiHost.h"
+#include "EditorWorldContext.h"
+
+#include <CHEngine.h>
+
+#include <ImGuizmo.h>
+
+#include <string>
+#include <vector>
 
 class SceneViewLayer;
+class ProjectManager;
 
-/// Implements EditorUiHost by forwarding into SceneViewLayer state (stack host during ImGui).
-class SceneViewLayerHost final : public Sandbox::EditorUiHost
+namespace Sandbox {
+
+class CommandStack;
+class EditorCameraController;
+class EditorViewport;
+
+class SceneViewLayerHost
 {
 public:
     explicit SceneViewLayerHost(SceneViewLayer& layer);
 
-    EditorWorldContext& GetActiveSceneSession() override;
-    Sandbox::CommandStack& GetCommandStack() override;
-    Sandbox::EditorCameraController& GetEditorCameraController() override;
-    Sandbox::EditorViewport& GetEditorViewport() override;
+    Ref<EditorWorldContext> GetActiveSceneSession() ;
+    Ref<ProjectManager> GetProjectManager() ;
+    Sandbox::CommandStack& GetCommandStack() ;
+    Sandbox::EditorCameraController& GetEditorCameraController() ;
+    Sandbox::EditorViewport& GetEditorViewport() ;
 
-    ImGuizmo::OPERATION& GetGizmoOperation() override;
-    ImGuizmo::MODE& GetGizmoMode() override;
-    bool& GetLocalMode() override;
-    bool& GetShowProfiler() override;
-    bool& GetShowUVEditor() override;
+    ImGuizmo::OPERATION& GetGizmoOperation();
+    ImGuizmo::MODE& GetGizmoMode();
+    bool& GetLocalMode();
+    bool& GetShowProfiler();
 
-    std::vector<EditorWorldContext>& GetSceneSessions() override;
-    size_t GetActiveSessionIndex() const override;
-    void SetActiveSessionIndex(size_t session_index) override;
-    void AddSceneSession() override;
-    void CloseSceneSession(size_t session_index) override;
-    void OpenSceneFile(const std::string& relOrAbsPath) override;
+    Ref<std::vector<Ref<EditorWorldContext>>> GetSceneSessions() ;
+    size_t GetActiveSessionIndex() const ;
+    void SetActiveSessionIndex(size_t session_index) ;
+    void AddSceneSession() ;
+    void CloseSceneSession(size_t session_index) ;
+    void OpenSceneFile(const std::string& relOrAbsPath) ;
 
-    CHEngine::Transform& GetTransformBeforeDrag() override;
+    CHEngine::Transform& GetTransformBeforeDrag() ;
 
-    void RequestUndo() override;
+    void RequestUndo() ;
 
-    void EnterPlayMode() override;
-    void EnterPauseMode() override;
-    void ResumeFromPause() override;
-    void StopPlayMode() override;
+    void EnterPlayMode() ;
+    void EnterPauseMode() ;
+    void ResumeFromPause() ;
+    void StopPlayMode() ;
 
-    void SaveScene() override;
-    void OpenSceneDialog() override;
-    void AutoSaveForRestart() override;
+    void SaveScene() ;
+    void OpenSceneDialog() ;
+    void AutoSaveForRestart() ;
 
-    void ToggleSceneBrowser() override;
-    void NewSceneFile() override;
-    void DeleteSceneFile(const std::string& rel) override;
-    void RenameSceneFile(const std::string& oldRel, const std::string& newName) override;
-    void SetStartupSceneFile(const std::string& rel) override;
+    void ToggleSceneBrowser() ;
+    void NewSceneFile() ;
+    void DeleteSceneFile(const std::string& rel) ;
+    void RenameSceneFile(const std::string& oldRel, const std::string& newName) ;
+    void SetStartupSceneFile(const std::string& rel) ;
 
-    void ImportModel(const std::string& filepath) override;
+    void ImportModel(const std::string& filepath) ;
 
-    void ApplyOrbit() override;
-    void SetViewPreset(float yaw_degrees, float pitch_degrees) override;
-    void SetViewportFov(float fov_degrees) override;
-    void FocusOnSelected() override;
-    void ResetViewportCamera() override;
+    void ApplyOrbit() ;
+    void SetViewPreset(float yaw_degrees, float pitch_degrees) ;
+    void SetViewportFov(float fov_degrees) ;
+    void FocusOnSelected() ;
+    void ResetViewportCamera() ;
 
-    void AddDirectionalLight() override;
-    void AddPointLight() override;
-    void AddSpotLight() override;
-    void AddCubePrimitive() override;
-    void AddSpherePrimitive() override;
-    void AddCameraEntity() override;
-    void AddEmptyEntity() override;
-    void SetSelection(CHEngine::EntityHandle handle) override;
-    void DestroyEntityByUuid(const CHEngine::UUID& object_id) override;
+    void AddDirectionalLight();
+    void AddPointLight();
+    void AddSpotLight();
+    void AddCubePrimitive();
+    void AddSpherePrimitive();
+    void AddCameraEntity();
+    void AddEmptyEntity();
+    void SetSelection(CHEngine::EntityHandle handle);
+    void DestroyEntityByUuid(const CHEngine::UUID& object_id);
 
-    void OnRendererApiSelected(CHEngine::ERenderAPI api) override;
-    void ToggleUiTheme() override;
-    void OnProjectChanged() override;
+    void OnRendererApiSelected(CHEngine::ERenderAPI api) ;
+    void ToggleUiTheme() ;
+    void OnProjectChanged() ;
 
-    void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) override;
-    void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) override;
-    void ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) override;
-    void ClearSpecularTextureOnSelectedSubmesh(size_t submesh_index) override;
+    void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;
+    void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) ;
+    void ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;
+    void ClearSpecularTextureOnSelectedSubmesh(size_t submesh_index) ;
 
 private:
     SceneViewLayer& m_Layer;
 };
+
+} // namespace Sandbox

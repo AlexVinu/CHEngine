@@ -2,6 +2,7 @@
 #include "SceneHierarchyPanel.h"
 
 #include "EditorCameraController.h"
+#include "EditorWorldContext.h"
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
 
@@ -12,7 +13,7 @@
 
 namespace Sandbox {
 
-void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Inspector", pos, size, 0, reset_layout);
 
@@ -29,17 +30,17 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
         // ── Camera tab ────────────────────────────────────────────────────────
         if (ImGui::BeginTabItem("Camera"))
         {
-            SceneSession& activeSession = host.GetActiveSceneSession();
-            auto* viewport_camera = activeSession.ViewportCamera.get();
+            Ref<EditorWorldContext> activeSession = host.GetActiveSceneSession();
+            auto* viewport_camera = activeSession->ViewportCamera.get();
             if (viewport_camera)
             {
-                Sandbox::EditorCameraState& cameraState = host.GetActiveSceneSession().EditorCameraState;
+                Sandbox::EditorCameraState& cameraState = activeSession->EditorCameraState;
 
                 UIActive::SectionHeader("VIEW");
 
                 if (UIActive::PrimaryButton("Perspective", ImVec2(-1.0f, 0.0f)))
                 {
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] {
                             host.SetViewPreset(-90.0f, -15.0f);
                             host.SetViewportFov(45.0f);
@@ -62,7 +63,7 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
                     if (ImGui::Button(presets[i].name, ImVec2(hw, 0)))
                     {
                         const float y = presets[i].yaw, p = presets[i].pitch;
-                        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                             [&host, y, p] { host.SetViewPreset(y, p); }, [] {}, false));
                     }
                 }
@@ -125,7 +126,7 @@ void CameraPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_l
 
                 ImGui::Spacing();
                 if (UIActive::DestructiveButton("Reset Camera", ImVec2(-1.0f, 0.0f)))
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] { host.ResetViewportCamera(); }, [] {}, false));
             }
             ImGui::EndTabItem();

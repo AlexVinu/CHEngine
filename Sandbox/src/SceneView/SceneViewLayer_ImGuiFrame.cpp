@@ -1,11 +1,8 @@
-#include "SceneViewLayer_ImGuiFrame.h"
-
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 #include "UvEditorPanel.h"
 #include "SceneViewLayerHost.h"
 #include "SceneViewLayer_IO.h"
-#include "SceneViewLayer_Render.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SceneViewLayer_MousePicking.h"
 #include "SceneViewLayer_ShiftAMenu.h"
@@ -25,7 +22,7 @@
 void RunSceneViewImGuiFrame(SceneViewLayer& layer)
 {
     CHE_PROFILE_FUNCTION();
-    SceneViewLayerHost host(layer);
+    Sandbox::SceneViewLayerHost host(layer);
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(layer);
     Sandbox::TilingManager&  tiling   = SceneViewLayerAccess::Tiling(layer);
 
@@ -38,7 +35,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const float H = disp.y;
     const auto& L = UIActive::g_Layout;
 
-    EditorWorldContext* activeCtx = &SceneViewLayerAccess::Active(layer);
+    Ref<EditorWorldContext> activeRef = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* activeCtx = activeRef.get();
     const bool reset = activeCtx->ResetLayout;
     activeCtx->ResetLayout = false;
     if (reset)
@@ -48,7 +46,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const ImVec2 tbPos  = { 0.0f, 0.0f };
     const ImVec2 tbSize = { W, L.toolbarH };
     SceneViewLayerAccess::Toolbar(layer).Draw(host, tbPos, tbSize);
-    activeCtx = &SceneViewLayerAccess::Active(layer);
+    activeRef = SceneViewLayerAccess::ActiveRef(layer);
+    activeCtx = activeRef.get();
 
     // ── Tiling work area (below toolbar) ──────────────────────────────────────
     const ImVec2 workPos  = { 0.0f, L.toolbarH };
@@ -99,7 +98,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         Sandbox::TileRect r = tiling.GetRect(PID::Inspector);
         if (r.valid)
             SceneViewLayerAccess::CameraPanel(layer).Draw(host, r.pos, r.size, reset);
-        activeCtx = &SceneViewLayerAccess::Active(layer);
+        activeRef = SceneViewLayerAccess::ActiveRef(layer);
+        activeCtx = activeRef.get();
     });
 
     // Properties

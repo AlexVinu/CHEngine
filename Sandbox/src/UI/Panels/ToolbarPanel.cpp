@@ -5,7 +5,6 @@
 
 #include <CHEngine/Application.h>
 #include <CHEngine/EngineConfig.h>
-#include <CHEngine/Project/ProjectManager.h>
 #include <CHEngine/Utils/FileDialog.h>
 
 #include "UIThemeActive.h"
@@ -41,13 +40,13 @@ static ImTextureID ToImTex(CHEngine::TextureHandle h)
     return static_cast<ImTextureID>(f->GetTextureNativeID(h));
 }
 
-void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
+void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
 {
     // Ленивая загрузка: при первом Draw factory точно уже готова
     if (!m_IconsLoaded)
         LoadIcons();
     UIActive::BeginToolbar(pos, size);
-    SceneSession& activeSession = host.GetActiveSceneSession();
+    Ref<EditorWorldContext> activeSession = host.GetActiveSceneSession();
 
     const float winH = ImGui::GetWindowHeight();
     const float startY = ImGui::GetCursorPosY();
@@ -62,50 +61,50 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
     if (!ImGui::GetIO().WantTextInput)
     {
         if (ImGui::IsKeyPressed(ImGuiKey_T, false))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::TRANSLATE; }, [] {}, false));
         if (ImGui::IsKeyPressed(ImGuiKey_R, false))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::ROTATE; }, [] {}, false));
         if (ImGui::IsKeyPressed(ImGuiKey_S, false))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::SCALE; }, [] {}, false));
         if (ImGui::IsKeyPressed(ImGuiKey_F3, false))
             host.GetShowProfiler() = !host.GetShowProfiler();
 
         // Delete / Backspace — удаление выделенного объекта (только в Edit-режиме)
         if ((ImGui::IsKeyPressed(ImGuiKey_Delete, false) || ImGui::IsKeyPressed(ImGuiKey_Backspace, false))
-            && activeSession.SessionState == SceneSession::State::Edit)
+            && activeSession->GetSessionState() == SceneSession::State::Edit)
         {
-            SceneSession& s = host.GetActiveSceneSession();
-            if (s.EditorScene && s.EditorScene->IsEntityHandleValid(s.SelectedEntity))
+            Ref<EditorWorldContext> s = host.GetActiveSceneSession();
+            if (s->EditorScene && s->EditorScene->IsEntityHandleValid(s->SelectedEntity))
             {
-                const CHEngine::UUID id = s.EditorScene->GetUUID(s.SelectedEntity);
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                const CHEngine::UUID id = s->EditorScene->GetUUID(s->SelectedEntity);
+                host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                     [&host, id] { host.DestroyEntityByUuid(id); }, [] {}, false));
             }
         }
 
         const bool undoMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyAlt;
         if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.RequestUndo(); }, [] {}, false));
 
         const bool playMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyCtrl;
         if (playMod && ImGui::IsKeyPressed(ImGuiKey_P, false))
         {
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] {
-                    SceneSession& s = host.GetActiveSceneSession();
-                    if (s.SessionState == SceneSession::State::Edit)        host.EnterPlayMode();
-                    else if (s.SessionState == SceneSession::State::Play)   host.EnterPauseMode();
-                    else if (s.SessionState == SceneSession::State::Pause)  host.ResumeFromPause();
+                    Ref<EditorWorldContext> s = host.GetActiveSceneSession();
+                    if (s->GetSessionState() == SceneSession::State::Edit)        host.EnterPlayMode();
+                    else if (s->GetSessionState() == SceneSession::State::Play)   host.EnterPauseMode();
+                    else if (s->GetSessionState() == SceneSession::State::Pause)  host.ResumeFromPause();
                 }, [] {}, false));
         }
         if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
-            activeSession.SessionState != SceneSession::State::Edit)
+            activeSession->GetSessionState() != SceneSession::State::Edit)
         {
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.StopPlayMode(); }, [] {}, false));
         }
     }
@@ -115,42 +114,50 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         vcenter(ImGui::GetFrameHeight());
         ImGui::BeginDisabled(host.GetActiveSessionIndex() == 0);
         if (ImGui::ArrowButton("##prev", ImGuiDir_Left))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() - 1); }, [] {}, false));
         ImGui::EndDisabled();
 
         ImGui::SameLine(0, 4);
         vcenter(ImGui::GetTextLineHeight());
         {
-            const auto& sessions = host.GetSceneSessions();
+            const auto sessions = host.GetSceneSessions();
             const size_t idx = host.GetActiveSessionIndex();
-            const std::string name = (idx < sessions.size()) ? sessions[idx].DisplayName() : "?";
+            const std::string name = (sessions && idx < sessions->size()) ? (*sessions)[idx]->DisplayName() : "?";
             ImGui::Text("%s  %u/%u", name.c_str(),
                         static_cast<uint32_t>(idx + 1),
-                        static_cast<uint32_t>(sessions.size()));
+                        static_cast<uint32_t>(sessions ? sessions->size() : 0));
         }
 
         ImGui::SameLine(0, 4);
         vcenter(ImGui::GetFrameHeight());
-        ImGui::BeginDisabled(host.GetActiveSessionIndex() + 1 >= host.GetSceneSessions().size());
+        ImGui::BeginDisabled(host.GetActiveSessionIndex() + 1 >= (host.GetSceneSessions() ? host.GetSceneSessions()->size() : 0));
         if (ImGui::ArrowButton("##next", ImGuiDir_Right))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() + 1); }, [] {}, false));
         ImGui::EndDisabled();
 
         ImGui::SameLine(0, 6);
         vcenter(ImGui::GetFrameHeight());
-        ImGui::BeginDisabled(host.GetSceneSessions().size() <= 1);
+        ImGui::BeginDisabled(!host.GetSceneSessions() || host.GetSceneSessions()->size() <= 1);
         if (ImGui::Button("x##close"))
             host.CloseSceneSession(host.GetActiveSessionIndex());
         ImGui::EndDisabled();
+
+        ImGui::SameLine(0, 4);
+        vcenter(ImGui::GetFrameHeight());
+        if (ImGui::Button("+ Scene"))
+        {
+            host.GetCommandStack().Push(
+                MakeScope<CallbackCommand>([&host] { host.AddSceneSession(); }, [] {}, false));
+        }
     }
 
     // ── Play / Stop (centered) ────────────────────────────────────────────────
     {
-        const bool isEdit  = (activeSession.SessionState == SceneSession::State::Edit);
-        const bool isPlay  = (activeSession.SessionState == SceneSession::State::Play);
-        const bool isPause = (activeSession.SessionState == SceneSession::State::Pause);
+        const bool isEdit  = (activeSession->GetSessionState() == SceneSession::State::Edit);
+        const bool isPlay  = (activeSession->GetSessionState() == SceneSession::State::Play);
+        const bool isPause = (activeSession->GetSessionState() == SceneSession::State::Pause);
 
         const float kBtnH    = winH * 0.60f;       // высота кнопки (чуть меньше)
         const float kPadX    = 10.0f;              // горизонтальный отступ
@@ -233,7 +240,7 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         if (playBtn(isPlay ? "##btn_pause" : "##btn_play", playLabel, playIcon,
                     ImVec4(0.15f,0.50f,0.15f,1), ImVec4(0.20f,0.62f,0.20f,1),
                     ImVec4(0.10f,0.38f,0.10f,1), false))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host, isPlay, isEdit] {
                     if (isPlay)      host.EnterPauseMode();
                     else if (isEdit) host.EnterPlayMode();
@@ -246,7 +253,7 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         if (playBtn("##btn_stop", "Stop", m_IconStop,
                     ImVec4(0.50f,0.15f,0.15f,1), ImVec4(0.62f,0.20f,0.20f,1),
                     ImVec4(0.38f,0.10f,0.10f,1), isEdit))
-            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.StopPlayMode(); }, [] {}, false));
     }
 
@@ -283,14 +290,14 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
             if (ImGui::BeginPopup("##scene_dropdown"))
             {
                 if (ImGui::MenuItem("Save Scene"))
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] { host.SaveScene(); }, [] {}, false));
                 if (ImGui::MenuItem("Open Scene..."))
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] { host.ToggleSceneBrowser(); }, [] {}, false));
                 ImGui::Separator();
                 if (ImGui::MenuItem("+ New Session"))
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] { host.AddSceneSession(); }, [] {}, false));
                 ImGui::EndPopup();
             }
@@ -312,7 +319,7 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
                     if (ImGui::MenuItem(e.name, nullptr, sel) && !sel)
                     {
                         const CHEngine::ERenderAPI chosen = e.api;
-                        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                             [&host, chosen] { host.OnRendererApiSelected(chosen); }, [] {}, false));
                     }
                 }
@@ -331,11 +338,10 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
             {
                 UIActive::Toggle("Grid",       &host.GetEditorViewport().ShowGrid());
                 UIActive::Toggle("Profiler",   &host.GetShowProfiler());
-                UIActive::Toggle("UV Editor",  &host.GetShowUVEditor());
                 ImGui::Separator();
                 const char* themeLabel = (UIActive::g_Theme == AppTheme::RetroOS) ? "Theme: Retro" : "Theme: Dark";
                 if (ImGui::MenuItem(themeLabel))
-                    host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] { host.ToggleUiTheme(); }, [] {}, false));
                 ImGui::EndPopup();
             }

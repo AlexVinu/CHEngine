@@ -12,10 +12,10 @@ namespace CHModules
 	class ShaderOGL
 	{
 	public:
-		ShaderOGL(const CHEngine::String& slangSource,
-		          const CHEngine::String& vertEntry,
-		          const CHEngine::String& fragEntry,
-		          const CHEngine::String& sourcePath = CHEngine::String());
+		ShaderOGL(const String& slangSource,
+		          const String& vertEntry,
+		          const String& fragEntry,
+		          const String& sourcePath = String());
 		 ~ShaderOGL();
 
 		ShaderOGL(const ShaderOGL&) = delete;
@@ -27,24 +27,24 @@ namespace CHModules
 		 void Bind() const;
 		 void Unbind() const;
 
-		 bool Reload(const CHEngine::String& slangSource,
-		                    const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
-		                    const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-		                    const CHEngine::String& sourcePath = CHEngine::String()) ;
+		 bool Reload(const String& slangSource,
+		                    const String& vertEntry  = String("vertMain"),
+		                    const String& fragEntry  = String("fragMain"),
+		                    const String& sourcePath = String()) ;
 
 		 void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size);
 
 		// --- Sampler binding ---
-		 void SetInt(const CHEngine::String& name, int value) ;
+		 void SetInt(const String& name, int value) ;
 
 	private:
 		GLuint m_ProgramID;
 		// Compile a .slang source through SlangBackend (→ GLSL) and link a GL program.
 		// Returns the program ID on success, 0 on failure.
-		static GLuint CompileSlangProgram(const CHEngine::String& slangSource,
-		                                  const CHEngine::String& vertEntry,
-		                                  const CHEngine::String& fragEntry,
-		                                  const CHEngine::String& sourcePath);
+		static GLuint CompileSlangProgram(const String& slangSource,
+		                                  const String& vertEntry,
+		                                  const String& fragEntry,
+		                                  const String& sourcePath);
 
 		// Auto-assign sampler uniforms to sequential texture units (0,1,2,...)
 		// in declaration order, regardless of Slang's emitted binding indices.

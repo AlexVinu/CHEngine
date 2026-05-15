@@ -2,6 +2,7 @@
 
 #include "IResourceLoader.h"
 #include "Render/Handles.h"
+#include <filesystem>
 
 namespace CHEngine
 {
@@ -15,7 +16,7 @@ namespace CHEngine
 		bool Initialize() override { return true; }
 		void Shutdown() override {}
 
-		TextureHandle Load(const std::string& path);
+		TextureHandle Load(const std::filesystem::path& path);
 		void Unload(TextureHandle handle);
 
 		size_t GetMemoryUsage() const override;
@@ -24,6 +25,6 @@ namespace CHEngine
 		size_t GetCachedCount() const override;
 
 	private:
-		ResourceBimap<std::string, TextureHandle> m_HandlesBimap;
+		ResourceBimap<std::filesystem::path, TextureHandle> m_HandlesBimap;
 	};
 }

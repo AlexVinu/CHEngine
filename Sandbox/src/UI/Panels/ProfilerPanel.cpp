@@ -10,7 +10,7 @@
 
 namespace Sandbox {
 
-void ProfilerPanel::Draw(EditorUiHost& host)
+void ProfilerPanel::Draw(SceneViewLayerHost& host)
 {
     if (!host.GetShowProfiler())
         return;

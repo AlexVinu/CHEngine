@@ -14,7 +14,7 @@ namespace CHModules
     void VertexArrayMTL::SetIndexBuffer(class IndexBufferMTL* ib)
     { m_IndexBuffer = ib; }
 
-    const CHEngine::Vector<class VertexBufferMTL*>& VertexArrayMTL::GetVertexBuffers() const
+    const Vector<class VertexBufferMTL*>& VertexArrayMTL::GetVertexBuffers() const
     { return m_VertexBuffers; }
 
     class IndexBufferMTL* VertexArrayMTL::GetIndexBuffer() const

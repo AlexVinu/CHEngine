@@ -46,8 +46,8 @@ void Draw(SceneViewLayer& layer)
 {
     EnsureIcons();
 
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
-    if (ctx.SessionState != SceneSession::State::Edit)
+    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    if (ctx->GetSessionState() != SceneSession::State::Edit)
         return;
 
     // Position: right below toolbar, left edge of viewport
@@ -73,7 +73,7 @@ void Draw(SceneViewLayer& layer)
     ImGui::Begin("##gizmo_bar", nullptr, kFlags);
     ImGui::PopStyleVar(4);
 
-    const ImGuizmo::OPERATION op = ctx.GizmoOperation;
+    const ImGuizmo::OPERATION op = ctx->GizmoOperation;
 
     const ImVec4 kActive   = ImVec4(0.251f, 0.612f, 1.000f, 1.00f);
     const ImVec4 kNormal   = ImVec4(0.18f,  0.18f,  0.20f,  1.00f);
@@ -133,22 +133,22 @@ void Draw(SceneViewLayer& layer)
         return clicked;
     };
 
-    SceneViewLayerHost host(layer);
+    Sandbox::SceneViewLayerHost host(layer);
 
     // Translate
     if (gizmoBtn("##gizmo_tra", "Translate  [T]", s_IconTranslate, "T", ImGuizmo::TRANSLATE))
-        host.GetCommandStack().Push(CHEngine::MakeScope<Sandbox::CallbackCommand>(
-            [&ctx] { ctx.GizmoOperation = ImGuizmo::TRANSLATE; }, [] {}, false));
+        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+            [&ctx] { ctx->GizmoOperation = ImGuizmo::TRANSLATE; }, [] {}, false));
 
     // Rotate
     if (gizmoBtn("##gizmo_rot", "Rotate  [R]", s_IconRotate, "R", ImGuizmo::ROTATE))
-        host.GetCommandStack().Push(CHEngine::MakeScope<Sandbox::CallbackCommand>(
-            [&ctx] { ctx.GizmoOperation = ImGuizmo::ROTATE; }, [] {}, false));
+        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+            [&ctx] { ctx->GizmoOperation = ImGuizmo::ROTATE; }, [] {}, false));
 
     // Scale
     if (gizmoBtn("##gizmo_scl", "Scale  [S]", s_IconScale, "S", ImGuizmo::SCALE))
-        host.GetCommandStack().Push(CHEngine::MakeScope<Sandbox::CallbackCommand>(
-            [&ctx] { ctx.GizmoOperation = ImGuizmo::SCALE; }, [] {}, false));
+        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+            [&ctx] { ctx->GizmoOperation = ImGuizmo::SCALE; }, [] {}, false));
 
     // Separator
     ImGui::Spacing();
@@ -158,12 +158,12 @@ void Draw(SceneViewLayer& layer)
     ImGui::Spacing();
 
     // Local / World
-    const bool local = (ctx.GizmoMode == ImGuizmo::LOCAL);
+    const bool local = (ctx->GizmoMode == ImGuizmo::LOCAL);
     if (toggleBtn(local ? "L" : "W",
                   local ? "Local space  (click → World)" : "World space  (click → Local)",
                   local))
-        host.GetCommandStack().Push(CHEngine::MakeScope<Sandbox::CallbackCommand>(
-            [&ctx, local] { ctx.GizmoMode = local ? ImGuizmo::WORLD : ImGuizmo::LOCAL; },
+        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+            [&ctx, local] { ctx->GizmoMode = local ? ImGuizmo::WORLD : ImGuizmo::LOCAL; },
             [] {}, false));
 
     // Grid

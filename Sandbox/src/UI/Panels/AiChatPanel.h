@@ -5,6 +5,7 @@
 #include <mutex>
 #include <atomic>
 #include <thread>
+#include <optional>
 #include <functional>
 
 namespace Sandbox {
@@ -77,7 +78,7 @@ private:
 
     // Async
     std::atomic<bool> m_IsLoading{ false };
-    std::thread       m_Worker;
+    std::optional<std::thread> m_Worker;
 
     // Callback
     InsertCodeCallback m_InsertCallback;

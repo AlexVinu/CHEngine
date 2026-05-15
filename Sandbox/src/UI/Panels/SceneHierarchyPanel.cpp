@@ -3,21 +3,46 @@
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
 
+#include <CHEngine/Application.h>
 #include <CHEngine/Utils/FileDialog.h>
 #include <CHEngine/Scene/Components.h>
 
 #include "UIThemeActive.h"
 
 #include <boost/container_hash/hash.hpp>
+#include <cstdio>
 #include <optional>
 
 namespace Sandbox {
 
-// All scene hierarchy content — usable standalone or inside a tab.
-void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
+void SceneHierarchyPanel::EnsureLogo()
 {
-    SceneSession& activeSession = host.GetActiveSceneSession();
-    auto scene_ptr = activeSession.EditorScene;
+    if (m_LogoLoaded) return;
+    m_LogoLoaded = true;
+
+    const char* path = "editor_assets/icons/logo.png";
+    if (FILE* f = std::fopen(path, "rb"))
+    {
+        uint8_t buf[24] = {};
+        if (std::fread(buf, 1, sizeof(buf), f) == sizeof(buf))
+        {
+            uint32_t w = (buf[16]<<24)|(buf[17]<<16)|(buf[18]<<8)|buf[19];
+            uint32_t h = (buf[20]<<24)|(buf[21]<<16)|(buf[22]<<8)|buf[23];
+            if (w > 0 && h > 0)
+                m_LogoAspect = static_cast<float>(w) / static_cast<float>(h);
+        }
+        std::fclose(f);
+    }
+    m_Logo = CHEngine::RenderFacade::CreateTextureFromFile(path);
+}
+
+// Draw only the content (no panel wrapper) — used as a tab inside CameraPanel
+void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
+{
+    EnsureLogo();
+
+    Ref<SceneSession> activeSession = host.GetActiveSceneSession();
+    auto scene_ptr = activeSession->EditorScene;
     if (!scene_ptr)
     {
         ImGui::Spacing();
@@ -36,7 +61,7 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
         [&](CHEngine::EntityHandle handle, const CHEngine::UUID& objectID, CHEngine::TagComponent& tag)
     {
         ++objectCount;
-        bool isSelected = (handle == activeSession.SelectedEntity);
+        bool isSelected = (handle == activeSession->SelectedEntity);
         ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth
                                  | ImGuiTreeNodeFlags_FramePadding;
         if (isSelected) flags |= ImGuiTreeNodeFlags_Selected;
@@ -58,8 +83,10 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
         if (ImGui::BeginPopupContextItem())
         {
             if (ImGui::MenuItem("Focus (F)"))
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+            {
+                host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                     [&host] { host.FocusOnSelected(); }, [] {}, false));
+            }
             ImGui::Separator();
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.231f, 0.188f, 1.0f));
             if (ImGui::MenuItem("Delete")) deleteID = objectID;
@@ -81,17 +108,22 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
     if (ImGui::BeginPopupContextWindow("scene_hierarchy_ctx",
             ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
     {
-        if (activeSession.SessionState == SceneSession::State::Edit)
-            if (ImGui::MenuItem("Create empty entity")) host.AddEmptyEntity();
+        if (activeSession->GetSessionState() == SceneSession::State::Edit)
+        {
+            if (ImGui::MenuItem("Create empty entity"))
+                host.AddEmptyEntity();
+        }
         ImGui::EndPopup();
     }
 
     if (deleteID.has_value())
-        host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+    {
+        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
             [&host, id = *deleteID] { host.DestroyEntityByUuid(id); }, [] {}, false));
+    }
 }
 
-void SceneHierarchyPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void SceneHierarchyPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Scene", pos, size, 0, reset_layout);
     DrawContent(host);

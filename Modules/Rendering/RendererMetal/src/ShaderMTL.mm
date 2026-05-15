@@ -18,10 +18,10 @@ namespace CHModules
 
 // ─── Compile .slang → MSL → MTLLibrary ──────────────────────────────────────
 
-bool CHModules::ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
-                                        const CHEngine::String& vertEntry,
-                                        const CHEngine::String& fragEntry,
-                                        const CHEngine::String& sourcePath)
+bool ShaderMTL::CompileSlang(const String& slangSource,
+                             const String& vertEntry,
+                             const String& fragEntry,
+                             const String& sourcePath)
 {
     id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
     if (!device) {
@@ -107,10 +107,10 @@ bool CHModules::ShaderMTL::CompileSlang(const CHEngine::String& slangSource,
 
 // ─── Constructor / Destructor ───────────────────────────────────────────────
 
-CHModules::ShaderMTL::ShaderMTL(const CHEngine::String& slangSource,
-                                const CHEngine::String& vertEntry,
-                                const CHEngine::String& fragEntry,
-                                const CHEngine::String& sourcePath)
+ShaderMTL::ShaderMTL(const String& slangSource,
+                     const String& vertEntry,
+                     const String& fragEntry,
+                     const String& sourcePath)
 {
     if (!CompileSlang(slangSource, vertEntry, fragEntry, sourcePath))
         CHE_CORE_ERROR("ShaderMTL: failed to compile '{}'", sourcePath.c_str());
@@ -146,10 +146,10 @@ void CHModules::ShaderMTL::Unbind() const
 
 // ─── Reload ─────────────────────────────────────────────────────────────────
 
-bool CHModules::ShaderMTL::Reload(const CHEngine::String& slangSource,
-                                  const CHEngine::String& vertEntry,
-                                  const CHEngine::String& fragEntry,
-                                  const CHEngine::String& sourcePath)
+bool ShaderMTL::Reload(const String& slangSource,
+                       const String& vertEntry,
+                       const String& fragEntry,
+                       const String& sourcePath)
 {
     return CompileSlang(slangSource, vertEntry, fragEntry, sourcePath);
 }
@@ -303,7 +303,9 @@ void CHModules::ShaderMTL::SetUniformBlock(CHEngine::EUniformBlock block, const 
     }
 }
 
-void CHModules::ShaderMTL::SetInt(const CHEngine::String& /*name*/, int /*value*/)
+// ─── SetInt — no-op для Metal (текстуры через [[texture(N)]]) ──────────────
+
+void ShaderMTL::SetInt(const String& /*name*/, int /*value*/)
 {
     // Metal привязывает текстуры напрямую через [[texture(N)]],
     // sampler slot не нужен.

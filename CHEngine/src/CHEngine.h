@@ -34,7 +34,6 @@
 #include "CHEngine/Scene/Components.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/SceneSerializer.h"
-#include "CHEngine/Scene/RecentFiles.h"
 // ================================
 
 // Input --------------------------
@@ -48,11 +47,6 @@
 
 // Utils --------------------------
 #include "CHEngine/Utils/FileDialog.h"
-// ================================
-
-// Project ------------------------
-#include "CHEngine/Project/Project.h"
-#include "CHEngine/Project/ProjectManager.h"
 // ================================
 
 // ImGui --------------------------

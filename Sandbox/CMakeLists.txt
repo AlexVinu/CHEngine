@@ -52,6 +52,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     "${SANDBOX_SRC_ROOT}/Play"
     "${SANDBOX_SRC_ROOT}/UI"
     "${SANDBOX_SRC_ROOT}/UI/Panels"
+    "${SANDBOX_SRC_ROOT}/GameLayer"
+    "${SANDBOX_SRC_ROOT}/Project"
 )
 
 # C++ стандарт и настройки

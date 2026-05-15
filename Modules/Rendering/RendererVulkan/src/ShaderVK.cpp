@@ -38,10 +38,10 @@ namespace CHModules
         }
     }
 
-    bool ShaderVK::BuildModules(const CHEngine::String& slangSource,
-                                const CHEngine::String& vertEntry,
-                                const CHEngine::String& fragEntry,
-                                const CHEngine::String& sourcePath)
+    bool ShaderVK::BuildModules(const String& slangSource,
+                                const String& vertEntry,
+                                const String& fragEntry,
+                                const String& sourcePath)
     {
         VkDevice device = GetActiveDevice();
         if (device == VK_NULL_HANDLE)
@@ -97,10 +97,10 @@ namespace CHModules
         }
     }
 
-    ShaderVK::ShaderVK(const CHEngine::String& slangSource,
-                       const CHEngine::String& vertEntry,
-                       const CHEngine::String& fragEntry,
-                       const CHEngine::String& sourcePath)
+    ShaderVK::ShaderVK(const String& slangSource,
+                       const String& vertEntry,
+                       const String& fragEntry,
+                       const String& sourcePath)
     {
         if (!BuildModules(slangSource, vertEntry, fragEntry, sourcePath))
             CHE_CORE_WARN("ShaderVK: shader was created without valid modules");
@@ -111,14 +111,14 @@ namespace CHModules
         DestroyModules();
     }
 
-    bool ShaderVK::Reload(const CHEngine::String& slangSource,
-                          const CHEngine::String& vertEntry,
-                          const CHEngine::String& fragEntry,
-                          const CHEngine::String& sourcePath)
+    bool ShaderVK::Reload(const String& slangSource,
+                          const String& vertEntry,
+                          const String& fragEntry,
+                          const String& sourcePath)
     {
         return BuildModules(slangSource, vertEntry, fragEntry, sourcePath);
     }
 
     void ShaderVK::SetUniformBlock(CHEngine::EUniformBlock /*block*/, const void* /*data*/, uint32_t /*size*/) {}
-    void ShaderVK::SetInt(const CHEngine::String& /*name*/, int /*value*/) {}
+    void ShaderVK::SetInt(const String& /*name*/, int /*value*/) {}
 }

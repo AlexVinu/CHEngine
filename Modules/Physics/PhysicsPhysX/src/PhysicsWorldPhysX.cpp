@@ -254,7 +254,7 @@ namespace CHModules
         if (!body) return;
 
         auto it = std::find_if(m_Bodies.begin(), m_Bodies.end(),
-            [body](const CHEngine::Scope<BodyPhysX>& b) { return b.get() == body; });
+            [body](const Scope<BodyPhysX>& b) { return b.get() == body; });
         if (it == m_Bodies.end()) return;
 
         if (m_Scene && (*it)->GetActor())

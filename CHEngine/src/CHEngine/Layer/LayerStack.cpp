@@ -26,12 +26,12 @@ namespace CHEngine
 
 	void LayerStack::PopLayer(Layer* layer)
 	{
-		auto it = std::find(m_Layers.begin(), m_Layers.end(), layer);
+		auto it = std::find_if(m_Layers.begin(), m_Layers.end(),
+			[layer](const std::unique_ptr<Layer>& ptr) { return ptr.get() == layer; });
 		if (it != m_Layers.end())
 		{
 			const bool was_before_insert = it < m_LayerInsert;
 			(*it)->OnDetach();
-			delete *it;
 			m_Layers.erase(it);
 			if (was_before_insert)
 				--m_LayerInsert;
@@ -44,20 +44,33 @@ namespace CHEngine
 		if (it != m_Layers.end())
 		{
 			(*it)->OnDetach();
-			delete *it;
+			it->reset();
 			m_Layers.erase(it);
 		}
 	}
 
 	void LayerStack::Clear()
 	{
-		for (Layer* layer : m_Layers)
+		for (Scope<Layer>& layer : m_Layers)
 		{
 			layer->OnDetach();
-			delete layer;
+			layer.reset();
 		}
 
 		m_Layers.clear();
 		m_LayerInsert = m_Layers.begin();
 	}
+
+	void LayerStack::Flush()
+	{
+		for (auto func : m_DeferredOps)
+			func();
+		m_DeferredOps.clear();
+	}
+
+	void LayerStack::AddDeferredOperation(std::function<void()> func)
+	{
+		m_DeferredOps.push_back(func);
+	}
+
 }

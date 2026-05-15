@@ -40,7 +40,7 @@ static MTLIndexType ToMTLIndexType(CHEngine::IndexFormat fmt)
 }
 
 // ─── Execute ─────────────────────────────────────────────────────────────────
-void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes)
+void FrameGraphBackendMTL::Execute(const Vector<CHEngine::PassDesc>& passes)
 {
     @autoreleasepool {
 

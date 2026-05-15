@@ -24,10 +24,11 @@ static const ImGuiWindowFlags kFlags =
 void Draw(SceneViewLayer& layer)
 {
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(layer);
-    EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
+    Ref<EditorWorldContext> ctxRef = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext& ctx = *ctxRef;
 
     // Open on Shift+A (viewport hovered, edit mode)
-    if (viewport.IsViewportHovered() && ctx.SessionState == SceneSession::State::Edit)
+    if (viewport.IsViewportHovered() && ctx.GetSessionState() == SceneSession::State::Edit)
     {
         ImGuiIO& io = ImGui::GetIO();
         if (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_A, false))
@@ -63,7 +64,7 @@ void Draw(SceneViewLayer& layer)
         { EditorPopup::Close(); ImGui::End(); return; }
     }
 
-    SceneViewLayerHost host(layer);
+    Sandbox::SceneViewLayerHost host(layer);
     const float w = 150.0f;
 
     // ── Mesh ──────────────────────────────────────────────────────────────────

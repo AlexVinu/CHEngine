@@ -1,13 +1,10 @@
 #include "ContentBrowserPanel.h"
 #include <imgui.h>
 #include <algorithm>
-#include <CHEngine/Project/ProjectManager.h>
 #include <Log/Log.h>
 
 ContentBrowserPanel::ContentBrowserPanel() {
-    if (CHEngine::ProjectManager::HasProject())
-        SetAssetsDirectory(CHEngine::ProjectManager::Current()->AssetsAbsPath());
-    // Without a project the browser stays empty until OnProjectOpened sets the root.
+    // Assets root is set externally via SetAssetsDirectory when a project is opened.
 }
 
 void ContentBrowserPanel::SetAssetsDirectory(const fs::path& path) {
@@ -218,7 +215,7 @@ std::string ContentBrowserPanel::OnImGuiRender(ImVec2 pos, ImVec2 size) {
         ImGuiWindowFlags_NoMove     | ImGuiWindowFlags_NoCollapse |
         ImGuiWindowFlags_NoBringToFrontOnFocus);
 
-    if (!CHEngine::ProjectManager::HasProject() || m_AssetsRoot.empty()) {
+    if (m_AssetsRoot.empty()) {
         ImGui::TextDisabled("CONTENT");
         ImGui::Separator();
         ImGui::TextDisabled("  No project open.");

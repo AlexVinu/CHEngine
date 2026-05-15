@@ -13,28 +13,28 @@ namespace CHModules
     class ShaderVK : public CHEngine::IShader
     {
     public:
-        ShaderVK(const CHEngine::String& slangSource,
-                 const CHEngine::String& vertEntry,
-                 const CHEngine::String& fragEntry,
-                 const CHEngine::String& sourcePath = CHEngine::String());
+        ShaderVK(const String& slangSource,
+                 const String& vertEntry,
+                 const String& fragEntry,
+                 const String& sourcePath = String());
         ~ShaderVK() override;
 
-        bool Reload(const CHEngine::String& slangSource,
-                    const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
-                    const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-                    const CHEngine::String& sourcePath = CHEngine::String()) override;
+        bool Reload(const String& slangSource,
+                    const String& vertEntry  = String("vertMain"),
+                    const String& fragEntry  = String("fragMain"),
+                    const String& sourcePath = String()) override;
 
         void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
-        void SetInt(const CHEngine::String& name, int value) override;
+        void SetInt(const String& name, int value) override;
 
         VkShaderModule GetVertexModule()   const { return m_VertModule; }
         VkShaderModule GetFragmentModule() const { return m_FragModule; }
 
     private:
-        bool BuildModules(const CHEngine::String& slangSource,
-                          const CHEngine::String& vertEntry,
-                          const CHEngine::String& fragEntry,
-                          const CHEngine::String& sourcePath);
+        bool BuildModules(const String& slangSource,
+                          const String& vertEntry,
+                          const String& fragEntry,
+                          const String& sourcePath);
         void DestroyModules();
 
         VkShaderModule m_VertModule = VK_NULL_HANDLE;

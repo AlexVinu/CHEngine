@@ -1,6 +1,6 @@
 #include "ProjectBrowserWindow.h"
+#include "ProjectManager.h"
 
-#include <CHEngine/Project/ProjectManager.h>
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Utils/FileDialog.h>
 
@@ -12,9 +12,9 @@
 
 namespace fs = std::filesystem;
 
-bool ProjectBrowserWindow::TryOpenProject(const std::string& path)
+bool ProjectBrowserWindow::TryOpenProject(ProjectManager& proj_manager, const std::string& path)
 {
-    if (!CHEngine::ProjectManager::Open(path))
+    if (!proj_manager.Open(path))
         return false;
     CHEngine::EngineConfig::SaveLastProject(path);
     CHEngine::EngineConfig::AddRecentProject(path);
@@ -32,7 +32,7 @@ bool ProjectBrowserWindow::StartNewProject()
     return false;
 }
 
-bool ProjectBrowserWindow::Draw()
+bool ProjectBrowserWindow::Draw(ProjectManager& proj_manager)
 {
     bool projectOpened = false;
 
@@ -78,7 +78,7 @@ bool ProjectBrowserWindow::Draw()
         const char* filters[] = { "*.cheproj" };
         std::string path = CHEngine::FileDialog::OpenFile("CHEngine Project (*.cheproj)", filters, 1, "Open Project");
         if (!path.empty())
-            projectOpened = TryOpenProject(path);
+            projectOpened = TryOpenProject(proj_manager, path);
     }
 
     ImGui::Spacing();
@@ -90,7 +90,7 @@ bool ProjectBrowserWindow::Draw()
     std::vector<std::string> recents = CHEngine::EngineConfig::LoadRecentProjects();
     std::string clickedRecent = DrawRecentList(recents);
     if (!clickedRecent.empty())
-        projectOpened = TryOpenProject(clickedRecent);
+        projectOpened = TryOpenProject(proj_manager, clickedRecent);
 
     if (recents.empty())
         ImGui::TextDisabled("  (no recent projects)");
@@ -123,7 +123,7 @@ bool ProjectBrowserWindow::Draw()
             }
             if (confirm && m_NameBuf[0] != '\0')
             {
-                std::string path = CHEngine::ProjectManager::Create(m_ParentDir, m_NameBuf);
+                std::string path = proj_manager.Create(m_ParentDir, m_NameBuf);
                 if (!path.empty())
                 {
                     CHEngine::EngineConfig::SaveLastProject(path);

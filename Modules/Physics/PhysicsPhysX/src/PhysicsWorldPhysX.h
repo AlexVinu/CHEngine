@@ -68,8 +68,8 @@ namespace CHModules
         physx::PxDefaultCpuDispatcher* m_Dispatcher = nullptr;
         physx::PxScene* m_Scene = nullptr;
 
-        std::vector<CHEngine::Scope<BodyPhysX>> m_Bodies;
-        CHEngine::Scope<ContactCallbackPhysX> m_ContactCallback;
+        std::vector<Scope<BodyPhysX>> m_Bodies;
+        Scope<ContactCallbackPhysX> m_ContactCallback;
         CHEngine::IPhysicsContactListener* m_ContactListener = nullptr;
     };
 }

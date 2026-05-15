@@ -58,7 +58,7 @@ void EditorCameraController::FocusOnPoint(const glm::vec3& target,
 void EditorCameraController::UpdateCameraInput(const InputSnapshot& input_snapshot,
                                                CHEngine::EditorCamera* viewport_camera,
                                                EditorCameraState& camera_state,
-                                               CHEngine::Ref<CHEngine::Scene> editor_scene,
+                                               Ref<CHEngine::Scene> editor_scene,
                                                CHEngine::EntityHandle selected_entity)
 {
     if (!viewport_camera || !input_snapshot.IsViewportHovered)
@@ -115,7 +115,7 @@ void EditorCameraController::OnEvent(CHEngine::Event& e)
 
 void EditorCameraController::OnUpdate(CHEngine::EditorCamera* viewport_camera,
                                       EditorCameraState& camera_state,
-                                      CHEngine::Ref<CHEngine::Scene> editor_scene,
+                                      Ref<CHEngine::Scene> editor_scene,
                                       CHEngine::EntityHandle selected_entity,
                                       const InputSnapshot& input_snapshot)
 {

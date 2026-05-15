@@ -1,4 +1,4 @@
-﻿#include "chepch.h"
+#include "chepch.h"
 #include "DeferredOps.h"
 
 #include <cstdint>

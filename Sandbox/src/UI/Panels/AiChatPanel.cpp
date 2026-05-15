@@ -66,8 +66,8 @@ AiChatPanel::AiChatPanel()
 
 AiChatPanel::~AiChatPanel()
 {
-    if (m_Worker.joinable())
-        m_Worker.detach();
+    if (m_Worker && m_Worker->joinable())
+        m_Worker->detach();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -327,9 +327,9 @@ void AiChatPanel::SendMessage()
     m_IsLoading.store(true);
 
     // Запускаем в отдельном потоке
-    if (m_Worker.joinable()) m_Worker.join();
+    if (m_Worker && m_Worker->joinable()) m_Worker->join();
     std::string editorCode = m_LastEditorCode;
-    m_Worker = std::thread([this, userText, editorCode]() {
+    m_Worker.emplace([this, userText, editorCode]() {
         RequestAsync(userText, editorCode);
     });
 }

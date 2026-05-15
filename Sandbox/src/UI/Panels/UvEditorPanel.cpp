@@ -1,4 +1,5 @@
 #include "UvEditorPanel.h"
+#include "EditorWorldContext.h"
 
 #include "CHEngine/Mesh/Mesh.h"
 #include "CHEngine/Scene/Components.h"
@@ -41,7 +42,7 @@ static std::vector<std::vector<int>> BuildUVGroups(const std::vector<CHEngine::V
     return groups;
 }
 
-void UvEditorPanel::Draw(EditorUiHost& host)
+void UvEditorPanel::Draw(SceneViewLayerHost& host)
 {
     // Window is always created (tiling system provides pos/size via SetNextWindowPos/Size)
     if (!ImGui::Begin("UV Editor"))
@@ -50,7 +51,8 @@ void UvEditorPanel::Draw(EditorUiHost& host)
         return;
     }
 
-    EditorWorldContext& session = host.GetActiveSceneSession();
+    Ref<EditorWorldContext> sessionRef = host.GetActiveSceneSession();
+    EditorWorldContext& session = *sessionRef;
     auto scene = session.EditorScene;
 
     // Show hint when nothing useful to display

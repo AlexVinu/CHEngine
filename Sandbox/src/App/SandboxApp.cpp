@@ -2,10 +2,12 @@
 #define CHE_INCLUDE_ENTRY_POINT
 #include <CHEngine.h>
 #include "SceneViewLayer.h"
+#include "GameLayer.h"
+#include "ProjectManager.h"
 
-#include <CHEngine/Project/ProjectManager.h>
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
+#include <CHEngine/Utils/AppPaths.h>
 
 #include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
@@ -213,20 +215,27 @@ public:
 	{
 		// Try to restore the last used project so the editor can start immediately.
 		const std::string lastProj = CHEngine::EngineConfig::LoadLastProject();
+		m_ProjectManager = MakeRef<ProjectManager>();
 		if (!lastProj.empty())
-			CHEngine::ProjectManager::Open(lastProj);
+			m_ProjectManager->Open(lastProj);
 
-		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Flat", "shaders/flat.slang");
-		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Neon", "shaders/neon.slang");
+		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Flat", CHEngine::AppPaths::ExecutableDir() / "shaders/flat.slang");
+		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Neon", CHEngine::AppPaths::ExecutableDir() / "shaders/neon.slang");
 
+		m_MutualWorlds = MakeRef<std::vector<Ref<EditorWorldContext>>>();
+		m_MutualWorlds->reserve(16);
 		// Scene editor (default)
-		PushLayer(new SceneViewLayer());
-
+		PushLayer(new SceneViewLayer(m_MutualWorlds, m_ProjectManager));
+		PushLayer(new GameLayer(m_MutualWorlds));
 		// Old cube demo (uncomment to use instead):
 		// PushLayer(new ExampleLayer());
 	}
 
 	~SandboxApp() {}
+
+private:
+	Ref<std::vector<Ref<EditorWorldContext>>> m_MutualWorlds;
+	Ref<ProjectManager> m_ProjectManager;
 };
 
 CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config)

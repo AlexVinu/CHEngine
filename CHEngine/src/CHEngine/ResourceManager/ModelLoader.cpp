@@ -9,24 +9,23 @@
 
 namespace CHEngine
 {
-	ModelHandle ModelLoader::Load(const std::string& filepath, ShaderHandle meshShader)
+	ModelHandle ModelLoader::Load(const std::filesystem::path& filepath, ShaderHandle meshShader)
 	{
 		CHE_CORE_ASSERT(meshShader.IsValid(), "ModelLoader::Load - meshShader must be valid");
+		CHE_CORE_ASSERT(filepath.is_absolute(), "ModelLoader::Load - filepath must be absolute");
 
 		// Cache key uses the input path verbatim; resolution happens just before disk I/O.
 		if (auto it = m_HandlesBimap.left.find(filepath); it != m_HandlesBimap.left.end())
 			return it->second;
 
-		const std::string resolved = ResourceManager::ResolveAssetPath(filepath).string();
-
-		std::string ext = std::filesystem::path(resolved).extension().string();
+		std::string ext = filepath.extension().string();
 		std::transform(ext.begin(), ext.end(), ext.begin(), ::tolower);
 
 		ModelHandle handle;
 		if (ext == ".obj")
-			handle = LoadOBJ(resolved, meshShader);
+			handle = LoadOBJ(filepath, meshShader);
 		else if (ext == ".glb" || ext == ".gltf")
-			handle = LoadGLTF(resolved, meshShader);
+			handle = LoadGLTF(filepath, meshShader);
 		else
 		{
 			CHE_CORE_ERROR("ModelLoader: unsupported file format: {}", ext);

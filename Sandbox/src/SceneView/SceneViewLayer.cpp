@@ -3,31 +3,33 @@
 #include "SceneViewLayerAccess.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SceneViewLayer_IO.h"
-#include "SceneViewLayer_ImGuiFrame.h"
-#include "ProjectEditorState.h"
 
 #include "UIThemeActive.h"
+#include "ProjectManager.h"
 
-#include <CHEngine/Project/ProjectManager.h>
 #include <Log/Log.h>
 #include <Profiler.h>
 #include <filesystem>
 
-SceneViewLayer::SceneViewLayer()
-    : Layer("SceneView")
-{
-    m_Sessions.reserve(16);
-    m_Sessions.emplace_back();
+// Free function defined in SceneViewLayer_ImGuiFrame.cpp
+void RunSceneViewImGuiFrame(SceneViewLayer& layer);
 
-    m_GizmoSystem.BindCommandStack(&SceneViewLayerAccess::Active(*this).CommandStack);
+
+SceneViewLayer::SceneViewLayer(Ref<std::vector<Ref<EditorWorldContext>>> worlds,
+                                    Ref<ProjectManager> proj_manager)
+    : Layer("SceneView"), m_EditorWorldContexts(worlds), m_ProjectManager(proj_manager), m_ActiveIndex(0)
+{
+    auto ctx = MakeRef<EditorWorldContext>();
+    m_EditorWorldContexts->emplace_back(ctx);
+
+    m_GizmoSystem.BindCommandStack(&SceneViewLayerAccess::ActiveRef(*this)->CommandStack);
 
     UIActive::SetTheme(AppTheme::RetroOS);
     UIActive::SyncLayout();
 
     SceneViewLayerCameraOps::ApplyOrbit(*this);
-    SceneViewLayerIO::LoadRecentFilesList();
 
-    if (CHEngine::ProjectManager::HasProject())
+    if (m_ProjectManager->HasProject())
     {
         // Project was already loaded by SandboxApp — init editor state.
         OnProjectOpened();
@@ -37,18 +39,20 @@ SceneViewLayer::SceneViewLayer()
 
 void SceneViewLayer::OnProjectOpened()
 {
-    CHEngine::Project* proj = CHEngine::ProjectManager::Current();
+    Project* proj = m_ProjectManager->Current();
     if (!proj)
         return;
 
     // Reset to a single clean session when switching projects.
-    m_Sessions.resize(1);
-    m_ActiveIndex = 0;
-    m_Sessions[0] = EditorWorldContext{};
-    SceneViewLayerCameraOps::ApplyOrbit(*this);
-    m_GizmoSystem.BindCommandStack(&SceneViewLayerAccess::Active(*this).CommandStack);
+    m_EditorWorldContexts->resize(1);
 
-    m_EditorState = Sandbox::ProjectEditorState::LoadFor(*proj);
+    (*m_EditorWorldContexts)[0] = MakeRef<EditorWorldContext>();
+
+    SceneViewLayerAccess::SetActiveIndex(*this, 0);
+
+    SceneViewLayerCameraOps::ApplyOrbit(*this);
+    m_GizmoSystem.BindCommandStack(&SceneViewLayerAccess::ActiveRef(*this)->CommandStack);
+
     m_ContentBrowser.SetAssetsDirectory(proj->AssetsAbsPath());
 
     // Load startup scene.
@@ -64,37 +68,18 @@ void SceneViewLayer::OnProjectOpened()
 void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
-    if (!CHEngine::ProjectManager::HasProject())
+    if (!m_ProjectManager->HasProject())
         return;
 
-    std::vector<EditorWorldContext>& sessions = SceneViewLayerAccess::Sessions(*this);
-    if (sessions.empty())
+    if (m_EditorWorldContexts->empty())
         return;
 
-    const size_t active_index = SceneViewLayerAccess::ActiveIndex(*this);
-    if (active_index >= sessions.size())
-        return;
-
-    for (size_t i = 0; i < sessions.size(); ++i)
-    {
-        sessions[i].IsActive = false;
-        if (i == active_index)
-        {
-            sessions[i].IsActive = true;
-        }
-    }
-
-    for (size_t i = 0; i < sessions.size(); ++i)
-    {
-        if (i != active_index)
-            sessions[i].Update(dt);
-    }
-
-    EditorWorldContext* active = &sessions[active_index];
+    Ref<EditorWorldContext> active = SceneViewLayerAccess::ActiveRef(*this);
     m_GizmoSystem.BindCommandStack(&active->CommandStack);
+    
+    // Thats fine if we draw only one scene per update
+    // TODO: Do it in proper way
     m_Viewport.BeginSceneRender(active);
-    active->Update(dt);
-    m_Viewport.EndSceneRender();
 }
 
 void SceneViewLayer::OnEvent(CHEngine::Event& e)
@@ -105,19 +90,11 @@ void SceneViewLayer::OnEvent(CHEngine::Event& e)
 
 void SceneViewLayer::OnImGuiRender()
 {
-    if (!CHEngine::ProjectManager::HasProject())
+    if (!m_ProjectManager->HasProject())
     {
-        if (m_ProjectBrowser.Draw())
+        if (m_ProjectBrowser.Draw(*m_ProjectManager))
             OnProjectOpened();
         return;
     }
     RunSceneViewImGuiFrame(*this);
-
-    // After gizmo and other ImGui interactions may have updated TransformComponents,
-    // re-upload the object UBO ring buffer so the GPU sees the latest transforms
-    // at EndFrame commit time (MTLStorageModeShared — no encoding barrier needed).
-    auto& sessions = SceneViewLayerAccess::Sessions(*this);
-    const size_t activeIdx = SceneViewLayerAccess::ActiveIndex(*this);
-    if (activeIdx < sessions.size())
-        sessions[activeIdx].RefreshRender();
 }

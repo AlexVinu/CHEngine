@@ -2,10 +2,13 @@
 
 #include "ContentBrowserPanel.h"
 
+#include <CheStl/MemoryTypes.h>
+#include <CHEngine/World/World.h>
 #include <cstddef>
 #include <vector>
 
 class SceneViewLayer;
+class ProjectManager;
 struct EditorWorldContext;
 
 namespace Sandbox {
@@ -19,6 +22,7 @@ class PropertiesPanel;
 class CameraPanel;
 class ProfilerPanel;
 class UvEditorPanel;
+class UvEditorPanel;
 class SceneBrowserPanel;
 class ScriptEditorPanel;
 class TilingManager;
@@ -27,8 +31,9 @@ class TilingManager;
 /// Friend accessors for internal compilation units (host, IO, play mode, etc.).
 struct SceneViewLayerAccess
 {
-    static EditorWorldContext& Active(SceneViewLayer& layer);
-    static std::vector<EditorWorldContext>& Sessions(SceneViewLayer& layer);
+    static Ref<EditorWorldContext> ActiveRef(SceneViewLayer& layer);
+    static Ref<std::vector<Ref<EditorWorldContext>>>  Sessions(SceneViewLayer& layer);
+    static Ref<ProjectManager>  ProjectManagerRef (SceneViewLayer& layer);
     static size_t ActiveIndex(const SceneViewLayer& layer);
     static void SetActiveIndex(SceneViewLayer& layer, size_t index);
 
@@ -42,9 +47,7 @@ struct SceneViewLayerAccess
     static Sandbox::PropertiesPanel& Properties(SceneViewLayer& layer);
     static Sandbox::CameraPanel& CameraPanel(SceneViewLayer& layer);
     static Sandbox::ProfilerPanel& Profiler(SceneViewLayer& layer);
-    static Sandbox::UvEditorPanel& UvEditor(SceneViewLayer& layer);
-    static bool& ShowUVEditor(SceneViewLayer& layer);
-    static Sandbox::ProjectEditorState& EditorState(SceneViewLayer& layer);
+    static Sandbox::UvEditorPanel&      UvEditor(SceneViewLayer& layer);
     static Sandbox::SceneBrowserPanel& SceneBrowser(SceneViewLayer& layer);
     static Sandbox::ScriptEditorPanel& ScriptEditor(SceneViewLayer& layer);
     static Sandbox::TilingManager&     Tiling(SceneViewLayer& layer);
