@@ -3,7 +3,6 @@
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
 
-#include <CHEngine/Application.h>
 #include <CHEngine/Utils/FileDialog.h>
 #include <CHEngine/Scene/Components.h>
 
@@ -15,34 +14,10 @@
 
 namespace Sandbox {
 
-void SceneHierarchyPanel::EnsureLogo()
-{
-    if (m_LogoLoaded) return;
-    m_LogoLoaded = true;
-
-    // PNG хранит ширину и высоту в IHDR-чанке по фиксированным смещениям:
-    // байты 16-19 = width (big-endian), байты 20-23 = height (big-endian)
-    const char* path = "editor_assets/icons/logo.png";
-    if (FILE* f = std::fopen(path, "rb"))
-    {
-        uint8_t buf[24] = {};
-        if (std::fread(buf, 1, sizeof(buf), f) == sizeof(buf))
-        {
-            uint32_t w = (buf[16]<<24)|(buf[17]<<16)|(buf[18]<<8)|buf[19];
-            uint32_t h = (buf[20]<<24)|(buf[21]<<16)|(buf[22]<<8)|buf[23];
-            if (w > 0 && h > 0)
-                m_LogoAspect = static_cast<float>(w) / static_cast<float>(h);
-        }
-        std::fclose(f);
-    }
-
-    m_Logo = CHEngine::RenderFacade::CreateTextureFromFile(path);
-}
 
 // All scene hierarchy content — usable standalone or inside a tab.
 void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
 {
-    EnsureLogo();
     SceneSession& activeSession = host.GetActiveSceneSession();
     auto scene_ptr = activeSession.EditorScene;
     if (!scene_ptr)
@@ -99,46 +74,10 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
 
     if (objectCount == 0)
     {
-        const float pad   = 10.0f;
-        const float avail = ImGui::GetContentRegionAvail().x;
-
-        // На первом кадре DisplaySize ещё не заполнен бэкендом → avail мусор.
-        // Пропускаем рисование пока панель не получила корректный размер.
-        if (avail < 32.0f) return;
-
-        const float logoW = avail - pad * 2.0f;
-        const float logoH = (m_LogoAspect > 0.0f && logoW > 0.0f)
-                            ? logoW / m_LogoAspect : logoW;
-
-        // 1. Подсказка
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
         ImGui::TextUnformatted("Press Shift+A to add objects");
         ImGui::PopStyleColor();
-
-        // 2. Отступ
-        ImGui::Spacing();
-        ImGui::Spacing();
-
-        // 3. Логотип
-        if (m_Logo.IsValid() && logoW > 0.0f)
-        {
-            auto* f = CHEngine::RenderFacade::GetRenderFactory();
-            ImTextureID texId = f ? static_cast<ImTextureID>(f->GetTextureNativeID(m_Logo))
-                                  : static_cast<ImTextureID>(0);
-            if (texId)
-            {
-                ImGui::Indent(pad);
-                ImVec2 p = ImGui::GetCursorScreenPos();
-                ImGui::Dummy(ImVec2(logoW, logoH));  // сначала резервируем место
-                // рисуем НА ТОМ ЖЕ месте через DrawList
-                ImGui::GetWindowDrawList()->AddImage(
-                    texId, p, ImVec2(p.x + logoW, p.y + logoH),
-                    ImVec2(0,1), ImVec2(1,0),
-                    IM_COL32(255,255,255,220));
-                ImGui::Unindent(pad);
-            }
-        }
     }
 
     if (ImGui::BeginPopupContextWindow("scene_hierarchy_ctx",
