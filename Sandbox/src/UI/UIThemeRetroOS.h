@@ -72,9 +72,9 @@ namespace UIThemeRetro
     struct LayoutConfig
     {
         float toolbarH  = 46.0f;
-        float leftFrac  = 0.15f;
-        float rightFrac = 0.20f;
-        float propsFrac = 0.60f;
+        float leftFrac  = 0.0f;   // left panel removed — viewport takes full width
+        float rightFrac = 0.22f;
+        float propsFrac = 0.55f;
     };
     inline LayoutConfig g_Layout;
 
