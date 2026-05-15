@@ -138,76 +138,98 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         const bool isPlay  = (activeSession.SessionState == SceneSession::State::Play);
         const bool isPause = (activeSession.SessionState == SceneSession::State::Pause);
 
-        // Иконка и размер кнопки
-        const float  kBtnH   = winH * 0.72f;                 // кнопка чуть меньше высоты тулбара
-        const float  kBtnW   = kBtnH * 1.6f;                 // чуть шире — как было у текстовых кнопок
-        const float  kPad    = 4.0f;
-        const ImVec2 kIcoSz  = ImVec2(kBtnH - kPad * 2.0f, kBtnH - kPad * 2.0f);
-        const float  gap     = 4.0f;
-        const float  blockW  = kBtnW * 2.0f + gap;
+        const float kBtnH    = winH * 0.72f;       // высота кнопки
+        const float kPadX    = 10.0f;              // горизонтальный отступ внутри кнопки
+        const float kIcoH    = kBtnH - 8.0f;       // размер иконки (квадрат)
+        const float kTextGap = 6.0f;               // отступ между текстом и иконкой
+        const float kRound   = 5.0f;               // скругление углов
+        const float gap      = 6.0f;               // зазор между двумя кнопками
 
         const bool   isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
         const ImVec2 uv0     = isMetal ? ImVec2(0,0) : ImVec2(0,1);
         const ImVec2 uv1     = isMetal ? ImVec2(1,1) : ImVec2(1,0);
 
-        float screenX = ImGui::GetWindowPos().x + (ImGui::GetWindowWidth() - blockW) * 0.5f;
-        float screenY = ImGui::GetWindowPos().y + (winH - kBtnH) * 0.5f;
-        ImGui::SetCursorScreenPos(ImVec2(screenX, screenY));
-
-        // Хелпер: рисует кнопку с иконкой (или текстом-fallback)
-        auto playBtn = [&](const char* strId, const char* fallback,
+        // Хелпер: рисует кнопку "Текст + отступ + Иконка" через InvisibleButton + DrawList
+        auto playBtn = [&](const char* strId, const char* label,
                            CHEngine::TextureHandle icon,
                            ImVec4 colNorm, ImVec4 colHov, ImVec4 colAct,
                            bool disabled) -> bool
         {
-            ImGui::BeginDisabled(disabled);
-            ImGui::PushStyleColor(ImGuiCol_Button,        colNorm);
-            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, colHov);
-            ImGui::PushStyleColor(ImGuiCol_ButtonActive,  colAct);
-            ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(kPad, kPad));
+            ImTextureID tex    = ToImTex(icon);
+            float textW        = ImGui::CalcTextSize(label).x;
+            float contentW     = textW + (tex ? kTextGap + kIcoH : 0.0f);
+            float btnW         = contentW + kPadX * 2.0f;
 
-            bool clicked = false;
-            ImTextureID tex = ToImTex(icon);
+            if (disabled) ImGui::BeginDisabled(true);
+
+            ImVec2 pos = ImGui::GetCursorScreenPos();
+            bool clicked = ImGui::InvisibleButton(strId, ImVec2(btnW, kBtnH));
+
+            // Цвет фона по состоянию
+            ImVec4 col4 = ImGui::IsItemActive()  ? colAct
+                        : ImGui::IsItemHovered() ? colHov
+                        : colNorm;
+            if (disabled) col4.w *= 0.4f;
+
+            ImDrawList* dl = ImGui::GetWindowDrawList();
+            dl->AddRectFilled(pos, ImVec2(pos.x + btnW, pos.y + kBtnH),
+                              ImGui::ColorConvertFloat4ToU32(col4), kRound);
+
+            // Текст — по вертикали по центру
+            float textY = pos.y + (kBtnH - ImGui::GetTextLineHeight()) * 0.5f;
+            ImU32 textCol = disabled ? IM_COL32(200,200,200,100) : IM_COL32(255,255,255,255);
+            dl->AddText(ImVec2(pos.x + kPadX, textY), textCol, label);
+
+            // Иконка — по вертикали по центру, справа от текста
             if (tex)
-                clicked = ImGui::ImageButton(strId, tex, kIcoSz, uv0, uv1,
-                                             ImVec4(0,0,0,0), ImVec4(1,1,1,1));
-            else
-                clicked = ImGui::Button(fallback, ImVec2(kBtnW, kBtnH));
+            {
+                float ix = pos.x + kPadX + textW + kTextGap;
+                float iy = pos.y + (kBtnH - kIcoH) * 0.5f;
+                ImU32 tintCol = disabled ? IM_COL32(255,255,255,100) : IM_COL32(255,255,255,255);
+                dl->AddImage(tex, ImVec2(ix, iy), ImVec2(ix + kIcoH, iy + kIcoH),
+                             uv0, uv1, tintCol);
+            }
 
-            ImGui::PopStyleVar();
-            ImGui::PopStyleColor(3);
-            ImGui::EndDisabled();
-            return clicked;
+            if (disabled) ImGui::EndDisabled();
+            return clicked && !disabled;
         };
 
+        // Сначала вычисляем суммарную ширину блока для центровки
+        const char* playLabel = isPlay ? "Pause" : (isPause ? "Resume" : "Play");
+        CHEngine::TextureHandle playIcon = isPlay ? m_IconResume
+                                         : (isPause ? m_IconResume : m_IconPlay);
+        float playTextW  = ImGui::CalcTextSize(playLabel).x;
+        float playIconW  = ToImTex(playIcon) ? kTextGap + kIcoH : 0.0f;
+        float playBtnW   = playTextW + playIconW + kPadX * 2.0f;
+
+        float stopTextW  = ImGui::CalcTextSize("Stop").x;
+        float stopIconW  = ToImTex(m_IconStop) ? kTextGap + kIcoH : 0.0f;
+        float stopBtnW   = stopTextW + stopIconW + kPadX * 2.0f;
+
+        float blockW = playBtnW + stopBtnW + gap;
+        float screenX = ImGui::GetWindowPos().x + (ImGui::GetWindowWidth() - blockW) * 0.5f;
+        float screenY = ImGui::GetWindowPos().y + (winH - kBtnH) * 0.5f;
+        ImGui::SetCursorScreenPos(ImVec2(screenX, screenY));
+
         // ── Play / Pause / Resume ────
-        {
-            CHEngine::TextureHandle icon   = isPlay ? m_IconResume : (isPause ? m_IconResume : m_IconPlay);
-            const char*             strId  = isPlay ? "##btn_pause" : "##btn_play";
-            const char*             fallb  = isPlay ? "Pause" : (isPause ? "Resume" : "Play");
-            ImVec4 cn = ImVec4(0.15f, 0.50f, 0.15f, 1.0f);
-            ImVec4 ch = ImVec4(0.20f, 0.62f, 0.20f, 1.0f);
-            ImVec4 ca = ImVec4(0.10f, 0.38f, 0.10f, 1.0f);
-            if (playBtn(strId, fallb, icon, cn, ch, ca, false))
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host, isPlay, isEdit] {
-                        if (isPlay)      host.EnterPauseMode();
-                        else if (isEdit) host.EnterPlayMode();
-                        else             host.ResumeFromPause();
-                    }, [] {}, false));
-        }
+        if (playBtn(isPlay ? "##btn_pause" : "##btn_play", playLabel, playIcon,
+                    ImVec4(0.15f,0.50f,0.15f,1), ImVec4(0.20f,0.62f,0.20f,1),
+                    ImVec4(0.10f,0.38f,0.10f,1), false))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host, isPlay, isEdit] {
+                    if (isPlay)      host.EnterPauseMode();
+                    else if (isEdit) host.EnterPlayMode();
+                    else             host.ResumeFromPause();
+                }, [] {}, false));
 
         ImGui::SameLine(0, gap);
 
         // ── Stop ────
-        {
-            ImVec4 cn = ImVec4(0.50f, 0.15f, 0.15f, 1.0f);
-            ImVec4 ch = ImVec4(0.62f, 0.20f, 0.20f, 1.0f);
-            ImVec4 ca = ImVec4(0.38f, 0.10f, 0.10f, 1.0f);
-            if (playBtn("##btn_stop", "Stop", m_IconStop, cn, ch, ca, isEdit))
-                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
-                    [&host] { host.StopPlayMode(); }, [] {}, false));
-        }
+        if (playBtn("##btn_stop", "Stop", m_IconStop,
+                    ImVec4(0.50f,0.15f,0.15f,1), ImVec4(0.62f,0.20f,0.20f,1),
+                    ImVec4(0.38f,0.10f,0.10f,1), isEdit))
+            host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                [&host] { host.StopPlayMode(); }, [] {}, false));
     }
 
     // ── Right side: Scene | API | ⚙ Settings ─────────────────────────────────
