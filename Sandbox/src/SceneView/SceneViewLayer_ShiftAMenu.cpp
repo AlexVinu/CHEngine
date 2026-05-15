@@ -54,6 +54,15 @@ void Draw(SceneViewLayer& layer)
     SceneViewLayerHost host(layer);
     const float w = 150.0f;
 
+    // ── Empty ─────────────────────────────────────────────────────────────────
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
+    if (ImGui::Selectable("  Empty Entity", false, 0, ImVec2(w, 0))) { host.AddEmptyEntity(); s_Open = false; }
+    ImGui::PopStyleVar();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
     // ── Mesh ──────────────────────────────────────────────────────────────────
     UIThemeRetro::PushHeadingFont();
     ImGui::TextDisabled("Mesh");
