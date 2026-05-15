@@ -73,6 +73,19 @@ void ToolbarPanel::Draw(EditorUiHost& host, ImVec2 pos, ImVec2 size)
         if (ImGui::IsKeyPressed(ImGuiKey_F3, false))
             host.GetShowProfiler() = !host.GetShowProfiler();
 
+        // Delete / Backspace — удаление выделенного объекта (только в Edit-режиме)
+        if ((ImGui::IsKeyPressed(ImGuiKey_Delete, false) || ImGui::IsKeyPressed(ImGuiKey_Backspace, false))
+            && activeSession.SessionState == SceneSession::State::Edit)
+        {
+            SceneSession& s = host.GetActiveSceneSession();
+            if (s.EditorScene && s.EditorScene->IsEntityHandleValid(s.SelectedEntity))
+            {
+                const CHEngine::UUID id = s.EditorScene->GetUUID(s.SelectedEntity);
+                host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
+                    [&host, id] { host.DestroyEntityByUuid(id); }, [] {}, false));
+            }
+        }
+
         const bool undoMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyAlt;
         if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
             host.GetCommandStack().Push(CHEngine::MakeScope<CallbackCommand>(
