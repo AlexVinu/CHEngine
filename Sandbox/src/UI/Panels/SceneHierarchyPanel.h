@@ -17,7 +17,8 @@ public:
 
 private:
     CHEngine::TextureHandle m_Logo;
-    bool                   m_LogoLoaded = false;
+    float                   m_LogoAspect = 1.0f; // width / height
+    bool                    m_LogoLoaded = false;
 
     void EnsureLogo();
 };

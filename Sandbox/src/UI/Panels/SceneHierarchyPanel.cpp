@@ -10,6 +10,7 @@
 #include "UIThemeActive.h"
 
 #include <boost/container_hash/hash.hpp>
+#include <cstdio>
 #include <optional>
 
 namespace Sandbox {
@@ -17,8 +18,25 @@ namespace Sandbox {
 void SceneHierarchyPanel::EnsureLogo()
 {
     if (m_LogoLoaded) return;
-    m_Logo       = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/logo.png");
     m_LogoLoaded = true;
+
+    // PNG хранит ширину и высоту в IHDR-чанке по фиксированным смещениям:
+    // байты 16-19 = width (big-endian), байты 20-23 = height (big-endian)
+    const char* path = "editor_assets/icons/logo.png";
+    if (FILE* f = std::fopen(path, "rb"))
+    {
+        uint8_t buf[24] = {};
+        if (std::fread(buf, 1, sizeof(buf), f) == sizeof(buf))
+        {
+            uint32_t w = (buf[16]<<24)|(buf[17]<<16)|(buf[18]<<8)|buf[19];
+            uint32_t h = (buf[20]<<24)|(buf[21]<<16)|(buf[22]<<8)|buf[23];
+            if (w > 0 && h > 0)
+                m_LogoAspect = static_cast<float>(w) / static_cast<float>(h);
+        }
+        std::fclose(f);
+    }
+
+    m_Logo = CHEngine::RenderFacade::CreateTextureFromFile(path);
 }
 
 // All scene hierarchy content — usable standalone or inside a tab.
@@ -107,7 +125,7 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
             if (texId)
             {
                 const float logoW = panelW - 20.0f;
-                const float logoH = logoW * 0.4f;
+                const float logoH = (m_LogoAspect > 0.0f) ? logoW / m_LogoAspect : logoW;
 
                 // Флип по Y: uv0=(0,1), uv1=(1,0) — картинка была перевёрнута
                 const ImVec2 uv0(0.0f, 1.0f);
