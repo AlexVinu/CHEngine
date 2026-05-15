@@ -101,6 +101,11 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
     {
         const float pad   = 10.0f;
         const float avail = ImGui::GetContentRegionAvail().x;
+
+        // На первом кадре DisplaySize ещё не заполнен бэкендом → avail мусор.
+        // Пропускаем рисование пока панель не получила корректный размер.
+        if (avail < 32.0f) return;
+
         const float logoW = avail - pad * 2.0f;
         const float logoH = (m_LogoAspect > 0.0f && logoW > 0.0f)
                             ? logoW / m_LogoAspect : logoW;
