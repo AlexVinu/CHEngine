@@ -99,57 +99,57 @@ void GlobalAiOverlay::Toggle()
 // ─────────────────────────────────────────────────────────────────────────────
 // System prompt
 // ─────────────────────────────────────────────────────────────────────────────
-static const char* kSystemPrompt = R"(You are an assistant inside CHEngine 3D editor. Classify user intent and return ONLY a JSON object, no other text, no markdown.
+static const char* kSystemPrompt = R"(You are an assistant inside CHEngine 3D editor. Parse user intent and return ONLY a JSON object — no markdown, no explanation, nothing else.
 
 JSON format:
-{"layout":"<preset>","create":"<object_or_empty>","entity":"<name_or_empty>","message":"<max_8_words_same_language>"}
+{"layout":"<preset>","creates":"<comma_separated_list_or_empty>","entity":"<name_or_empty>","focus_on":"<entity_name_to_focus_camera_or_empty>","message":"<max_10_words_same_language>"}
 
-━━━ LAYOUT PRESETS (choose one) ━━━
-"script_focus"  → scripts, code, lua, logic / скрипт, код, программирование
-"uv_focus"      → textures, UV, unwrap, materials / текстуры, UV, развёртка, материалы
-"model_focus"   → scene, placing, 3D objects, transform / сцена, расстановка, объекты
-"default"       → reset, standard / сброс, стандарт
+━━━ LAYOUT PRESETS ━━━
+"script_focus"  → scripts/code/lua / скрипт/код
+"uv_focus"      → textures/UV/materials / текстуры/UV/материалы
+"model_focus"   → scene/objects/3D/lights / сцена/объекты/свет
+"default"       → reset/standard / сброс/стандарт
 
-RULES for layout:
-- texture/UV/material/unwrap → ALWAYS "uv_focus"
-- script/code/lua → ALWAYS "script_focus"
-- scene/place/3D → "model_focus"
-- reset → "default"
-- ambiguous → "default"
+━━━ CREATES FIELD ━━━
+Comma-separated list of objects to create. Supported values:
+cube, sphere, empty, camera, dir_light, point_light, spot_light
+Examples: "cube", "sphere,camera", "cube,sphere,point_light"
+If nothing to create → ""
 
-━━━ CREATE FIELD ━━━
-If user wants to ADD/CREATE an object, set "create" to one of:
-"cube", "sphere", "empty", "camera", "dir_light", "point_light", "spot_light"
-Otherwise set "create" to "".
+Mapping:
+- cube/куб/box → cube
+- sphere/сфера/шар/мяч → sphere
+- empty/пустой → empty
+- camera/камера → camera
+- directional/направленный → dir_light
+- point light/точечный → point_light
+- spot/прожектор → spot_light
 
-RULES for create:
-- cube/куб/box → "cube"
-- sphere/сфера/шар → "sphere"
-- empty/пустой → "empty"
-- camera/камера → "camera"
-- directional light/направленный свет → "dir_light"
-- point light/точечный свет → "point_light"
-- spot light/прожектор → "spot_light"
-- no creation requested → ""
+━━━ FOCUS_ON FIELD ━━━
+If user says "camera looks at X", "наведи камеру на X", "камера смотрит на X" — set focus_on to that object name.
+Otherwise "".
+
+━━━ ENTITY FIELD ━━━
+Exact name of existing object to select (for script/UV work). "" if not applicable.
 
 ━━━ EXAMPLES ━━━
+User: "добавь шарик, камеру и куб, пусть камера смотрит на шарик"
+{"layout":"model_focus","creates":"sphere,camera,cube","entity":"","focus_on":"Sphere","message":"Добавил шар, камеру, куб; камера → шар"}
+
 User: "добавь куб"
-{"layout":"model_focus","create":"cube","entity":"","message":"Добавил куб на сцену"}
+{"layout":"model_focus","creates":"cube","entity":"","focus_on":"","message":"Добавил куб"}
 
-User: "создай сферу и назови её Ball"
-{"layout":"model_focus","create":"sphere","entity":"Ball","message":"Добавил сферу Ball"}
-
-User: "хочу работать с текстурами объекта Cube"
-{"layout":"uv_focus","create":"","entity":"Cube","message":"UV-режим для Cube"}
+User: "создай сферу и точечный свет"
+{"layout":"model_focus","creates":"sphere,point_light","entity":"","focus_on":"","message":"Добавил сферу и свет"}
 
 User: "буду писать скрипт для Sphere"
-{"layout":"script_focus","create":"","entity":"Sphere","message":"Скрипт-режим для Sphere"}
+{"layout":"script_focus","creates":"","entity":"Sphere","focus_on":"","message":"Скрипт-режим для Sphere"}
 
-User: "добавь точечный свет и поставь камеру"
-{"layout":"model_focus","create":"point_light","entity":"","message":"Добавил точечный свет"}
+User: "хочу работать с текстурами Cube"
+{"layout":"uv_focus","creates":"","entity":"Cube","focus_on":"","message":"UV-режим для Cube"}
 
 User: "верни стандартный layout"
-{"layout":"default","create":"","entity":"","message":"Восстановил стандартный layout"}
+{"layout":"default","creates":"","entity":"","focus_on":"","message":"Стандартный layout восстановлен"}
 )";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,24 +295,37 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
     if (jStart != std::string::npos && jEnd != std::string::npos && jEnd > jStart)
         json = json.substr(jStart, jEnd - jStart + 1);
 
-    std::string layout  = JsonField(json, "layout");
-    std::string create  = JsonField(json, "create");
-    std::string entity  = JsonField(json, "entity");
-    std::string message = JsonField(json, "message");
+    std::string layout   = JsonField(json, "layout");
+    std::string creates  = JsonField(json, "creates");
+    std::string entity   = JsonField(json, "entity");
+    std::string focus_on = JsonField(json, "focus_on");
+    std::string message  = JsonField(json, "message");
 
     if (layout.empty()) layout = "default";
     if (message.empty()) message = "Готово";
 
-    // Create object if requested
-    if (!create.empty())
+    // Create objects — parse comma-separated list
+    if (!creates.empty())
     {
-        if      (create == "cube")        host.AddCubePrimitive();
-        else if (create == "sphere")      host.AddSpherePrimitive();
-        else if (create == "empty")       host.AddEmptyEntity();
-        else if (create == "camera")      host.AddCameraEntity();
-        else if (create == "dir_light")   host.AddDirectionalLight();
-        else if (create == "point_light") host.AddPointLight();
-        else if (create == "spot_light")  host.AddSpotLight();
+        auto createOne = [&](const std::string& type)
+        {
+            if      (type == "cube")        host.AddCubePrimitive();
+            else if (type == "sphere")      host.AddSpherePrimitive();
+            else if (type == "empty")       host.AddEmptyEntity();
+            else if (type == "camera")      host.AddCameraEntity();
+            else if (type == "dir_light")   host.AddDirectionalLight();
+            else if (type == "point_light") host.AddPointLight();
+            else if (type == "spot_light")  host.AddSpotLight();
+        };
+
+        // Split by comma
+        std::string token;
+        for (char c : creates)
+        {
+            if (c == ',') { if (!token.empty()) { createOne(token); token.clear(); } }
+            else if (c != ' ') token += c;
+        }
+        if (!token.empty()) createOne(token);
     }
 
     // Apply layout
@@ -325,6 +338,13 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
     // If script_focus, also open the entity's script in editor
     if (layout == "script_focus" && !entity.empty())
         host.OpenScriptForEntity(entity);
+
+    // Focus viewport camera on target entity
+    if (!focus_on.empty())
+    {
+        host.SelectEntityByName(focus_on);
+        host.FocusOnSelected();
+    }
 
     m_Messages.push_back({ false, message });
     m_Status.clear();
@@ -410,16 +430,14 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
 
     // ── Header bar ────────────────────────────────────────────────────────────
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.75f, 1.00f, 1.0f));
-    ImGui::TextUnformatted("  AI Assistant  [double-Z to close]");
+    ImGui::SetWindowFontScale(1.15f);
+    ImGui::Text("  AI Assistant");
+    ImGui::SetWindowFontScale(1.0f);
     ImGui::PopStyleColor();
 
     ImGui::SameLine(overlayW - 60.0f);
     if (ImGui::SmallButton(m_ShowSettings ? "✕ cfg" : "⚙ cfg"))
         m_ShowSettings = !m_ShowSettings;
-
-    ImGui::SameLine();
-    if (ImGui::SmallButton("✕"))
-        m_IsOpen = false;
 
     if (m_ShowSettings)
         DrawSettingsPanel();
