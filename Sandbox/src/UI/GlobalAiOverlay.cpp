@@ -411,9 +411,30 @@ void GlobalAiOverlay::DrawSettingsPanel()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Easing functions
+// ─────────────────────────────────────────────────────────────────────────────
+static float EaseOutCubic(float t)
+{
+    float f = 1.0f - t;
+    return 1.0f - f * f * f;
+}
+static float EaseInCubic(float t) { return t * t * t; }
+
+// ─────────────────────────────────────────────────────────────────────────────
 void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
 {
-    if (!m_IsOpen) return;
+    ImGuiIO& io = ImGui::GetIO();
+    const float dt = io.DeltaTime;
+
+    // ── Animate progress ──────────────────────────────────────────────────────
+    const float kAnimSpeed = 1.0f / 0.22f;  // 220ms open/close
+    if (m_IsOpen)
+        m_AnimProgress = std::min(1.0f, m_AnimProgress + dt * kAnimSpeed);
+    else
+        m_AnimProgress = std::max(0.0f, m_AnimProgress - dt * kAnimSpeed);
+
+    // Nothing to draw when fully closed
+    if (m_AnimProgress <= 0.0f) return;
 
     // Poll pending response from worker thread
     {
@@ -426,31 +447,56 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
         }
     }
 
-    // Position: centered, floating above the bottom bar
-    ImGuiIO& io = ImGui::GetIO();
     const float W = io.DisplaySize.x;
     const float H = io.DisplaySize.y;
+
+    // Eased progress for position (ease-out when opening, ease-in when closing)
+    float easedPos = m_IsOpen ? EaseOutCubic(m_AnimProgress) : EaseInCubic(m_AnimProgress);
+    float easedAlpha = m_AnimProgress; // linear alpha is fine
+
+    // ── Background dim ────────────────────────────────────────────────────────
+    // Fullscreen transparent window drawn BEFORE the overlay (overlay goes on top)
+    {
+        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(ImVec2(W, H), ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::Begin("##ai_dim_bg", nullptr,
+            ImGuiWindowFlags_NoTitleBar    | ImGuiWindowFlags_NoResize      |
+            ImGuiWindowFlags_NoMove        | ImGuiWindowFlags_NoScrollbar   |
+            ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoNav       |
+            ImGuiWindowFlags_NoInputs      | ImGuiWindowFlags_NoBringToFrontOnFocus |
+            ImGuiWindowFlags_NoDecoration  | ImGuiWindowFlags_NoFocusOnAppearing);
+        ImGui::PopStyleVar();
+        ImU32 dimColor = IM_COL32(0, 0, 0, (int)(160 * easedAlpha));
+        ImGui::GetWindowDrawList()->AddRectFilled(ImVec2(0, 0), ImVec2(W, H), dimColor);
+        ImGui::End();
+    }
+
+    // ── Overlay window ────────────────────────────────────────────────────────
     const float overlayW = std::min(W * 0.60f, 800.0f);
     const float overlayH = m_ShowSettings ? 340.0f : 260.0f;
     const float overlayX = (W - overlayW) * 0.5f;
-    const float overlayY = H - overlayH - 48.0f;
+
+    // Slide-up: starts at H (below screen), ends at target position
+    const float targetY  = H - overlayH - 48.0f;
+    const float startY   = H + 10.0f;
+    const float overlayY = startY + (targetY - startY) * easedPos;
 
     ImGui::SetNextWindowPos(ImVec2(overlayX, overlayY), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2(overlayW, overlayH), ImGuiCond_Always);
-    ImGui::SetNextWindowBgAlpha(0.95f);
+    ImGui::SetNextWindowBgAlpha(0.97f * easedAlpha);
 
-    const ImGuiWindowFlags kFlags =
-        ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoResize |
-        ImGuiWindowFlags_NoMove      | ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoScrollWithMouse;
-
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 1.0f);
-    ImGui::PushStyleColor(ImGuiCol_WindowBg,    ImVec4(0.10f, 0.10f, 0.12f, 0.97f));
-    ImGui::PushStyleColor(ImGuiCol_Border,      ImVec4(0.30f, 0.45f, 0.80f, 0.70f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.10f, 0.10f, 0.12f, 0.97f));
+    ImGui::PushStyleColor(ImGuiCol_Border,   ImVec4(0.30f, 0.45f, 0.80f, 0.70f * easedAlpha));
 
     bool open = true;
-    if (!ImGui::Begin("##global_ai_overlay", &open, kFlags))
+    if (!ImGui::Begin("##global_ai_overlay", &open,
+        ImGuiWindowFlags_NoTitleBar  | ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoMove      | ImGuiWindowFlags_NoScrollbar |
+        ImGuiWindowFlags_NoScrollWithMouse | ImGuiWindowFlags_NoFocusOnAppearing))
     {
         ImGui::End();
         ImGui::PopStyleColor(2);
@@ -458,11 +504,10 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
         return;
     }
 
-    // Always render above every other panel
+    // Always on top (above dim background)
     ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
 
-    // macOS focus recovery: если окно кликнули после потери фокуса (запись экрана и т.п.)
-    // — возвращаем фокус на поле ввода
+    // macOS focus recovery after screen recording / system dialogs
     if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&
         !ImGui::IsAnyItemActive() &&
         ImGui::IsMouseClicked(ImGuiMouseButton_Left))
@@ -470,7 +515,7 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
         m_FocusInput = true;
     }
 
-    // ── Header bar ────────────────────────────────────────────────────────────
+    // ── Header ────────────────────────────────────────────────────────────────
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.75f, 1.00f, 1.0f));
     ImGui::SetWindowFontScale(1.15f);
     ImGui::Text("  AI Assistant");
@@ -510,8 +555,7 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
 
     if (m_Status == "thinking")
     {
-        float t = (float)ImGui::GetTime();
-        int dots = (int)(t * 2.0f) % 4;
+        int dots = (int)(ImGui::GetTime() * 2.0f) % 4;
         std::string anim = "Думаю" + std::string(dots, '.');
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.60f, 1.0f));
         ImGui::TextUnformatted(anim.c_str());
@@ -524,7 +568,12 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
     // ── Input field ───────────────────────────────────────────────────────────
     ImGui::Separator();
 
-    if (m_FocusInput)
+    // Auto-focus input when overlay finishes opening
+    if (m_FocusInput || (m_IsOpen && m_AnimProgress >= 1.0f && !ImGui::IsAnyItemActive()))
+    {
+        if (m_FocusInput) { ImGui::SetKeyboardFocusHere(); m_FocusInput = false; }
+    }
+    else if (m_FocusInput)
     {
         ImGui::SetKeyboardFocusHere();
         m_FocusInput = false;
@@ -548,15 +597,14 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
             std::string userMsg = m_InputBuf;
             m_Messages.push_back({ true, userMsg });
             m_InputBuf[0] = '\0';
-            m_FocusInput = true;
+            m_FocusInput  = true;
             Submit(userMsg, host);
         }
     }
     if (busy) ImGui::EndDisabled();
 
-    // Close on Escape (only when input is not focused by something else)
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
-        !ImGui::IsAnyItemActive())
+    // Escape closes
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) && !ImGui::IsAnyItemActive())
         m_IsOpen = false;
 
     ImGui::End();

@@ -31,7 +31,9 @@ public:
     ~GlobalAiOverlay();
 
     void Toggle();
-    bool IsOpen() const { return m_IsOpen; }
+    bool  IsOpen()        const { return m_IsOpen; }
+    bool  IsVisible()     const { return m_AnimProgress > 0.0f; }  // true during animation too
+    float GetAnimProgress() const { return m_AnimProgress; }
 
     // Call every ImGui frame (after tiling panels are drawn)
     void Draw(SceneViewLayerHost& host);
@@ -51,9 +53,10 @@ private:
         std::string text;
     };
 
-    bool m_IsOpen     = false;
-    bool m_FocusInput = false;
-    char m_InputBuf[512] = {};
+    bool  m_IsOpen       = false;
+    bool  m_FocusInput   = false;
+    float m_AnimProgress = 0.0f;  // 0=hidden, 1=fully visible (drives position + alpha + dim)
+    char  m_InputBuf[512] = {};
 
     std::vector<Message> m_Messages;
     std::string          m_Status;   // "" | "thinking" | "error"

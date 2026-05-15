@@ -216,7 +216,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     // Tell tiling to skip drawing buttons inside the AI overlay area
     {
         auto& globalAi = SceneViewLayerAccess::GlobalAi(layer);
-        if (globalAi.IsOpen())
+        if (globalAi.IsVisible())
         {
             const float oW = std::min(W * 0.60f, 800.0f);
             const float oH = 340.0f; // max height (settings open)
