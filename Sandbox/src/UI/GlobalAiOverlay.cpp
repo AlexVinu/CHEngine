@@ -328,12 +328,25 @@ AVAILABLE ACTIONS (use as many as needed, in logical order):
 {"type":"set_fov","value":60.0}
 
 IMPORTANT RULES:
-1. Create objects BEFORE modifying them by name
-2. Positions: Y=0 is ground level; space objects 3-6 units apart
-3. Color values are 0.0-1.0 (not 0-255); red=[1,0,0,1], blue=[0,0.5,1,1]
-4. Light intensity: 1.0=normal, 2.0=bright, 0.5=dim
-5. Layout: use script_focus when working on scripts, model_focus for 3D work, uv_focus for textures
-6. Output ONLY the JSON object, nothing else
+1. Read CURRENT SCENE STATE (provided with each request) before responding
+   - If object already exists — DO NOT create a duplicate, just modify it
+   - Use exact entity names from the scene state
+2. Create objects BEFORE modifying them by name
+3. COORDINATE SYSTEM:
+   - X+= right, X-= left, Y+= up, Y-= down, Z+= toward viewer, Z-= away from viewer
+   - Y=0 is ground level; objects float if Y>0
+   - Safe visible range: X[-10..10], Y[0..8], Z[-10..4]
+   - Objects at Z>5 are behind editor camera and INVISIBLE — never place objects there
+   - "to the left" = X -2 to -4  |  "to the right" = X +2 to +4
+   - "behind [object]" = same X,Y but Z + 3  |  "in front of" = Z - 3
+   - "above [object]" = same X,Z but Y + 2
+   - Camera entity should be placed at Z=6..8, Y=2..4 to see the scene
+   - Typical good camera position: [0, 3, 8] or [-5, 3, 8]
+4. Spacing: place objects 3-6 units apart so they don't overlap
+5. Color values are 0.0-1.0: red=[1,0,0,1], green=[0,1,0,1], blue=[0,0.5,1,1], white=[1,1,1,1]
+6. Light intensity: 1.0=normal, 2.0=bright, 0.5=dim
+7. Layout: script_focus for scripts, model_focus for 3D, uv_focus for textures
+8. Output ONLY the JSON object, nothing else
 
 EXAMPLES:
 
@@ -397,15 +410,35 @@ User: "верни стандартный layout"
 // ─────────────────────────────────────────────────────────────────────────────
 std::string GlobalAiOverlay::BuildRequestBody(const std::string& userMsg) const
 {
+    // Build user message = scene context + query
+    std::string fullUserMsg;
+    if (!m_SceneContextSnapshot.empty())
+        fullUserMsg = m_SceneContextSnapshot + "\nUSER REQUEST: " + userMsg;
+    else
+        fullUserMsg = userMsg;
+
     std::ostringstream ss;
     ss << "{"
        << "\"model\":\"" << JsonEscape(m_Model) << "\","
        << "\"temperature\":0.1,"
        << "\"max_tokens\":1024,"
-       << "\"messages\":["
-       <<   "{\"role\":\"system\",\"content\":\"" << JsonEscape(kSystemPrompt) << "\"},"
-       <<   "{\"role\":\"user\",\"content\":\"" << JsonEscape(userMsg) << "\"}"
-       << "]}";
+       << "\"messages\":[";
+
+    // System message
+    ss << "{\"role\":\"system\",\"content\":\"" << JsonEscape(kSystemPrompt) << "\"}";
+
+    // Conversation history (last N turns)
+    int skip = (int)m_ApiHistory.size() > kMaxHistoryTurns * 2
+               ? (int)m_ApiHistory.size() - kMaxHistoryTurns * 2 : 0;
+    for (int i = skip; i < (int)m_ApiHistory.size(); ++i)
+    {
+        const auto& h = m_ApiHistory[i];
+        ss << ",{\"role\":\"" << h.role << "\",\"content\":\"" << JsonEscape(h.content) << "\"}";
+    }
+
+    // Current user message
+    ss << ",{\"role\":\"user\",\"content\":\"" << JsonEscape(fullUserMsg) << "\"}";
+    ss << "]}";
     return ss.str();
 }
 
@@ -506,10 +539,16 @@ void GlobalAiOverlay::WorkerFn(std::string userMsg)
     m_HasPending      = true;
 }
 
-void GlobalAiOverlay::Submit(const std::string& userMsg, SceneViewLayerHost& /*host*/)
+void GlobalAiOverlay::Submit(const std::string& userMsg, SceneViewLayerHost& host)
 {
     if (m_Worker.joinable())
         m_Worker.join();
+
+    // Snapshot current scene state (before AI changes anything)
+    m_SceneContextSnapshot = host.GetSceneContextString();
+
+    // Add user message to history
+    m_ApiHistory.push_back({ "user", userMsg });
 
     m_Status = "thinking";
     m_Worker = std::thread(&GlobalAiOverlay::WorkerFn, this, userMsg);
@@ -649,10 +688,14 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
         }
     }
 
+    // Save AI response to history for next request context
+    m_ApiHistory.push_back({ "assistant", raw });
+    while ((int)m_ApiHistory.size() > kMaxHistoryTurns * 2 + 2)
+        m_ApiHistory.erase(m_ApiHistory.begin());
+
     m_Messages.push_back({ false, message });
     m_Status.clear();
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 void GlobalAiOverlay::DrawSettingsPanel()

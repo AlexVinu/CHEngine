@@ -78,6 +78,14 @@ private:
     bool        m_HasPending = false;
     std::thread m_Worker;
 
+    // API conversation history (role + content pairs, last N turns)
+    struct HistoryEntry { std::string role; std::string content; };
+    std::vector<HistoryEntry> m_ApiHistory;
+    static constexpr int kMaxHistoryTurns = 4;  // keep last 4 exchanges (8 messages)
+
+    // Scene context snapshot passed to worker thread
+    std::string m_SceneContextSnapshot;
+
     // ── Internal ─────────────────────────────────────────────────────────────
     void Submit(const std::string& userMsg, SceneViewLayerHost& host);
     void WorkerFn(std::string userMsg);

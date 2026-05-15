@@ -23,6 +23,8 @@
 
 #include <boost/uuid/random_generator.hpp>
 #include <filesystem>
+#include <sstream>
+#include <iomanip>
 #include <glm/glm.hpp>
 
 namespace Sandbox {
@@ -857,6 +859,76 @@ void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
     const std::string& path = entity->GetComponent<CHEngine::ScriptComponent>().ScriptPath;
     if (!path.empty())
         OpenScriptInEditor(path);
+}
+
+std::string SceneViewLayerHost::GetSceneContextString() const
+{
+    auto session = SceneViewLayerAccess::ActiveRef(const_cast<SceneViewLayer&>(m_Layer));  // NOLINT
+    auto scene   = session->EditorScene;
+
+    std::ostringstream ss;
+    ss << std::fixed << std::setprecision(1);
+
+    ss << "CURRENT SCENE ENTITIES:\n";
+
+    if (!scene)
+    {
+        ss << "  (no scene loaded)\n";
+    }
+    else
+    {
+        bool any = false;
+        scene->ForEach<CHEngine::TagComponent>(
+            [&](CHEngine::EntityHandle h, const CHEngine::UUID&, CHEngine::TagComponent& tag)
+            {
+                any = true;
+                ss << "  - \"" << tag.Name << "\"";
+
+                auto* e = scene->TryGetEntity(h);
+                if (e && e->HasComponent<CHEngine::TransformComponent>())
+                {
+                    const auto& t = e->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
+                    ss << "  pos(" << t.Position.x << "," << t.Position.y << "," << t.Position.z << ")";
+                    if (t.Rotation.x != 0 || t.Rotation.y != 0 || t.Rotation.z != 0)
+                        ss << " rot(" << t.Rotation.x << "," << t.Rotation.y << "," << t.Rotation.z << ")";
+                    if (t.Scale.x != 1 || t.Scale.y != 1 || t.Scale.z != 1)
+                        ss << " scale(" << t.Scale.x << "," << t.Scale.y << "," << t.Scale.z << ")";
+                }
+                if (e && e->HasComponent<CHEngine::LightComponent>())
+                {
+                    const auto& l = e->GetComponent<CHEngine::LightComponent>().LightData;
+                    const char* lt = (l.Type == CHEngine::LightType::Point) ? "point_light" :
+                                     (l.Type == CHEngine::LightType::Spot)  ? "spot_light"  : "dir_light";
+                    ss << " [" << lt << " intensity=" << l.Intensity << "]";
+                }
+                if (e && e->HasComponent<CHEngine::ScriptComponent>())
+                {
+                    const auto& sc = e->GetComponent<CHEngine::ScriptComponent>();
+                    if (!sc.ScriptPath.empty())
+                        ss << " [has_script]";
+                }
+                if (e && e->HasComponent<CHEngine::CameraComponent>())
+                    ss << " [camera]";
+                ss << "\n";
+            });
+        if (!any)
+            ss << "  (scene is empty)\n";
+    }
+
+    // Editor camera info
+    auto& state = session->EditorCameraState;
+    ss << "\nEDITOR CAMERA:\n";
+    ss << "  Looking at: (" << state.OrbitTarget.x << "," << state.OrbitTarget.y << "," << state.OrbitTarget.z << ")";
+    ss << "  Distance: " << state.OrbitDist << "\n";
+
+    // Coordinate system hint
+    ss << "\nCOORDINATES:\n";
+    ss << "  X+= right, X-= left, Y+= up, Y-= down, Z+= toward viewer, Z-= away\n";
+    ss << "  Objects at Z > 6 may be behind editor camera (invisible)\n";
+    ss << "  Safe visible range: X[-10..10], Y[-5..10], Z[-10..5]\n";
+    ss << "  'A bit to the left' = X -2..3  |  'above' = Y +2..3  |  'behind X' = same pos but Z+2\n";
+
+    return ss.str();
 }
 
 void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)
