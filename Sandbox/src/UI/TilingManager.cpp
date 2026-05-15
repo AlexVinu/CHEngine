@@ -337,11 +337,11 @@ void TilingManager::DrawGhost()
     }
     else
     {
-        // From popup: place on next LMB click anywhere on workspace
+        // From popup: skip the frame when popup was clicked (mouse just released),
+        // then confirm on the next LMB click anywhere.
         if (!m_GhostWaitingPlace)
-            m_GhostWaitingPlace = true;   // skip the frame of the popup click
-        else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
-                 && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+            m_GhostWaitingPlace = true;
+        else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left))
             confirm = true;
     }
 
