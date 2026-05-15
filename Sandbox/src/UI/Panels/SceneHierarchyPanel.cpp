@@ -106,7 +106,7 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
         const float logoH  = (m_LogoAspect > 0.0f && logoW > 0.0f)
                              ? logoW / m_LogoAspect : logoW;
 
-        // 1. Подсказка — по центру через Indent
+        // 1. Подсказка — по центру
         ImGui::Spacing();
         {
             const char* hint  = "Press Shift+A to add objects";
@@ -122,7 +122,7 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
         // 2. Пустое пространство
         ImGui::Dummy(ImVec2(panelW, 14.0f));
 
-        // 3. Логотип — UV зависит от API (Metal не флипает, OGL флипает Y)
+        // 3. Логотип через DrawList — AddImage не глючит с UV-флипом
         if (m_Logo.IsValid() && logoW > 0.0f)
         {
             auto* f = CHEngine::RenderFacade::GetRenderFactory();
@@ -130,14 +130,23 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
                                   : static_cast<ImTextureID>(0);
             if (texId)
             {
-                const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType()
-                                      == CHEngine::ERenderAPI::METAL);
-                const ImVec2 uv0 = isMetal ? ImVec2(0,0) : ImVec2(0,1);
-                const ImVec2 uv1 = isMetal ? ImVec2(1,1) : ImVec2(1,0);
+                // Сдвигаем курсор X на pad ПЕРЕД получением screen pos
+                ImGui::SetCursorPosX(ImGui::GetWindowContentRegionMin().x + pad);
+                ImVec2 p = ImGui::GetCursorScreenPos();
 
-                ImGui::Indent(pad);
-                ImGui::Image(texId, ImVec2(logoW, logoH), uv0, uv1);
-                ImGui::Unindent(pad);
+                // UV флип по Y — пользователь подтвердил что это верно
+                const ImVec2 uv0(0.0f, 1.0f);
+                const ImVec2 uv1(1.0f, 0.0f);
+
+                ImGui::GetWindowDrawList()->AddImage(
+                    texId,
+                    p,
+                    ImVec2(p.x + logoW, p.y + logoH),
+                    uv0, uv1,
+                    IM_COL32(255, 255, 255, 220));
+
+                // Резервируем место в layout ПОСЛЕ рисования
+                ImGui::Dummy(ImVec2(logoW, logoH));
             }
         }
     }
