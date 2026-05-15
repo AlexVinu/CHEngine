@@ -309,8 +309,8 @@ void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edg
 {
     if (edge == DropEdge::None || edge == DropEdge::Center) return;
 
-    TileNode* near   = FindNode(m_Root.get(), nearPanel);
-    TileNode* parent = near ? FindParent(m_Root.get(), near) : nullptr;
+    TileNode* nearNode = FindNode(m_Root.get(), nearPanel);
+    TileNode* parent   = nearNode ? FindParent(m_Root.get(), nearNode) : nullptr;
 
     // Determine split direction and which child is new
     SplitDir dir  = (edge == DropEdge::Left || edge == DropEdge::Right)
@@ -319,15 +319,15 @@ void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edg
     float ratio   = newIsA ? 0.35f : 0.65f;
 
     auto newLeaf  = MakeLeaf(newPanel);
-    // Deep-copy near subtree by re-creating it.
-    // For the common case (near is a leaf) this is trivial.
+    // Deep-copy nearNode subtree by re-creating it.
+    // For the common case (nearNode is a leaf) this is trivial.
     // For split nodes we'd need full deep copy — simplify: only allow inserting next to leaves.
     auto nearCopy = std::make_unique<TileNode>();
-    nearCopy->panel     = near->panel;
-    nearCopy->collapsed = near->collapsed;
-    nearCopy->visible   = near->visible;
-    nearCopy->splitDir  = near->splitDir;
-    nearCopy->ratio     = near->ratio;
+    nearCopy->panel     = nearNode->panel;
+    nearCopy->collapsed = nearNode->collapsed;
+    nearCopy->visible   = nearNode->visible;
+    nearCopy->splitDir  = nearNode->splitDir;
+    nearCopy->ratio     = nearNode->ratio;
     // Note: childA/childB not copied — we only support inserting next to leaf nodes
 
     std::unique_ptr<TileNode> splitNode;
@@ -336,14 +336,14 @@ void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edg
     else
         splitNode = MakeSplit(dir, ratio, std::move(nearCopy), std::move(newLeaf));
 
-    // Replace near with the new split
+    // Replace nearNode with the new split
     if (!parent)
     {
         m_Root = std::move(splitNode);
     }
     else
     {
-        if (parent->childA.get() == near)
+        if (parent->childA.get() == nearNode)
             parent->childA = std::move(splitNode);
         else
             parent->childB = std::move(splitNode);

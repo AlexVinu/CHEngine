@@ -6,59 +6,76 @@ project(SlangBackend LANGUAGES CXX)
 
 message(STATUS "Configuring ${PROJECT_NAME}...")
 
-# ── Slang via FetchContent ───────────────────────────────────────────────────
 include(FetchContent)
 
-FetchContent_Declare(
-    slang
-    GIT_REPOSITORY https://github.com/shader-slang/slang.git
-    GIT_TAG        v2026.7.1
-    GIT_SHALLOW    TRUE
-)
+# ── Slang SDK ────────────────────────────────────────────────────────────────
+# On Windows we use the prebuilt release binary to avoid building Slang from
+# source (the source build has broken submodule paths in shallow clones).
+# On other platforms we build from source as before.
+set(_SLANG_VERSION "v2026.7.1")
+set(_SLANG_VER_BARE "2026.7.1")
 
-set(SLANG_ENABLE_TESTS    OFF CACHE BOOL "" FORCE)
-set(SLANG_ENABLE_EXAMPLES OFF CACHE BOOL "" FORCE)
-set(SLANG_ENABLE_GFX      OFF CACHE BOOL "" FORCE)
-set(SLANG_ENABLE_SLANGD   OFF CACHE BOOL "" FORCE)
-set(SLANG_ENABLE_SLANGRT  OFF CACHE BOOL "" FORCE)
-# Avoid FetchDXC on restricted networks. We only need Slang for GLSL/MSL/SPIR-V
-# compilation paths used by current render backends.
-set(SLANG_ENABLE_DXIL     OFF CACHE BOOL "" FORCE)
-
-# Slang's build scripts emit generated helper tools under
-# ${CMAKE_BINARY_DIR}/generators/$<CONFIG>, but they do not always create that
-# directory before the first build step on single-config generators.
-foreach(_che_slang_config IN LISTS CMAKE_CONFIGURATION_TYPES)
-    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generators/${_che_slang_config}")
-endforeach()
-if(CMAKE_BUILD_TYPE)
-    file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generators/${CMAKE_BUILD_TYPE}")
-endif()
-
-# Optional local DXC archive to avoid network issues with GitHub release assets.
-set(CHE_LOCAL_DXC_ARCHIVE
-    ""
-    CACHE FILEPATH
-    "Path to local dxc_2026_02_20.zip archive for Slang FetchDXC override"
-)
-set(_che_default_dxc_archive
-    "${CMAKE_SOURCE_DIR}/third_party/cache/dxc_2026_02_20.zip"
-)
-if(NOT CHE_LOCAL_DXC_ARCHIVE AND EXISTS "${_che_default_dxc_archive}")
-    set(CHE_LOCAL_DXC_ARCHIVE "${_che_default_dxc_archive}")
-endif()
-if(CHE_LOCAL_DXC_ARCHIVE AND EXISTS "${CHE_LOCAL_DXC_ARCHIVE}" AND NOT DEFINED SLANG_DXC_BINARY_URL)
-    file(TO_CMAKE_PATH "${CHE_LOCAL_DXC_ARCHIVE}" _che_local_dxc_archive_norm)
-    set(SLANG_DXC_BINARY_URL
-        "file:///${_che_local_dxc_archive_norm}"
-        CACHE STRING
-        ""
-        FORCE
+if(WIN32)
+    # ── Windows: prebuilt binary ─────────────────────────────────────────────
+    FetchContent_Declare(
+        slang_prebuilt
+        URL "https://github.com/shader-slang/slang/releases/download/${_SLANG_VERSION}/slang-${_SLANG_VER_BARE}-windows-x86_64.zip"
     )
-    message(STATUS "Using local DXC archive: ${CHE_LOCAL_DXC_ARCHIVE}")
-endif()
+    FetchContent_MakeAvailable(slang_prebuilt)
 
-FetchContent_MakeAvailable(slang)
+    set(_SLANG_ROOT "${slang_prebuilt_SOURCE_DIR}")
+
+    add_library(slang SHARED IMPORTED GLOBAL)
+    set_target_properties(slang PROPERTIES
+        IMPORTED_IMPLIB             "${_SLANG_ROOT}/lib/slang.lib"
+        IMPORTED_LOCATION           "${_SLANG_ROOT}/bin/slang.dll"
+        INTERFACE_INCLUDE_DIRECTORIES "${_SLANG_ROOT}/include"
+    )
+
+    set(_SLANG_INCLUDE_DIR "${_SLANG_ROOT}/include")
+
+else()
+    # ── macOS / Linux: build from source ────────────────────────────────────
+    FetchContent_Declare(
+        slang
+        GIT_REPOSITORY https://github.com/shader-slang/slang.git
+        GIT_TAG        ${_SLANG_VERSION}
+        GIT_SHALLOW    TRUE
+    )
+
+    set(SLANG_ENABLE_TESTS        OFF CACHE BOOL "" FORCE)
+    set(SLANG_ENABLE_EXAMPLES     OFF CACHE BOOL "" FORCE)
+    set(SLANG_ENABLE_GFX          OFF CACHE BOOL "" FORCE)
+    set(SLANG_ENABLE_SLANGD       OFF CACHE BOOL "" FORCE)
+    set(SLANG_ENABLE_SLANGRT      OFF CACHE BOOL "" FORCE)
+    set(SLANG_ENABLE_DXIL         OFF CACHE BOOL "" FORCE)
+    set(SLANG_ENABLE_AGILITY_SDK  OFF CACHE BOOL "" FORCE)
+    set(SLANG_ENABLE_D3D12        OFF CACHE BOOL "" FORCE)
+
+    foreach(_che_slang_config IN LISTS CMAKE_CONFIGURATION_TYPES)
+        file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generators/${_che_slang_config}")
+    endforeach()
+    if(CMAKE_BUILD_TYPE)
+        file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/generators/${CMAKE_BUILD_TYPE}")
+    endif()
+
+    # Optional local DXC archive to avoid network issues with GitHub release assets.
+    set(CHE_LOCAL_DXC_ARCHIVE "" CACHE FILEPATH
+        "Path to local dxc_2026_02_20.zip archive for Slang FetchDXC override")
+    set(_che_default_dxc_archive "${CMAKE_SOURCE_DIR}/third_party/cache/dxc_2026_02_20.zip")
+    if(NOT CHE_LOCAL_DXC_ARCHIVE AND EXISTS "${_che_default_dxc_archive}")
+        set(CHE_LOCAL_DXC_ARCHIVE "${_che_default_dxc_archive}")
+    endif()
+    if(CHE_LOCAL_DXC_ARCHIVE AND EXISTS "${CHE_LOCAL_DXC_ARCHIVE}" AND NOT DEFINED SLANG_DXC_BINARY_URL)
+        file(TO_CMAKE_PATH "${CHE_LOCAL_DXC_ARCHIVE}" _che_local_dxc_archive_norm)
+        set(SLANG_DXC_BINARY_URL "file:///${_che_local_dxc_archive_norm}"
+            CACHE STRING "" FORCE)
+        message(STATUS "Using local DXC archive: ${CHE_LOCAL_DXC_ARCHIVE}")
+    endif()
+
+    FetchContent_MakeAvailable(slang)
+    set(_SLANG_INCLUDE_DIR "${slang_SOURCE_DIR}/include")
+endif()
 # ─────────────────────────────────────────────────────────────────────────────
 
 add_library(${PROJECT_NAME} SHARED
@@ -86,7 +103,7 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC
         include
     PRIVATE
-        ${slang_SOURCE_DIR}/include
+        ${_SLANG_INCLUDE_DIR}
 )
 
 # CHEngine_CORE provides String, ERenderAPI (RenderData.h), and the export macros.
