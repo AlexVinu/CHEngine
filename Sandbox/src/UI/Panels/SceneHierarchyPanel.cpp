@@ -81,44 +81,46 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
 
     if (objectCount == 0)
     {
-        // ── Логотип + подсказка когда сцена пустая ────────────────────────────
+        // ── Подсказка сверху, логотип снизу ──────────────────────────────────
         const float panelW = ImGui::GetContentRegionAvail().x;
 
-        // Логотип — центрируем по ширине панели
-        if (m_Logo.IsValid())
-        {
-            auto* f = CHEngine::RenderFacade::GetRenderFactory();
-            ImTextureID texId = f ? static_cast<ImTextureID>(f->GetTextureNativeID(m_Logo)) : static_cast<ImTextureID>(0);
-            if (texId)
-            {
-                const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
-                ImVec2 uv0 = isMetal ? ImVec2(0,0) : ImVec2(0,1);
-                ImVec2 uv1 = isMetal ? ImVec2(1,1) : ImVec2(1,0);
-
-                // Вписываем логотип в ширину панели с отступами
-                const float logoW = panelW - 20.0f;
-                const float logoH = logoW * 0.4f;  // примерное соотношение сторон
-
-                float offsetX = (panelW - logoW) * 0.5f;
-                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
-                ImGui::Spacing();
-                // Рисуем через DrawList чтобы задать прозрачность
-                ImVec2 p = ImGui::GetCursorScreenPos();
-                ImGui::GetWindowDrawList()->AddImage(
-                    texId, p, ImVec2(p.x + logoW, p.y + logoH),
-                    uv0, uv1, IM_COL32(255, 255, 255, 90)); // ~35% opacity
-                ImGui::Dummy(ImVec2(logoW, logoH)); // резервируем место в layout
-                ImGui::Spacing();
-            }
-        }
-
-        // Подсказка — по центру
+        // 1. Подсказка — по центру сверху
+        ImGui::Spacing();
         const char* hint = "Press Shift+A to add objects";
         float textW = ImGui::CalcTextSize(hint).x;
         ImGui::SetCursorPosX((panelW - textW) * 0.5f);
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
         ImGui::TextUnformatted(hint);
         ImGui::PopStyleColor();
+
+        // 2. Пустое пространство
+        ImGui::Spacing();
+        ImGui::Spacing();
+        ImGui::Spacing();
+
+        // 3. Логотип — центрируем, флипаем Y (ImGui/OGL хранит текстуры перевёрнутыми)
+        if (m_Logo.IsValid())
+        {
+            auto* f = CHEngine::RenderFacade::GetRenderFactory();
+            ImTextureID texId = f ? static_cast<ImTextureID>(f->GetTextureNativeID(m_Logo))
+                                  : static_cast<ImTextureID>(0);
+            if (texId)
+            {
+                const float logoW = panelW - 20.0f;
+                const float logoH = logoW * 0.4f;
+
+                // Флип по Y: uv0=(0,1), uv1=(1,0) — картинка была перевёрнута
+                const ImVec2 uv0(0.0f, 1.0f);
+                const ImVec2 uv1(1.0f, 0.0f);
+
+                ImGui::SetCursorPosX((panelW - logoW) * 0.5f);
+                ImVec2 p = ImGui::GetCursorScreenPos();
+                ImGui::GetWindowDrawList()->AddImage(
+                    texId, p, ImVec2(p.x + logoW, p.y + logoH),
+                    uv0, uv1, IM_COL32(255, 255, 255, 90)); // ~35% opacity
+                ImGui::Dummy(ImVec2(logoW, logoH));
+            }
+        }
     }
 
     if (ImGui::BeginPopupContextWindow("scene_hierarchy_ctx",
