@@ -3,7 +3,10 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <filesystem>
+#include <fstream>
 #include <string>
+#include <vector>
+#include <CHEngine/Utils/AppPaths.h>
 
 // ============================================================================
 //  RETRO_OS UI Theme  — ver 1.0
@@ -69,60 +72,82 @@ namespace UIThemeRetro
     struct LayoutConfig
     {
         float toolbarH  = 46.0f;
-        float leftFrac  = 0.15f;
-        float rightFrac = 0.20f;
-        float propsFrac = 0.60f;
+        float leftFrac  = 0.0f;   // left panel removed — viewport takes full width
+        float rightFrac = 0.22f;
+        float propsFrac = 0.55f;
     };
     inline LayoutConfig g_Layout;
 
     // =========================================================================
-    //  Font loading — prefers monospace fonts in this order
+    //  Font loading
+    //    g_FontMono    — Inter Medium 13.5px     — кнопки, текст, всё обычное
+    //    g_FontMonoBig — Inter ExtraBold 11px    — заголовки панелей и секций
+    //
+    //  Inter bundled in editor_assets/fonts/ — работает на всех платформах.
+    //  SF Pro используется как улучшение на macOS если установлен.
     // =========================================================================
     static void LoadFonts()
     {
         ImGuiIO& io = ImGui::GetIO();
 
-        // Body monospace
+        const std::string fontsDir =
+            (CHEngine::AppPaths::EditorAssetsDir() / "fonts").string();
+
+        auto fontPath = [&](const char* name) {
+            return (CHEngine::AppPaths::EditorAssetsDir() / "fonts" / name).string();
+        };
+
+        // Проверяет что файл — настоящий TTF/OTF (начинается с правильного magic),
+        // а не HTML/текст. Защита от краша stb_truetype при битых файлах.
+        auto isTrueTypeFile = [](const std::string& path) -> bool {
+            std::ifstream f(path, std::ios::binary);
+            if (!f) return false;
+            uint8_t magic[4] = {};
+            f.read(reinterpret_cast<char*>(magic), 4);
+            if (f.gcount() < 4) return false;
+            // TrueType: 00 01 00 00  |  OpenType/CFF: 4F 54 54 4F ("OTTO")
+            // TrueType collection: 74 74 63 66 ("ttcf")  — не поддерживается stb
+            return (magic[0] == 0x00 && magic[1] == 0x01 && magic[2] == 0x00 && magic[3] == 0x00) ||
+                   (magic[0] == 'O'  && magic[1] == 'T'  && magic[2] == 'T'  && magic[3] == 'O');
+        };
+
+        // ── Обычный текст: Inter Medium (bundled) → SF Pro .otf → Windows ──────
         {
-            const char* paths[] = {
-                // macOS
-                "/System/Library/Fonts/Monaco.ttf",
-                "/Library/Fonts/Monaco.ttf",
-                "/System/Library/Fonts/Menlo.ttc",
-                // Windows
-                "C:/Windows/Fonts/consola.ttf",
-                "C:/Windows/Fonts/cour.ttf",
-                // Linux
-                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
-                "/usr/share/fonts/TTF/DejaVuSansMono.ttf",
-                // Custom
+            std::vector<std::string> paths = {
+                fontPath("Inter-Medium.ttf"),               // bundled, кроссплатформенный
+                "/Library/Fonts/SF-Pro-Display-Medium.otf", // macOS (если установлен SF Pro)
+                "/Library/Fonts/SF-Pro-Text-Medium.otf",
+                "C:/Windows/Fonts/segoeui.ttf",             // Windows
+                "C:/Windows/Fonts/arial.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
             };
             ImFontConfig cfg;
-            cfg.OversampleH = 2; cfg.OversampleV = 2;
-            for (const char* p : paths)
-                if (std::filesystem::exists(p)) {
-                    g_FontMono = io.Fonts->AddFontFromFileTTF(p, 13.0f, &cfg);
-                    break; }
+            cfg.OversampleH = 3; cfg.OversampleV = 2;
+            for (const auto& p : paths)
+                if (std::filesystem::exists(p) && isTrueTypeFile(p)) {
+                    g_FontMono = io.Fonts->AddFontFromFileTTF(p.c_str(), 13.5f, &cfg);
+                    if (g_FontMono) break;
+                }
         }
 
-        // Heading monospace (slightly bigger)
+        // ── Заголовки: Inter ExtraBold (bundled) → SF Pro Black .otf ─────────
         {
-            const char* paths[] = {
-                "/System/Library/Fonts/Monaco.ttf",
-                "/Library/Fonts/Monaco.ttf",
-                "/System/Library/Fonts/Menlo.ttc",
-                "C:/Windows/Fonts/consola.ttf",
-                "C:/Windows/Fonts/cour.ttf",
-                "/usr/share/fonts/truetype/liberation/LiberationMono-Regular.ttf",
-                "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+            std::vector<std::string> paths = {
+                fontPath("Inter-ExtraBold.ttf"),            // bundled, кроссплатформенный
+                "/Library/Fonts/SF-Pro-Display-Black.otf",  // macOS
+                "/Library/Fonts/SF-Pro-Expanded-Black.otf",
+                "/Library/Fonts/SF-Pro-Display-Bold.otf",
+                "C:/Windows/Fonts/segoeuib.ttf",            // Windows bold
+                "C:/Windows/Fonts/arialbd.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
             };
             ImFontConfig cfg;
-            cfg.OversampleH = 2; cfg.OversampleV = 2;
-            for (const char* p : paths)
-                if (std::filesystem::exists(p)) {
-                    g_FontMonoBig = io.Fonts->AddFontFromFileTTF(p, 11.0f, &cfg);
-                    break; }
+            cfg.OversampleH = 3; cfg.OversampleV = 2;
+            for (const auto& p : paths)
+                if (std::filesystem::exists(p) && isTrueTypeFile(p)) {
+                    g_FontMonoBig = io.Fonts->AddFontFromFileTTF(p.c_str(), 11.0f, &cfg);
+                    if (g_FontMonoBig) break;
+                }
         }
 
         // НЕ вызываем io.Fonts->Build() — см. UITheme.h

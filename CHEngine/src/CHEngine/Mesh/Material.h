@@ -2,6 +2,7 @@
 
 #include <Core.h>
 #include <Render/UniformBlocks.h>
+#include <glm/glm.hpp>
 #include <memory>
 #include <string>
 
@@ -27,8 +28,21 @@ public:
     TextureHandle SpecularMap{};
     std::string   SpecularMapPath;
 
+    TextureHandle NormalMap{};
+    std::string   NormalMapPath;
+
+    TextureHandle ORMmap{};
+    std::string   ORMmapPath;
+
+    TextureHandle EmissiveMap{};
+    std::string   EmissiveMapPath;
+
     float               Shininess     = 32.0f;
     float               SpecularScale = 1.0f;
+    float               Roughness     = 0.5f;
+    float               Metallic      = 0.0f;
+    float               AO            = 1.0f;
+    glm::vec3           EmissiveColor{ 0.0f };
     MaterialParamsStore MaterialFlags = 0;
 
     void FillUBOMaterial(UBOMaterial& out) const;
@@ -63,13 +77,32 @@ public:
     TextureHandle SpecularMap{};
     std::string   SpecularMapPath;
 
+    TextureHandle NormalMap{};
+    std::string   NormalMapPath;
+
+    TextureHandle ORMmap{};
+    std::string   ORMmapPath;
+
+    TextureHandle EmissiveMap{};
+    std::string   EmissiveMapPath;
+
     float Shininess     = 32.0f;
     float SpecularScale = 1.0f;
+    float Roughness     = 0.5f;
+    float Metallic      = 0.0f;
+    float AO            = 1.0f;
+    glm::vec3 EmissiveColor{ 0.0f };
 
     void ResolveTextures(TextureHandle& outDiffuse, TextureHandle& outSpecular) const;
+    void ResolveAllTextures(TextureHandle& outDiffuse, TextureHandle& outSpecular,
+                            TextureHandle& outNormal, TextureHandle& outORM,
+                            TextureHandle& outEmissive) const;
 
     std::string EffectiveDiffuseMapPath() const;
     std::string EffectiveSpecularMapPath() const;
+    std::string EffectiveNormalMapPath() const;
+    std::string EffectiveORMmapPath() const;
+    std::string EffectiveEmissiveMapPath() const;
 
     void FillUBOMaterial(UBOMaterial& out) const;
 

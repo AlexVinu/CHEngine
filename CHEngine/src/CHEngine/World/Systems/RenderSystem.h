@@ -28,6 +28,11 @@ namespace CHEngine {
         const char* GetName() const override { return "RenderSystem"; }
         void Run(World& world, DeferredOps& deferred_ops, Timestep ts) override;
 
+        // Re-read TransformComponent for every draw item and re-upload the object UBO
+        // ring buffer. Call this after any late transform update (e.g. gizmo drag) but
+        // before RenderFacade::EndFrame() so the GPU sees the latest transforms.
+        void RefreshTransforms(Scene& scene);
+
     private:
         // Build cameraUBO, returns false when no camera is available.
         bool ResolveCamera(World& world, Scene& scene, UBOCamera& out);
@@ -50,8 +55,13 @@ namespace CHEngine {
     private:
         std::vector<DrawItem> m_DrawList;
 
-        // Persistent resources (created once, reused each frame).
-        PipelineHandle m_MeshPipeline;
+    // Pipeline cache: each unique shader gets its own pipeline.
+    PipelineHandle m_MeshPipeline;
+    ShaderHandle   m_PBRShader{};
+    PipelineHandle m_PBRPipeline{};
+
+    // Get or create a pipeline for a given shader handle.
+    PipelineHandle GetOrCreatePipeline(ShaderHandle shader);
         ShaderHandle   m_TonemapShader;
         PipelineHandle m_TonemapPipeline;
         BufferHandle   m_CameraUBO;
@@ -67,6 +77,12 @@ namespace CHEngine {
         BufferHandle m_ObjectUBORing;
         uint32_t     m_ObjectUBOAlignedStride = 0;
         uint32_t     m_ObjectUBOCapacity      = 0;
+
+        // Per-draw Material UBO ring buffer.
+        BufferHandle m_MaterialUBORing;
+        uint32_t     m_MaterialUBOAlignedStride = 0;
+        uint32_t     m_MaterialUBOCapacity      = 0;
+        bool EnsureMaterialUBO(uint32_t requiredDraws);
 
         uint32_t m_LastViewportW = 0;
         uint32_t m_LastViewportH = 0;

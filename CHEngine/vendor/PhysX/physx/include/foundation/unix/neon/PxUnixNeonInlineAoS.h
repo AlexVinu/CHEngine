@@ -3474,7 +3474,7 @@ PX_FORCE_INLINE VecI32V VecI32V_ReinterpretFrom_Vec4V(Vec4V a)
 	return vreinterpretq_s32_f32(a);
 }
 
-#if !PX_SWITCH
+#if !(PX_SWITCH || PX_OSX)
 template <int index>
 PX_FORCE_INLINE BoolV BSplatElement(BoolV a)
 {
@@ -3492,7 +3492,7 @@ PX_FORCE_INLINE BoolV BSplatElement(BoolV a)
 	}
 }
 #else
-//workaround for template compile issue
+//workaround for template compile issue (required on Switch and macOS ARM64)
 template <int index> PX_FORCE_INLINE BoolV BSplatElement(BoolV a);
 template<> PX_FORCE_INLINE BoolV BSplatElement<0>(BoolV a) { return vdupq_lane_u32(vget_low_u32(a), 0); }
 template<> PX_FORCE_INLINE BoolV BSplatElement<1>(BoolV a) { return vdupq_lane_u32(vget_low_u32(a), 1); }
@@ -3500,7 +3500,7 @@ template<> PX_FORCE_INLINE BoolV BSplatElement<2>(BoolV a) { return vdupq_lane_u
 template<> PX_FORCE_INLINE BoolV BSplatElement<3>(BoolV a) { return vdupq_lane_u32(vget_high_u32(a), 1); }
 #endif
 
-#if !PX_SWITCH
+#if !(PX_SWITCH || PX_OSX)
 template <int index>
 PX_FORCE_INLINE VecU32V V4U32SplatElement(VecU32V a)
 {
@@ -3518,7 +3518,7 @@ PX_FORCE_INLINE VecU32V V4U32SplatElement(VecU32V a)
 	}
 }
 #else
-//workaround for template compile issue
+//workaround for template compile issue (required on Switch and macOS ARM64)
 template <int index> PX_FORCE_INLINE VecU32V V4U32SplatElement(VecU32V a);
 template <> PX_FORCE_INLINE VecU32V V4U32SplatElement<0>(VecU32V a) { return vdupq_lane_u32(vget_low_u32(a), 0); }
 template <> PX_FORCE_INLINE VecU32V V4U32SplatElement<1>(VecU32V a) { return vdupq_lane_u32(vget_low_u32(a), 1); }
@@ -3526,7 +3526,7 @@ template <> PX_FORCE_INLINE VecU32V V4U32SplatElement<2>(VecU32V a) { return vdu
 template <> PX_FORCE_INLINE VecU32V V4U32SplatElement<3>(VecU32V a) { return vdupq_lane_u32(vget_high_u32(a), 1); }
 #endif
 
-#if !PX_SWITCH
+#if !(PX_SWITCH || PX_OSX)
 template <int index>
 PX_FORCE_INLINE Vec4V V4SplatElement(Vec4V a)
 {
@@ -3544,7 +3544,7 @@ PX_FORCE_INLINE Vec4V V4SplatElement(Vec4V a)
 	}
 }
 #else
-//workaround for template compile issue
+//workaround for template compile issue (required on Switch and macOS ARM64)
 template <int index> PX_FORCE_INLINE Vec4V V4SplatElement(Vec4V a);
 template <> PX_FORCE_INLINE Vec4V V4SplatElement<0>(Vec4V a) { return vdupq_lane_f32(vget_low_f32(a), 0); }
 template <> PX_FORCE_INLINE Vec4V V4SplatElement<1>(Vec4V a) { return vdupq_lane_f32(vget_low_f32(a), 1); }

@@ -66,19 +66,19 @@ namespace CHEngine {
 
 	} // namespace
 
-	ModelHandle ModelLoader::LoadGLTF(const std::string& filepath, ShaderHandle meshShader)
+	ModelHandle ModelLoader::LoadGLTF(const std::filesystem::path& filepath, ShaderHandle meshShader)
 	{
 		LoadedModel result;
-		result.name = std::filesystem::path(filepath).stem().string();
+		result.name = filepath.stem().string();
 
 		tinygltf::Model model;
 		tinygltf::TinyGLTF loader;
 		std::string warn, err;
 
-		std::string ext = std::filesystem::path(filepath).extension().string();
+		std::string ext = filepath.extension().string();
 		bool ok = (ext == ".glb")
-		    ? loader.LoadBinaryFromFile(&model, &err, &warn, filepath)
-		    : loader.LoadASCIIFromFile(&model, &err, &warn, filepath);
+		    ? loader.LoadBinaryFromFile(&model, &err, &warn, filepath.string())
+		    : loader.LoadASCIIFromFile(&model, &err, &warn, filepath.string());
 
 		if (!warn.empty())
 			CHE_CORE_WARN("GLTF warning: {0}", warn.c_str());
@@ -226,7 +226,7 @@ namespace CHEngine {
 
 		if (result.meshes.empty())
 		{
-			CHE_CORE_WARN("No geometry found in GLTF file: {}", filepath);
+			CHE_CORE_WARN("No geometry found in GLTF file: {}", filepath.string());
 			return {};
 		}
 

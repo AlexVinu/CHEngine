@@ -3,10 +3,15 @@
 #include "Core.h"
 #include "Layer.h"
 
-#include<vector>
+#include "CheStl/MemoryTypes.h"
+
+#include <vector>
+#include <functional>
 
 namespace CHEngine
 {
+	class Application;
+
 	class CHENGINE_API LayerStack
 	{
 	public:
@@ -19,11 +24,18 @@ namespace CHEngine
 		void PopOverlay(Layer* overlay);
 		void Clear();
 
-		std::vector<Layer*>::iterator begin() { return m_Layers.begin(); }
-		std::vector<Layer*>::iterator end() { return m_Layers.end(); }
+		void AddDeferredOperation(std::function<void()>);
+
+		std::vector<Scope<Layer>>::iterator begin() { return m_Layers.begin(); }
+		std::vector<Scope<Layer>>::iterator end() { return m_Layers.end(); }
 	private:
-		std::vector<Layer*> m_Layers;
-		std::vector<Layer*>::iterator m_LayerInsert;
+		friend Application; friend Layer;
+
+		void Flush();
+		std::vector<std::function<void()>> m_DeferredOps;
+
+		std::vector<Scope<Layer>> m_Layers;
+		std::vector<Scope<Layer>>::iterator m_LayerInsert;
 	};
 
 }

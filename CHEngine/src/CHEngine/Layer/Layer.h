@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core.h>
+#include <CheStl/MemoryTypes.h>
 #include "CHEngine/Events/Event.h"
 #include "Timestep.h"
 
@@ -20,7 +21,17 @@ namespace CHEngine
 
 		inline const std::string& GetName() const { return m_DebugName; }
 
+		// Queue Transition
+		template<std::derived_from<Layer> T, typename... Args>
+		void TransitionTo(Args&&... args)
+		{
+			QueueTransition(std::move(std::make_unique<T>(std::forward<Args>(args)...)));
+		}
+
 	protected:
 		std::string m_DebugName;
+
+	private:
+		void QueueTransition(Scope<Layer> layer);
 	};
 }

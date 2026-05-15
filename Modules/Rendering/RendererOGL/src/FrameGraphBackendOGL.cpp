@@ -210,7 +210,7 @@ namespace CHModules {
             CHE_CORE_ERROR("GL error 0x{:X} at {}", (unsigned)err, where);
     }
 
-    void FrameGraphBackendOGL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes)
+    void FrameGraphBackendOGL::Execute(const Vector<CHEngine::PassDesc>& passes)
     {
         for (const CHEngine::PassDesc& pass : passes)
         {

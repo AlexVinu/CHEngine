@@ -5,14 +5,15 @@
 
 namespace CHEngine
 {
-	TextureHandle TextureLoader::Load(const std::string& path)
+	TextureHandle TextureLoader::Load(const std::filesystem::path& filepath)
 	{
-		if (auto handle = m_HandlesBimap.left.find(path); handle != m_HandlesBimap.left.end())
+		CHE_CORE_ASSERT(filepath.is_absolute(), "TextureLoader::Load - filepath must be absolute");
+
+		if (auto handle = m_HandlesBimap.left.find(filepath); handle != m_HandlesBimap.left.end())
 			return handle->second;
 
-		const std::string resolved = ResourceManager::ResolveAssetPath(path).string();
-		auto handle = (Handle<void>)RenderFacade::CreateTextureFromFile(resolved);
-		m_HandlesBimap.insert({ path, handle });
+		auto handle = (Handle<void>)RenderFacade::CreateTextureFromFile(filepath.string());
+		m_HandlesBimap.insert({ filepath, handle });
 		return handle;
 	}
 

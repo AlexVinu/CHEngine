@@ -34,13 +34,13 @@ namespace CHModules
             CHEngine::BufferUsage usage,
             CHEngine::MemoryType  memory,
             std::span<const std::byte> initialData,
-            const CHEngine::String& debugName = CHEngine::String("buffer")) override;
+            const String& debugName = String("buffer")) override;
 
         CHEngine::ShaderHandle CreateShader(
-            const CHEngine::String& slangSource,
-            const CHEngine::String& vertEntry  = CHEngine::String("vertMain"),
-            const CHEngine::String& fragEntry  = CHEngine::String("fragMain"),
-            const CHEngine::String& sourcePath = CHEngine::String()) override;
+            const String& slangSource,
+            const String& vertEntry  = String("vertMain"),
+            const String& fragEntry  = String("fragMain"),
+            const String& sourcePath = String()) override;
 
         CHEngine::TextureHandle CreateTexture(
             const uint8_t* data,
@@ -50,7 +50,7 @@ namespace CHModules
             CHEngine::TextureType   type,
             CHEngine::TextureUsage  usage,
             CHEngine::MemoryType    memory,
-            const CHEngine::String& debugName = CHEngine::String()) override;
+            const String& debugName = String()) override;
 
         void Delete(CHEngine::BufferHandle   h) override;
         void Delete(CHEngine::ShaderHandle   h) override;
@@ -64,10 +64,10 @@ namespace CHModules
         uint64_t GetTextureNativeID(CHEngine::TextureHandle h) override;
 
         bool ReloadShader(CHEngine::ShaderHandle h,
-                          const CHEngine::String& slangSource,
-                          const CHEngine::String& vertEntry,
-                          const CHEngine::String& fragEntry,
-                          const CHEngine::String& sourcePath) override;
+                          const String& slangSource,
+                          const String& vertEntry,
+                          const String& fragEntry,
+                          const String& sourcePath) override;
 
         CHEngine::PipelineHandle CreatePipeline(CHEngine::PipelineDesc desc) override;
 
@@ -85,14 +85,14 @@ namespace CHModules
         bool CheckIsWorking() override { return true; }
 
         // ── Legacy raw-pointer API (old EditorViewport path) ──────────────────
-        CHEngine::IVertexBuffer* CreateVertexBuffer(float* vertices, uint32_t size);
-        CHEngine::IIndexBuffer*  CreateIndexBuffer(uint32_t* indices, uint32_t count);
-        CHEngine::IVertexArray*  CreateVertexArray();
-        CHEngine::IRenderApi*    CreateRenderAPI();
-        void Delete(CHEngine::IVertexBuffer* ptr);
-        void Delete(CHEngine::IIndexBuffer*  ptr);
-        void Delete(CHEngine::IVertexArray*  ptr);
-        void Delete(CHEngine::IRenderApi*    ptr);
+        class VertexBufferMTL* CreateVertexBuffer(float* vertices, uint32_t size);
+        class IndexBufferMTL*  CreateIndexBuffer(uint32_t* indices, uint32_t count);
+        class VertexArrayMTL*  CreateVertexArray();
+        class RenderApiMTL*    CreateRenderAPI();
+        void Delete(class VertexBufferMTL* ptr);
+        void Delete(class IndexBufferMTL*  ptr);
+        void Delete(class VertexArrayMTL*  ptr);
+        void Delete(class RenderApiMTL*    ptr);
 
     private:
         template<typename T, typename... Args>

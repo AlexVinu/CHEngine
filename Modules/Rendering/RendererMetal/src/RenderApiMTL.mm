@@ -66,12 +66,12 @@ void RenderApiMTL::EndFrame()
 
 CHEngine::RenderContextInfo RenderApiMTL::GetRenderContext() const
 {
-    CHEngine::RenderContextInfo info;
-    info.Device               = m_Context.GetDevice();
-    info.CommandBuffer        = MTLGlobals::g_CommandBuffer;
-    info.RenderEncoder        = MTLGlobals::g_Encoder;
-    info.RenderPassDescriptor = m_Context.GetRenderPassDescriptor();
-    return info;
+    CHEngine::RenderContextInfo ctxInfo;
+    ctxInfo.Device               = m_Context.GetDevice();
+    ctxInfo.CommandBuffer        = MTLGlobals::g_CommandBuffer;
+    ctxInfo.RenderEncoder        = MTLGlobals::g_Encoder;
+    ctxInfo.RenderPassDescriptor = m_Context.GetRenderPassDescriptor();
+    return ctxInfo;
 }
 
 void RenderApiMTL::SetClearColor(float r, float g, float b, float a)
@@ -123,7 +123,7 @@ void RenderApiMTL::UpdateDepthStencilState()
     m_DepthStencilState = (void*)state;
 }
 
-void RenderApiMTL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
+void RenderApiMTL::DrawIndexed(class VertexArrayMTL* vertexArray)
 {
     if (!vertexArray) return;
 
@@ -140,7 +140,7 @@ void RenderApiMTL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
     if (vertexBuffers.empty()) return;
 
     const auto& layout = vertexBuffers[0]->GetLayout();
-    if (layout.GetElements().empty()) return;
+    if (layout.Attributes.empty()) return;
 
     void* pso = shader->GetOrCreatePipelineState(
         layout,
@@ -159,7 +159,7 @@ void RenderApiMTL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
     shader->FlushUniforms((void*)encoder);
 
     for (const auto& vb : vertexBuffers) {
-        auto* mtlVB = static_cast<const VertexBufferMTL*>(vb.get());
+        auto* mtlVB = static_cast<const VertexBufferMTL*>(vb);
         if (mtlVB && mtlVB->GetNativeBuffer()) {
             [encoder setVertexBuffer:(id<MTLBuffer>)mtlVB->GetNativeBuffer()
                               offset:0
@@ -167,20 +167,20 @@ void RenderApiMTL::DrawIndexed(const CHEngine::IVertexArray* vertexArray)
         }
     }
 
-    const auto& ib = vertexArray->GetIndexBuffer();
+    class IndexBufferMTL* ib = vertexArray->GetIndexBuffer();
     if (!ib) return;
 
-    auto* mtlIB = static_cast<const IndexBufferMTL*>(ib.get());
+    auto* mtlIB = static_cast<const IndexBufferMTL*>(ib);
     if (!mtlIB || !mtlIB->GetNativeBuffer()) return;
 
     [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                        indexCount:ib->GetCount()
+                        indexCount:mtlIB->GetCount()
                          indexType:MTLIndexTypeUInt32
                        indexBuffer:(id<MTLBuffer>)mtlIB->GetNativeBuffer()
                  indexBufferOffset:0];
 }
 
-void RenderApiMTL::DrawLines(const CHEngine::IVertexArray* vertexArray)
+void RenderApiMTL::DrawLines(class VertexArrayMTL* vertexArray)
 {
     if (!vertexArray) return;
 
@@ -194,7 +194,7 @@ void RenderApiMTL::DrawLines(const CHEngine::IVertexArray* vertexArray)
     if (vertexBuffers.empty()) return;
 
     const auto& layout = vertexBuffers[0]->GetLayout();
-    if (layout.GetElements().empty()) return;
+    if (layout.Attributes.empty()) return;
 
     void* pso = shader->GetOrCreatePipelineState(
         layout,
@@ -213,7 +213,7 @@ void RenderApiMTL::DrawLines(const CHEngine::IVertexArray* vertexArray)
     shader->FlushUniforms((void*)encoder);
 
     for (const auto& vb : vertexBuffers) {
-        auto* mtlVB = static_cast<const VertexBufferMTL*>(vb.get());
+        auto* mtlVB = static_cast<const VertexBufferMTL*>(vb);
         if (mtlVB && mtlVB->GetNativeBuffer()) {
             [encoder setVertexBuffer:(id<MTLBuffer>)mtlVB->GetNativeBuffer()
                               offset:0
@@ -221,14 +221,14 @@ void RenderApiMTL::DrawLines(const CHEngine::IVertexArray* vertexArray)
         }
     }
 
-    const auto& ib = vertexArray->GetIndexBuffer();
+    class IndexBufferMTL* ib = vertexArray->GetIndexBuffer();
     if (!ib) return;
 
-    auto* mtlIB = static_cast<const IndexBufferMTL*>(ib.get());
+    auto* mtlIB = static_cast<const IndexBufferMTL*>(ib);
     if (!mtlIB || !mtlIB->GetNativeBuffer()) return;
 
     [encoder drawIndexedPrimitives:MTLPrimitiveTypeLine
-                        indexCount:ib->GetCount()
+                        indexCount:mtlIB->GetCount()
                          indexType:MTLIndexTypeUInt32
                        indexBuffer:(id<MTLBuffer>)mtlIB->GetNativeBuffer()
                  indexBufferOffset:0];

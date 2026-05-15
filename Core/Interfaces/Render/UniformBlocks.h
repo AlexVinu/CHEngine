@@ -90,6 +90,16 @@ struct alignas(16) UBOObject
     }
 };
 
+// PBR material flags
+enum : MaterialParamsStore
+{
+    kPBR_UseDiffuseMap   = 1u << 0,
+    kPBR_UseNormalMap    = 1u << 1,
+    kPBR_UseORMmap       = 1u << 2,  // Occlusion-Roughness-Metallic packed
+    kPBR_UseEmissiveMap  = 1u << 3,
+    kPBR_EnablePBR       = 1u << 4,  // 1 = PBR pipeline, 0 = legacy Blinn-Phong
+};
+
 struct alignas(16) UBOMaterial
 {
     int32_t  UseTexture;     // offset 0
@@ -97,9 +107,9 @@ struct alignas(16) UBOMaterial
     float    Shininess;      // offset 8
     MaterialParamsStore MaterialFlags;  // offset 12
     float    SpecularScale;  // offset 16
-    float    _pad0;          // offset 20
-    float    _pad1;          // offset 24
-    float    _pad2;          // offset 28
+    float    Roughness;      // offset 20 — PBR
+    float    Metallic;       // offset 24 — PBR
+    float    AO;             // offset 28 — PBR
     // sizeof = 32
 
     UBOMaterial()
@@ -107,6 +117,9 @@ struct alignas(16) UBOMaterial
         std::memset(this, 0, sizeof(*this));
         Shininess      = 32.0f;
         SpecularScale  = 1.0f;
+        Roughness      = 0.5f;
+        Metallic       = 0.0f;
+        AO             = 1.0f;
     }
 };
 

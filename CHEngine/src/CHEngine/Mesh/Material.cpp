@@ -21,6 +21,12 @@ Material::~Material()
         RenderFacade::DestroyTexture(DiffuseMap);
     if (SpecularMap.IsValid())
         RenderFacade::DestroyTexture(SpecularMap);
+    if (NormalMap.IsValid())
+        RenderFacade::DestroyTexture(NormalMap);
+    if (ORMmap.IsValid())
+        RenderFacade::DestroyTexture(ORMmap);
+    if (EmissiveMap.IsValid())
+        RenderFacade::DestroyTexture(EmissiveMap);
 }
 
 void Material::FillUBOMaterial(UBOMaterial& out) const
@@ -30,7 +36,9 @@ void Material::FillUBOMaterial(UBOMaterial& out) const
     out.Shininess      = Shininess;
     out.MaterialFlags  = MaterialFlags;
     out.SpecularScale  = SpecularScale;
-    out._pad0 = out._pad1 = out._pad2 = 0.0f;
+    out.Roughness      = Roughness;
+    out.Metallic       = Metallic;
+    out.AO             = AO;
 }
 
 ShaderHandle Material::GetShaderHandle() const
@@ -44,6 +52,10 @@ MaterialInstance::MaterialInstance(Ref<Material> base)
     CHE_CORE_ASSERT(m_Material && m_Material->ShaderHandler.IsValid(), "MaterialInstance — base material with valid shader required");
     Shininess     = m_Material->Shininess;
     SpecularScale = m_Material->SpecularScale;
+    Roughness     = m_Material->Roughness;
+    Metallic      = m_Material->Metallic;
+    AO            = m_Material->AO;
+    EmissiveColor = m_Material->EmissiveColor;
 }
 
 MaterialInstance::~MaterialInstance()
@@ -52,8 +64,17 @@ MaterialInstance::~MaterialInstance()
         RenderFacade::DestroyTexture(DiffuseMap);
     if (SpecularMap.IsValid())
         RenderFacade::DestroyTexture(SpecularMap);
+    if (NormalMap.IsValid())
+        RenderFacade::DestroyTexture(NormalMap);
+    if (ORMmap.IsValid())
+        RenderFacade::DestroyTexture(ORMmap);
+    if (EmissiveMap.IsValid())
+        RenderFacade::DestroyTexture(EmissiveMap);
     DiffuseMap = {};
     SpecularMap = {};
+    NormalMap = {};
+    ORMmap = {};
+    EmissiveMap = {};
 }
 
 Ref<MaterialInstance> MaterialInstance::FromBase(Ref<Material> base)
@@ -67,8 +88,15 @@ Ref<MaterialInstance> MaterialInstance::Clone() const
     auto inst = std::make_shared<MaterialInstance>(m_Material);
     inst->DiffuseMapPath  = DiffuseMapPath;
     inst->SpecularMapPath = SpecularMapPath;
+    inst->NormalMapPath   = NormalMapPath;
+    inst->ORMmapPath      = ORMmapPath;
+    inst->EmissiveMapPath = EmissiveMapPath;
     inst->Shininess       = Shininess;
     inst->SpecularScale   = SpecularScale;
+    inst->Roughness       = Roughness;
+    inst->Metallic        = Metallic;
+    inst->AO              = AO;
+    inst->EmissiveColor   = EmissiveColor;
     return inst;
 }
 
@@ -81,6 +109,17 @@ void MaterialInstance::ResolveTextures(TextureHandle& outDiffuse, TextureHandle&
 {
     outDiffuse  = DiffuseMap.IsValid() ? DiffuseMap : m_Material->DiffuseMap;
     outSpecular = SpecularMap.IsValid() ? SpecularMap : m_Material->SpecularMap;
+}
+
+void MaterialInstance::ResolveAllTextures(TextureHandle& outDiffuse, TextureHandle& outSpecular,
+                                          TextureHandle& outNormal, TextureHandle& outORM,
+                                          TextureHandle& outEmissive) const
+{
+    outDiffuse  = DiffuseMap.IsValid()  ? DiffuseMap  : m_Material->DiffuseMap;
+    outSpecular = SpecularMap.IsValid() ? SpecularMap : m_Material->SpecularMap;
+    outNormal   = NormalMap.IsValid()   ? NormalMap   : m_Material->NormalMap;
+    outORM      = ORMmap.IsValid()      ? ORMmap      : m_Material->ORMmap;
+    outEmissive = EmissiveMap.IsValid() ? EmissiveMap : m_Material->EmissiveMap;
 }
 
 std::string MaterialInstance::EffectiveDiffuseMapPath() const
@@ -101,6 +140,33 @@ std::string MaterialInstance::EffectiveSpecularMapPath() const
     return {};
 }
 
+std::string MaterialInstance::EffectiveNormalMapPath() const
+{
+    if (!NormalMapPath.empty())
+        return NormalMapPath;
+    if (m_Material && !m_Material->NormalMapPath.empty())
+        return m_Material->NormalMapPath;
+    return {};
+}
+
+std::string MaterialInstance::EffectiveORMmapPath() const
+{
+    if (!ORMmapPath.empty())
+        return ORMmapPath;
+    if (m_Material && !m_Material->ORMmapPath.empty())
+        return m_Material->ORMmapPath;
+    return {};
+}
+
+std::string MaterialInstance::EffectiveEmissiveMapPath() const
+{
+    if (!EmissiveMapPath.empty())
+        return EmissiveMapPath;
+    if (m_Material && !m_Material->EmissiveMapPath.empty())
+        return m_Material->EmissiveMapPath;
+    return {};
+}
+
 void MaterialInstance::FillUBOMaterial(UBOMaterial& out) const
 {
     m_Material->FillUBOMaterial(out);
@@ -111,6 +177,9 @@ void MaterialInstance::FillUBOMaterial(UBOMaterial& out) const
     out.UseSpecularMap = s.IsValid() ? 1 : 0;
     out.Shininess      = Shininess;
     out.SpecularScale  = SpecularScale;
+    out.Roughness      = Roughness;
+    out.Metallic       = Metallic;
+    out.AO             = AO;
 }
 
 void MaterialInstance::ApplyMaterial() const

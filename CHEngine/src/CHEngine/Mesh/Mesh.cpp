@@ -1,6 +1,8 @@
 #include "chepch.h"
 #include "Mesh.h"
 
+#include <span>
+
 namespace CHEngine {
 
 	const VertexInputLayout& GetStandardMeshLayout()
@@ -108,6 +110,12 @@ namespace CHEngine {
 		static const std::vector<uint32_t> kEmpty;
 		const MeshGpuRecord* r = MeshLoader::Instance().Get(m_Handle);
 		return r ? r->indices : kEmpty;
+	}
+
+	void Mesh::UpdateUVs(std::span<const glm::vec2> uvs)
+	{
+		if (!m_Handle.IsValid()) return;
+		MeshLoader::Instance().UpdateVertexUVs(m_Handle, uvs);
 	}
 
 }

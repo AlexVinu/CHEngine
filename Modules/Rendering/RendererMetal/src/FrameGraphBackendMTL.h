@@ -24,7 +24,7 @@ namespace CHModules {
     public:
         explicit FrameGraphBackendMTL(RenderFactoryMTL& factory);
 
-        void Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes) override;
+        void Execute(const Vector<CHEngine::PassDesc>& passes) override;
 
     private:
         RenderFactoryMTL& m_Factory;

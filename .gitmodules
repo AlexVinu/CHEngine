@@ -4,3 +4,6 @@
 [submodule "CHEngine/vendor/GLFW"]
 	path = CHEngine/vendor/GLFW
 	url = https://github.com/thecherno/glfw
+[submodule "CHEngine/vendor/PhysX/o3de_physx"]
+	path = CHEngine/vendor/PhysX/o3de_physx
+	url = https://github.com/o3de/PhysX.git

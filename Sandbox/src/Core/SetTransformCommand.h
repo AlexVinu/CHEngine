@@ -25,7 +25,7 @@ class CommandStack
 public:
     static constexpr int k_MaxSize = 50;
 
-    void Push(CHEngine::Scope<ICommand> command)
+    void Push(Scope<ICommand> command)
     {
         if (!command)
             return;
@@ -45,7 +45,7 @@ public:
         if (m_UndoStack.empty())
             return;
 
-        CHEngine::Scope<ICommand> command = std::move(m_UndoStack.back());
+        Scope<ICommand> command = std::move(m_UndoStack.back());
         m_UndoStack.pop_back();
         command->Undo();
         m_RedoStack.push_back(std::move(command));
@@ -56,7 +56,7 @@ public:
         if (m_RedoStack.empty())
             return;
 
-        CHEngine::Scope<ICommand> command = std::move(m_RedoStack.back());
+        Scope<ICommand> command = std::move(m_RedoStack.back());
         m_RedoStack.pop_back();
         command->Execute();
         m_UndoStack.push_back(std::move(command));
@@ -72,14 +72,14 @@ public:
     }
 
 private:
-    std::vector<CHEngine::Scope<ICommand>> m_UndoStack;
-    std::vector<CHEngine::Scope<ICommand>> m_RedoStack;
+    std::vector<Scope<ICommand>> m_UndoStack;
+    std::vector<Scope<ICommand>> m_RedoStack;
 };
 
 class SetTransformCommand final : public ICommand
 {
 public:
-    SetTransformCommand(CHEngine::Ref<CHEngine::Scene> scene,
+    SetTransformCommand(Ref<CHEngine::Scene> scene,
                         CHEngine::EntityHandle entity_handle,
                         const CHEngine::Transform& before_transform,
                         const CHEngine::Transform& after_transform)
@@ -117,7 +117,7 @@ private:
     }
 
 private:
-    CHEngine::Ref<CHEngine::Scene> m_Scene = nullptr;
+    Ref<CHEngine::Scene> m_Scene = nullptr;
     CHEngine::EntityHandle m_EntityHandle{};
     CHEngine::Transform m_BeforeTransform{};
     CHEngine::Transform m_AfterTransform{};
@@ -156,7 +156,7 @@ private:
 class SetVisibilityCommand final : public ICommand
 {
 public:
-    SetVisibilityCommand(CHEngine::Ref<CHEngine::Scene> scene,
+    SetVisibilityCommand(Ref<CHEngine::Scene> scene,
                          const CHEngine::UUID& object_id,
                          bool before_visible,
                          bool after_visible)
@@ -186,7 +186,7 @@ private:
     }
 
 private:
-    CHEngine::Ref<CHEngine::Scene> m_Scene = nullptr;
+    Ref<CHEngine::Scene> m_Scene = nullptr;
     CHEngine::UUID m_ObjectId{};
     bool m_BeforeVisible = false;
     bool m_AfterVisible = false;

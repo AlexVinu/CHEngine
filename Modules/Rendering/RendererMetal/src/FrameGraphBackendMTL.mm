@@ -40,7 +40,7 @@ static MTLIndexType ToMTLIndexType(CHEngine::IndexFormat fmt)
 }
 
 // ─── Execute ─────────────────────────────────────────────────────────────────
-void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& passes)
+void FrameGraphBackendMTL::Execute(const Vector<CHEngine::PassDesc>& passes)
 {
     @autoreleasepool {
 
@@ -102,7 +102,11 @@ void FrameGraphBackendMTL::Execute(const CHEngine::Vector<CHEngine::PassDesc>& p
             if (depthTex && depthTex->GetNativeTexture()) {
                 rpDesc.depthAttachment.texture     = (id<MTLTexture>)depthTex->GetNativeTexture();
                 rpDesc.depthAttachment.loadAction  = ToMTLLoadAction(pass.DepthLoadOp);
-                rpDesc.depthAttachment.storeAction = MTLStoreActionDontCare;
+                // Always store depth: multiple passes may read depth from previous pass
+                // (e.g. sphere impostor pass reads cube depth from MainColorPass).
+                // DontCare would discard depth between passes causing objects to show
+                // through each other incorrectly.
+                rpDesc.depthAttachment.storeAction = MTLStoreActionStore;
                 rpDesc.depthAttachment.clearDepth  = pass.ClearDepth;
             } else {
                 CHE_CORE_WARN("FrameGraphBackendMTL: pass '{}' depth attachment is null", pass.Name.c_str());

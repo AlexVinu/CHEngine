@@ -2,6 +2,7 @@
 
 #include <TextEditor.h>
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #include <fstream>
 #include <sstream>
@@ -265,6 +266,76 @@ void ScriptEditorPanel::Draw()
     {
         // Только редактор
         m_Editor->Render("##lua_editor", avail);
+        if (m_Editor->IsTextChanged()) m_IsDirty = true;
+    }
+
+    ImGui::End();
+}
+
+void ScriptEditorPanel::DrawInPanel()
+{
+    // In tiling mode the window pos/size is set externally via SetNextWindowPos/Size.
+    // We open the window unconditionally and show a hint when no file is loaded.
+    if (!ImGui::Begin("Script Editor"))
+    {
+        ImGui::End();
+        return;
+    }
+
+    if (!m_IsOpen || m_FilePath.empty())
+    {
+        // ── Hint ────────────────────────────────────────────────────────────
+        ImVec2 avail  = ImGui::GetContentRegionAvail();
+        const char* line1 = "No script open";
+        const char* line2 = "Open a .lua file from the Content Browser";
+        ImVec2 sz1 = ImGui::CalcTextSize(line1);
+        ImVec2 sz2 = ImGui::CalcTextSize(line2);
+        float totalH = sz1.y + 6.0f + sz2.y;
+
+        ImGui::SetCursorPos(ImVec2((avail.x - sz1.x) * 0.5f,
+                                   (avail.y - totalH) * 0.5f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.72f, 1.0f));
+        ImGui::TextUnformatted(line1);
+        ImGui::PopStyleColor();
+
+        ImGui::SetCursorPosX((avail.x - sz2.x) * 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
+        ImGui::TextUnformatted(line2);
+        ImGui::PopStyleColor();
+
+        ImGui::End();
+        return;
+    }
+
+    // File is loaded — reuse Draw() logic but we're already inside Begin/End.
+    // Just render the editor contents directly (same as Draw body after Begin).
+    // Hot keys
+    bool wantSave = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
+                 && ImGui::IsKeyDown(ImGuiKey_LeftCtrl)
+                 && ImGui::IsKeyPressed(ImGuiKey_S, false);
+    if (wantSave) Save();
+
+    // Editor + AI pane (reuse same split logic)
+    ImVec2 avail = ImGui::GetContentRegionAvail();
+    const float aiW    = m_ShowAiChat ? ImMax(200.0f, avail.x * 0.30f) : 0.0f;
+    const float editorW = avail.x - (m_ShowAiChat ? aiW + 4.0f : 0.0f);
+
+    if (m_ShowAiChat)
+    {
+        ImGui::BeginChild("##se_ed", ImVec2(editorW, avail.y), false,
+                          ImGuiWindowFlags_NoScrollbar);
+        m_Editor->Render("##lua_ed", ImGui::GetContentRegionAvail());
+        if (m_Editor->IsTextChanged()) m_IsDirty = true;
+        ImGui::EndChild();
+        ImGui::SameLine();
+        ImGui::BeginChild("##se_ai", ImVec2(aiW - 4.0f, avail.y), false,
+                          ImGuiWindowFlags_NoScrollbar);
+        m_AiChat.Draw(m_Editor->GetText());
+        ImGui::EndChild();
+    }
+    else
+    {
+        m_Editor->Render("##lua_ed", avail);
         if (m_Editor->IsTextChanged()) m_IsDirty = true;
     }
 

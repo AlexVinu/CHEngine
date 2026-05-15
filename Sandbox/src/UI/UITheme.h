@@ -66,13 +66,18 @@ namespace UITheme
         // ── Body font (platform-aware search order) ───────────────────────
         {
             const char* paths[] = {
-                // macOS
+                // macOS — SF Pro (system + user-installed locations)
+                "/System/Library/Fonts/SFNS.ttf",
+                "/System/Library/Fonts/SFNSText.ttf",
+                "/System/Library/Fonts/SFNSDisplay.ttf",
+                "/System/Library/Fonts/SF-Pro.ttf",
                 "/Library/Fonts/SF-Pro-Display-Regular.otf",
+                "/Library/Fonts/SF-Pro-Text-Regular.otf",
                 "/Library/Fonts/SF-Pro.ttf",
+                // macOS fallbacks
                 "/System/Library/Fonts/HelveticaNeue.ttc",
                 "/System/Library/Fonts/Helvetica.ttc",
-                "/System/Library/Fonts/Supplemental/Arial.ttf",
-                // Windows
+                // Windows — Segoe UI (closest to SF Pro)
                 "C:/Windows/Fonts/segoeui.ttf",
                 "C:/Windows/Fonts/arial.ttf",
                 // Linux

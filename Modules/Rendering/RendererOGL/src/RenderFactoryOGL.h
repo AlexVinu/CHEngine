@@ -46,7 +46,7 @@ namespace CHModules
             CHEngine::TextureType type,
             CHEngine::TextureUsage usage,
             CHEngine::MemoryType memory,
-            const CHEngine::String& debugName = CHEngine::String()
+            const String& debugName = String()
         ) override;
 
         virtual void Delete(CHEngine::BufferHandle  handle) override;
@@ -63,10 +63,10 @@ namespace CHModules
 
         // ── Shader hot-reload ──────────────────────────────────────────────────
         virtual bool ReloadShader(CHEngine::ShaderHandle h,
-                                  const CHEngine::String& slangSource,
-                                  const CHEngine::String& vertEntry,
-                                  const CHEngine::String& fragEntry,
-                                  const CHEngine::String& sourcePath) override;
+                                  const String& slangSource,
+                                  const String& vertEntry,
+                                  const String& fragEntry,
+                                  const String& sourcePath) override;
 
         // ── Pipeline ──────────────────────────────────────────────────────────
         virtual CHEngine::PipelineHandle CreatePipeline(CHEngine::PipelineDesc desc) override;

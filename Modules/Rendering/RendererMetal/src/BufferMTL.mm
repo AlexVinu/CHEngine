@@ -3,6 +3,7 @@
 #include "MetalGlobals.h"
 
 #include <Log/Log.h>
+#include <Render/Pipeline/VertexLayout.h>
 
 #import <Metal/Metal.h>
 
@@ -11,7 +12,7 @@ namespace CHModules
 
 // ─── Vertex Buffer ──────────────────────────────────────────────────────────
 
-VertexBufferMTL::VertexBufferMTL(float* vertices, uint32_t size)
+CHModules::VertexBufferMTL::VertexBufferMTL(float* vertices, uint32_t size)
     : m_Size(size)
 {
     id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
@@ -27,25 +28,25 @@ VertexBufferMTL::VertexBufferMTL(float* vertices, uint32_t size)
     m_Buffer = (void*)buffer;
 }
 
-VertexBufferMTL::~VertexBufferMTL()
+CHModules::VertexBufferMTL::~VertexBufferMTL()
 {
     if (m_Buffer)
         [(id<MTLBuffer>)m_Buffer release];
 }
 
-void VertexBufferMTL::Bind() const
+void CHModules::VertexBufferMTL::Bind() const
 {
     // В Metal буферы привязываются через encoder в DrawIndexed
 }
 
-void VertexBufferMTL::Unbind() const {}
+void CHModules::VertexBufferMTL::Unbind() const {}
 
-const CHEngine::BufferLayout& VertexBufferMTL::GetLayout() const { return m_Layout; }
-void VertexBufferMTL::SetLayout(const CHEngine::BufferLayout& layout) { m_Layout = layout; }
+const CHEngine::VertexInputLayout& CHModules::VertexBufferMTL::GetLayout() const { return m_Layout; }
+void CHModules::VertexBufferMTL::SetLayout(const CHEngine::VertexInputLayout& layout) { m_Layout = layout; }
 
 // ─── Index Buffer ───────────────────────────────────────────────────────────
 
-IndexBufferMTL::IndexBufferMTL(uint32_t* indices, uint32_t count)
+CHModules::IndexBufferMTL::IndexBufferMTL(uint32_t* indices, uint32_t count)
     : m_Count(count)
 {
     id<MTLDevice> device = (id<MTLDevice>)MTLGlobals::g_Device;
@@ -54,20 +55,24 @@ IndexBufferMTL::IndexBufferMTL(uint32_t* indices, uint32_t count)
         return;
     }
 
+    const size_t size = count * sizeof(uint32_t);
     id<MTLBuffer> buffer = [device newBufferWithBytes:indices
-                                               length:count * sizeof(uint32_t)
+                                               length:size
                                               options:MTLResourceStorageModeShared];
     m_Buffer = (void*)buffer;
 }
 
-IndexBufferMTL::~IndexBufferMTL()
+CHModules::IndexBufferMTL::~IndexBufferMTL()
 {
     if (m_Buffer)
         [(id<MTLBuffer>)m_Buffer release];
 }
 
-void IndexBufferMTL::Bind() const {}
-void IndexBufferMTL::Unbind() const {}
-uint32_t IndexBufferMTL::GetCount() const { return m_Count; }
+void CHModules::IndexBufferMTL::Bind() const {}
+
+void CHModules::IndexBufferMTL::Unbind() const {}
+
+uint32_t CHModules::IndexBufferMTL::GetCount() const { return m_Count; }
 
 } // namespace CHModules
+

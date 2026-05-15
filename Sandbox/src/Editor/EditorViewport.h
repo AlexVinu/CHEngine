@@ -22,14 +22,10 @@ public:
     /// Optional frame hook; reserved for symmetry with Begin().
     void End();
 
-    /// Starts scene rendering into the viewport framebuffer (bind + clear + camera setup).
-    void BeginSceneRender(SceneSession* scene_session);
     /// Registers editor-only render passes (grid) into the frame graph.
     /// Must be called AFTER RenderSystem has registered MainColor + Tonemap passes
     /// so the grid pass writes to the LDR viewport-output target.
-    void RegisterEditorPasses(SceneSession* scene_session);
-    /// Completes scene rendering into the viewport framebuffer (unbind).
-    void EndSceneRender();
+    void RegisterEditorPasses(Ref<SceneSession> scene_session);
 
     /// ImGui viewport window: FBO image, gizmo, play/pause border. Updates hover, position, size, FBO resize.
     void DrawImGui(GizmoSystem& gizmo,
@@ -40,7 +36,15 @@ public:
                    ImGuizmo::OPERATION gizmo_operation,
                    ImGuizmo::MODE gizmo_mode);
 
-    CHEngine::ShaderHandle GetMeshShader() const { return m_MeshShader; }
+    CHEngine::ShaderHandle GetMeshShader()           const { return m_MeshShader; }
+    CHEngine::ShaderHandle GetSphereShader()         const { return m_SphereShader; }
+    CHEngine::ShaderHandle GetSphereImpostorShader() const { return m_SphereImpostorShader; }
+    CHEngine::ShaderHandle GetPBRShader()            const { return m_PBRShader; }
+
+	// Starts scene rendering into the viewport framebuffer (bind + clear + camera setup).
+	void BeginSceneRender(Ref<SceneSession> scene_session);
+    /// Call after scene rendering is complete (symmetric with BeginSceneRender).
+    void EndSceneRender();
 
     bool& ShowGrid() { return m_ShowGrid; }
     const ImVec2& GetViewportPos() const { return m_ViewportPos; }
@@ -52,6 +56,9 @@ private:
 
 private:
     CHEngine::ShaderHandle m_MeshShader{};
+    CHEngine::ShaderHandle m_SphereShader{};
+    CHEngine::ShaderHandle m_SphereImpostorShader{};
+    CHEngine::ShaderHandle m_PBRShader{};
     CHEngine::ShaderHandle   m_GridShader{};
     CHEngine::PipelineHandle m_GridPipeline{};
     // Grid mesh buffers — fullscreen quad in NDC space.
@@ -67,6 +74,9 @@ private:
     bool m_ViewportHovered = false;
 
     bool m_ShowGrid = true;
+
+    // Caching value every imgui iteration
+    ImVec2 m_FbScale{1., 1.};
 };
 
 } // namespace Sandbox

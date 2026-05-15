@@ -30,6 +30,7 @@ public:
     virtual ImGuizmo::MODE& GetGizmoMode() = 0;
     virtual bool& GetLocalMode() = 0;
     virtual bool& GetShowProfiler() = 0;
+    virtual bool& GetShowUVEditor() = 0;
 
     virtual std::vector<EditorWorldContext>& GetSceneSessions() = 0;
     virtual size_t GetActiveSessionIndex() const = 0;
@@ -78,6 +79,8 @@ public:
     virtual void AddPointLight() = 0;
     virtual void AddSpotLight() = 0;
     virtual void AddCubePrimitive() = 0;
+    virtual void AddSpherePrimitive() = 0;
+    virtual void AddCameraEntity() = 0;
     virtual void AddEmptyEntity() = 0;
     virtual void SetSelection(CHEngine::EntityHandle handle) = 0;
     virtual void DestroyEntityByUuid(const CHEngine::UUID& object_id) = 0;

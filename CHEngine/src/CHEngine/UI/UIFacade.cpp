@@ -27,13 +27,17 @@ namespace CHEngine
 
 	void UIFacade::Begin()
 	{
-		if (s_Layer)
+		if (s_Layer) {
 			s_Layer->Begin();
+			static bool is_checked = false;  if (!is_checked) { CHE_CORE_INFO("IMGUI: Begin Frame"); is_checked = true; }
+		}
 	}
 
 	void UIFacade::End()
 	{
-		if (s_Layer)
+		if (s_Layer) {
 			s_Layer->End();
+			static bool is_checked = false;  if (!is_checked) { CHE_CORE_INFO("IMGUI: End Frame"); is_checked = true; }
+		}
 	}
 }

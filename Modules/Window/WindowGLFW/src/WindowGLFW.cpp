@@ -102,6 +102,21 @@ namespace CHModules {
     void WindowGLFW::PollEvents()
     {
         glfwPollEvents();
+
+        // macOS native fullscreen (green button) doesn't always fire the resize
+        // callback — poll the actual size every frame and trigger it manually.
+        if (m_Window && m_Context.ResizeCallback)
+        {
+            int w = 0, h = 0;
+            glfwGetWindowSize(m_Window, &w, &h);
+            if (w > 0 && h > 0 &&
+                (static_cast<uint32_t>(w) != m_Width || static_cast<uint32_t>(h) != m_Height))
+            {
+                m_Width  = static_cast<uint32_t>(w);
+                m_Height = static_cast<uint32_t>(h);
+                m_Context.ResizeCallback(m_Context.UserPointer, w, h);
+            }
+        }
     }
 
     void WindowGLFW::SetVSync(bool enabled)
@@ -199,6 +214,8 @@ namespace CHModules {
         glfwSetWindowUserPointer(m_Window, &m_Context);
 
         glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, int w, int h) {
+            // Ignore zero-size events fired during macOS fullscreen animation
+            if (w <= 0 || h <= 0) return;
             auto* ctx = (CHEngine::WindowContext*)glfwGetWindowUserPointer(window);
             if (ctx && ctx->ResizeCallback)
                 ctx->ResizeCallback(ctx->UserPointer, w, h);

@@ -1,13 +1,13 @@
 #pragma once
 
-#include "EditorUiHost.h"
+#include "SceneViewLayerHost.h"
 
 namespace Sandbox {
 
 class ProfilerPanel
 {
 public:
-    void Draw(EditorUiHost& host);
+    void Draw(SceneViewLayerHost& host);
 };
 
 } // namespace Sandbox

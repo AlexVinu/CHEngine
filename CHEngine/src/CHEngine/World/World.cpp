@@ -137,6 +137,13 @@ namespace CHEngine
         m_Scheduler.EmplaceSystem<ComponentValidationSystem>();
         m_Scheduler.EmplaceSystem<LuaScriptSystem>();
         m_Scheduler.EmplaceSystem<PhysicsSystem>();
-        m_Scheduler.EmplaceSystem<RenderSystem>();
+        m_RenderSystem = &m_Scheduler.EmplaceSystem<RenderSystem>();
+    }
+
+    void World::RefreshRenderTransforms()
+    {
+        if (!m_RenderSystem || !m_Scene)
+            return;
+        m_RenderSystem->RefreshTransforms(*m_Scene);
     }
 }

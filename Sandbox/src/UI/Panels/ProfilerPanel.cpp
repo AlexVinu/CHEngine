@@ -10,7 +10,7 @@
 
 namespace Sandbox {
 
-void ProfilerPanel::Draw(EditorUiHost& host)
+void ProfilerPanel::Draw(SceneViewLayerHost& host)
 {
     if (!host.GetShowProfiler())
         return;
@@ -21,6 +21,12 @@ void ProfilerPanel::Draw(EditorUiHost& host)
         ImGui::End();
         return;
     }
+
+    // FPS counter (moved here from toolbar)
+    float fps = ImGui::GetIO().Framerate;
+    float ms  = 1000.0f / (fps > 0.0f ? fps : 1.0f);
+    ImGui::Text("%.0f fps  (%.2f ms)", fps, ms);
+    ImGui::SameLine(0, 16);
 
     if (ImGui::Button("Reset"))
         CHEngine::Profiler::Reset();

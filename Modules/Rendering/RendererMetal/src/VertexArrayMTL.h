@@ -1,27 +1,33 @@
 #pragma once
 
-#include "Render/IVertexArray.h"
+#include <CheStl/Vector.h>
+#include <Core.h>
 
 namespace CHModules {
 
-    class VertexArrayMTL : public CHEngine::IVertexArray
+    // Legacy vertex array for old EditorViewport path
+    // Note: Doesn't inherit from IVertexArray anymore as that interface was removed
+    
+    class VertexArrayMTL
     {
     public:
         VertexArrayMTL();
-        ~VertexArrayMTL() override;
+        ~VertexArrayMTL();
 
-        void Bind() const override;
-        void Unbind() const override;
+        void Bind() const;
+        void Unbind() const;
 
-        void AddVertexBuffer(const CHEngine::Ref<CHEngine::IVertexBuffer>& vertexBuffer) override;
-        void SetIndexBuffer(const CHEngine::Ref<CHEngine::IIndexBuffer>& indexBuffer) override;
+        // These methods are kept for legacy compatibility but may not be used
+        // in the new architecture
+        void AddVertexBuffer(class VertexBufferMTL* vertexBuffer);
+        void SetIndexBuffer(class IndexBufferMTL* indexBuffer);
 
-        const CHEngine::Vector<CHEngine::Ref<CHEngine::IVertexBuffer>>& GetVertexBuffers() const override;
-        const CHEngine::Ref<CHEngine::IIndexBuffer>& GetIndexBuffer() const override;
+        const Vector<class VertexBufferMTL*>& GetVertexBuffers() const;
+        class IndexBufferMTL* GetIndexBuffer() const;
 
     private:
-        CHEngine::Vector<CHEngine::Ref<CHEngine::IVertexBuffer>> m_VertexBuffers;
-        CHEngine::Ref<CHEngine::IIndexBuffer> m_IndexBuffer;
+        Vector<class VertexBufferMTL*> m_VertexBuffers;
+        class IndexBufferMTL* m_IndexBuffer;
     };
 
 }

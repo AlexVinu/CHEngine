@@ -6,6 +6,7 @@
 #include "Render/Handles.h"
 
 #include <cstdint>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -46,6 +47,8 @@ namespace CHEngine
 		void Release(MeshHandle h);
 
 		const MeshGpuRecord* Get(MeshHandle h) const;
+
+		void UpdateVertexUVs(MeshHandle h, std::span<const glm::vec2> uvs);
 
 		size_t GetMemoryUsage() const override { return 0; }
 		void   SetMemoryBudget(size_t) override {}

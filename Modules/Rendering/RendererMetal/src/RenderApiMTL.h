@@ -1,31 +1,34 @@
 #pragma once
 
-#include "Render/IRenderApi.h"
 #include "MetalContext.h"
+#include <Render/Core/RenderAPI.h>
 
 namespace CHModules {
 
-    class RenderApiMTL : public CHEngine::IRenderApi
+    // Legacy render API for old EditorViewport path
+    // Note: Doesn't inherit from IRenderApi anymore as that interface was removed
+    
+    class RenderApiMTL
     {
     public:
         RenderApiMTL();
-        ~RenderApiMTL() override;
+        ~RenderApiMTL();
 
-        void Init(const CHEngine::RendererInitInfo& init_info) override;
-        void Shutdown() override;
-        bool BeginFrame() override;
-        void EndFrame() override;
-        CHEngine::RenderContextInfo GetRenderContext() const override;
+        void Init(const struct CHEngine::RendererInitInfo& init_info);
+        void Shutdown();
+        bool BeginFrame();
+        void EndFrame();
+        struct CHEngine::RenderContextInfo GetRenderContext() const;
 
-        void SetClearColor(float r, float g, float b, float a) override;
-        void Clear() override;
+        void SetClearColor(float r, float g, float b, float a);
+        void Clear();
 
-        void SetViewport(uint32_t width, uint32_t height) override;
-        void SetBlend(bool enable) override;
-        void SetDepthWrite(bool enable) override;
+        void SetViewport(uint32_t width, uint32_t height);
+        void SetBlend(bool enable);
+        void SetDepthWrite(bool enable);
 
-        void DrawIndexed(const CHEngine::IVertexArray* vertexArray) override;
-        void DrawLines(const CHEngine::IVertexArray* vertexArray) override;
+        void DrawIndexed(class VertexArrayMTL* vertexArray);
+        void DrawLines(class VertexArrayMTL* vertexArray);
 
     private:
         void UpdateDepthStencilState();

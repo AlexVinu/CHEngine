@@ -1,16 +1,22 @@
 #include "SceneViewLayerAccess.h"
 
-#include "ProjectEditorState.h"
 #include "SceneViewLayer.h"
+#include "TilingManager.h"
+#include "UvEditorPanel.h"
 
-EditorWorldContext& SceneViewLayerAccess::Active(SceneViewLayer& layer)
+Ref<EditorWorldContext> SceneViewLayerAccess::ActiveRef(SceneViewLayer& layer)
 {
-    return layer.m_Sessions[layer.m_ActiveIndex];
+    return (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex];
 }
 
-std::vector<EditorWorldContext>& SceneViewLayerAccess::Sessions(SceneViewLayer& layer)
+Ref<std::vector<Ref<EditorWorldContext>>> SceneViewLayerAccess::Sessions(SceneViewLayer& layer)
 {
-    return layer.m_Sessions;
+    return layer.m_EditorWorldContexts;
+}
+
+Ref<ProjectManager> SceneViewLayerAccess::ProjectManagerRef(SceneViewLayer& layer)
+{
+    return layer.m_ProjectManager;
 }
 
 size_t SceneViewLayerAccess::ActiveIndex(const SceneViewLayer& layer)
@@ -20,8 +26,12 @@ size_t SceneViewLayerAccess::ActiveIndex(const SceneViewLayer& layer)
 
 void SceneViewLayerAccess::SetActiveIndex(SceneViewLayer& layer, size_t index)
 {
-    CHE_CORE_ASSERT(index < layer.m_Sessions.size(), "Invalid session index");
+    CHE_ASSERT(index < layer.m_Sessions.size(), "Invalid session index");
+
+    // Swap active scenes
+    (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex]->UpdateState(std::nullopt, false);
     layer.m_ActiveIndex = index;
+    (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex]->UpdateState(std::nullopt, true);
 }
 
 Sandbox::EditorCameraController& SceneViewLayerAccess::CameraController(SceneViewLayer& layer)
@@ -69,9 +79,9 @@ Sandbox::ProfilerPanel& SceneViewLayerAccess::Profiler(SceneViewLayer& layer)
     return layer.m_ProfilerPanel;
 }
 
-Sandbox::ProjectEditorState& SceneViewLayerAccess::EditorState(SceneViewLayer& layer)
+Sandbox::UvEditorPanel& SceneViewLayerAccess::UvEditor(SceneViewLayer& layer)
 {
-    return layer.m_EditorState;
+    return layer.m_UvEditor;
 }
 
 Sandbox::SceneBrowserPanel& SceneViewLayerAccess::SceneBrowser(SceneViewLayer& layer)
@@ -82,4 +92,9 @@ Sandbox::SceneBrowserPanel& SceneViewLayerAccess::SceneBrowser(SceneViewLayer& l
 Sandbox::ScriptEditorPanel& SceneViewLayerAccess::ScriptEditor(SceneViewLayer& layer)
 {
     return layer.m_ScriptEditor;
+}
+
+Sandbox::TilingManager& SceneViewLayerAccess::Tiling(SceneViewLayer& layer)
+{
+    return layer.m_TilingManager;
 }
