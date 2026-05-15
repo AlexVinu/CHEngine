@@ -2,6 +2,7 @@
 #include "SceneViewLayerHost.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 
 #ifdef CHE_HAS_CURL
 #include <curl/curl.h>
@@ -355,6 +356,9 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
         ImGui::PopStyleVar(2);
         return;
     }
+
+    // Always render above every other panel
+    ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
 
     // ── Header bar ────────────────────────────────────────────────────────────
     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.45f, 0.75f, 1.00f, 1.0f));
