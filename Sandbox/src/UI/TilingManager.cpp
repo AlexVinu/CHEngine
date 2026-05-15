@@ -47,8 +47,22 @@ void TilingManager::EndFrame()
 // ── Separator drag ────────────────────────────────────────────────────────────
 void TilingManager::DrawSeparators()
 {
-    ImDrawList* dl     = ImGui::GetForegroundDrawList();
-    ImGuiIO&    io     = ImGui::GetIO();
+    // Use a transparent passthrough window so separators render BELOW popups
+    // (GetForegroundDrawList renders above everything including popups)
+    ImGui::SetNextWindowPos(m_WorkPos,  ImGuiCond_Always);
+    ImGui::SetNextWindowSize(m_WorkSize,ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0,0));
+    const ImGuiWindowFlags kOvFlags =
+        ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoDecoration |
+        ImGuiWindowFlags_NoMove     | ImGuiWindowFlags_NoResize     |
+        ImGuiWindowFlags_NoScrollbar| ImGuiWindowFlags_NoSavedSettings |
+        ImGuiWindowFlags_NoBringToFrontOnFocus | ImGuiWindowFlags_NoNav |
+        ImGuiWindowFlags_NoFocusOnAppearing    | ImGuiWindowFlags_NoMouseInputs;
+    ImGui::Begin("##tiling_sep_overlay", nullptr, kOvFlags);
+    ImGui::PopStyleVar();
+    ImDrawList* dl = ImGui::GetWindowDrawList();
+    ImGuiIO&    io = ImGui::GetIO();
     const ImU32 colSep = IM_COL32(60, 60, 65, 255);
     const ImU32 colHov = IM_COL32(100, 140, 220, 200);
     const ImU32 colDrag= IM_COL32(100, 140, 220, 255);
@@ -156,6 +170,7 @@ void TilingManager::DrawSeparators()
         else
             dl->AddRectFilled(p0, p1, col);
     }
+    ImGui::End(); // ##tiling_sep_overlay
 }
 
 // ── Panel overlay (close + collapse buttons) ──────────────────────────────────
@@ -170,7 +185,8 @@ void TilingManager::DrawPanelOverlay(PanelID id)
     // Since panels use BeginPanel which draws its own title bar,
     // we overlay our close/collapse on the foreground draw list.
 
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    // Use background drawlist so buttons appear BELOW popups
+    ImDrawList* dl = ImGui::GetBackgroundDrawList();
     ImGuiIO&    io = ImGui::GetIO();
 
     // Position our buttons inside the panel title bar

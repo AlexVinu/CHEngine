@@ -64,24 +64,14 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         if (!tiling.IsVisible(id)) return;
         if (tiling.IsCollapsed(id))
         {
-            // Collapsed: draw only a minimal title bar panel
+            // Collapsed: show only the styled title bar (same look as full panel)
             Sandbox::TileRect r = tiling.GetRect(id);
             if (r.valid)
-            {
-                ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
-                ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
-                ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(6,0));
-                const ImGuiWindowFlags kCollapsed =
-                    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar |
-                    ImGuiWindowFlags_NoMove     | ImGuiWindowFlags_NoResize    |
-                    ImGuiWindowFlags_NoBringToFrontOnFocus;
-                if (ImGui::Begin(Sandbox::PanelTitle(id), nullptr, kCollapsed))
-                {
-                    ImGui::TextDisabled("%s", Sandbox::PanelTitle(id));
-                }
-                ImGui::End();
-                ImGui::PopStyleVar();
-            }
+                UIActive::BeginPanel(Sandbox::PanelTitle(id), r.pos, r.size,
+                                     ImGuiWindowFlags_NoScrollbar |
+                                     ImGuiWindowFlags_NoBringToFrontOnFocus,
+                                     false);
+            UIActive::EndPanel();
             return;
         }
         drawFn();
