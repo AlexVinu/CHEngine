@@ -15,9 +15,10 @@
 
 namespace SceneViewLayerGizmoBar {
 
-static const float kBtnSize = 36.0f;
-static const float kMarginX = 12.0f;
-static const float kMarginY = 8.0f;
+static const float kBtnSize    = 30.0f;   // размер кнопки (квадрат)
+static const float kIconPad    = 4.0f;    // padding внутри ImageButton с каждой стороны
+static const float kMarginX    = 10.0f;
+static const float kMarginY    = 6.0f;
 
 // ── Иконки (загружаются один раз) ────────────────────────────────────────────
 static CHEngine::TextureHandle s_IconTranslate;
@@ -74,17 +75,22 @@ void Draw(SceneViewLayer& layer)
 
     const ImGuizmo::OPERATION op = ctx.GizmoOperation;
 
-    const ImVec4 kActive      = ImVec4(0.251f, 0.612f, 1.000f, 1.00f);
-    const ImVec4 kNormal      = ImVec4(0.18f,  0.18f,  0.20f,  1.00f);
-    const ImVec4 kHover       = ImVec4(0.25f,  0.25f,  0.28f,  1.00f);
-    const ImVec2 kIconSize    = ImVec2(kBtnSize - 4.0f, kBtnSize - 4.0f);
+    const ImVec4 kActive   = ImVec4(0.251f, 0.612f, 1.000f, 1.00f);
+    const ImVec4 kNormal   = ImVec4(0.18f,  0.18f,  0.20f,  1.00f);
+    const ImVec4 kHover    = ImVec4(0.25f,  0.25f,  0.28f,  1.00f);
+
+    // Размер картинки внутри ImageButton:
+    // ImageButton total = iconDraw + 2*kIconPad → должен равняться kBtnSize
+    const float  kIconDraw = kBtnSize - 2.0f * kIconPad;
+    const ImVec2 kIconSize = ImVec2(kIconDraw, kIconDraw);
 
     // Metal: UV без флипа; OGL: флип Y
     const bool   isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
     const ImVec2 kUV0    = isMetal ? ImVec2(0,0) : ImVec2(0,1);
     const ImVec2 kUV1    = isMetal ? ImVec2(1,1) : ImVec2(1,0);
 
-    // Рисует кнопку с иконкой (или текстом-fallback)
+    // Рисует кнопку с иконкой (или текстом-fallback).
+    // Явно задаём FramePadding = kIconPad чтобы ImageButton был ровно kBtnSize × kBtnSize
     auto gizmoBtn = [&](const char* strId, const char* tooltip,
                         CHEngine::TextureHandle iconTex, const char* fallback,
                         ImGuizmo::OPERATION thisOp) -> bool
@@ -93,6 +99,7 @@ void Draw(SceneViewLayer& layer)
         ImGui::PushStyleColor(ImGuiCol_Button,        active ? kActive : kNormal);
         ImGui::PushStyleColor(ImGuiCol_ButtonHovered, active ? kActive : kHover);
         ImGui::PushStyleColor(ImGuiCol_ButtonActive,  kActive);
+        ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(kIconPad, kIconPad));
 
         ImTextureID texId = ToImTex(iconTex);
         bool clicked = false;
@@ -107,6 +114,7 @@ void Draw(SceneViewLayer& layer)
             clicked = ImGui::Button(fallback, ImVec2(kBtnSize, kBtnSize));
         }
 
+        ImGui::PopStyleVar();
         ImGui::PopStyleColor(3);
         if (ImGui::IsItemHovered())
             ImGui::SetTooltip("%s", tooltip);
