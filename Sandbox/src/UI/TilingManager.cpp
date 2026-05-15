@@ -283,6 +283,21 @@ void TilingManager::DrawGhost()
     // Update drop target every frame
     m_DropTarget = m_Layout.HitTestDrop(io.MousePos);
 
+    // ── Затемняем панель-источник (title-bar drag) ────────────────────────────
+    if (m_DragFromPanel != PanelID::None)
+    {
+        TileRect src = m_Layout.GetRect(m_DragFromPanel);
+        if (src.valid)
+        {
+            ImVec2 pMin = src.pos;
+            ImVec2 pMax = ImVec2(src.pos.x + src.size.x, src.pos.y + src.size.y);
+            // Полупрозрачный тёмный оверлей поверх всей панели
+            dl->AddRectFilled(pMin, pMax, IM_COL32(0, 0, 0, 140));
+            // Пунктирная рамка чтобы было понятно откуда тащим
+            dl->AddRect(pMin, pMax, IM_COL32(100, 150, 255, 180), 0.0f, 0, 1.5f);
+        }
+    }
+
     // ── Draw drop preview zone ────────────────────────────────────────────────
     bool layoutEmpty = m_Layout.VisiblePanels().empty();
 
