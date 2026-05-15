@@ -12,6 +12,8 @@
 #include "UIThemeActive.h"
 #include "TilingManager.h"
 
+#include <CHEngine/Scene/Components.h>
+
 #include <imgui.h>
 #include <Profiler.h>
 
@@ -163,13 +165,81 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     // Script Editor — DrawInPanel() always shows window + hint when no file
     drawIfVisible(PID::ScriptEditor, [&]()
     {
-        SceneViewLayerAccess::ScriptEditor(layer).DrawInPanel();
+        Sandbox::TileRect r = tiling.GetRect(PID::ScriptEditor);
+        if (r.valid)
+        {
+            ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
+            ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
+        }
+
+        auto& scriptEditor = SceneViewLayerAccess::ScriptEditor(layer);
+
+        // Provide entity context when no script is currently open
+        if (!scriptEditor.HasFile())
+        {
+            CHEngine::Scene* scene = activeCtx ? activeCtx->EditorScene.get() : nullptr;
+            const CHEngine::EntityHandle selHandle = activeCtx ? activeCtx->SelectedEntity : CHEngine::EntityHandle{};
+            CHEngine::Entity* selEnt = (scene && scene->IsEntityHandleValid(selHandle))
+                                       ? scene->TryGetEntity(selHandle) : nullptr;
+
+            if (selEnt && selEnt->HasComponent<CHEngine::TagComponent>())
+            {
+                std::string name = selEnt->GetComponent<CHEngine::TagComponent>().Name;
+                bool hasScript   = selEnt->HasComponent<CHEngine::ScriptComponent>();
+                std::string path = hasScript
+                    ? selEnt->GetComponent<CHEngine::ScriptComponent>().ScriptPath : "";
+
+                scriptEditor.SetEntityContext(name, hasScript, path,
+                    [&host, selHandle, name]() {
+                        host.CreateAndAttachScript(selHandle, name);
+                    },
+                    [&host, path]() {
+                        host.OpenScriptInEditor(path);
+                    });
+            }
+            else
+            {
+                scriptEditor.ClearEntityContext();
+            }
+        }
+        else
+        {
+            scriptEditor.ClearEntityContext();
+        }
+
+        scriptEditor.DrawInPanel();
     });
 
     // ── Orbit indicator, tiling overlays ──────────────────────────────────────
     SceneViewLayerRender::DrawOrbitIndicator(layer);
     tiling.EndFrame();  // separators, close/collapse buttons, ghost
     SceneViewLayerShiftWMenu::Draw(layer);  // Shift+W panel picker popup
+
+    // ── Global AI Overlay (double-tap Z) ──────────────────────────────────────
+    {
+        auto& globalAi = SceneViewLayerAccess::GlobalAi(layer);
+
+        // Detect double-tap Z — ignore when typing in any text input
+        if (!ImGui::GetIO().WantTextInput)
+        {
+            static float s_LastZTime = -1.0f;
+            if (ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            {
+                float now = (float)ImGui::GetTime();
+                if (now - s_LastZTime < 0.35f)
+                {
+                    globalAi.Toggle();
+                    s_LastZTime = -1.0f;
+                }
+                else
+                {
+                    s_LastZTime = now;
+                }
+            }
+        }
+
+        globalAi.Draw(host);
+    }
 
     viewport.End();
 }

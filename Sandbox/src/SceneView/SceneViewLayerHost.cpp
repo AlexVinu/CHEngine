@@ -484,6 +484,126 @@ void SceneViewLayerHost::OnProjectChanged()
     m_Layer.OnProjectOpened();
 }
 
+void SceneViewLayerHost::OpenScriptInEditor(const std::string& path)
+{
+    namespace fs = std::filesystem;
+    std::string absPath = path;
+    Ref<ProjectManager> pm = SceneViewLayerAccess::ProjectManagerRef(m_Layer);
+    if (pm->HasProject() && !path.empty() && !fs::path(path).is_absolute())
+        absPath = (pm->Current()->RootDir() / path).string();
+
+    SceneViewLayerAccess::ScriptEditor(m_Layer).Open(absPath);
+
+    // Auto-add Script Editor to tiling if it's not visible yet
+    Sandbox::TilingManager& tiling = SceneViewLayerAccess::Tiling(m_Layer);
+    if (!tiling.IsVisible(Sandbox::PanelID::ScriptEditor))
+    {
+        // Insert below Viewport (or fallback to ContentBrowser)
+        Sandbox::PanelID near = tiling.IsVisible(Sandbox::PanelID::ContentBrowser)
+            ? Sandbox::PanelID::ContentBrowser
+            : Sandbox::PanelID::Viewport;
+        tiling.InsertPanel(Sandbox::PanelID::ScriptEditor, near, Sandbox::DropEdge::Right);
+    }
+}
+
+void SceneViewLayerHost::CreateAndAttachScript(CHEngine::EntityHandle handle, const std::string& entityName)
+{
+    namespace fs = std::filesystem;
+    Ref<ProjectManager> pm = SceneViewLayerAccess::ProjectManagerRef(m_Layer);
+    if (!pm->HasProject()) return;
+
+    Project* proj = pm->Current();
+    fs::path scriptsDir = proj->ScriptsAbsPath();
+    if (!fs::exists(scriptsDir))
+        fs::create_directories(scriptsDir);
+
+    // Sanitize entity name for use as filename
+    std::string base = entityName.empty() ? "Entity" : entityName;
+    for (auto& c : base)
+        if (c == ' ' || c == '/' || c == '\\' || c == ':') c = '_';
+
+    // Find unique path
+    fs::path scriptPath = scriptsDir / (base + ".lua");
+    int suffix = 1;
+    while (fs::exists(scriptPath))
+        scriptPath = scriptsDir / (base + "_" + std::to_string(suffix++) + ".lua");
+
+    // Create file and open in editor
+    auto& editor = SceneViewLayerAccess::ScriptEditor(m_Layer);
+    editor.NewScript(scriptPath.string());
+
+    // Auto-add Script Editor to tiling if not visible
+    Sandbox::TilingManager& tiling = SceneViewLayerAccess::Tiling(m_Layer);
+    if (!tiling.IsVisible(Sandbox::PanelID::ScriptEditor))
+    {
+        Sandbox::PanelID near = tiling.IsVisible(Sandbox::PanelID::ContentBrowser)
+            ? Sandbox::PanelID::ContentBrowser
+            : Sandbox::PanelID::Viewport;
+        tiling.InsertPanel(Sandbox::PanelID::ScriptEditor, near, Sandbox::DropEdge::Right);
+    }
+
+    // Attach ScriptComponent — store absolute path so LuaScriptSystem can find the file
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene = session->EditorScene;
+    if (!scene) return;
+    auto* entity = scene->TryGetEntity(handle);
+    if (!entity) return;
+
+    std::string absScriptPath = scriptPath.string();
+    if (!entity->HasComponent<CHEngine::ScriptComponent>())
+        entity->AddComponent<CHEngine::ScriptComponent>(CHEngine::ScriptComponent{ absScriptPath, true });
+    else
+        entity->PatchComponent<CHEngine::ScriptComponent>(
+            [&](CHEngine::ScriptComponent& sc) { sc.ScriptPath = absScriptPath; });
+}
+
+void SceneViewLayerHost::ApplyLayoutPreset(const std::string& presetName)
+{
+    SceneViewLayerAccess::Tiling(m_Layer).ApplyPreset(presetName);
+}
+
+void SceneViewLayerHost::SelectEntityByName(const std::string& name)
+{
+    if (name.empty()) return;
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene = session->EditorScene;
+    if (!scene) return;
+
+    CHEngine::EntityHandle found{};
+    scene->ForEach<CHEngine::TagComponent>(
+        [&](CHEngine::EntityHandle handle, const CHEngine::UUID&, CHEngine::TagComponent& tag)
+        {
+            if (tag.Name == name)
+                found = handle;
+        });
+
+    if (scene->IsEntityHandleValid(found))
+        session->SelectedEntity = found;
+}
+
+void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene = session->EditorScene;
+    if (!scene) return;
+
+    CHEngine::EntityHandle found{};
+    scene->ForEach<CHEngine::TagComponent>(
+        [&](CHEngine::EntityHandle handle, const CHEngine::UUID&, CHEngine::TagComponent& tag)
+        {
+            if (tag.Name == entityName)
+                found = handle;
+        });
+
+    if (!scene->IsEntityHandleValid(found)) return;
+    auto* entity = scene->TryGetEntity(found);
+    if (!entity || !entity->HasComponent<CHEngine::ScriptComponent>()) return;
+
+    const std::string& path = entity->GetComponent<CHEngine::ScriptComponent>().ScriptPath;
+    if (!path.empty())
+        OpenScriptInEditor(path);
+}
+
 void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)
 {
     Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);

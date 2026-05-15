@@ -98,3 +98,8 @@ Sandbox::TilingManager& SceneViewLayerAccess::Tiling(SceneViewLayer& layer)
 {
     return layer.m_TilingManager;
 }
+
+Sandbox::GlobalAiOverlay& SceneViewLayerAccess::GlobalAi(SceneViewLayer& layer)
+{
+    return layer.m_GlobalAiOverlay;
+}

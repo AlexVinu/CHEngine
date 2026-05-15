@@ -38,6 +38,20 @@ public:
     // Force a layout reset to defaults
     void ResetLayout();
 
+    // Programmatically insert a panel without ghost interaction
+    void InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge)
+    {
+        m_Layout.InsertPanel(newPanel, nearPanel, edge);
+        m_LayoutChanged = true;
+    }
+
+    // Apply a named layout preset: "script_focus" | "model_focus" | "default"
+    void ApplyPreset(const std::string& name)
+    {
+        m_Layout.ApplyPreset(name);
+        m_LayoutChanged = true;
+    }
+
     // Called from ShiftWMenu when user picks a panel to place
     void StartGhostPlacement(PanelID id)
     {

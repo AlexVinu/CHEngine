@@ -19,6 +19,7 @@
 #include "ProjectBrowserWindow.h"
 #include "ScriptEditorPanel.h"
 #include "TilingManager.h"
+#include "GlobalAiOverlay.h"
 
 #include <vector>
 
@@ -61,4 +62,7 @@ private:
 
     // Tiling workspace manager
     Sandbox::TilingManager m_TilingManager{ "tiling_layout.txt" };
+
+    // Global AI overlay (double-tap Z)
+    Sandbox::GlobalAiOverlay m_GlobalAiOverlay;
 };

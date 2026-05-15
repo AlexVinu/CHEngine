@@ -115,6 +115,10 @@ public:
     bool Load(const std::string& path);
     void ResetToDefault();
 
+    // ── Named layout presets ──────────────────────────────────────────────────
+    // "script_focus" | "model_focus" | "default"
+    void ApplyPreset(const std::string& name);
+
     // Raw tree access (for drag handling)
     TileNode* Root() { return m_Root.get(); }
 

@@ -82,6 +82,37 @@ void TilingLayout::ResetToDefault()
             MakeLeaf(PanelID::Properties)));
 }
 
+void TilingLayout::ApplyPreset(const std::string& name)
+{
+    if (name == "script_focus")
+    {
+        // Viewport 25% left | ScriptEditor 50% center | ContentBrowser 25% right
+        // Right 75% is split 0.67/0.33 → ScriptEditor=50% total, Content=25% total
+        m_Root = MakeSplit(SplitDir::Vertical, 0.25f,
+            MakeSplit(SplitDir::Horizontal, 0.70f,
+                MakeLeaf(PanelID::Viewport),
+                MakeLeaf(PanelID::Properties)),
+            MakeSplit(SplitDir::Vertical, 0.67f,
+                MakeLeaf(PanelID::ScriptEditor),
+                MakeLeaf(PanelID::ContentBrowser)));
+    }
+    else if (name == "model_focus")
+    {
+        // Large viewport, properties and inspector on right
+        m_Root = MakeSplit(SplitDir::Vertical, 0.78f,
+            MakeSplit(SplitDir::Horizontal, 0.75f,
+                MakeLeaf(PanelID::Viewport),
+                MakeLeaf(PanelID::ContentBrowser)),
+            MakeSplit(SplitDir::Horizontal, 0.55f,
+                MakeLeaf(PanelID::Inspector),
+                MakeLeaf(PanelID::Properties)));
+    }
+    else // "default"
+    {
+        ResetToDefault();
+    }
+}
+
 // ── Work area & rect computation ─────────────────────────────────────────────
 void TilingLayout::SetWorkArea(ImVec2 pos, ImVec2 size)
 {
@@ -316,7 +347,9 @@ void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edg
     SplitDir dir  = (edge == DropEdge::Left || edge == DropEdge::Right)
                     ? SplitDir::Vertical : SplitDir::Horizontal;
     bool newIsA   = (edge == DropEdge::Left || edge == DropEdge::Top);
-    float ratio   = newIsA ? 0.35f : 0.65f;
+    // Script Editor is wide (code + AI chat) — give it half the space by default
+    const float newFraction = (newPanel == PanelID::ScriptEditor) ? 0.50f : 0.35f;
+    float ratio   = newIsA ? newFraction : (1.0f - newFraction);
 
     auto newLeaf  = MakeLeaf(newPanel);
     // Deep-copy near subtree by re-creating it.
