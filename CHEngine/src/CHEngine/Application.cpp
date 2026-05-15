@@ -9,6 +9,7 @@
 #include "Physics/PhysicsFacade.h"
 #include "Render/RenderFacade.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
+#include "CHEngine/Utils/AppPaths.h"
 #include "UI/UIFacade.h"
 
 #include <imgui.h>
@@ -245,7 +246,7 @@ namespace CHEngine {
         // ─── 5. Create default shader ─────────────────────────────────────────────
         m_Shader = ResourceManager::Instance().Load<ShaderHandle>(
             std::string("Basic"),
-            std::filesystem::path("shaders/basic.slang")
+            AppPaths::ExecutableDir() / "shaders/basic.slang"
         );
 
         // ─── 6. Physics ────────────────────────────────────────────────────────────

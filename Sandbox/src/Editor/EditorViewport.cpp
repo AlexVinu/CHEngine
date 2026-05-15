@@ -32,13 +32,13 @@ EditorViewport::EditorViewport()
         std::string("Grid"), CHEngine::AppPaths::ExecutableDir() / "shaders/grid.slang");
 
     m_SphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-        std::string("Sphere"), std::string("shaders/sphere.slang"));
+        std::string("Sphere"), CHEngine::AppPaths::ExecutableDir() / "shaders/sphere.slang");
 
     m_SphereImpostorShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-        std::string("SphereImpostor"), std::string("shaders/sphere_impostor.slang"));
+        std::string("SphereImpostor"), CHEngine::AppPaths::ExecutableDir() / "shaders/sphere_impostor.slang");
 
     m_PBRShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-        std::string("PBR"), std::string("shaders/pbr.slang"));
+        std::string("PBR"), CHEngine::AppPaths::ExecutableDir() / "shaders/pbr.slang");
 
     BuildGrid();
 }
