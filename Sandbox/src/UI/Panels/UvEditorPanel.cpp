@@ -43,24 +43,46 @@ static std::vector<std::vector<int>> BuildUVGroups(const std::vector<CHEngine::V
 
 void UvEditorPanel::Draw(EditorUiHost& host)
 {
+    // Window is always created (tiling system provides pos/size via SetNextWindowPos/Size)
+    if (!ImGui::Begin("UV Editor"))
+    {
+        ImGui::End();
+        return;
+    }
+
     EditorWorldContext& session = host.GetActiveSceneSession();
     auto scene = session.EditorScene;
-    if (!scene) return;
+
+    // Show hint when nothing useful to display
+    auto showHint = [](const char* msg)
+    {
+        ImVec2 avail = ImGui::GetContentRegionAvail();
+        ImVec2 textSz = ImGui::CalcTextSize(msg);
+        ImGui::SetCursorPos(ImVec2(
+            (avail.x - textSz.x) * 0.5f,
+            (avail.y - textSz.y) * 0.5f));
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
+        ImGui::TextUnformatted(msg);
+        ImGui::PopStyleColor();
+    };
+
+    if (!scene)                              { showHint("No scene loaded");            ImGui::End(); return; }
 
     CHEngine::EntityHandle sel = session.SelectedEntity;
-    if (!scene->IsEntityHandleValid(sel)) return;
+    if (!scene->IsEntityHandleValid(sel))    { showHint("No object selected");         ImGui::End(); return; }
 
     CHEngine::Entity* entity = scene->TryGetEntity(sel);
-    if (!entity) return;
-    if (!entity->HasComponent<CHEngine::MeshComponent>()) return;
+    if (!entity)                             { showHint("No object selected");         ImGui::End(); return; }
+    if (!entity->HasComponent<CHEngine::MeshComponent>())
+                                             { showHint("Selected object has no mesh");ImGui::End(); return; }
 
     CHEngine::MeshComponent& meshComp = entity->GetComponent<CHEngine::MeshComponent>();
-    if (meshComp.Meshes.empty()) return;
+    if (meshComp.Meshes.empty())             { showHint("Mesh has no geometry");       ImGui::End(); return; }
 
     CHEngine::Mesh& mesh = meshComp.Meshes[0];
     const auto& vertices = mesh.GetVertices();
     const auto& indices  = mesh.GetIndices();
-    if (vertices.empty() || indices.empty()) return;
+    if (vertices.empty() || indices.empty()) { showHint("Mesh has no geometry");       ImGui::End(); return; }
 
     // --- Get diffuse texture for background ---
     CHEngine::TextureHandle diffuseTex;
@@ -69,8 +91,6 @@ void UvEditorPanel::Draw(EditorUiHost& host)
         CHEngine::TextureHandle spec;
         mesh.Mat->ResolveTextures(diffuseTex, spec);
     }
-
-    ImGui::Begin("UV Editor");
 
     const float canvasW = ImGui::GetContentRegionAvail().x;
     const float canvasH = ImGui::GetContentRegionAvail().y;

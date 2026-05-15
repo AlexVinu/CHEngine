@@ -160,10 +160,10 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
     });
 
-    // Script Editor
+    // Script Editor — DrawInPanel() always shows window + hint when no file
     drawIfVisible(PID::ScriptEditor, [&]()
     {
-        SceneViewLayerAccess::ScriptEditor(layer).Draw();
+        SceneViewLayerAccess::ScriptEditor(layer).DrawInPanel();
     });
 
     // ── Orbit indicator, tiling overlays ──────────────────────────────────────

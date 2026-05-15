@@ -56,6 +56,10 @@ public:
     // Рисовать ImGui окно (вызывать каждый кадр)
     void Draw();
 
+    // Tiling mode: always show panel regardless of m_IsOpen.
+    // Shows "Open a script from Content Browser" when no file is loaded.
+    void DrawInPanel();
+
 private:
     void Save();
     void LoadFile(const std::string& path);
