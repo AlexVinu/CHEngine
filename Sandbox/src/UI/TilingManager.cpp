@@ -34,7 +34,6 @@ void TilingManager::BeginFrame(ImVec2 workPos, ImVec2 workSize)
 
 void TilingManager::EndFrame()
 {
-    HandleShiftW();
     DrawSeparators();
 
     // Draw overlay buttons for all visible panels
@@ -42,7 +41,7 @@ void TilingManager::EndFrame()
         DrawPanelOverlay(static_cast<PanelID>(i));
 
     DrawGhost();
-    DrawShiftWPopup();
+    // Shift+W popup is drawn by SceneViewLayer_ShiftWMenu::Draw() (called from ImGuiFrame)
 }
 
 // ── Separator drag ────────────────────────────────────────────────────────────

@@ -123,21 +123,28 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
     // Split node
     const bool isV = (node->splitDir == SplitDir::Vertical); // vertical line → left|right
 
-    // For collapsed leaves we clamp to kTitleBarH along the split axis
-    // Simple approach: just apply ratio, collapsed panels have minimum size enforced
+    // Collapse logic: collapsed child gets kTitleBarH; neighbour gets ALL remaining space.
+    auto isCollapsedLeaf = [](const std::unique_ptr<TileNode>& n) {
+        return n && n->IsLeaf() && n->collapsed;
+    };
+
     float totalA, totalB;
     if (isV)
     {
         // left | right, ratio = fraction for left
         float w = size.x - kSeparatorW;
-        float a = node->childA && node->childA->IsLeaf() && node->childA->collapsed
-                  ? kTitleBarH : ImMax(kMinSize, w * node->ratio);
-        float b = node->childB && node->childB->IsLeaf() && node->childB->collapsed
-                  ? kTitleBarH : ImMax(kMinSize, w - a);
+        float a, b;
+        if      (isCollapsedLeaf(node->childA) && isCollapsedLeaf(node->childB))
+            { a = kTitleBarH; b = kTitleBarH; }
+        else if (isCollapsedLeaf(node->childA))
+            { a = kTitleBarH; b = ImMax(kMinSize, w - a); }
+        else if (isCollapsedLeaf(node->childB))
+            { b = kTitleBarH; a = ImMax(kMinSize, w - b); }
+        else
+            { a = ImMax(kMinSize, w * node->ratio); b = ImMax(kMinSize, w - a); }
         totalA = a; totalB = b;
 
         ComputeNode(node->childA.get(), pos, ImVec2(a, size.y));
-        // Separator
         {
             SeparatorHit sep;
             sep.node       = node;
@@ -153,10 +160,15 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
     {
         // top | bottom, ratio = fraction for top
         float h = size.y - kSeparatorW;
-        float a = node->childA && node->childA->IsLeaf() && node->childA->collapsed
-                  ? kTitleBarH : ImMax(kMinSize, h * node->ratio);
-        float b = node->childB && node->childB->IsLeaf() && node->childB->collapsed
-                  ? kTitleBarH : ImMax(kMinSize, h - a);
+        float a, b;
+        if      (isCollapsedLeaf(node->childA) && isCollapsedLeaf(node->childB))
+            { a = kTitleBarH; b = kTitleBarH; }
+        else if (isCollapsedLeaf(node->childA))
+            { a = kTitleBarH; b = ImMax(kMinSize, h - a); }
+        else if (isCollapsedLeaf(node->childB))
+            { b = kTitleBarH; a = ImMax(kMinSize, h - b); }
+        else
+            { a = ImMax(kMinSize, h * node->ratio); b = ImMax(kMinSize, h - a); }
         totalA = a; totalB = b;
 
         ComputeNode(node->childA.get(), pos, ImVec2(size.x, a));

@@ -38,6 +38,9 @@ public:
     // Force a layout reset to defaults
     void ResetLayout();
 
+    // Called from ShiftWMenu when user picks a panel to place
+    void StartGhostPlacement(PanelID id) { m_GhostPanel = id; m_DropTarget = {}; }
+
     // True while user is dragging a new-panel ghost
     bool IsPlacingPanel() const { return m_GhostPanel != PanelID::None; }
 

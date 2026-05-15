@@ -9,6 +9,7 @@
 #include "SceneViewLayer_CameraOps.h"
 #include "SceneViewLayer_MousePicking.h"
 #include "SceneViewLayer_ShiftAMenu.h"
+#include "SceneViewLayer_ShiftWMenu.h"
 #include "SceneViewLayer_GizmoBar.h"
 
 #include "UIThemeActive.h"
@@ -179,7 +180,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
 
     // ── Orbit indicator, tiling overlays ──────────────────────────────────────
     SceneViewLayerRender::DrawOrbitIndicator(layer);
-    tiling.EndFrame();  // separators, close/collapse buttons, ghost, Shift+W popup
+    tiling.EndFrame();  // separators, close/collapse buttons, ghost
+    SceneViewLayerShiftWMenu::Draw(layer);  // Shift+W panel picker popup
 
     viewport.End();
 }
