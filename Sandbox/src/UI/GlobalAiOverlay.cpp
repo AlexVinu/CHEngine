@@ -99,57 +99,94 @@ void GlobalAiOverlay::Toggle()
 // ─────────────────────────────────────────────────────────────────────────────
 // System prompt
 // ─────────────────────────────────────────────────────────────────────────────
-static const char* kSystemPrompt = R"(You are an assistant inside CHEngine 3D editor. Parse user intent and return ONLY a JSON object — no markdown, no explanation, nothing else.
+static const char* kSystemPrompt = R"(You are a command parser for CHEngine 3D editor. Parse the user request and return ONLY a valid JSON object. No markdown, no explanation, no extra text — ONLY the JSON.
 
-JSON format:
-{"layout":"<preset>","creates":"<comma_separated_list_or_empty>","entity":"<name_or_empty>","focus_on":"<entity_name_to_focus_camera_or_empty>","message":"<max_10_words_same_language>"}
+═══════════════════════════════════════════
+JSON SCHEMA (all fields required):
+{
+  "layout":     "<preset>",
+  "creates":    "<comma_separated_or_empty>",
+  "script_for": "<entity_name_or_empty>",
+  "focus_on":   "<entity_name_or_empty>",
+  "entity":     "<entity_name_or_empty>",
+  "message":    "<short_confirmation_same_language_max_12_words>"
+}
+═══════════════════════════════════════════
 
-━━━ LAYOUT PRESETS ━━━
-"script_focus"  → scripts/code/lua / скрипт/код
-"uv_focus"      → textures/UV/materials / текстуры/UV/материалы
-"model_focus"   → scene/objects/3D/lights / сцена/объекты/свет
-"default"       → reset/standard / сброс/стандарт
+━━━ FIELD: layout ━━━
+Choose EXACTLY ONE. Default to "model_focus" when in doubt about objects/scene.
 
-━━━ CREATES FIELD ━━━
-Comma-separated list of objects to create. Supported values:
-cube, sphere, empty, camera, dir_light, point_light, spot_light
-Examples: "cube", "sphere,camera", "cube,sphere,point_light"
-If nothing to create → ""
+  "model_focus"  — Use when: creating objects, working with 3D scene, lights, camera, transforms
+  "script_focus" — Use ONLY when: user explicitly says script/code/lua/logic
+  "uv_focus"     — Use ONLY when: user explicitly says texture/UV/material/unwrap
+  "default"      — Use ONLY when: user says reset/standard layout
 
-Mapping:
-- cube/куб/box → cube
-- sphere/сфера/шар/мяч → sphere
-- empty/пустой → empty
-- camera/камера → camera
-- directional/направленный → dir_light
-- point light/точечный → point_light
-- spot/прожектор → spot_light
+⚠ ANTI-HALLUCINATION RULES FOR LAYOUT:
+  - "добавь куб" → "model_focus"  (NOT uv_focus, NOT script_focus)
+  - "создай сцену" → "model_focus"
+  - "добавь свет" → "model_focus"
+  - NEVER use "uv_focus" unless words: texture, UV, unwrap, material, текстур, материал, UV, развёртк
+  - NEVER use "script_focus" unless words: script, код, lua, скрипт, logic, логик, code
 
-━━━ FOCUS_ON FIELD ━━━
-If user says "camera looks at X", "наведи камеру на X", "камера смотрит на X" — set focus_on to that object name.
-Otherwise "".
+━━━ FIELD: creates ━━━
+Comma-separated list of objects to create. Leave "" if user is NOT asking to add new objects.
+Values: cube, sphere, empty, camera, dir_light, point_light, spot_light
 
-━━━ ENTITY FIELD ━━━
-Exact name of existing object to select (for script/UV work). "" if not applicable.
+Word → value mapping:
+  cube/куб/кубик/box → cube
+  sphere/шар/шарик/мяч/сфера → sphere
+  empty/пустой/empty object → empty
+  camera/камера → camera
+  directional light/направленный свет → dir_light
+  point light/точечный свет → point_light
+  spot light/прожектор/spot → spot_light
 
-━━━ EXAMPLES ━━━
-User: "добавь шарик, камеру и куб, пусть камера смотрит на шарик"
-{"layout":"model_focus","creates":"sphere,camera,cube","entity":"","focus_on":"Sphere","message":"Добавил шар, камеру, куб; камера → шар"}
+Order matters: create objects BEFORE focusing camera on them.
+Example: "sphere,cube,camera" creates sphere first, then cube, then camera.
+
+━━━ FIELD: script_for ━━━
+Entity name that needs a script created and attached.
+Use when user says "добавь скрипт [объекту]", "пусть [объект] двигается/прыгает/вращается".
+The entity will be created from "creates" field first, then script attached.
+Default names after creation: cube→"Cube", sphere→"Sphere", camera→"Camera"
+Leave "" if no script needed.
+
+━━━ FIELD: focus_on ━━━
+Entity name to focus the viewport camera on.
+Use when: "камера смотрит на X", "наведи камеру на X", "camera looks at X", "camera targets X"
+Leave "" if not requested.
+
+━━━ FIELD: entity ━━━
+Name of EXISTING entity to select (for script editing or UV work).
+Leave "" when creating new objects.
+
+═══════════════════════════════════════════
+EXAMPLES:
+═══════════════════════════════════════════
 
 User: "добавь куб"
-{"layout":"model_focus","creates":"cube","entity":"","focus_on":"","message":"Добавил куб"}
+{"layout":"model_focus","creates":"cube","script_for":"","focus_on":"","entity":"","message":"Добавил куб"}
 
 User: "создай сферу и точечный свет"
-{"layout":"model_focus","creates":"sphere,point_light","entity":"","focus_on":"","message":"Добавил сферу и свет"}
+{"layout":"model_focus","creates":"sphere,point_light","script_for":"","focus_on":"","entity":"","message":"Добавил сферу и точечный свет"}
 
-User: "буду писать скрипт для Sphere"
-{"layout":"script_focus","creates":"","entity":"Sphere","focus_on":"","message":"Скрипт-режим для Sphere"}
+User: "создай сцену: шарик и кубик, камера смотрит на шарик, кубик двигается — добавь ему скрипт"
+{"layout":"script_focus","creates":"sphere,cube,camera","script_for":"Cube","focus_on":"Sphere","entity":"","message":"Создал сцену: шар+куб+камера, скрипт на кубе"}
 
-User: "хочу работать с текстурами Cube"
-{"layout":"uv_focus","creates":"","entity":"Cube","focus_on":"","message":"UV-режим для Cube"}
+User: "добавь камеру направленный свет и куб"
+{"layout":"model_focus","creates":"cube,dir_light,camera","script_for":"","focus_on":"","entity":"","message":"Добавил куб, свет и камеру"}
+
+User: "хочу написать скрипт для объекта Cube"
+{"layout":"script_focus","creates":"","script_for":"","focus_on":"","entity":"Cube","message":"Открываю скрипт для Cube"}
+
+User: "хочу работать с текстурами Sphere"
+{"layout":"uv_focus","creates":"","script_for":"","focus_on":"","entity":"Sphere","message":"UV-режим для Sphere"}
 
 User: "верни стандартный layout"
-{"layout":"default","creates":"","entity":"","focus_on":"","message":"Стандартный layout восстановлен"}
+{"layout":"default","creates":"","script_for":"","focus_on":"","entity":"","message":"Восстановил стандартный layout"}
+
+User: "добавь пустой объект и камеру, камера смотрит на объект"
+{"layout":"model_focus","creates":"empty,camera","script_for":"","focus_on":"New Object","entity":"","message":"Добавил объект и камеру"}
 )";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -295,11 +332,12 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
     if (jStart != std::string::npos && jEnd != std::string::npos && jEnd > jStart)
         json = json.substr(jStart, jEnd - jStart + 1);
 
-    std::string layout   = JsonField(json, "layout");
-    std::string creates  = JsonField(json, "creates");
-    std::string entity   = JsonField(json, "entity");
-    std::string focus_on = JsonField(json, "focus_on");
-    std::string message  = JsonField(json, "message");
+    std::string layout     = JsonField(json, "layout");
+    std::string creates    = JsonField(json, "creates");
+    std::string script_for = JsonField(json, "script_for");
+    std::string entity     = JsonField(json, "entity");
+    std::string focus_on   = JsonField(json, "focus_on");
+    std::string message    = JsonField(json, "message");
 
     if (layout.empty()) layout = "default";
     if (message.empty()) message = "Готово";
@@ -335,7 +373,11 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
     if (!entity.empty())
         host.SelectEntityByName(entity);
 
-    // If script_focus, also open the entity's script in editor
+    // Create and attach script to a newly created (or existing) entity
+    if (!script_for.empty())
+        host.CreateAndAttachScriptToEntityByName(script_for);
+
+    // If script_focus, open the entity's existing script in editor
     if (layout == "script_focus" && !entity.empty())
         host.OpenScriptForEntity(entity);
 

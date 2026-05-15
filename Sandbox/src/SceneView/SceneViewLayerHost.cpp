@@ -581,6 +581,25 @@ void SceneViewLayerHost::SelectEntityByName(const std::string& name)
         session->SelectedEntity = found;
 }
 
+void SceneViewLayerHost::CreateAndAttachScriptToEntityByName(const std::string& entityName)
+{
+    // Find entity by name
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene = session->EditorScene;
+    if (!scene) return;
+
+    CHEngine::EntityHandle found{};
+    scene->ForEach<CHEngine::TagComponent>(
+        [&](CHEngine::EntityHandle handle, const CHEngine::UUID&, CHEngine::TagComponent& tag)
+        {
+            if (tag.Name == entityName)
+                found = handle;
+        });
+
+    if (!scene->IsEntityHandleValid(found)) return;
+    CreateAndAttachScript(found, entityName);
+}
+
 void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);

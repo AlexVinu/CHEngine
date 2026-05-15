@@ -89,6 +89,7 @@ public:
     void ApplyLayoutPreset(const std::string& presetName) ;
     void SelectEntityByName(const std::string& name) ;
     void OpenScriptForEntity(const std::string& entityName) ;
+    void CreateAndAttachScriptToEntityByName(const std::string& entityName) ;
 
     void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;
     void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) ;
