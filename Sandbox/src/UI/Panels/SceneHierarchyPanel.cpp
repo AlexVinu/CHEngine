@@ -3,6 +3,7 @@
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
 
+#include <CHEngine/Application.h>
 #include <CHEngine/Utils/FileDialog.h>
 #include <CHEngine/Scene/Components.h>
 
@@ -13,9 +14,17 @@
 
 namespace Sandbox {
 
+void SceneHierarchyPanel::EnsureLogo()
+{
+    if (m_LogoLoaded) return;
+    m_Logo       = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/logo.png");
+    m_LogoLoaded = true;
+}
+
 // All scene hierarchy content — usable standalone or inside a tab.
 void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
 {
+    EnsureLogo();
     SceneSession& activeSession = host.GetActiveSceneSession();
     auto scene_ptr = activeSession.EditorScene;
     if (!scene_ptr)
@@ -72,9 +81,43 @@ void SceneHierarchyPanel::DrawContent(EditorUiHost& host)
 
     if (objectCount == 0)
     {
-        ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f, 0.686f, 0.706f, 1.0f));
-        ImGui::TextWrapped("No objects in scene.\nPress Shift+A to add objects.");
+        // ── Логотип + подсказка когда сцена пустая ────────────────────────────
+        const float panelW = ImGui::GetContentRegionAvail().x;
+
+        // Логотип — центрируем по ширине панели
+        if (m_Logo.IsValid())
+        {
+            auto* f = CHEngine::RenderFacade::GetRenderFactory();
+            ImTextureID texId = f ? static_cast<ImTextureID>(f->GetTextureNativeID(m_Logo)) : static_cast<ImTextureID>(0);
+            if (texId)
+            {
+                const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
+                ImVec2 uv0 = isMetal ? ImVec2(0,0) : ImVec2(0,1);
+                ImVec2 uv1 = isMetal ? ImVec2(1,1) : ImVec2(1,0);
+
+                // Вписываем логотип в ширину панели с отступами
+                const float logoW = panelW - 20.0f;
+                const float logoH = logoW * 0.4f;  // примерное соотношение сторон
+
+                float offsetX = (panelW - logoW) * 0.5f;
+                ImGui::SetCursorPosX(ImGui::GetCursorPosX() + offsetX);
+                ImGui::Spacing();
+                // Рисуем через DrawList чтобы задать прозрачность
+                ImVec2 p = ImGui::GetCursorScreenPos();
+                ImGui::GetWindowDrawList()->AddImage(
+                    texId, p, ImVec2(p.x + logoW, p.y + logoH),
+                    uv0, uv1, IM_COL32(255, 255, 255, 90)); // ~35% opacity
+                ImGui::Dummy(ImVec2(logoW, logoH)); // резервируем место в layout
+                ImGui::Spacing();
+            }
+        }
+
+        // Подсказка — по центру
+        const char* hint = "Press Shift+A to add objects";
+        float textW = ImGui::CalcTextSize(hint).x;
+        ImGui::SetCursorPosX((panelW - textW) * 0.5f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
+        ImGui::TextUnformatted(hint);
         ImGui::PopStyleColor();
     }
 
