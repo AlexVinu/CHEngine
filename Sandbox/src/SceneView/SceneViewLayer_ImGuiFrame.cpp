@@ -140,20 +140,19 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         }
     });
 
-    // Profiler (tiled or free-floating depending on visibility)
+    // Profiler — in tiling, always draw (ignore m_ShowProfiler flag)
     drawIfVisible(PID::Profiler, [&]()
     {
         Sandbox::TileRect r = tiling.GetRect(PID::Profiler);
         if (r.valid)
         {
-            // Profiler has its own window management; just set pos/size hint
             ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
             ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
         }
         SceneViewLayerAccess::Profiler(layer).Draw(host);
     });
 
-    // UV Editor
+    // UV Editor — in tiling, always draw (ignore m_ShowUVEditor flag)
     drawIfVisible(PID::UVEditor, [&]()
     {
         Sandbox::TileRect r = tiling.GetRect(PID::UVEditor);
@@ -162,8 +161,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
             ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
             ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
         }
-        if (SceneViewLayerAccess::ShowUVEditor(layer))
-            SceneViewLayerAccess::UvEditor(layer).Draw(host);
+        SceneViewLayerAccess::UvEditor(layer).Draw(host);
     });
 
     // Scene Browser

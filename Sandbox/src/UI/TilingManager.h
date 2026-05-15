@@ -39,7 +39,13 @@ public:
     void ResetLayout();
 
     // Called from ShiftWMenu when user picks a panel to place
-    void StartGhostPlacement(PanelID id) { m_GhostPanel = id; m_DropTarget = {}; }
+    void StartGhostPlacement(PanelID id)
+    {
+        m_GhostPanel        = id;
+        m_DragFromPanel     = PanelID::None; // from popup, not title bar
+        m_GhostWaitingPlace = false;
+        m_DropTarget        = {};
+    }
 
     // True while user is dragging a new-panel ghost
     bool IsPlacingPanel() const { return m_GhostPanel != PanelID::None; }
@@ -60,7 +66,9 @@ private:
     ImVec2    m_WorkSize      = {0, 0};
 
     // ── Ghost placement state ─────────────────────────────────────────────────
-    PanelID    m_GhostPanel  = PanelID::None;
+    PanelID    m_GhostPanel        = PanelID::None;
+    PanelID    m_DragFromPanel     = PanelID::None; // set when dragging from title bar
+    bool       m_GhostWaitingPlace = false;         // skip first frame after popup click
     DropTarget m_DropTarget;
 
     // ── Shift+W popup ─────────────────────────────────────────────────────────

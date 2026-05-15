@@ -251,62 +251,136 @@ void TilingManager::DrawPanelOverlay(PanelID id)
 // ── Ghost placement ───────────────────────────────────────────────────────────
 void TilingManager::DrawGhost()
 {
+    // ── Detect title-bar drag → start ghost ──────────────────────────────────
+    // Check if LMB was just pressed in a panel title bar (outside close/collapse buttons)
+    if (m_GhostPanel == PanelID::None && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+    {
+        ImGuiIO& io2 = ImGui::GetIO();
+        for (int i = 1; i < static_cast<int>(PanelID::COUNT); ++i)
+        {
+            PanelID pid = static_cast<PanelID>(i);
+            if (!m_Layout.IsVisible(pid)) continue;
+            TileRect r = m_Layout.GetRect(pid);
+            if (!r.valid) continue;
+
+            // Title bar zone = top kOverlayH pixels of the panel
+            ImVec2 tbMin = r.pos;
+            ImVec2 tbMax = ImVec2(r.pos.x + r.size.x, r.pos.y + kOverlayH);
+
+            // Exclude right-side buttons area
+            float btnAreaX = r.pos.x + r.size.x - kOverlayH * 2.0f;
+
+            if (io2.MousePos.x >= tbMin.x && io2.MousePos.x < btnAreaX &&
+                io2.MousePos.y >= tbMin.y && io2.MousePos.y <= tbMax.y)
+            {
+                // Start dragging this panel
+                m_GhostPanel         = pid;
+                m_DragFromPanel      = pid;
+                m_GhostWaitingPlace  = false;
+                m_DropTarget         = {};
+                break;
+            }
+        }
+    }
+
     if (m_GhostPanel == PanelID::None) return;
 
     ImGuiIO& io = ImGui::GetIO();
     ImDrawList* dl = ImGui::GetForegroundDrawList();
 
-    // Update drop target
+    // Update drop target every frame
     m_DropTarget = m_Layout.HitTestDrop(io.MousePos);
 
-    // Draw drop preview zone
-    if (m_DropTarget.panel != PanelID::None && m_DropTarget.edge != DropEdge::Center
+    // ── Draw drop preview zone ────────────────────────────────────────────────
+    if (m_DropTarget.panel != PanelID::None
+        && m_DropTarget.panel != m_GhostPanel  // don't drop onto itself
+        && m_DropTarget.edge  != DropEdge::Center
         && m_DropTarget.previewRect.valid)
     {
         ImVec2 pMin = m_DropTarget.previewRect.pos;
         ImVec2 pMax = ImVec2(pMin.x + m_DropTarget.previewRect.size.x,
                              pMin.y + m_DropTarget.previewRect.size.y);
-        dl->AddRectFilled(pMin, pMax, IM_COL32(60, 120, 220, 60));
-        dl->AddRect(pMin, pMax, IM_COL32(60, 140, 255, 200), 0.0f, 0, 2.0f);
+        dl->AddRectFilled(pMin, pMax, IM_COL32(60, 120, 220, 55));
+        dl->AddRect(pMin, pMax, IM_COL32(80, 150, 255, 220), 0.0f, 0, 2.0f);
     }
 
-    // Ghost rectangle follows cursor
-    const ImVec2 ghostSize = {160.0f, 100.0f};
-    ImVec2 ghostMin = ImVec2(io.MousePos.x - ghostSize.x * 0.5f,
-                             io.MousePos.y - ghostSize.y * 0.5f);
-    ImVec2 ghostMax = ImVec2(ghostMin.x + ghostSize.x, ghostMin.y + ghostSize.y);
-    dl->AddRectFilled(ghostMin, ghostMax, IM_COL32(60, 120, 220, 80));
-    dl->AddRect(ghostMin, ghostMax, IM_COL32(100, 160, 255, 220), 4.0f, 0, 1.5f);
+    // ── Ghost rectangle follows cursor ────────────────────────────────────────
+    const ImVec2 ghostSize = {160.0f, 90.0f};
+    ImVec2 gMin = ImVec2(io.MousePos.x - ghostSize.x * 0.5f,
+                          io.MousePos.y - ghostSize.y * 0.5f);
+    ImVec2 gMax = ImVec2(gMin.x + ghostSize.x, gMin.y + ghostSize.y);
+    dl->AddRectFilled(gMin, gMax, IM_COL32(50, 110, 210, 70));
+    dl->AddRect(gMin, gMax, IM_COL32(100, 160, 255, 230), 5.0f, 0, 2.0f);
 
-    // Panel name label on ghost
+    // Panel label
     const char* name = PanelTitle(m_GhostPanel);
     ImVec2 textSz = ImGui::CalcTextSize(name);
-    dl->AddText(ImVec2(io.MousePos.x - textSz.x * 0.5f,
-                       io.MousePos.y - textSz.y * 0.5f),
-                IM_COL32(220, 230, 255, 255), name);
+    float tx = io.MousePos.x - textSz.x * 0.5f;
+    float ty = io.MousePos.y - textSz.y * 0.5f;
+    // Shadow
+    dl->AddText(ImVec2(tx+1, ty+1), IM_COL32(0,0,0,140), name);
+    dl->AddText(ImVec2(tx,   ty  ), IM_COL32(220, 235, 255, 255), name);
 
     ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
 
-    // Confirm placement on LMB release
-    if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+    // ── Confirm placement on LMB click (NOT the same click that started) ──────
+    // For "from popup" mode: m_GhostWaitingPlace = true means first click already used
+    // For "title-bar drag" mode: confirm on LMB RELEASE after dragging
+    bool confirm = false;
+    bool cancel  = false;
+
+    if (m_DragFromPanel != PanelID::None)
     {
-        if (m_DropTarget.panel != PanelID::None && m_DropTarget.edge != DropEdge::None)
+        // Title-bar drag: place on mouse release
+        if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            confirm = true;
+    }
+    else
+    {
+        // From popup: place on next LMB click anywhere on workspace
+        if (!m_GhostWaitingPlace)
+            m_GhostWaitingPlace = true;   // skip the frame of the popup click
+        else if (ImGui::IsMouseClicked(ImGuiMouseButton_Left)
+                 && !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+            confirm = true;
+    }
+
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right)
+        || ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+        cancel = true;
+
+    if (confirm)
+    {
+        if (m_DropTarget.panel != PanelID::None
+            && m_DropTarget.panel != m_GhostPanel
+            && m_DropTarget.edge  != DropEdge::None
+            && m_DropTarget.edge  != DropEdge::Center)
         {
+            // If dragging from title bar: remove from old position first
+            if (m_DragFromPanel != PanelID::None)
+                m_Layout.ClosePanel(m_DragFromPanel);
+
             m_Layout.InsertPanel(m_GhostPanel, m_DropTarget.panel, m_DropTarget.edge);
             m_Layout.ComputeRects();
             m_LayoutChanged = true;
             m_Layout.Save(m_SavePath);
         }
-        m_GhostPanel = PanelID::None;
-        m_DropTarget = {};
+        else if (m_DragFromPanel != PanelID::None)
+        {
+            // Dropped nowhere useful — panel stays where it was (already in layout)
+            // nothing to do
+        }
+        m_GhostPanel        = PanelID::None;
+        m_DragFromPanel     = PanelID::None;
+        m_GhostWaitingPlace = false;
+        m_DropTarget        = {};
     }
-
-    // Cancel on RMB or Escape
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Right) ||
-        ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    else if (cancel)
     {
-        m_GhostPanel = PanelID::None;
-        m_DropTarget = {};
+        m_GhostPanel        = PanelID::None;
+        m_DragFromPanel     = PanelID::None;
+        m_GhostWaitingPlace = false;
+        m_DropTarget        = {};
     }
 }
 
