@@ -3,6 +3,9 @@
 #include <Profiler.h>
 
 #include <imgui.h>
+#include <algorithm>
+#include <cstring>
+#include <vector>
 
 #include <algorithm>
 #include <cstring>
@@ -110,6 +113,78 @@ void ProfilerPanel::Draw(SceneViewLayerHost& host)
         ImGui::EndTable();
     }
 
+    ImGui::End();
+}
+
+void ProfilerPanel::DrawInPanel(SceneViewLayerHost& /*host*/)
+{
+    // Tiling mode: window pos/size set externally, open unconditionally
+    if (!ImGui::Begin("Profiler"))
+    {
+        ImGui::End();
+        return;
+    }
+
+    float fps = ImGui::GetIO().Framerate;
+    float ms  = 1000.0f / (fps > 0.0f ? fps : 1.0f);
+    ImGui::Text("%.0f fps  (%.2f ms)", fps, ms);
+    ImGui::SameLine(0, 16);
+    if (ImGui::Button("Reset"))
+        CHEngine::Profiler::Reset();
+    ImGui::SameLine();
+    ImGui::TextDisabled("(F3 to toggle)");
+
+    const auto& stats = CHEngine::Profiler::GetFrameStats();
+
+    if (ImGui::BeginTable("##profiler_tbl", 5,
+        ImGuiTableFlags_Sortable | ImGuiTableFlags_RowBg |
+        ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_ScrollY |
+        ImGuiTableFlags_Resizable))
+    {
+        ImGui::TableSetupScrollFreeze(0, 1);
+        ImGui::TableSetupColumn("Name",     ImGuiTableColumnFlags_DefaultSort,          0.f, 0);
+        ImGui::TableSetupColumn("Calls",    ImGuiTableColumnFlags_PreferSortDescending, 0.f, 1);
+        ImGui::TableSetupColumn("Total ms", ImGuiTableColumnFlags_PreferSortDescending, 0.f, 2);
+        ImGui::TableSetupColumn("Avg ms",   ImGuiTableColumnFlags_PreferSortDescending, 0.f, 3);
+        ImGui::TableSetupColumn("Max ms",   ImGuiTableColumnFlags_PreferSortDescending, 0.f, 4);
+        ImGui::TableHeadersRow();
+
+        struct E { const char* name; int calls; double tot, avg, max; };
+        std::vector<E> entries;
+        entries.reserve(stats.size());
+        for (auto& [n, s] : stats)
+        {
+            double a = s.calls > 0 ? s.totalMs / s.calls : 0.0;
+            entries.push_back({ n, s.calls, s.totalMs, a, s.maxMs });
+        }
+        if (auto* sp = ImGui::TableGetSortSpecs(); sp && sp->SpecsDirty && !entries.empty())
+        {
+            int col = sp->Specs[0].ColumnIndex;
+            bool asc = sp->Specs[0].SortDirection == ImGuiSortDirection_Ascending;
+            std::sort(entries.begin(), entries.end(), [col, asc](const E& a, const E& b){
+                bool lt = false;
+                switch (col) {
+                case 0: lt = strcmp(a.name,b.name)<0; break;
+                case 1: lt = a.calls<b.calls; break;
+                case 2: lt = a.tot<b.tot; break;
+                case 3: lt = a.avg<b.avg; break;
+                case 4: lt = a.max<b.max; break;
+                }
+                return asc ? lt : !lt;
+            });
+            sp->SpecsDirty = false;
+        }
+        for (auto& e : entries)
+        {
+            ImGui::TableNextRow();
+            ImGui::TableSetColumnIndex(0); ImGui::TextUnformatted(e.name);
+            ImGui::TableSetColumnIndex(1); ImGui::Text("%d",    e.calls);
+            ImGui::TableSetColumnIndex(2); ImGui::Text("%.3f",  e.tot);
+            ImGui::TableSetColumnIndex(3); ImGui::Text("%.3f",  e.avg);
+            ImGui::TableSetColumnIndex(4); ImGui::Text("%.3f",  e.max);
+        }
+        ImGui::EndTable();
+    }
     ImGui::End();
 }
 

@@ -130,7 +130,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         }
     });
 
-    // Profiler — in tiling, always draw (ignore m_ShowProfiler flag)
+    // Profiler — in tiling, always draw regardless of m_ShowProfiler flag
     drawIfVisible(PID::Profiler, [&]()
     {
         Sandbox::TileRect r = tiling.GetRect(PID::Profiler);
@@ -139,7 +139,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
             ImGui::SetNextWindowPos(r.pos, ImGuiCond_Always);
             ImGui::SetNextWindowSize(r.size, ImGuiCond_Always);
         }
-        SceneViewLayerAccess::Profiler(layer).Draw(host);
+        SceneViewLayerAccess::Profiler(layer).DrawInPanel(host);
     });
 
     // UV Editor — in tiling, always draw (ignore m_ShowUVEditor flag)
