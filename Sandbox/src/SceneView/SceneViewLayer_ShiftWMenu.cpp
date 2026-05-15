@@ -2,6 +2,7 @@
 
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
+#include "EditorPopupState.h"
 #include "TilingManager.h"
 #include "UIThemeRetroOS.h"
 
@@ -9,7 +10,6 @@
 
 namespace SceneViewLayerShiftWMenu {
 
-static bool   s_Open = false;
 static ImVec2 s_Pos;
 
 static const ImGuiWindowFlags kFlags =
@@ -25,25 +25,27 @@ void Draw(SceneViewLayer& layer)
 {
     Sandbox::TilingManager& tiling = SceneViewLayerAccess::Tiling(layer);
 
-    // Open on Shift+W (anywhere in the editor, not just viewport)
+    // Open on Shift+W
     if (!ImGui::GetIO().WantTextInput)
     {
         ImGuiIO& io = ImGui::GetIO();
         if (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_W, false))
         {
-            s_Open = !s_Open;   // toggle
-            s_Pos  = ImGui::GetMousePos();
+            if (EditorPopup::IsOpen(EditorPopup::ID::ShiftW))
+                EditorPopup::Close();          // toggle off
+            else
+            {
+                EditorPopup::Open(EditorPopup::ID::ShiftW); // closes any other popup
+                s_Pos = ImGui::GetMousePos();
+            }
         }
     }
 
-    if (!s_Open) return;
+    if (!EditorPopup::IsOpen(EditorPopup::ID::ShiftW))
+        return;
 
     if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
-    { s_Open = false; return; }
-
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-        !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
-    { s_Open = false; return; }
+    { EditorPopup::Close(); return; }
 
     ImGui::SetNextWindowPos(s_Pos, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.97f);
@@ -53,15 +55,24 @@ void Draw(SceneViewLayer& layer)
     ImGui::Begin("##shift_w_menu", nullptr, kFlags);
     ImGui::PopStyleVar(3);
 
+    // Click outside THIS popup window → close
+    {
+        ImVec2 wPos  = ImGui::GetWindowPos();
+        ImVec2 wSize = ImGui::GetWindowSize();
+        ImGuiIO& io  = ImGui::GetIO();
+        bool outside = io.MousePos.x < wPos.x || io.MousePos.x > wPos.x + wSize.x ||
+                       io.MousePos.y < wPos.y || io.MousePos.y > wPos.y + wSize.y;
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && outside)
+        { EditorPopup::Close(); ImGui::End(); return; }
+    }
+
     const float w = 170.0f;
 
     UIThemeRetro::PushHeadingFont();
     ImGui::TextDisabled("Add Window  [Shift+W]");
     UIThemeRetro::PopFont();
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 5.0f));
 
@@ -71,7 +82,7 @@ void Draw(SceneViewLayer& layer)
         { Sandbox::PanelID::Inspector,      "Inspector"      },
         { Sandbox::PanelID::Properties,     "Properties"     },
         { Sandbox::PanelID::ContentBrowser, "Content Browser"},
-        { Sandbox::PanelID::None,           nullptr          }, // separator
+        { Sandbox::PanelID::None,           nullptr          },
         { Sandbox::PanelID::Profiler,       "Profiler"       },
         { Sandbox::PanelID::UVEditor,       "UV Editor"      },
         { Sandbox::PanelID::SceneBrowser,   "Scene Browser"  },
@@ -91,12 +102,10 @@ void Draw(SceneViewLayer& layer)
         snprintf(buf, sizeof(buf), "  %s%s", e.label, inLayout ? "  (open)" : "");
 
         if (ImGui::Selectable(buf, false,
-            inLayout ? ImGuiSelectableFlags_Disabled : 0,
-            ImVec2(w, 0)))
+            inLayout ? ImGuiSelectableFlags_Disabled : 0, ImVec2(w, 0)))
         {
-            // Start ghost drag in TilingManager
             tiling.StartGhostPlacement(e.id);
-            s_Open = false;
+            EditorPopup::Close();
         }
 
         if (inLayout) ImGui::PopStyleColor();

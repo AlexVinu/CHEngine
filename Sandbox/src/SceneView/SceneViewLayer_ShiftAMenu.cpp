@@ -3,13 +3,13 @@
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 #include "SceneViewLayerHost.h"
+#include "EditorPopupState.h"
 #include "UIThemeRetroOS.h"
 
 #include <imgui.h>
 
 namespace SceneViewLayerShiftAMenu {
 
-static bool   s_Open = false;
 static ImVec2 s_Pos;
 
 static const ImGuiWindowFlags kFlags =
@@ -26,22 +26,23 @@ void Draw(SceneViewLayer& layer)
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(layer);
     EditorWorldContext& ctx = SceneViewLayerAccess::Active(layer);
 
+    // Open on Shift+A (viewport hovered, edit mode)
     if (viewport.IsViewportHovered() && ctx.SessionState == SceneSession::State::Edit)
     {
         ImGuiIO& io = ImGui::GetIO();
         if (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_A, false))
         {
-            s_Open = true;
-            s_Pos  = ImGui::GetMousePos();
+            EditorPopup::Open(EditorPopup::ID::ShiftA); // closes any other popup
+            s_Pos = ImGui::GetMousePos();
         }
     }
 
-    if (!s_Open)
+    if (!EditorPopup::IsOpen(EditorPopup::ID::ShiftA))
         return;
 
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))       { s_Open = false; return; }
-    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
-        !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)) { s_Open = false; return; }
+    // Escape always closes
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    { EditorPopup::Close(); return; }
 
     ImGui::SetNextWindowPos(s_Pos, ImGuiCond_Always);
     ImGui::SetNextWindowBgAlpha(0.97f);
@@ -50,6 +51,17 @@ void Draw(SceneViewLayer& layer)
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing,    ImVec2(8.0f, 3.0f));
     ImGui::Begin("##shift_a_menu", nullptr, kFlags);
     ImGui::PopStyleVar(3);
+
+    // Click outside THIS popup window → close
+    {
+        ImVec2 wPos  = ImGui::GetWindowPos();
+        ImVec2 wSize = ImGui::GetWindowSize();
+        ImGuiIO& io  = ImGui::GetIO();
+        bool outside = io.MousePos.x < wPos.x || io.MousePos.x > wPos.x + wSize.x ||
+                       io.MousePos.y < wPos.y || io.MousePos.y > wPos.y + wSize.y;
+        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && outside)
+        { EditorPopup::Close(); ImGui::End(); return; }
+    }
 
     SceneViewLayerHost host(layer);
     const float w = 150.0f;
@@ -60,13 +72,11 @@ void Draw(SceneViewLayer& layer)
     UIThemeRetro::PopFont();
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
-    if (ImGui::Selectable("  Cube",   false, 0, ImVec2(w, 0))) { host.AddCubePrimitive();   s_Open = false; }
-    if (ImGui::Selectable("  Sphere", false, 0, ImVec2(w, 0))) { host.AddSpherePrimitive(); s_Open = false; }
+    if (ImGui::Selectable("  Cube",   false, 0, ImVec2(w, 0))) { host.AddCubePrimitive();   EditorPopup::Close(); }
+    if (ImGui::Selectable("  Sphere", false, 0, ImVec2(w, 0))) { host.AddSpherePrimitive(); EditorPopup::Close(); }
     ImGui::PopStyleVar();
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
     // ── Light ─────────────────────────────────────────────────────────────────
     UIThemeRetro::PushHeadingFont();
@@ -74,25 +84,21 @@ void Draw(SceneViewLayer& layer)
     UIThemeRetro::PopFont();
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
-    if (ImGui::Selectable("  Point",       false, 0, ImVec2(w, 0))) { host.AddPointLight();       s_Open = false; }
-    if (ImGui::Selectable("  Directional", false, 0, ImVec2(w, 0))) { host.AddDirectionalLight(); s_Open = false; }
-    if (ImGui::Selectable("  Spot",        false, 0, ImVec2(w, 0))) { host.AddSpotLight();        s_Open = false; }
+    if (ImGui::Selectable("  Point",       false, 0, ImVec2(w, 0))) { host.AddPointLight();       EditorPopup::Close(); }
+    if (ImGui::Selectable("  Directional", false, 0, ImVec2(w, 0))) { host.AddDirectionalLight(); EditorPopup::Close(); }
+    if (ImGui::Selectable("  Spot",        false, 0, ImVec2(w, 0))) { host.AddSpotLight();        EditorPopup::Close(); }
     ImGui::PopStyleVar();
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
     // ── Camera ────────────────────────────────────────────────────────────────
-    if (ImGui::Selectable("  Camera", false, 0, ImVec2(w, 0))) { host.AddCameraEntity(); s_Open = false; }
+    if (ImGui::Selectable("  Camera", false, 0, ImVec2(w, 0))) { host.AddCameraEntity(); EditorPopup::Close(); }
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::Spacing();
+    ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
     // ── Empty ─────────────────────────────────────────────────────────────────
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
-    if (ImGui::Selectable("  Empty Entity", false, 0, ImVec2(w, 0))) { host.AddEmptyEntity(); s_Open = false; }
+    if (ImGui::Selectable("  Empty Entity", false, 0, ImVec2(w, 0))) { host.AddEmptyEntity(); EditorPopup::Close(); }
     ImGui::PopStyleVar();
 
     ImGui::End();
