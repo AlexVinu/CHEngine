@@ -147,10 +147,12 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
         ComputeNode(node->childA.get(), pos, ImVec2(a, size.y));
         {
             SeparatorHit sep;
-            sep.node       = node;
-            sep.isVertical = true;
-            sep.p0 = ImVec2(pos.x + a, pos.y);
-            sep.p1 = ImVec2(pos.x + a + kSeparatorW, pos.y + size.y);
+            sep.node         = node;
+            sep.isVertical   = true;
+            sep.p0           = ImVec2(pos.x + a, pos.y);
+            sep.p1           = ImVec2(pos.x + a + kSeparatorW, pos.y + size.y);
+            sep.parentSpan   = size.x - kSeparatorW;  // available width (excl. separator)
+            sep.parentOrigin = pos.x;
             m_Separators.push_back(sep);
         }
         ComputeNode(node->childB.get(), ImVec2(pos.x + a + kSeparatorW, pos.y),
@@ -174,10 +176,12 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
         ComputeNode(node->childA.get(), pos, ImVec2(size.x, a));
         {
             SeparatorHit sep;
-            sep.node       = node;
-            sep.isVertical = false;
-            sep.p0 = ImVec2(pos.x, pos.y + a);
-            sep.p1 = ImVec2(pos.x + size.x, pos.y + a + kSeparatorW);
+            sep.node         = node;
+            sep.isVertical   = false;
+            sep.p0           = ImVec2(pos.x, pos.y + a);
+            sep.p1           = ImVec2(pos.x + size.x, pos.y + a + kSeparatorW);
+            sep.parentSpan   = size.y - kSeparatorW;  // available height (excl. separator)
+            sep.parentOrigin = pos.y;
             m_Separators.push_back(sep);
         }
         ComputeNode(node->childB.get(), ImVec2(pos.x, pos.y + a + kSeparatorW),

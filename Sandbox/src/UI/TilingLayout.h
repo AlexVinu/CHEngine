@@ -98,9 +98,12 @@ public:
     // ── Separator hit-testing ─────────────────────────────────────────────────
     // Returns separator node and whether drag is along X (vertical sep) or Y
     struct SeparatorHit {
-        TileNode* node = nullptr;
-        bool      isVertical = false; // true → horizontal drag changes ratio
-        ImVec2    p0, p1;             // separator line endpoints
+        TileNode* node       = nullptr;
+        bool      isVertical = false;  // true → drag horizontally (left|right split)
+        ImVec2    p0, p1;              // separator rect corners
+        float     parentSpan = 0.0f;  // total available size along the drag axis
+                                       // (parent node width for V-split, height for H-split)
+        float     parentOrigin = 0.0f;// left (V) or top (H) edge of parent node
     };
     std::vector<SeparatorHit> GetSeparators() const;
 

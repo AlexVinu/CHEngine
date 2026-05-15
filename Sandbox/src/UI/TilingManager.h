@@ -60,12 +60,14 @@ private:
     bool         m_LayoutChanged = false;
 
     // ── Separator drag state ──────────────────────────────────────────────────
-    TileNode* m_DragNode      = nullptr;
-    bool      m_DragVertical  = false;
-    ImVec2    m_DragStart     = {0, 0};
-    float     m_DragStartRatio= 0.0f;
-    ImVec2    m_DragLineP0    = {0, 0};
-    ImVec2    m_DragLineP1    = {0, 0};
+    TileNode* m_DragNode        = nullptr;
+    bool      m_DragVertical    = false;
+    ImVec2    m_DragStart       = {0, 0};
+    float     m_DragStartRatio  = 0.0f;
+    float     m_DragParentSpan  = 1.0f;   // available size along drag axis (no separator)
+    float     m_DragParentOrigin= 0.0f;   // left (V) or top (H) edge of parent node
+    ImVec2    m_DragLineP0      = {0, 0};
+    ImVec2    m_DragLineP1      = {0, 0};
     ImVec2    m_WorkPos       = {0, 0};
     ImVec2    m_WorkSize      = {0, 0};
 

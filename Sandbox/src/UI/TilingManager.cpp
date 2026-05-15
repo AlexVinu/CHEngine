@@ -89,12 +89,14 @@ void TilingManager::DrawSeparators()
         // Start drag
         if (hovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !m_DragNode)
         {
-            m_DragNode       = sep.node;
-            m_DragVertical   = isV;
-            m_DragStart      = io.MousePos;
-            m_DragStartRatio = sep.node->ratio;
-            m_DragLineP0     = p0;
-            m_DragLineP1     = p1;
+            m_DragNode         = sep.node;
+            m_DragVertical     = isV;
+            m_DragStart        = io.MousePos;
+            m_DragStartRatio   = sep.node->ratio;
+            m_DragParentSpan   = sep.parentSpan;
+            m_DragParentOrigin = sep.parentOrigin;
+            m_DragLineP0       = p0;
+            m_DragLineP1       = p1;
         }
 
         // Active drag
@@ -102,61 +104,34 @@ void TilingManager::DrawSeparators()
         {
             if (ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
-                // Compute new ratio
-                float delta, total;
+                // Correct formula:
+                // newRatio = (mousePos - parentOrigin) / parentSpan
+                // This directly maps the separator position to a ratio,
+                // regardless of nesting depth or workspace size.
+                float newRatio;
                 if (isV)
                 {
-                    delta = io.MousePos.x - m_DragStart.x;
-                    total = m_WorkSize.x; // approximate
-                    // find actual total from sep positions
-                    total = p1.y - p0.y; // for vertical sep, height is constant
-                    // actual width = derived from layout
-                    // simple: use delta in pixels / parent width
-                    // get parent width from the separator endpoints
-                    // We don't have direct access; use stored line coords
-                    float parentW = m_WorkSize.x; // fallback
-                    // Better: estimate from current rect
-                    float curX = m_DragLineP0.x;
-                    // Find approximate parent node width
-                    // Walk separators to find this specific one
-                    for (auto& s2 : seps)
-                    {
-                        if (s2.node == sep.node && s2.isVertical)
-                        {
-                            // parent width ≈ distance between childA start and childB end
-                            // We can approximate with work size
-                            parentW = m_WorkSize.x;
-                            break;
-                        }
-                    }
-                    float newRatio = m_DragStartRatio + delta / (parentW * m_DragStartRatio * 2.0f + 1.0f);
-                    // Simpler: just track pixel delta relative to line
-                    // Ratio change = delta / (available_width)
-                    // available_width ≈ (p1 - p0) if horizontal, else use work dims
-                    // For vertical separator, available width is the parent node's width
-                    // We approximate: use the layout's stored ratio and invert
-                    newRatio = m_DragStartRatio + delta / m_WorkSize.x;
-                    m_Layout.UpdateRatio(m_DragNode, newRatio);
-                    m_Layout.SetWorkArea(m_WorkPos, m_WorkSize);
-                    m_Layout.ComputeRects();
-                    m_LayoutChanged = true;
+                    float sepX   = m_DragLineP0.x + (io.MousePos.x - m_DragStart.x);
+                    float childA = sepX - m_DragParentOrigin;
+                    newRatio = childA / ImMax(m_DragParentSpan, 1.0f);
                 }
                 else
                 {
-                    delta = io.MousePos.y - m_DragStart.y;
-                    float newRatio = m_DragStartRatio + delta / m_WorkSize.y;
-                    m_Layout.UpdateRatio(m_DragNode, newRatio);
-                    m_Layout.SetWorkArea(m_WorkPos, m_WorkSize);
-                    m_Layout.ComputeRects();
-                    m_LayoutChanged = true;
+                    float sepY   = m_DragLineP0.y + (io.MousePos.y - m_DragStart.y);
+                    float childA = sepY - m_DragParentOrigin;
+                    newRatio = childA / ImMax(m_DragParentSpan, 1.0f);
                 }
 
-                // Change cursor
+                m_Layout.UpdateRatio(m_DragNode, newRatio);
+                m_Layout.SetWorkArea(m_WorkPos, m_WorkSize);
+                m_Layout.ComputeRects();
+                m_LayoutChanged = true;
+
                 ImGui::SetMouseCursor(isV ? ImGuiMouseCursor_ResizeEW : ImGuiMouseCursor_ResizeNS);
             }
             else
             {
-                m_DragNode = nullptr; // release
+                m_DragNode = nullptr;
                 m_Layout.Save(m_SavePath);
             }
         }
