@@ -564,8 +564,20 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
         return;
     }
 
-    // Extract outermost JSON object from response
+    // Strip markdown code fences (```json ... ``` or ``` ... ```)
     std::string json = raw;
+    {
+        size_t fence = json.find("```");
+        if (fence != std::string::npos) {
+            size_t start = json.find('\n', fence);
+            if (start != std::string::npos) ++start;
+            else start = fence + 3;
+            size_t end = json.rfind("```");
+            if (end != std::string::npos && end > start)
+                json = json.substr(start, end - start);
+        }
+    }
+    // Extract outermost JSON object
     {
         size_t s = json.find('{'), e = json.rfind('}');
         if (s != std::string::npos && e != std::string::npos && e > s)

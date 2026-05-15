@@ -64,7 +64,7 @@ private:
     // API settings
     std::string m_ApiKey   = "b5e9ffdfdfd14c26bce58d680d33253e.2BLBP_ZahuBqLflPqnhqQ7v3";
     std::string m_Endpoint = "https://ollama.com/v1/chat/completions";
-    std::string m_Model    = "gemma3:12b";
+    std::string m_Model    = "gemma4:31b";
 
     // Settings panel state
     bool m_ShowSettings = false;
