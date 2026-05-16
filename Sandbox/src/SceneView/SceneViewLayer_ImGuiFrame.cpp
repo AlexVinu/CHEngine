@@ -156,8 +156,13 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         SceneViewLayerAccess::UvEditor(layer).Draw(host);
     });
 
-    // Scene Browser — floating window, not a tiled panel
-    SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
+    // Scene Browser — floating window, drawn outside tiling.
+    // It is listed in Shift+W popup but intentionally rendered as a floating overlay,
+    // NOT as a tiled panel. If placed into tiling via drag, the tile slot will be empty
+    // (SceneBrowser draws itself floating regardless). This is by design — the scene
+    // browser is a modal-style picker, not a dockable panel.
+    if (!tiling.IsVisible(PID::SceneBrowser))
+        SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
 
     // Script Editor — DrawInPanel() always shows window + hint when no file
     drawIfVisible(PID::ScriptEditor, [&]()
@@ -186,12 +191,15 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
                 std::string path = hasScript
                     ? selEnt->GetComponent<CHEngine::ScriptComponent>().ScriptPath : "";
 
+                // Capture &layer (long-lived) instead of &host (local/frame-scoped)
                 scriptEditor.SetEntityContext(name, hasScript, path,
-                    [&host, selHandle, name]() {
-                        host.CreateAndAttachScript(selHandle, name);
+                    [&layer, selHandle, name]() {
+                        Sandbox::SceneViewLayerHost h(layer);
+                        h.CreateAndAttachScript(selHandle, name);
                     },
-                    [&host, path]() {
-                        host.OpenScriptInEditor(path);
+                    [&layer, path]() {
+                        Sandbox::SceneViewLayerHost h(layer);
+                        h.OpenScriptInEditor(path);
                     });
             }
             else
@@ -237,14 +245,14 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         // Detect double-tap Z — ignore when typing in any text input
         if (!ImGui::GetIO().WantTextInput)
         {
-            static float s_LastZTime = -1.0f;
+            static double s_LastZTime = -1.0; // double avoids float overflow in long sessions
             if (ImGui::IsKeyPressed(ImGuiKey_Z, false))
             {
-                float now = (float)ImGui::GetTime();
-                if (now - s_LastZTime < 0.35f)
+                double now = ImGui::GetTime();
+                if (now - s_LastZTime < 0.35)
                 {
                     globalAi.Toggle();
-                    s_LastZTime = -1.0f;
+                    s_LastZTime = -1.0;
                 }
                 else
                 {

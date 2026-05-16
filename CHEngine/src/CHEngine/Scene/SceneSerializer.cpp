@@ -281,7 +281,13 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             }
             else if (meshPath == ":primitive:sphere")
             {
-                Mesh sphereMesh = PrimitiveMeshFactory::CreateSphere(0.5f, 32, 24, { 0.6f, 0.7f, 0.9f });
+                // Use impostor mesh (same as SceneViewLayerHost::AddSpherePrimitive)
+                // The sphere impostor shader is applied by the Sandbox after loading.
+                // Using GetSphereImpostorShader() here is not possible (engine layer),
+                // so we keep the default shader as a placeholder — it will be visually
+                // wrong until the Sandbox can re-bind the correct shader post-load.
+                // TODO: move sphere shader binding to a post-load fixup in Sandbox.
+                Mesh sphereMesh = PrimitiveMeshFactory::CreateSphereImpostor({ 0.6f, 0.7f, 0.9f });
                 sphereMesh.Mat = MaterialInstance::FromBase(
                     std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
                 importedMeshes.push_back(std::move(sphereMesh));
@@ -477,6 +483,18 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
         } else if (obj->HasComponent<RigidBody3DComponent>()) {
             obj->RemoveComponent<RigidBody3DComponent>();
         }
+
+        // Script component
+        if (o.contains("script") && o["script"].is_object()) {
+            const auto& sj = o["script"];
+            std::string scriptPath = sj.value("path", "");
+            bool enabled = sj.value("enabled", true);
+            if (!scriptPath.empty()) {
+                if (obj->HasComponent<ScriptComponent>())
+                    obj->RemoveComponent<ScriptComponent>();
+                obj->AddComponent<ScriptComponent>(ScriptComponent{ scriptPath, enabled });
+            }
+        }
     }
 
     return true;
@@ -522,20 +540,27 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
             o["meshPath"] = meshComp.SourcePath;
 
             json materials = json::array();
-            for (auto& meshItem : meshComp.Meshes)
+            for (const auto& meshItem : meshComp.Meshes)
             {
-                if (!meshItem.Mat)
-                    meshItem.Mat = MaterialInstance::FromBase(
-                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                // Do NOT mutate meshItem.Mat during serialization (would modify scene data).
                 json matObj;
-                matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
-                matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
-                matObj["shininess"]     = meshItem.Mat->Shininess;
-                matObj["specularScale"] = meshItem.Mat->SpecularScale;
-                matObj["roughness"]     = meshItem.Mat->Roughness;
-                matObj["metallic"]      = meshItem.Mat->Metallic;
-                matObj["ao"]            = meshItem.Mat->AO;
-                matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
+                if (meshItem.Mat) {
+                    matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
+                    matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
+                    matObj["shininess"]     = meshItem.Mat->Shininess;
+                    matObj["specularScale"] = meshItem.Mat->SpecularScale;
+                    matObj["roughness"]     = meshItem.Mat->Roughness;
+                    matObj["metallic"]      = meshItem.Mat->Metallic;
+                    matObj["ao"]            = meshItem.Mat->AO;
+                    matObj["usePBR"]        = meshItem.Mat->GetMaterial()
+                                              ? (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0
+                                              : false;
+                } else {
+                    matObj["diffusePath"] = ""; matObj["specularPath"] = "";
+                    matObj["shininess"] = 32.0f; matObj["specularScale"] = 1.0f;
+                    matObj["roughness"] = 0.5f;  matObj["metallic"] = 0.0f;
+                    matObj["ao"] = 1.0f;          matObj["usePBR"] = false;
+                }
                 materials.push_back(matObj);
             }
             o["materials"] = materials;
@@ -552,7 +577,15 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
             light["outerCone"] = lightData.OuterCone;
             o["light"] = light;
         }
-        if (entity->HasComponent<RigidBody3DComponent>())
+        if (entity->HasComponent<ScriptComponent>())
+        {
+            const auto& sc = entity->GetComponent<ScriptComponent>();
+            json script;
+            script["path"]    = sc.ScriptPath;
+            script["enabled"] = sc.Enabled;
+            o["script"] = script;
+        }
+                if (entity->HasComponent<RigidBody3DComponent>())
             o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
 
         if (entity->HasComponent<CameraComponent>())
@@ -650,20 +683,27 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
             o["meshPath"] = meshComp.SourcePath;
 
             json materials = json::array();
-            for (auto& meshItem : meshComp.Meshes)
+            for (const auto& meshItem : meshComp.Meshes)
             {
-                if (!meshItem.Mat)
-                    meshItem.Mat = MaterialInstance::FromBase(
-                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                // Do NOT mutate meshItem.Mat during serialization (would modify scene data).
                 json matObj;
-                matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
-                matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
-                matObj["shininess"]     = meshItem.Mat->Shininess;
-                matObj["specularScale"] = meshItem.Mat->SpecularScale;
-                matObj["roughness"]     = meshItem.Mat->Roughness;
-                matObj["metallic"]      = meshItem.Mat->Metallic;
-                matObj["ao"]            = meshItem.Mat->AO;
-                matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
+                if (meshItem.Mat) {
+                    matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
+                    matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
+                    matObj["shininess"]     = meshItem.Mat->Shininess;
+                    matObj["specularScale"] = meshItem.Mat->SpecularScale;
+                    matObj["roughness"]     = meshItem.Mat->Roughness;
+                    matObj["metallic"]      = meshItem.Mat->Metallic;
+                    matObj["ao"]            = meshItem.Mat->AO;
+                    matObj["usePBR"]        = meshItem.Mat->GetMaterial()
+                                              ? (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0
+                                              : false;
+                } else {
+                    matObj["diffusePath"] = ""; matObj["specularPath"] = "";
+                    matObj["shininess"] = 32.0f; matObj["specularScale"] = 1.0f;
+                    matObj["roughness"] = 0.5f;  matObj["metallic"] = 0.0f;
+                    matObj["ao"] = 1.0f;          matObj["usePBR"] = false;
+                }
                 materials.push_back(matObj);
             }
             o["materials"] = materials;
@@ -680,7 +720,15 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
             light["outerCone"] = lightData.OuterCone;
             o["light"] = light;
         }
-        if (entity->HasComponent<RigidBody3DComponent>())
+        if (entity->HasComponent<ScriptComponent>())
+        {
+            const auto& sc = entity->GetComponent<ScriptComponent>();
+            json script;
+            script["path"]    = sc.ScriptPath;
+            script["enabled"] = sc.Enabled;
+            o["script"] = script;
+        }
+                if (entity->HasComponent<RigidBody3DComponent>())
             o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
 
         if (entity->HasComponent<CameraComponent>())

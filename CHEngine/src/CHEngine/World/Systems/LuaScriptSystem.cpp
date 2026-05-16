@@ -131,8 +131,12 @@ struct ScriptEntity
 
     void SetColor(float r, float g, float b, float a) const
     {
-        if (auto* e = GetEntity(); e && e->HasComponent<ColorComponent>())
-            e->GetComponent<ColorComponent>().Color = { r, g, b, a };
+        auto* e = GetEntity();
+        if (!e) return;
+        // Add ColorComponent if missing (mirrors editor behaviour)
+        if (!e->HasComponent<ColorComponent>())
+            e->AddComponent<ColorComponent>();
+        e->GetComponent<ColorComponent>().Color = { r, g, b, a };
     }
 };
 

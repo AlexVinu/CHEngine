@@ -71,25 +71,35 @@ std::string GlobalAiOverlay::JsonField(const std::string& json, const std::strin
 // ─────────────────────────────────────────────────────────────────────────────
 GlobalAiOverlay::GlobalAiOverlay()
 {
-    Message welcome;
-    welcome.isUser = false;
-    welcome.text   =
+    // Load settings from environment variables (override defaults)
+    // Set in terminal: export CHE_AI_API_KEY=your_key
+    //                  export CHE_AI_ENDPOINT=https://ollama.com/v1/chat/completions
+    //                  export CHE_AI_MODEL=gemma4:31b
+    if (const char* key = std::getenv("CHE_AI_API_KEY"))   m_ApiKey   = key;
+    if (const char* ep  = std::getenv("CHE_AI_ENDPOINT"))  m_Endpoint = ep;
+    if (const char* mdl = std::getenv("CHE_AI_MODEL"))     m_Model    = mdl;
+
+    std::strncpy(m_EndpointBuf, m_Endpoint.c_str(), sizeof(m_EndpointBuf) - 1);
+    std::strncpy(m_ModelBuf,    m_Model.c_str(),    sizeof(m_ModelBuf)    - 1);
+
+    std::string welcomeText =
         "Привет! Я помогу настроить рабочее пространство.\n\n"
         "Примеры:\n"
         "• \"Добавь куб\"\n"
         "• \"Буду работать над скриптами объекта Cube\"\n"
         "• \"Хочу работать с текстурами\"\n"
         "• \"Верни стандартный layout\"";
-    m_Messages.push_back(welcome);
 
-    std::strncpy(m_EndpointBuf, m_Endpoint.c_str(), sizeof(m_EndpointBuf) - 1);
-    std::strncpy(m_ModelBuf,    m_Model.c_str(),    sizeof(m_ModelBuf)    - 1);
+    if (m_ApiKey.empty())
+        welcomeText += "\n\n⚠ Установи переменную среды CHE_AI_API_KEY или введи ключ в ⚙ cfg";
+
+    m_Messages.push_back({ false, welcomeText });
 }
 
 GlobalAiOverlay::~GlobalAiOverlay()
 {
     if (m_Worker.joinable())
-        m_Worker.detach();
+        m_Worker.join(); // join (not detach) — prevents use-after-free of *this
 }
 
 void GlobalAiOverlay::Toggle()
@@ -203,7 +213,8 @@ static std::string GetScriptTemplate(const std::string& name)
 // JSON array parser helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Extract each {...} object from "key": [...] array
+// Extract each {...} object from "key": [...] array.
+// Correctly skips {} and [] inside string literals so keys/values with braces don't confuse the parser.
 static std::vector<std::string> ParseJsonActionsArray(const std::string& json)
 {
     std::vector<std::string> result;
@@ -213,11 +224,30 @@ static std::vector<std::string> ParseJsonActionsArray(const std::string& json)
     while (pos < json.size() && json[pos] != '[') ++pos;
     if (pos >= json.size()) return result;
     ++pos;
-    int depth = 0; size_t start = std::string::npos;
+
+    int depth = 0;
+    size_t start = std::string::npos;
+    bool inStr = false;
+
     for (size_t i = pos; i < json.size(); ++i) {
-        if      (json[i] == '{') { if (!depth) start = i; ++depth; }
-        else if (json[i] == '}') { --depth; if (!depth && start != std::string::npos) { result.push_back(json.substr(start, i-start+1)); start = std::string::npos; } }
-        else if (json[i] == ']' && !depth) break;
+        char c = json[i];
+        if (inStr) {
+            if (c == '\\') { ++i; continue; } // skip escaped char
+            if (c == '"') inStr = false;
+            continue;
+        }
+        if (c == '"') { inStr = true; continue; }
+        if (c == '{') { if (!depth) start = i; ++depth; }
+        else if (c == '}') {
+            if (depth > 0) {
+                --depth;
+                if (!depth && start != std::string::npos) {
+                    result.push_back(json.substr(start, i - start + 1));
+                    start = std::string::npos;
+                }
+            }
+        }
+        else if (c == ']' && !depth) break;
     }
     return result;
 }
@@ -507,7 +537,17 @@ std::string GlobalAiOverlay::ExtractContent(const std::string& httpResponse)
                     if (pos + 4 < json.size()) {
                         int cp = 0;
                         sscanf(json.c_str() + pos + 1, "%4x", &cp);
-                        if (cp < 128) result += (char)cp;
+                        // Encode as UTF-8 (handles Cyrillic, emoji, etc.)
+                        if (cp < 0x80) {
+                            result += (char)cp;
+                        } else if (cp < 0x800) {
+                            result += (char)(0xC0 | (cp >> 6));
+                            result += (char)(0x80 | (cp & 0x3F));
+                        } else {
+                            result += (char)(0xE0 | (cp >> 12));
+                            result += (char)(0x80 | ((cp >> 6) & 0x3F));
+                            result += (char)(0x80 | (cp & 0x3F));
+                        }
                         pos += 4;
                     }
                     break;
@@ -702,8 +742,11 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
 
     // Save AI response to history for next request context
     m_ApiHistory.push_back({ "assistant", raw });
-    while ((int)m_ApiHistory.size() > kMaxHistoryTurns * 2 + 2)
-        m_ApiHistory.erase(m_ApiHistory.begin());
+    // Trim: keep at most kMaxHistoryTurns*2 entries (pairs of user+assistant)
+    const int maxEntries = kMaxHistoryTurns * 2;
+    if ((int)m_ApiHistory.size() > maxEntries)
+        m_ApiHistory.erase(m_ApiHistory.begin(),
+                           m_ApiHistory.begin() + ((int)m_ApiHistory.size() - maxEntries));
 
     m_Messages.push_back({ false, message });
     m_Status.clear();

@@ -116,7 +116,7 @@ public:
     void SetViewportFovValue(float fov) ;   // alias for SetViewportFov
 
     // Scene introspection for AI context
-    std::string GetSceneContextString() const ;
+    std::string GetSceneContextString() ;
 
     void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;
     void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) ;

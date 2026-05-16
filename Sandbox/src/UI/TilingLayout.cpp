@@ -352,7 +352,12 @@ void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edg
     if (edge == DropEdge::None || edge == DropEdge::Center) return;
 
     TileNode* nearNode = FindNode(m_Root.get(), nearPanel);
-    TileNode* parent   = nearNode ? FindParent(m_Root.get(), nearNode) : nullptr;
+
+    // Only support inserting next to leaf nodes — inserting next to a split node
+    // would corrupt the tree (childA/childB not deep-copied)
+    if (!nearNode || !nearNode->IsLeaf()) return;
+
+    TileNode* parent   = FindParent(m_Root.get(), nearNode);
 
     // Determine split direction and which child is new
     SplitDir dir  = (edge == DropEdge::Left || edge == DropEdge::Right)
@@ -576,6 +581,8 @@ bool TilingLayout::Load(const std::string& path)
         m_Root = std::move(root);
         return true;
     }
+    // Corrupt layout file — reset to default instead of leaving partial state
+    ResetToDefault();
     return false;
 }
 
