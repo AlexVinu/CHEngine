@@ -190,7 +190,11 @@ Mesh PrimitiveMeshFactory::CreateSphereImpostor(const glm::vec3& color)
         { { 1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, color },
         { {-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, color },
     };
-    const std::vector<uint32_t> indices = { 0, 1, 2,  0, 2, 3 };
+    // Winding is reversed (0,2,1 / 0,3,2) because the vertex shader builds the
+    // billboard with cross(worldUp, viewDir), which yields a left-facing camRight vector.
+    // The resulting quad is CW in clip space; reversing the indices makes it CCW so
+    // CullMode::Back does not discard the triangles.
+    const std::vector<uint32_t> indices = { 0, 2, 1,  0, 3, 2 };
 
     Mesh mesh;
     mesh.Build(vertices, indices);

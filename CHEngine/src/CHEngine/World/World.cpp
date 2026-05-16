@@ -41,10 +41,6 @@ namespace CHEngine
 
         CHE_CORE_INFO("World::SetScene rebind requested (hasScene={})", scene != nullptr);
         m_Scene = scene;
-        m_DeferredOps.Clear();
-        m_EventBus.ClearAll();
-        m_State = WorldState::NONE;
-        m_PendingState = WorldState::NONE;
     }
 
     void World::SetState(WorldState new_state)
@@ -86,6 +82,7 @@ namespace CHEngine
     {
 		m_Scheduler.NotifyEnd(SystemPhase::Presentation, *this, m_DeferredOps);
 		m_Scheduler.NotifyEnd(SystemPhase::Simulation, *this, m_DeferredOps);
+        m_State = WorldState::NONE;
         return;
     }
 

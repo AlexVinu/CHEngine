@@ -86,7 +86,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 # Компиляторные флаги
 if(MSVC)
     target_compile_options(${PROJECT_NAME} PRIVATE
-        /utf-8 /W4
+        /utf-8 /W4 /FS
         $<$<CONFIG:Debug>:/Od /Zi>
         $<$<CONFIG:Release>:/O2>
         $<$<CONFIG:Dist>:/O2>

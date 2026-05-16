@@ -27,7 +27,11 @@ void EditorWorldContext::UpdateState(std::optional<SceneSession::State> new_stat
 	switch (m_SessionState)
 	{
 	case SceneSession::State::Edit:
-		if (!m_IsActive) return;
+		if (!m_IsActive)
+		{
+			RuntimeWorld->SetState(CHEngine::WorldState::NONE);
+			return;
+		}
 		RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
 		RuntimeWorld->SetActiveCamera(ViewportCamera.get());
 		break;

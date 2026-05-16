@@ -296,6 +296,29 @@ namespace CHEngine {
             }
         }
 
+        // When there are no mesh draws and no pre-scene callback (grid) that would have
+        // cleared the HDR target, emit an explicit clear-only pass.  Without this, the
+        // TonemapPass reads stale HDR content from the previous frame and ghost objects
+        // from the old scene remain visible (e.g. grid off + empty/all-hidden new scene).
+        if (drawCount == 0 && !hasPreScene)
+        {
+            PassDesc clearPass;
+            clearPass.Name          = "ClearPass";
+            clearPass.Pipeline      = m_MeshPipeline;
+            clearPass.ColorLoadOp   = ELoadOp::Clear;
+            clearPass.ColorStoreOp  = EStoreOp::Store;
+            clearPass.ClearColor    = { 0.033f, 0.038f, 0.050f, 1.0f };
+            clearPass.DepthLoadOp   = ELoadOp::Clear;
+            clearPass.ClearDepth    = 1.0f;
+            clearPass.ViewportWidth  = vw;
+            clearPass.ViewportHeight = vh;
+            clearPass.ColorAttachments.push_back(m_HDRTarget);
+            clearPass.DepthAttachment = m_DepthTarget;
+            clearPass.Writes.push_back(m_HDRTarget);
+            if (m_DepthTarget.IsValid()) clearPass.Writes.push_back(m_DepthTarget);
+            RenderFacade::GetFrameGraph().AddPass(std::move(clearPass));
+        }
+
         for (size_t g = 0; g < shaderHandles.size(); ++g)
         {
             ShaderHandle sh = shaderHandles[g];

@@ -7,6 +7,7 @@
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Utils/FileDialog.h>
 
+#include "InputActions.h"
 #include "UIThemeActive.h"
 
 #include <cstdio>
@@ -57,23 +58,25 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         void operator()(float itemH) const { ImGui::SetCursorPosY(cy - itemH * 0.5f); }
     } vcenter{ centerY };
 
-    // ── Keyboard shortcuts (T/R/S, Cmd+Z, Cmd+P, Escape) ─────────────────────
+    // ── Keyboard shortcuts (driven by InputActions / keybindings.json) ───────
     if (!ImGui::GetIO().WantTextInput)
     {
-        if (ImGui::IsKeyPressed(ImGuiKey_T, false))
+        using IA = Sandbox::InputActions;
+
+        if (IA::Triggered("Editor.Gizmo.Translate"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::TRANSLATE; }, [] {}, false));
-        if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+        if (IA::Triggered("Editor.Gizmo.Rotate"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::ROTATE; }, [] {}, false));
-        if (ImGui::IsKeyPressed(ImGuiKey_S, false))
+        if (IA::Triggered("Editor.Gizmo.Scale"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::SCALE; }, [] {}, false));
-        if (ImGui::IsKeyPressed(ImGuiKey_F3, false))
+        if (IA::Triggered("Editor.Profiler.Toggle"))
             host.GetShowProfiler() = !host.GetShowProfiler();
 
         // Delete / Backspace — удаление выделенного объекта (только в Edit-режиме)
-        if ((ImGui::IsKeyPressed(ImGuiKey_Delete, false) || ImGui::IsKeyPressed(ImGuiKey_Backspace, false))
+        if (IA::Triggered("Editor.Entity.Delete")
             && activeSession->GetSessionState() == SceneSession::State::Edit)
         {
             Ref<EditorWorldContext> s = host.GetActiveSceneSession();
@@ -85,13 +88,11 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
             }
         }
 
-        const bool undoMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyAlt;
-        if (undoMod && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+        if (IA::Triggered("Editor.History.Undo"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.RequestUndo(); }, [] {}, false));
 
-        const bool playMod = ImGui::GetIO().KeySuper || ImGui::GetIO().KeyCtrl;
-        if (playMod && ImGui::IsKeyPressed(ImGuiKey_P, false))
+        if (IA::Triggered("Editor.Play.Toggle"))
         {
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] {
@@ -101,7 +102,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
                     else if (s->GetSessionState() == SceneSession::State::Pause)  host.ResumeFromPause();
                 }, [] {}, false));
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_Escape, false) &&
+        if (IA::Triggered("Editor.Play.Stop") &&
             activeSession->GetSessionState() != SceneSession::State::Edit)
         {
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(

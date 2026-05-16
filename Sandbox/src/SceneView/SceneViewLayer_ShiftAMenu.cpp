@@ -4,6 +4,7 @@
 #include "SceneViewLayerAccess.h"
 #include "SceneViewLayerHost.h"
 #include "EditorPopupState.h"
+#include "InputActions.h"
 #include "UIThemeRetroOS.h"
 
 #include <imgui.h>
@@ -30,8 +31,7 @@ void Draw(SceneViewLayer& layer)
     // Open on Shift+A (viewport hovered, edit mode)
     if (viewport.IsViewportHovered() && ctx.GetSessionState() == SceneSession::State::Edit)
     {
-        ImGuiIO& io = ImGui::GetIO();
-        if (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_A, false))
+        if (Sandbox::InputActions::Triggered("Editor.Menu.AddEntity"))
         {
             EditorPopup::Open(EditorPopup::ID::ShiftA); // closes any other popup
             s_Pos = ImGui::GetMousePos();
@@ -42,7 +42,7 @@ void Draw(SceneViewLayer& layer)
         return;
 
     // Escape always closes
-    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    if (Sandbox::InputActions::Triggered("Editor.Popup.Close"))
     { EditorPopup::Close(); return; }
 
     ImGui::SetNextWindowPos(s_Pos, ImGuiCond_Always);

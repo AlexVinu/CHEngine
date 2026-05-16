@@ -5,6 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build commands
 
 ```bash
+# Configure (Windows — OpenGL + Physics)
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_PHYSICS=ON
+
 # Configure (macOS — OpenGL + Metal, Physics не собирается на macOS)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
   -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON -DCHE_BUILD_PHYSICS=OFF
@@ -185,6 +189,14 @@ OpenGL 4.1 на macOS матчит varying'и по имени, не по locatio
 
 Slang добавляет суффикс `_0` к именам функций в MSL (`vertMain` → `vertMain_0`, `fragMain` → `fragMain_0`). `ShaderMTL` ищет сначала точное имя, потом с `_0`.
 
+### macOS/Windows OpenGL — дополнительный патчинг GLSL
+
+Помимо `PatchGlslForGL41()` и `NormalizeGlslVaryings()`, в `ShaderOGL::CompileSlangProgram` применяется ещё один патч:
+
+- **C-style struct initializer → GLSL конструктор**: Slang иногда генерирует `TypeName var = { a, b, c };` при передаче UBO-backed структуры по значению. GLSL требует `TypeName var = TypeName(a, b, c);`. Regex `(\w+)\s+(\w+)\s*=\s*\{([^}]+)\}` → `$1 $2 = $1($3)` правит это автоматически.
+
+При ошибке компиляции GLSL исходник дампится в `glsl_dump_fail.glsl` рядом с бинарником для диагностики.
+
 ### Ограничения Slang для Metal
 
 - `fwidth(float2)` — **не поддерживается** для Metal (векторный overload). Использовать `float2(fwidth(x.x), fwidth(x.y))`.
@@ -207,6 +219,11 @@ Sandbox/src/
 │   ├── EditorCameraController  — orbit-камера (Blender-style)
 │   ├── EditorCameraState       — состояние орбиты (target, dist)
 │   └── EditorViewport          — FBO, grid, ImGui::Image viewport
+├── Input/
+│   ├── InputActions        — централизованный маппинг input → action
+│   ├── InputContext        — enum Editor/Game (контекстный стек)
+│   ├── ActionMap           — хранение биндингов
+│   └── ActionBinding       — описание одного биндинга (key/mouse + mods + trigger)
 ├── SceneView/
 │   ├── SceneViewLayer      — главный Layer (OnUpdate / OnImGuiRender / OnEvent)
 │   ├── SceneViewLayerHost  — хост для панелей, API switching, undo
@@ -247,11 +264,39 @@ RunSceneViewImGuiFrame(*this);  // DrawImGui → ImGui::Image(FBO texture)
 
 Клик на "API: Metal" → `OnRendererApiSelected(api)` → `EngineConfig::SaveRendererPreference(api)` записывает `renderer_pending` в `engine.json` → `Application::RequestRestart()` → `execv` без `--renderer=` аргумента → новый процесс читает `renderer_pending`.
 
+### InputActions — централизованный input
+
+Все горячие клавиши редактора определены в `Sandbox/config/keybindings.json` и загружаются при старте через `InputActions::LoadFromJson`. Биндинги декларативные: ключ + модификаторы + trigger (`Pressed`/`Down`/`Released`/`Drag`).
+
+```cpp
+// В начале кадра (SceneViewLayer::OnUpdate):
+Sandbox::InputActions::BeginFrame();
+
+// Запрос действия:
+if (InputActions::Triggered("Editor.Gizmo.Translate")) { ... }  // одиночное нажатие
+if (InputActions::Down("Editor.Camera.OrbitRmb"))       { ... }  // удерживание
+float wheel = InputActions::GetAxis(InputActions::Axis::MouseWheel);
+```
+
+**Контексты** (`InputContext::Editor` / `InputContext::Game`): при переходе в Play-режим `PushContext(Game)` активирует game-биндинги. `PopContext(Game)` возвращает Editor при остановке. Это позволяет одному ключу иметь разный смысл в редакторе и в игре.
+
+Все горячие клавиши Sandbox используют `InputActions` — прямые вызовы `ImGui::IsKeyPressed` в редакторе запрещены (кроме WantTextInput-блока).
+
+### SceneSerializer — компонент-опциональная сериализация
+
+`SaveToFile` и `SerializeToJson` теперь итерируют **все** сущности через `ForEach<IDComponent>` (вместо фильтра по набору компонентов). Каждый компонент сериализуется условно через `entity->HasComponent<T>()`. Это позволяет правильно сохранять сущности без меша (свет, камера) и добавлять новые компоненты без изменения логики итерации.
+
+### SceneBrowser
+
+`SceneBrowser` — **плавающее окно**, не тайлированная панель. Рендерится напрямую из `RunSceneViewImGuiFrame`, минуя `drawIfVisible`.
+
 ---
 
 ## Известные ограничения / To Fix
 
 - **PhysX на macOS**: не собирается, всегда `-DCHE_BUILD_PHYSICS=OFF`. При запуске выдаёт "LoadModule FAILED libPhysicsPhysX.dylib" — это **норма**, движок продолжает работу.
+- **PhysX на Windows**: собирается с `-DCHE_BUILD_PHYSICS=ON`. CMake автоматически выбирает `TARGET_BUILD_PLATFORM=windows`.
 - **OpenGL on macOS**: ограничен версией 4.1. Рабочий, но Metal предпочтительнее.
+- **Slang на Windows**: загружается через `file(DOWNLOAD)` + `file(ARCHIVE_EXTRACT)` (не FetchContent) — это нужно, чтобы избежать конфликта между VS-bundled cmake 3.31 и system cmake 4.x при регенерации ZERO_CHECK.
 - **Slang компиляция медленная**: первый запуск грузит шейдеры ~1-2с каждый. Это нормально.
 - **Hot-reload ModuleManager**: упрощён (убран FileWatcher), hot-reload модулей не работает в текущей версии.

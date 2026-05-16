@@ -156,11 +156,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         SceneViewLayerAccess::UvEditor(layer).Draw(host);
     });
 
-    // Scene Browser
-    drawIfVisible(PID::SceneBrowser, [&]()
-    {
-        SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
-    });
+    // Scene Browser — floating window, not a tiled panel
+    SceneViewLayerAccess::SceneBrowser(layer).OnImGuiRender(host);
 
     // Script Editor — DrawInPanel() always shows window + hint when no file
     drawIfVisible(PID::ScriptEditor, [&]()

@@ -129,6 +129,11 @@ namespace CHEngine {
 
 		m_SceneRegistry->EntityPool.ForEachOccupied([this](Entity* entity) { entity->SetScene(this); });
 
+		// The moved registry's on_update signal still points to 'other' — rewire it to 'this'
+		// so it doesn't become a dangling pointer when 'other' (the temporary loadedScene) is
+		// destroyed after the assignment.
+		InitSignals();
+
 		other.InitializeRegistry();
 		other.InitSignals();
 
@@ -144,6 +149,9 @@ namespace CHEngine {
 	void Scene::InitSignals()
 	{
 		auto& reg = m_SceneRegistry->Registry;
+		// Disconnect before connecting so this is safe to call on a registry whose
+		// signal handlers still point to a different Scene instance (e.g. after move).
+		reg.on_update<TransformComponent>().disconnect();
 		reg.on_update<TransformComponent>().connect<&Scene::OnTransformUpdate>(this);
 	}
 
@@ -170,8 +178,6 @@ namespace CHEngine {
 			CHE_CORE_ASSERT(destinationEntt != entt::null, "Scene copy failed: destination entt is null");
 
 			CopyComponents(CopyableSceneComponents{}, destinationRegistry, sourceRegistry, destinationEntt, sourceEntt);
-			CopySingleComponentType<RigidBody3DComponent>(destinationRegistry, sourceRegistry, destinationEntt, sourceEntt);
-			CopySingleComponentType<MeshComponent>(destinationRegistry, sourceRegistry, destinationEntt, sourceEntt);
 		}
 	}
 

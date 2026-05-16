@@ -18,6 +18,9 @@ namespace CHEngine
 		LayerStack();
 		~LayerStack();
 
+		LayerStack(const LayerStack&) = delete;
+		LayerStack& operator=(const LayerStack&) = delete;
+
 		void PushLayer(Layer* layer);
 		void PushOverlay(Layer* overlay);
 		void PopLayer(Layer* layer);
