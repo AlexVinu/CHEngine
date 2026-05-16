@@ -5,6 +5,7 @@
 #include <string>
 #include <memory>
 #include <functional>
+#include <optional>
 
 // Forward declare TextEditor (vendor)
 class TextEditor;
@@ -53,6 +54,12 @@ public:
     // Доступ к AI-панели (для настройки API key снаружи)
     AiChatPanel& GetAiChat() { return m_AiChat; }
 
+    // Контекст выбранного entity — показывается в DrawInPanel когда нет открытого файла
+    void SetEntityContext(std::string name, bool hasScript, std::string scriptPath,
+                          std::function<void()> onAddScript,
+                          std::function<void()> onEditScript);
+    void ClearEntityContext();
+
     // Рисовать ImGui окно (вызывать каждый кадр)
     void Draw();
 
@@ -69,10 +76,18 @@ private:
     std::string  m_FilePath;
     std::string  m_WindowTitle;
     bool         m_IsOpen     = false;
-    bool         m_IsDirty    = false;   // несохранённые изменения
-    bool         m_ShowAiChat = true;    // показывать AI-панель
+    bool         m_IsDirty    = false;
+    bool         m_ShowAiChat = true;
     OnSaveCallback m_OnSave;
     AiChatPanel    m_AiChat;
+
+    // Entity context for hint UI in DrawInPanel
+    bool         m_HasEntityCtx  = false;
+    std::string  m_CtxEntityName;
+    bool         m_CtxHasScript  = false;
+    std::string  m_CtxScriptPath;
+    std::function<void()> m_CtxOnAddScript;
+    std::function<void()> m_CtxOnEditScript;
 };
 
 } // namespace Sandbox

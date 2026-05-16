@@ -21,6 +21,7 @@
 #include <cfloat>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
 #include <memory>
 #include <string>
 
@@ -1057,16 +1058,31 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
         selectedEntity,
         "Script",
         [&](CHEngine::ScriptComponent& script) {
-            char buf[512];
-            std::strncpy(buf, script.ScriptPath.c_str(), sizeof(buf) - 1);
-            buf[sizeof(buf) - 1] = '\0';
-            ImGui::Text("Path");
-            ImGui::SameLine();
-            ImGui::SetNextItemWidth(-1.0f);
-            if (ImGui::InputText("##scriptPath", buf, sizeof(buf)))
+            if (script.ScriptPath.empty())
             {
-                selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
-                    [&](CHEngine::ScriptComponent& sc) { sc.ScriptPath = buf; });
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.57f, 1.0f));
+                ImGui::TextUnformatted("No script assigned");
+                ImGui::PopStyleColor();
+                if (!propsReadOnly)
+                {
+                    if (ImGui::Button("Create Script##newScript"))
+                    {
+                        std::string tag = selectedEntity->HasComponent<CHEngine::TagComponent>()
+                            ? selectedEntity->GetComponent<CHEngine::TagComponent>().Name
+                            : "Entity";
+                        host.CreateAndAttachScript(selectedHandle, tag);
+                    }
+                }
+            }
+            else
+            {
+                std::string filename = std::filesystem::path(script.ScriptPath).filename().string();
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.85f, 0.55f, 1.0f));
+                ImGui::TextUnformatted(filename.c_str());
+                ImGui::PopStyleColor();
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Edit##editScript"))
+                    host.OpenScriptInEditor(script.ScriptPath);
             }
             bool enabled = script.Enabled;
             if (ImGui::Checkbox("Enabled##scriptEnabled", &enabled))

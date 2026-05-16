@@ -72,6 +72,26 @@ ScriptEditorPanel::ScriptEditorPanel()
 
 ScriptEditorPanel::~ScriptEditorPanel() = default;
 
+void ScriptEditorPanel::SetEntityContext(std::string name, bool hasScript, std::string scriptPath,
+                                          std::function<void()> onAddScript,
+                                          std::function<void()> onEditScript)
+{
+    m_HasEntityCtx   = true;
+    m_CtxEntityName  = std::move(name);
+    m_CtxHasScript   = hasScript;
+    m_CtxScriptPath  = std::move(scriptPath);
+    m_CtxOnAddScript = std::move(onAddScript);
+    m_CtxOnEditScript= std::move(onEditScript);
+}
+
+void ScriptEditorPanel::ClearEntityContext()
+{
+    m_HasEntityCtx = false;
+    m_CtxEntityName.clear();
+    m_CtxOnAddScript  = nullptr;
+    m_CtxOnEditScript = nullptr;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 void ScriptEditorPanel::Open(const std::string& filePath)
 {
@@ -284,24 +304,53 @@ void ScriptEditorPanel::DrawInPanel()
 
     if (!m_IsOpen || m_FilePath.empty())
     {
-        // ── Hint ────────────────────────────────────────────────────────────
-        ImVec2 avail  = ImGui::GetContentRegionAvail();
-        const char* line1 = "No script open";
-        const char* line2 = "Open a .lua file from the Content Browser";
-        ImVec2 sz1 = ImGui::CalcTextSize(line1);
-        ImVec2 sz2 = ImGui::CalcTextSize(line2);
-        float totalH = sz1.y + 6.0f + sz2.y;
+        ImVec2 avail = ImGui::GetContentRegionAvail();
 
-        ImGui::SetCursorPos(ImVec2((avail.x - sz1.x) * 0.5f,
-                                   (avail.y - totalH) * 0.5f));
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.72f, 1.0f));
-        ImGui::TextUnformatted(line1);
-        ImGui::PopStyleColor();
+        if (m_HasEntityCtx && !m_CtxEntityName.empty())
+        {
+            // ── Entity context hint ──────────────────────────────────────────
+            const char* btnLabel = m_CtxHasScript ? "Edit Script" : "Add Script";
+            ImVec2 btnSz = ImVec2(130, 0);
 
-        ImGui::SetCursorPosX((avail.x - sz2.x) * 0.5f);
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
-        ImGui::TextUnformatted(line2);
-        ImGui::PopStyleColor();
+            std::string entityMsg = "Selected: " + m_CtxEntityName;
+            ImVec2 szMsg = ImGui::CalcTextSize(entityMsg.c_str());
+            float totalH = szMsg.y + 10.0f + ImGui::GetFrameHeight();
+
+            ImGui::SetCursorPos(ImVec2((avail.x - szMsg.x) * 0.5f,
+                                       (avail.y - totalH) * 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.75f, 0.75f, 0.78f, 1.0f));
+            ImGui::TextUnformatted(entityMsg.c_str());
+            ImGui::PopStyleColor();
+
+            ImGui::SetCursorPosX((avail.x - btnSz.x) * 0.5f);
+            if (ImGui::Button(btnLabel, btnSz))
+            {
+                if (m_CtxHasScript && m_CtxOnEditScript)
+                    m_CtxOnEditScript();
+                else if (!m_CtxHasScript && m_CtxOnAddScript)
+                    m_CtxOnAddScript();
+            }
+        }
+        else
+        {
+            // ── Default hint ─────────────────────────────────────────────────
+            const char* line1 = "No script open";
+            const char* line2 = "Open a .lua file from the Content Browser";
+            ImVec2 sz1 = ImGui::CalcTextSize(line1);
+            ImVec2 sz2 = ImGui::CalcTextSize(line2);
+            float totalH = sz1.y + 6.0f + sz2.y;
+
+            ImGui::SetCursorPos(ImVec2((avail.x - sz1.x) * 0.5f,
+                                       (avail.y - totalH) * 0.5f));
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.7f, 0.7f, 0.72f, 1.0f));
+            ImGui::TextUnformatted(line1);
+            ImGui::PopStyleColor();
+
+            ImGui::SetCursorPosX((avail.x - sz2.x) * 0.5f);
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));
+            ImGui::TextUnformatted(line2);
+            ImGui::PopStyleColor();
+        }
 
         ImGui::End();
         return;
