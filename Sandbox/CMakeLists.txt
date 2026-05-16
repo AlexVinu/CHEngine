@@ -48,6 +48,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     "${SANDBOX_SRC_ROOT}/App"
     "${SANDBOX_SRC_ROOT}/Core"
     "${SANDBOX_SRC_ROOT}/Editor"
+    "${SANDBOX_SRC_ROOT}/Input"
     "${SANDBOX_SRC_ROOT}/SceneView"
     "${SANDBOX_SRC_ROOT}/Play"
     "${SANDBOX_SRC_ROOT}/UI"
@@ -132,6 +133,14 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         "${CMAKE_CURRENT_SOURCE_DIR}/editor_assets"
         "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/${PROJECT_NAME}/editor_assets"
     COMMENT "Copying editor defaults to output directory"
+)
+
+# Копируем keybindings.json и прочие конфиги
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_CURRENT_SOURCE_DIR}/config"
+        "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/${PROJECT_NAME}/config"
+    COMMENT "Copying config to output directory"
 )
 
 message(STATUS "✅ ${PROJECT_NAME} configured successfully")

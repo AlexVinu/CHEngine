@@ -1,5 +1,7 @@
 #include "ScriptEditorPanel.h"
 
+#include "InputActions.h"
+
 #include <TextEditor.h>
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -173,8 +175,7 @@ void ScriptEditorPanel::Draw()
 
     // ── Горячие клавиши ─────────────────────────────────────────────────────
     bool wantSave = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-                 && ImGui::IsKeyDown(ImGuiKey_LeftCtrl)
-                 && ImGui::IsKeyPressed(ImGuiKey_S);
+                 && Sandbox::InputActions::Triggered("Editor.Script.Save");
     if (wantSave) Save();
 
     // ── Menu bar ─────────────────────────────────────────────────────────────
@@ -311,8 +312,7 @@ void ScriptEditorPanel::DrawInPanel()
     // Just render the editor contents directly (same as Draw body after Begin).
     // Hot keys
     bool wantSave = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-                 && ImGui::IsKeyDown(ImGuiKey_LeftCtrl)
-                 && ImGui::IsKeyPressed(ImGuiKey_S, false);
+                 && Sandbox::InputActions::Triggered("Editor.Script.Save");
     if (wantSave) Save();
 
     // Editor + AI pane (reuse same split logic)

@@ -489,45 +489,60 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
     j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
 
-    scene->ForEach<TagComponent, TransformComponent, MeshComponent, ColorComponent, VisibilityComponent>([&](EntityHandle handle, const UUID& uuid, TagComponent& tag, TransformComponent& transformComp, MeshComponent& mesh, ColorComponent& color, VisibilityComponent& visibility) {
+    scene->ForEach<IDComponent>([&](EntityHandle handle, const UUID& uuid, IDComponent&) {
         Entity* entity = scene->TryGetEntity(handle);
-        auto& transform = transformComp.ObjectTransform;
+
         json o;
-        o["name"]    = tag.Name;
-        o["uuid"]    = boost::uuids::to_string(uuid);
-        o["visible"] = visibility.Visible;
-        o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
-
-        o["position"] = { transform.Position.x, transform.Position.y, transform.Position.z };
-        o["rotation"] = { transform.Rotation.x, transform.Rotation.y, transform.Rotation.z };
-        o["scale"]    = { transform.Scale.x,    transform.Scale.y,    transform.Scale.z    };
-
-        // Retrieve SourcePath via Scene's accessor (avoids exposing entt publicly)
-        o["meshPath"] = mesh.SourcePath;
-
-        json materials = json::array();
-        for (auto& meshItem : mesh.Meshes)
+        o["uuid"] = boost::uuids::to_string(uuid);
+        if (entity->HasComponent<TagComponent>())
         {
-            if (!meshItem.Mat)
-                meshItem.Mat = MaterialInstance::FromBase(
-                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
-            json matObj;
-            matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
-            matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
-            matObj["shininess"]     = meshItem.Mat->Shininess;
-            matObj["specularScale"] = meshItem.Mat->SpecularScale;
-            matObj["roughness"]     = meshItem.Mat->Roughness;
-            matObj["metallic"]      = meshItem.Mat->Metallic;
-            matObj["ao"]            = meshItem.Mat->AO;
-            matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
-            materials.push_back(matObj);
+            auto component = entity->GetComponent<TagComponent>();
+            o["name"] = component.Name;
         }
-        o["materials"] = materials;
+        if (entity->HasComponent<VisibilityComponent>())
+        {
+            auto component = entity->GetComponent<VisibilityComponent>();
+            o["visible"] = component.Visible;
+        }
+        if (entity->HasComponent<ColorComponent>())
+        {
+            auto component = entity->GetComponent<ColorComponent>();
+            o["color"] = { component.Color.r, component.Color.g, component.Color.b, component.Color.a };
+        }
+        if (entity->HasComponent<TransformComponent>())
+        {
+            auto& t = entity->GetComponent<TransformComponent>().ObjectTransform;
+            o["position"] = { t.Position.x, t.Position.y, t.Position.z };
+            o["rotation"] = { t.Rotation.x, t.Rotation.y, t.Rotation.z };
+            o["scale"]    = { t.Scale.x,    t.Scale.y,    t.Scale.z    };
+        }
+        if (entity->HasComponent<MeshComponent>())
+        {
+            auto& meshComp = entity->GetComponent<MeshComponent>();
+            o["meshPath"] = meshComp.SourcePath;
 
-        // Сериализация источника света
-        if (entity->HasComponent<LightComponent>()) {
-            const auto* lightComp = &entity->GetComponent<LightComponent>();
-            const auto& lightData = lightComp->LightData;
+            json materials = json::array();
+            for (auto& meshItem : meshComp.Meshes)
+            {
+                if (!meshItem.Mat)
+                    meshItem.Mat = MaterialInstance::FromBase(
+                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                json matObj;
+                matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
+                matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
+                matObj["shininess"]     = meshItem.Mat->Shininess;
+                matObj["specularScale"] = meshItem.Mat->SpecularScale;
+                matObj["roughness"]     = meshItem.Mat->Roughness;
+                matObj["metallic"]      = meshItem.Mat->Metallic;
+                matObj["ao"]            = meshItem.Mat->AO;
+                matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
+                materials.push_back(matObj);
+            }
+            o["materials"] = materials;
+        }
+        if (entity->HasComponent<LightComponent>())
+        {
+            const auto& lightData = entity->GetComponent<LightComponent>().LightData;
             json light;
             light["type"]      = static_cast<int>(lightData.Type);
             light["color"]     = { lightData.Color.r, lightData.Color.g, lightData.Color.b };
@@ -537,27 +552,27 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
             light["outerCone"] = lightData.OuterCone;
             o["light"] = light;
         }
-
         if (entity->HasComponent<RigidBody3DComponent>())
             o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
 
-        if (entity->HasComponent<CameraComponent>()) {
+        if (entity->HasComponent<CameraComponent>())
+        {
             const auto* cameraComp = &entity->GetComponent<CameraComponent>();
             json camera;
             camera["projectionType"] = static_cast<int>(cameraComp->Camera.GetProjectionType());
             camera["perspective"] = {
                 { "verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV() },
-                { "nearClip", cameraComp->Camera.GetPerspectiveNearClip() },
-                { "farClip", cameraComp->Camera.GetPerspectiveFarClip() }
+                { "nearClip",    cameraComp->Camera.GetPerspectiveNearClip() },
+                { "farClip",     cameraComp->Camera.GetPerspectiveFarClip() }
             };
             camera["orthographic"] = {
-                { "size", cameraComp->Camera.GetOrthographicSize() },
+                { "size",     cameraComp->Camera.GetOrthographicSize() },
                 { "nearClip", cameraComp->Camera.GetOrthographicNearClip() },
-                { "farClip", cameraComp->Camera.GetOrthographicFarClip() }
+                { "farClip",  cameraComp->Camera.GetOrthographicFarClip() }
             };
-            camera["aspectRatio"] = 16.0f / 9.0f;
+            camera["aspectRatio"]      = 16.0f / 9.0f;
             camera["fixedAspectRatio"] = cameraComp->FixedAspectRatio;
-            camera["primary"] = cameraComp->Primary;
+            camera["primary"]          = cameraComp->Primary;
             o["camera"] = camera;
         }
 
@@ -602,37 +617,93 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
     j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
 
-    scene->ForEach<TagComponent, TransformComponent, MeshComponent, ColorComponent, VisibilityComponent>([&](EntityHandle handle, const UUID& uuid, TagComponent& tag, TransformComponent& transformComp, MeshComponent& mesh, ColorComponent& color, VisibilityComponent& visibility) {
+    scene->ForEach<IDComponent>([&](EntityHandle handle, const UUID& uuid, IDComponent&) {
         Entity* entity = scene->TryGetEntity(handle);
-        auto& transform = transformComp.ObjectTransform;
 
         json o;
-        o["name"]    = tag.Name;
-        o["uuid"]    = boost::uuids::to_string(uuid);
-        o["visible"] = visibility.Visible;
-        o["color"]   = { color.Color.r, color.Color.g, color.Color.b, color.Color.a };
-        o["position"] = { transform.Position.x, transform.Position.y, transform.Position.z };
-        o["rotation"] = { transform.Rotation.x, transform.Rotation.y, transform.Rotation.z };
-        o["scale"]    = { transform.Scale.x,    transform.Scale.y,    transform.Scale.z    };
-        o["meshPath"] = mesh.SourcePath;
-
-        json materials = json::array();
-        for (auto& meshItem : mesh.Meshes)
+        o["uuid"] = boost::uuids::to_string(uuid);
+        if (entity->HasComponent<TagComponent>())
         {
-            if (!meshItem.Mat)
-                meshItem.Mat = MaterialInstance::FromBase(
-                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
-            json matObj;
-            matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
-            matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
-            matObj["shininess"]     = meshItem.Mat->Shininess;
-            matObj["specularScale"] = meshItem.Mat->SpecularScale;
-            matObj["roughness"]     = meshItem.Mat->Roughness;
-            matObj["metallic"]      = meshItem.Mat->Metallic;
-            matObj["ao"]            = meshItem.Mat->AO;
-            matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
-            materials.push_back(matObj);
+            auto component = entity->GetComponent<TagComponent>();
+            o["name"] = component.Name;
         }
+        if (entity->HasComponent<VisibilityComponent>())
+        {
+            auto component = entity->GetComponent<VisibilityComponent>();
+            o["visible"] = component.Visible;
+        }
+        if (entity->HasComponent<ColorComponent>())
+        {
+            auto component = entity->GetComponent<ColorComponent>();
+            o["color"] = { component.Color.r, component.Color.g, component.Color.b, component.Color.a };
+        }
+        if (entity->HasComponent<TransformComponent>())
+        {
+            auto& t = entity->GetComponent<TransformComponent>().ObjectTransform;
+            o["position"] = { t.Position.x, t.Position.y, t.Position.z };
+            o["rotation"] = { t.Rotation.x, t.Rotation.y, t.Rotation.z };
+            o["scale"]    = { t.Scale.x,    t.Scale.y,    t.Scale.z    };
+        }
+        if (entity->HasComponent<MeshComponent>())
+        {
+            auto& meshComp = entity->GetComponent<MeshComponent>();
+            o["meshPath"] = meshComp.SourcePath;
+
+            json materials = json::array();
+            for (auto& meshItem : meshComp.Meshes)
+            {
+                if (!meshItem.Mat)
+                    meshItem.Mat = MaterialInstance::FromBase(
+                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                json matObj;
+                matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
+                matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
+                matObj["shininess"]     = meshItem.Mat->Shininess;
+                matObj["specularScale"] = meshItem.Mat->SpecularScale;
+                matObj["roughness"]     = meshItem.Mat->Roughness;
+                matObj["metallic"]      = meshItem.Mat->Metallic;
+                matObj["ao"]            = meshItem.Mat->AO;
+                matObj["usePBR"]        = (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0;
+                materials.push_back(matObj);
+            }
+            o["materials"] = materials;
+        }
+        if (entity->HasComponent<LightComponent>())
+        {
+            const auto& lightData = entity->GetComponent<LightComponent>().LightData;
+            json light;
+            light["type"]      = static_cast<int>(lightData.Type);
+            light["color"]     = { lightData.Color.r, lightData.Color.g, lightData.Color.b };
+            light["intensity"] = lightData.Intensity;
+            light["range"]     = lightData.Range;
+            light["innerCone"] = lightData.InnerCone;
+            light["outerCone"] = lightData.OuterCone;
+            o["light"] = light;
+        }
+        if (entity->HasComponent<RigidBody3DComponent>())
+            o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
+
+        if (entity->HasComponent<CameraComponent>())
+        {
+            const auto* cameraComp = &entity->GetComponent<CameraComponent>();
+            json camera;
+            camera["projectionType"] = static_cast<int>(cameraComp->Camera.GetProjectionType());
+            camera["perspective"] = {
+                { "verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV() },
+                { "nearClip",    cameraComp->Camera.GetPerspectiveNearClip() },
+                { "farClip",     cameraComp->Camera.GetPerspectiveFarClip() }
+            };
+            camera["orthographic"] = {
+                { "size",     cameraComp->Camera.GetOrthographicSize() },
+                { "nearClip", cameraComp->Camera.GetOrthographicNearClip() },
+                { "farClip",  cameraComp->Camera.GetOrthographicFarClip() }
+            };
+            camera["aspectRatio"]      = 16.0f / 9.0f;
+            camera["fixedAspectRatio"] = cameraComp->FixedAspectRatio;
+            camera["primary"]          = cameraComp->Primary;
+            o["camera"] = camera;
+        }
+
         j["objects"].push_back(o);
     });
 

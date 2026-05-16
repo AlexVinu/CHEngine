@@ -26,10 +26,12 @@ size_t SceneViewLayerAccess::ActiveIndex(const SceneViewLayer& layer)
 
 void SceneViewLayerAccess::SetActiveIndex(SceneViewLayer& layer, size_t index)
 {
-    CHE_ASSERT(index < layer.m_Sessions.size(), "Invalid session index");
+    CHE_ASSERT(index < layer.m_EditorWorldContexts->size(), "Invalid session index");
 
-    // Swap active scenes
-    (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex]->UpdateState(std::nullopt, false);
+    // Deactivate old active only when its index is still valid (it may have been erased).
+    if (layer.m_ActiveIndex < layer.m_EditorWorldContexts->size())
+        (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex]->UpdateState(std::nullopt, false);
+
     layer.m_ActiveIndex = index;
     (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex]->UpdateState(std::nullopt, true);
 }

@@ -8,6 +8,8 @@
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Entity.h>
 
+#include "InputActions.h"
+
 #include <imgui.h>
 #include <ImGuizmo.h>
 
@@ -63,28 +65,25 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
 {
     ImGuiIO& io = ImGui::GetIO();
 
+    using IA = Sandbox::InputActions;
+
     Sandbox::EditorCameraController::InputSnapshot inputSnapshot{};
     inputSnapshot.IsViewportHovered = SceneViewLayerAccess::Viewport(layer).IsViewportHovered();
     inputSnapshot.IsGizmoUsing = ImGuizmo::IsUsing();
     inputSnapshot.IsCtrlPressed = io.KeyCtrl;
     inputSnapshot.IsAltPressed = io.KeyAlt;
     inputSnapshot.IsShiftPressed = io.KeyShift;
-    inputSnapshot.IsFocusPressed = CHEngine::Input::IsKeyPressed(CHEngine::Key::F);
-    inputSnapshot.MouseWheel = io.MouseWheel;
-    inputSnapshot.MouseDelta = { io.MouseDelta.x, io.MouseDelta.y };
+    inputSnapshot.IsFocusPressed = IA::Triggered("Editor.Camera.Focus");
+    inputSnapshot.MouseWheel = IA::GetAxis(IA::Axis::MouseWheel);
+    inputSnapshot.MouseDelta = { IA::GetAxis(IA::Axis::MouseDeltaX), IA::GetAxis(IA::Axis::MouseDeltaY) };
 
-    inputSnapshot.IsOrbitByRmbDrag = ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f);
-    inputSnapshot.IsOrbitByAltLmbDrag = io.KeyAlt && !io.KeyShift
-        && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f);
-    inputSnapshot.IsOrbitByMmbDrag = !io.KeyShift
-        && ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f);
+    inputSnapshot.IsOrbitByRmbDrag       = IA::Down("Editor.Camera.OrbitRmb");
+    inputSnapshot.IsOrbitByAltLmbDrag    = IA::Down("Editor.Camera.OrbitAltLmb");
+    inputSnapshot.IsOrbitByMmbDrag       = IA::Down("Editor.Camera.OrbitMmb");
 
-    inputSnapshot.IsPanByAltShiftLmbDrag = io.KeyAlt && io.KeyShift
-        && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 1.0f);
-    inputSnapshot.IsPanByShiftMmbDrag = io.KeyShift
-        && ImGui::IsMouseDragging(ImGuiMouseButton_Middle, 0.0f);
-    inputSnapshot.IsPanByShiftRmbDrag = io.KeyShift && !io.KeyAlt
-        && ImGui::IsMouseDragging(ImGuiMouseButton_Right, 1.0f);
+    inputSnapshot.IsPanByAltShiftLmbDrag = IA::Down("Editor.Camera.PanAltShift");
+    inputSnapshot.IsPanByShiftMmbDrag    = IA::Down("Editor.Camera.PanShiftMmb");
+    inputSnapshot.IsPanByShiftRmbDrag    = IA::Down("Editor.Camera.PanShiftRmb");
 
     Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
     SceneViewLayerAccess::CameraController(layer).UpdateCameraInput(

@@ -17,13 +17,27 @@ set(_SLANG_VER_BARE "2026.7.1")
 
 if(WIN32)
     # ── Windows: prebuilt binary ─────────────────────────────────────────────
-    FetchContent_Declare(
-        slang_prebuilt
-        URL "https://github.com/shader-slang/slang/releases/download/${_SLANG_VERSION}/slang-${_SLANG_VER_BARE}-windows-x86_64.zip"
-    )
-    FetchContent_MakeAvailable(slang_prebuilt)
+    # Use file(DOWNLOAD) + file(ARCHIVE_EXTRACT) instead of FetchContent to
+    # avoid FetchContent subbuild cmake projects which break when VS-bundled
+    # cmake (3.31) is used for ZERO_CHECK regeneration instead of system cmake 4.x
+    set(_SLANG_URL "https://github.com/shader-slang/slang/releases/download/${_SLANG_VERSION}/slang-${_SLANG_VER_BARE}-windows-x86_64.zip")
+    set(_SLANG_ZIP "${CMAKE_BINARY_DIR}/slang-prebuilt.zip")
+    set(_SLANG_ROOT "${CMAKE_BINARY_DIR}/slang-prebuilt")
 
-    set(_SLANG_ROOT "${slang_prebuilt_SOURCE_DIR}")
+    if(NOT EXISTS "${_SLANG_ROOT}/include/slang.h")
+        if(NOT EXISTS "${_SLANG_ZIP}")
+            message(STATUS "Downloading Slang prebuilt ${_SLANG_VER_BARE}...")
+            file(DOWNLOAD "${_SLANG_URL}" "${_SLANG_ZIP}" SHOW_PROGRESS
+                STATUS _dl_status TLS_VERIFY ON)
+            list(GET _dl_status 0 _dl_code)
+            if(NOT _dl_code EQUAL 0)
+                list(GET _dl_status 1 _dl_err)
+                message(FATAL_ERROR "Failed to download Slang: ${_dl_err}")
+            endif()
+        endif()
+        message(STATUS "Extracting Slang prebuilt...")
+        file(ARCHIVE_EXTRACT INPUT "${_SLANG_ZIP}" DESTINATION "${_SLANG_ROOT}")
+    endif()
 
     add_library(slang SHARED IMPORTED GLOBAL)
     set_target_properties(slang PROPERTIES

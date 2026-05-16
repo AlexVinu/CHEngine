@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 #include <regex>
+#include <sstream>
 
 namespace CHModules
 {
@@ -66,6 +67,17 @@ namespace CHModules
 			{
 				std::regex re(R"(const\s+(\w+)\s+\s*(\w+)\[(\d+)\]\s*=\s*\{([^}]+)\})");
 				src = std::regex_replace(src, re, "const $1 $2[$3] = $1[$3]($4)");
+			}
+
+			// 6b. C-style struct initializer → GLSL конструктор.
+			//     Slang генерирует "TypeName var = { field1, field2, ... };" когда передаёт
+			//     UBO-backed структуру по значению в функцию. GLSL требует конструктор.
+			//     Пример: "MaterialUBO_0 _S9 = { a, b, c };"
+			//           → "MaterialUBO_0 _S9 = MaterialUBO_0(a, b, c);"
+			//     Паттерн не матчит массивы (после имени идёт [N]) и не матчит UBO-блоки (нет =).
+			{
+				std::regex re(R"((\w+)\s+(\w+)\s*=\s*\{([^}]+)\})");
+				src = std::regex_replace(src, re, "$1 $2 = $1($3)");
 			}
 
 			// 7. Исправляем UV Y-флип тонмапа: формула написана для Metal (FBO Y=0 сверху),
@@ -125,6 +137,12 @@ namespace CHModules
 				glGetShaderInfoLog(shader, maxLength, &maxLength, infoLog.data());
 				glDeleteShader(shader);
 				CHE_CORE_ERROR("ShaderOGL: {0} compilation failed: {1}", stageName, infoLog.data());
+				// Write source to file for diagnosis
+				{
+					FILE* f = fopen("glsl_dump_fail.glsl", "w");
+					if (f) { fwrite(source.c_str(), 1, source.size(), f); fclose(f); }
+					CHE_CORE_ERROR("ShaderOGL: GLSL source written to glsl_dump_fail.glsl");
+				}
 				return 0;
 			}
 			return shader;

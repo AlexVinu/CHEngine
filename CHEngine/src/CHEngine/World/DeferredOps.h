@@ -98,7 +98,7 @@ namespace CHEngine
         {
             QueueRemoveComponent<T>(entity_handle);
         }
-
+        
         void Clear();
 
         // Hooks for components

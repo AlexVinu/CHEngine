@@ -6,6 +6,7 @@
 
 #include "UIThemeActive.h"
 #include "ProjectManager.h"
+#include "InputActions.h"
 
 #include <Log/Log.h>
 #include <Profiler.h>
@@ -68,6 +69,9 @@ void SceneViewLayer::OnProjectOpened()
 void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
+
+    Sandbox::InputActions::BeginFrame();
+
     if (!m_ProjectManager->HasProject())
         return;
 

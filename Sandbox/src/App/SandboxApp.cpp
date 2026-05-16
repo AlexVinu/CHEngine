@@ -9,6 +9,8 @@
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Utils/AppPaths.h>
 
+#include "InputActions.h"
+
 #include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
 
@@ -221,6 +223,8 @@ public:
 
 		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Flat", CHEngine::AppPaths::ExecutableDir() / "shaders/flat.slang");
 		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Neon", CHEngine::AppPaths::ExecutableDir() / "shaders/neon.slang");
+
+		Sandbox::InputActions::LoadFromJson(CHEngine::AppPaths::ExecutableDir() / "config/keybindings.json");
 
 		m_MutualWorlds = MakeRef<std::vector<Ref<EditorWorldContext>>>();
 		m_MutualWorlds->reserve(16);

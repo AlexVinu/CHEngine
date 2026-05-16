@@ -13,7 +13,7 @@ struct CHENGINE_API SceneSerializer {
     // Loads scene from .chscene JSON file and returns a ready-to-use scene instance.
     Ref<Scene> LoadFromFile(const std::string& path);
 
-    // ── In-memory snapshot (for Play/Stop mode) ───────────────────────────────
+    // ── In-memory snapshot ───────────────────────────────
     nlohmann::json SerializeToJson(Ref<Scene> scene);
 
     // Restores scene from JSON snapshot.

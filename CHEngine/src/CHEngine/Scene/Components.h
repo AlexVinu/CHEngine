@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
-#include <cstdint>
-#include <vector>
+#include <tuple>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/nil_generator.hpp>
 #include "CHEngine/Mesh/Mesh.h"
@@ -13,7 +12,7 @@
 #include <Physics/IPhysicsShape.h>
 
 // Only components
-
+// TODO: Make check if components can be serialized
 namespace CHEngine {
 
     using UUID = boost::uuids::uuid;
@@ -95,11 +94,13 @@ namespace CHEngine {
         bool        Enabled = true;
     };
 
-    template<typename... Components>
-    struct ComponentGroup
-    {
-    };
+	template<typename... Components>
+	struct ComponentGroup
+	{
+		using types = std::tuple<Components...>;
+	};
 
+    // TODO: Copying between scenes could be better
     using CopyableSceneComponents = ComponentGroup<
         TransformComponent,
         ColorComponent,
@@ -107,5 +108,7 @@ namespace CHEngine {
         LightComponent,
         CameraComponent,
         LifetimeComponent,
-        ScriptComponent>;
+        ScriptComponent,
+        RigidBody3DComponent,
+        MeshComponent>;
 }
