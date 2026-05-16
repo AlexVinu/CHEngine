@@ -118,6 +118,9 @@ public:
     // Scene introspection for AI context
     std::string GetSceneContextString() ;
 
+    // Export panel
+    void OpenExportPanel() ;
+
     void ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;
     void ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index) ;
     void ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath) ;

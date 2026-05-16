@@ -264,5 +264,8 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         globalAi.Draw(host);
     }
 
+    // Export panel (floating dialog, shown when Export button clicked)
+    SceneViewLayerAccess::Export(layer).Draw(host);
+
     viewport.End();
 }

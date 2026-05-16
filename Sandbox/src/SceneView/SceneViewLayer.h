@@ -20,6 +20,7 @@
 #include "ScriptEditorPanel.h"
 #include "TilingManager.h"
 #include "GlobalAiOverlay.h"
+#include "ExportPanel.h"
 
 #include <vector>
 
@@ -65,4 +66,7 @@ private:
 
     // Global AI overlay (double-tap Z)
     Sandbox::GlobalAiOverlay m_GlobalAiOverlay;
+
+    // Export panel
+    Sandbox::ExportPanel m_ExportPanel;
 };

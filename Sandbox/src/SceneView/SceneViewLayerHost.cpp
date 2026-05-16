@@ -867,6 +867,11 @@ void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
         OpenScriptInEditor(path);
 }
 
+void SceneViewLayerHost::OpenExportPanel()
+{
+    SceneViewLayerAccess::Export(m_Layer).Open();
+}
+
 std::string SceneViewLayerHost::GetSceneContextString()
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);

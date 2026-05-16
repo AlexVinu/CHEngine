@@ -105,3 +105,8 @@ Sandbox::GlobalAiOverlay& SceneViewLayerAccess::GlobalAi(SceneViewLayer& layer)
 {
     return layer.m_GlobalAiOverlay;
 }
+
+Sandbox::ExportPanel& SceneViewLayerAccess::Export(SceneViewLayer& layer)
+{
+    return layer.m_ExportPanel;
+}

@@ -10,6 +10,7 @@ cmake_policy(SET CMP0091 NEW) # Для MSVC_RUNTIME_LIBRARY
 
 # Опции сборки
 option(CHE_BUILD_SANDBOX "Build Sandbox project" ON)
+option(CHE_BUILD_PLAYER  "Build standalone Game Player" ON)
 option(CHE_BUILD_OPENGL "Build OpengGL render" ON)
 option(CHE_BUILD_VULKAN "Build Vulkan render" OFF)
 option(CHE_BUILD_PHYSICS "Build PhysX physics module" ON)
@@ -186,5 +187,9 @@ else()
 endif()
 
 if(CHE_BUILD_SANDBOX)
-    add_subdirectory(Sandbox)  # Песочница
+    add_subdirectory(Sandbox)
+endif()
+
+if(CHE_BUILD_PLAYER)
+    add_subdirectory(Player)
 endif()
