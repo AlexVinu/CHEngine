@@ -87,11 +87,9 @@ public:
         // Read game.json for startup scene
         std::string startupScene = ReadStartupScene();
 
-        // Load shaders (same location as Sandbox — inside the pak or shaders/ dir)
+        // Load shaders needed for game rendering (no editor-only shaders like Grid)
         CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
             "Mesh",   CHEngine::AppPaths::ExecutableDir() / "shaders/mesh.slang");
-        CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-            "Grid",   CHEngine::AppPaths::ExecutableDir() / "shaders/grid.slang");
         CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
             "Sphere", CHEngine::AppPaths::ExecutableDir() / "shaders/sphere_impostor.slang");
 

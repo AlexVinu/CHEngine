@@ -455,22 +455,22 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
         if (o.contains("light") && o["light"].is_object()) {
             const auto& lj = o["light"];
             int typeVal = lj.value("type", -1);
-            if (typeVal < 0 || typeVal > 2) {
-                CHE_CORE_WARN("SceneSerializer: invalid light type {} for '{}', resetting", typeVal, name);
-                typeVal = -1;
+            if (typeVal >= 0 && typeVal <= 2) {
+                Light lightData;
+                lightData.Type = static_cast<LightType>(typeVal);
+                float lc[3];
+                if (lj.contains("color") && readFloats(lj["color"], 3, lc))
+                    lightData.Color = { lc[0], lc[1], lc[2] };
+                lightData.Intensity = lj.value("intensity", 1.0f);
+                lightData.Range     = lj.value("range",     10.0f);
+                lightData.InnerCone = lj.value("innerCone", 12.5f);
+                lightData.OuterCone = lj.value("outerCone", 17.5f);
+                if (obj->HasComponent<LightComponent>())
+                    obj->RemoveComponent<LightComponent>();
+                obj->AddComponent<LightComponent>(LightComponent{ lightData });
+            } else {
+                CHE_CORE_WARN("SceneSerializer: invalid light type {} for '{}', skipping", typeVal, name);
             }
-            Light lightData;
-            lightData.Type = static_cast<LightType>(typeVal);
-            float lc[3];
-            if (lj.contains("color") && readFloats(lj["color"], 3, lc))
-                lightData.Color = { lc[0], lc[1], lc[2] };
-            lightData.Intensity = lj.value("intensity", 1.0f);
-            lightData.Range = lj.value("range", 10.0f);
-            lightData.InnerCone = lj.value("innerCone", 12.5f);
-            lightData.OuterCone = lj.value("outerCone", 17.5f);
-            if (obj->HasComponent<LightComponent>())
-                obj->RemoveComponent<LightComponent>();
-            obj->AddComponent<LightComponent>(LightComponent{ lightData });
         } else if (obj->HasComponent<LightComponent>()) {
             obj->RemoveComponent<LightComponent>();
         }

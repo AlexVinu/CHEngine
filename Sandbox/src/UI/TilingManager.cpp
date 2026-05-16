@@ -30,7 +30,8 @@ void TilingManager::BeginFrame(ImVec2 workPos, ImVec2 workSize)
     m_WorkPos       = workPos;
     m_WorkSize      = workSize;
     m_Layout.SetWorkArea(workPos, workSize);
-    m_Layout.ComputeRects();
+    float dt = ImGui::GetIO().DeltaTime;
+    m_Layout.ComputeRects(dt, m_DragNode != nullptr);
 }
 
 void TilingManager::EndFrame()
@@ -387,15 +388,22 @@ void TilingManager::DrawGhost()
             && m_DropTarget.edge  != DropEdge::None
             && m_DropTarget.edge  != DropEdge::Center)
         {
-            // If dragging from title bar: remove from old position first
-            if (m_DragFromPanel != PanelID::None)
-                m_Layout.ClosePanel(m_DragFromPanel);
-
-            m_Layout.InsertPanel(m_GhostPanel, m_DropTarget.panel, m_DropTarget.edge);
-            m_Layout.ComputeRects();
-            m_LayoutChanged = true;
-            m_Layout.Save(m_SavePath);
-            placed = true;
+            // Remove from old position ONLY if insert will succeed.
+            // InsertPanel returns false when nearPanel is not a leaf — panel would be lost.
+            bool wouldSucceed = m_Layout.InsertPanel(
+                m_GhostPanel, m_DropTarget.panel, m_DropTarget.edge);
+            if (wouldSucceed) {
+                // Re-do: InsertPanel already modified the tree; we just need to
+                // close the drag source (which was placed into the tree).
+                // But we removed the source AFTER insert already happened above,
+                // so the source is a duplicate — close it now.
+                if (m_DragFromPanel != PanelID::None)
+                    m_Layout.ClosePanel(m_DragFromPanel);
+                m_Layout.ComputeRects();
+                m_LayoutChanged = true;
+                m_Layout.Save(m_SavePath);
+                placed = true;
+            }
         }
         else if (m_Layout.VisiblePanels().empty())
         {

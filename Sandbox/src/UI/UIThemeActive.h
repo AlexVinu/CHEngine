@@ -59,9 +59,41 @@ namespace UIActive
     inline bool BeginPanel(const char* title, ImVec2 pos, ImVec2 size,
                            ImGuiWindowFlags flags = 0, bool resetSize = false)
     {
+        bool open;
         if (g_Theme == AppTheme::RetroOS)
-            return UIThemeRetro::BeginPanel(title, pos, size, flags, resetSize);
-        return UITheme::BeginPanel(title, pos, size, flags, resetSize);
+            open = UIThemeRetro::BeginPanel(title, pos, size, flags, resetSize);
+        else
+            open = UITheme::BeginPanel(title, pos, size, flags, resetSize);
+
+        // ── Gradient title bar — works for both themes ────────────────────────
+        // Draw on visible (non-collapsed) windows with a real title bar.
+        ImGuiWindow* win = ImGui::GetCurrentWindow();
+        if (open && win && win->TitleBarHeight > 0.0f && win->Size.y > 1.0f)
+        {
+            ImDrawList* dl  = ImGui::GetWindowDrawList();
+            ImVec2      wp  = win->Pos;
+            float       tbH = win->TitleBarHeight;
+            float       ww  = win->Size.x;
+            float       r   = ImGui::GetStyle().WindowRounding;
+            ImVec2      tl  = wp;
+            ImVec2      br  = ImVec2(wp.x + ww, wp.y + tbH);
+
+            // Main gradient body (below the rounded cap)
+            dl->AddRectFilledMultiColor(
+                ImVec2(tl.x, tl.y + r), br,
+                IM_COL32(55, 100, 195, 230), IM_COL32(55, 100, 195, 230),
+                IM_COL32(22,  50, 120, 230), IM_COL32(22,  50, 120, 230));
+
+            // Rounded top cap
+            dl->AddRectFilled(tl, ImVec2(br.x, tl.y + r),
+                IM_COL32(55, 100, 195, 230), r, ImDrawFlags_RoundCornersTop);
+
+            // Thin glowing accent line at bottom of title bar
+            dl->AddLine(ImVec2(tl.x + r, br.y - 1), ImVec2(br.x - r, br.y - 1),
+                IM_COL32(100, 160, 255, 120), 1.0f);
+        }
+
+        return open;
     }
 
     inline void EndPanel()

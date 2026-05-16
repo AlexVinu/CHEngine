@@ -75,7 +75,9 @@ public:
 
     // ── Frame setup ───────────────────────────────────────────────────────────
     void SetWorkArea(ImVec2 pos, ImVec2 size);
-    void ComputeRects();
+    // dt  = delta time in seconds. Used to smooth-animate panel rects.
+    // isDragging = separator is being dragged (animate instantly, no lag).
+    void ComputeRects(float dt = 0.0f, bool isDragging = false);
 
     // ── Panel queries ─────────────────────────────────────────────────────────
     TileRect  GetRect(PanelID id)       const;
@@ -89,7 +91,8 @@ public:
     void ToggleCollapse(PanelID id);
     // Insert newPanel by splitting the node that contains nearPanel.
     // edge: which side of nearPanel the new panel appears on.
-    void InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge);
+    // Returns true if successfully inserted, false if nearPanel is not a leaf (would corrupt tree).
+    bool InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge);
     // Place the very first panel when layout is empty
     void InsertFirstPanel(PanelID id);
     // Direct ratio update from separator drag
@@ -127,13 +130,14 @@ private:
     ImVec2 m_WorkPos  = {0, 0};
     ImVec2 m_WorkSize = {0, 0};
 
-    // Computed rects (filled by ComputeRects)
+    // Computed target rects (filled by ComputeNode)
     std::unordered_map<int, TileRect> m_Rects;
+    // Animated rects: smoothly lerp toward m_Rects each frame
+    std::unordered_map<int, TileRect> m_AnimRects;
     std::vector<SeparatorHit>         m_Separators;
 
     // ── Internal helpers ──────────────────────────────────────────────────────
     void  ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size);
-    float EffectiveSize(TileNode* node, bool horizontal) const;
 
     TileNode*  FindNode(TileNode* root, PanelID id) const;
     TileNode*  FindParent(TileNode* root, TileNode* target) const;

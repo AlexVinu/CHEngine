@@ -70,12 +70,25 @@ void ExportPanel::Draw(SceneViewLayerHost& host)
     ImGui::Spacing();
     ImGui::SeparatorText("Статус");
 
-    if (m_Exporting) {
+    // Snapshot shared state under mutex, then render outside the lock.
+    float       snapProgress = 0.0f;
+    std::string snapStatus;
+    bool        snapDone     = false;
+    bool        snapSuccess  = false;
+    {
         std::lock_guard<std::mutex> lk(m_Mutex);
-        ImGui::ProgressBar(m_Progress, ImVec2(-1, 0));
-        ImGui::TextWrapped("%s", m_StatusMsg.c_str());
-    } else if (m_Done) {
-        if (m_Success) {
+        snapProgress = m_Progress;
+        snapStatus   = m_StatusMsg;
+        snapDone     = m_Done;
+        snapSuccess  = m_Success;
+        if (m_Done) m_Exporting = false;  // transition while locked
+    }
+
+    if (m_Exporting) {
+        ImGui::ProgressBar(snapProgress, ImVec2(-1, 0));
+        ImGui::TextWrapped("%s", snapStatus.c_str());
+    } else if (snapDone) {
+        if (snapSuccess) {
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.2f, 0.9f, 0.3f, 1.0f));
             ImGui::TextUnformatted("✓ Экспорт завершён успешно!");
             ImGui::PopStyleColor();
@@ -84,7 +97,7 @@ void ExportPanel::Draw(SceneViewLayerHost& host)
             ImGui::TextUnformatted("✗ Ошибка экспорта. Смотри логи.");
             ImGui::PopStyleColor();
         }
-        ImGui::TextWrapped("%s", m_StatusMsg.c_str());
+        ImGui::TextWrapped("%s", snapStatus.c_str());
     } else {
         ImGui::TextDisabled("Настрой параметры и нажми Экспортировать");
     }
@@ -102,12 +115,7 @@ void ExportPanel::Draw(SceneViewLayerHost& host)
     if (ImGui::Button("Закрыть", ImVec2(80, 0)))
         m_Open = false;
 
-    // Poll worker completion
-    if (m_Exporting)
-    {
-        std::lock_guard<std::mutex> lk(m_Mutex);
-        if (m_Done) m_Exporting = false;
-    }
+    // Completion already handled in the snapshot block above.
 
     ImGui::End();
 }

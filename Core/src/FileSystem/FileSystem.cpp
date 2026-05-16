@@ -51,13 +51,14 @@ std::string FileSystem::ToPakKey(const std::filesystem::path& filepath)
 
 	Buffer FileSystem::ReadFileBinary(const std::filesystem::path& filepath)
 	{
-		// Check pak first
+		// Check pak first — use Has() to distinguish "not in pak" from "zero-byte file in pak"
 		if (s_Pak && s_Pak->IsOpen()) {
-			auto key   = ToPakKey(filepath);
-			auto bytes = s_Pak->ReadBinary(key);
-			if (!bytes.empty()) {
-				Buffer buf(bytes.size());
-				std::memcpy(buf.Data, bytes.data(), bytes.size());
+			auto key = ToPakKey(filepath);
+			if (s_Pak->Has(key)) {
+				auto bytes = s_Pak->ReadBinary(key);
+				Buffer buf(bytes.empty() ? 0 : bytes.size());
+				if (!bytes.empty())
+					std::memcpy(buf.Data, bytes.data(), bytes.size());
 				return buf;
 			}
 		}
@@ -78,11 +79,11 @@ std::string FileSystem::ToPakKey(const std::filesystem::path& filepath)
 
 	std::string FileSystem::ReadFileText(const std::filesystem::path& filepath)
 	{
-		// Check pak first
+		// Check pak first — use Has() so zero-byte files don't fall through
 		if (s_Pak && s_Pak->IsOpen()) {
-			auto key  = ToPakKey(filepath);
-			auto text = s_Pak->ReadText(key);
-			if (!text.empty()) return text;
+			auto key = ToPakKey(filepath);
+			if (s_Pak->Has(key))
+				return s_Pak->ReadText(key);
 		}
 
 		std::ifstream stream(filepath, std::ios::binary | std::ios::ate);

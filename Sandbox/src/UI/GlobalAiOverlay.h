@@ -47,6 +47,9 @@ public:
     const std::string& GetEndpoint() const { return m_Endpoint; }
     const std::string& GetModel()    const { return m_Model; }
 
+    // Public so WorkerFn (which is a member) can call it on the worker thread.
+    static std::string JsonEscape(const std::string& s);
+
 private:
     struct Message {
         bool        isUser = false;
@@ -89,7 +92,16 @@ private:
 
     // ── Internal ─────────────────────────────────────────────────────────────
     void Submit(const std::string& userMsg, SceneViewLayerHost& host);
-    void WorkerFn(std::string userMsg);
+    // All API fields passed by value — thread has no shared mutable state to race on.
+    struct WorkerArgs {
+        std::string userMsg;
+        std::string apiKey;
+        std::string endpoint;
+        std::string model;
+        std::string sceneContext;
+        std::vector<HistoryEntry> history;
+    };
+    void WorkerFn(WorkerArgs args);
     void ApplyResponse(const std::string& raw, SceneViewLayerHost& host);
 
     std::string BuildRequestBody(const std::string& userMsg) const;
@@ -98,7 +110,6 @@ private:
 
     // Minimal JSON field extractor
     static std::string JsonField(const std::string& json, const std::string& key);
-    static std::string JsonEscape(const std::string& s);
 
     void DrawSettingsPanel();
 };

@@ -122,9 +122,13 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg)
     }
 
 #ifndef _WIN32
-    // Make executable on Unix
-    std::string chmod = "chmod +x \"" + playerDst.string() + "\"";
-    std::system(chmod.c_str());
+    // Make executable — use filesystem::permissions instead of std::system(chmod)
+    // to avoid shell injection if the path contains special characters.
+    fs::permissions(playerDst,
+        fs::perms::owner_exec | fs::perms::group_exec | fs::perms::others_exec,
+        fs::perm_options::add, ec);
+    if (ec)
+        CHE_CORE_WARN("[Export] Could not set executable bit: {}", ec.message());
 #endif
 
     // Copy all dylibs/dlls from engine bin dir to output dir
@@ -150,8 +154,14 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg)
     {
         fs::path shadersDst = cfg.outputDir / "shaders";
         fs::create_directories(shadersDst, ec);
-        fs::copy(shadersDir, shadersDst,
-                 fs::copy_options::overwrite_existing | fs::copy_options::recursive, ec);
+        if (ec) {
+            CHE_CORE_WARN("[Export] Cannot create shaders dir: {}", ec.message());
+        } else {
+            fs::copy(shadersDir, shadersDst,
+                     fs::copy_options::overwrite_existing | fs::copy_options::recursive, ec);
+            if (ec)
+                CHE_CORE_WARN("[Export] Shader copy incomplete: {}", ec.message());
+        }
     }
 
     return true;
