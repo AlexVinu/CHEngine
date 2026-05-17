@@ -1,6 +1,5 @@
 // CHEngine Player Runtime
 // Loads a .chepak asset archive and runs the startup scene in game mode.
-// No editor UI — just render + input + Lua scripts.
 #define CHE_INCLUDE_ENTRY_POINT
 #include <CHEngine.h>
 #include <CHEngine/Scene/SceneSerializer.h>
@@ -16,11 +15,10 @@
 #include <string>
 
 namespace fs = std::filesystem;
-
 using json = nlohmann::json;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PlayerLayer — loads startup scene and runs the game world
+// PlayerLayer
 // ─────────────────────────────────────────────────────────────────────────────
 class PlayerLayer : public CHEngine::Layer
 {
@@ -32,19 +30,30 @@ public:
 
     void OnAttach() override
     {
-        // Load scene from pak (or filesystem as fallback)
         CHEngine::SceneSerializer serializer;
         auto scene = serializer.LoadFromFile(m_StartupScenePath);
 
         if (!scene) {
-            CHE_CORE_ERROR("[Player] Failed to load startup scene: {}", m_StartupScenePath);
-            // Carry on with an empty scene so the window at least opens
+            CHE_CORE_ERROR("[Player] Failed to load scene: {}", m_StartupScenePath);
             scene = MakeRef<CHEngine::Scene>();
+        } else {
+            CHE_CORE_INFO("[Player] Loaded scene: {}", m_StartupScenePath);
+        }
+
+        // Update camera projection for the window size
+        auto* win = CHEngine::Application::Get().GetWindow();
+        if (win && win->GetWidth() > 0 && win->GetHeight() > 0)
+        {
+            float w = (float)win->GetWidth();
+            float h = (float)win->GetHeight();
+            scene->ForEach<CHEngine::CameraComponent>(
+                [w, h](CHEngine::EntityHandle, const CHEngine::UUID&, CHEngine::CameraComponent& cam) {
+                    cam.Camera.SetViewportSize((uint32_t)w, (uint32_t)h);
+                });
         }
 
         m_World = MakeRef<CHEngine::World>(scene);
         m_World->SetState(CHEngine::WorldState::Simulating);
-        CHE_CORE_INFO("[Player] Scene loaded: {}", m_StartupScenePath);
     }
 
     void OnDetach() override
@@ -57,9 +66,8 @@ public:
     {
         if (!m_World) return;
 
-        // Set viewport size every frame so RenderSystem knows the render target dimensions.
-        // The editor does this via EditorViewport::BeginSceneRender; without it the
-        // viewport is zero/undefined and nothing renders (black screen).
+        // Set viewport size every frame — RenderSystem requires this before rendering.
+        // Without it EnsureGPUResources() returns false and nothing is drawn.
         auto* win = CHEngine::Application::Get().GetWindow();
         if (win)
         {
@@ -69,23 +77,62 @@ public:
                 CHEngine::RenderFacade::SetViewportSize(w, h);
         }
 
-        // Make sure no editor-only pre-scene callbacks are active
+        // Remove editor-only pre-scene callbacks (grid, etc.)
         CHEngine::RenderFacade::ClearPreSceneCallback();
 
         m_World->Update(dt);
     }
 
-    void OnImGuiRender() override {}
+    void OnImGuiRender() override
+    {
+        // ── Present the rendered frame to the screen ──────────────────────────
+        // The engine renders into an offscreen LDR texture. The ONLY way to get
+        // pixels onto the window surface is via ImGui::Image — same as the editor.
+        uint64_t texID = CHEngine::RenderFacade::GetViewportColorTexID();
+        if (texID == 0) return;
+
+        ImGuiIO& io = ImGui::GetIO();
+        ImVec2   displaySize = io.DisplaySize;
+
+        // Fullscreen, no padding, no decoration
+        ImGui::SetNextWindowPos(ImVec2(0, 0), ImGuiCond_Always);
+        ImGui::SetNextWindowSize(displaySize, ImGuiCond_Always);
+        ImGui::SetNextWindowBgAlpha(0.0f);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+
+        ImGui::Begin("##game_output", nullptr,
+            ImGuiWindowFlags_NoTitleBar      |
+            ImGuiWindowFlags_NoResize        |
+            ImGuiWindowFlags_NoMove          |
+            ImGuiWindowFlags_NoScrollbar     |
+            ImGuiWindowFlags_NoSavedSettings |
+            ImGuiWindowFlags_NoBringToFrontOnFocus |
+            ImGuiWindowFlags_NoNav);
+
+        ImGui::PopStyleVar(2);
+
+        // UV: Metal renders top-left = (0,0); OpenGL renders top-left = (0,1)
+        const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType()
+                               == CHEngine::ERenderAPI::METAL);
+        ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
+        ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
+
+        ImGui::Image(static_cast<ImTextureID>(texID), displaySize, uv0, uv1);
+
+        ImGui::End();
+    }
 
     void OnEvent(CHEngine::Event& /*e*/) override {}
 
 private:
-    std::string              m_StartupScenePath;
-    Ref<CHEngine::World>     m_World;
+    std::string          m_StartupScenePath;
+    Ref<CHEngine::World> m_World;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PlayerApp — minimal Application subclass
+// PlayerApp
 // ─────────────────────────────────────────────────────────────────────────────
 class PlayerApp : public CHEngine::Application
 {
@@ -93,60 +140,74 @@ public:
     explicit PlayerApp(const CHEngine::ApplicationConfig& config)
         : CHEngine::Application(config)
     {
-        // Mount asset pack if present
-        // On macOS inside a .app bundle the binary lives in Contents/MacOS/,
-        // resources are in Contents/Resources/. Try both locations.
+        // Locate Resources dir — handles both .app bundle and flat/dev layout
         fs::path exeDir      = CHEngine::AppPaths::ExecutableDir();
-        fs::path resourceDir = exeDir / "../Resources"; // .app bundle layout
-        if (!fs::exists(resourceDir)) resourceDir = exeDir; // flat / dev layout
+        fs::path resourceDir = exeDir / "../Resources";
+        if (!fs::exists(resourceDir)) resourceDir = exeDir;
 
-        // Mount asset pack
+        // Mount asset pak
         fs::path pakPath = resourceDir / "game.chepak";
-        if (!fs::exists(pakPath)) pakPath = exeDir / "game.chepak"; // fallback
+        if (!fs::exists(pakPath)) pakPath = exeDir / "game.chepak";
         if (fs::exists(pakPath))
         {
             if (CHEngine::FileSystem::MountPak(pakPath))
-                CHE_CORE_INFO("[Player] Mounted {}", pakPath.string());
+                CHE_CORE_INFO("[Player] Mounted pak: {}", pakPath.string());
             else
                 CHE_CORE_WARN("[Player] Failed to mount pak: {}", pakPath.string());
         }
 
         m_ResourceDir = resourceDir;
-        std::string startupScene = ReadStartupScene();
 
-        // Shaders: try pak first (FileSystem falls through), then disk
+        // ── Load shaders ──────────────────────────────────────────────────────
         fs::path shadersDir = exeDir / "shaders";
-        CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+
+        auto meshShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
             "Mesh",   shadersDir / "mesh.slang");
-        CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        auto sphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
             "Sphere", shadersDir / "sphere_impostor.slang");
+
+        // CRITICAL: RenderSystem::EnsureGPUResources() checks these.
+        // Without them it returns false and draws nothing.
+        if (meshShader.IsValid())
+            CHEngine::RenderFacade::SetDefaultMeshShader(meshShader);
+        else
+            CHE_CORE_WARN("[Player] Mesh shader not loaded — scene will not render");
+
+        if (sphereShader.IsValid())
+            CHEngine::RenderFacade::SetDefaultSphereImpostorShader(sphereShader);
+
+        std::string startupScene = ReadStartupScene();
+        CHE_CORE_INFO("[Player] Startup scene: {}", startupScene);
 
         PushLayer(new PlayerLayer(startupScene));
     }
 
     ~PlayerApp() override = default;
 
+private:
     fs::path m_ResourceDir;
 
     std::string ReadStartupScene()
     {
-        // Try Resources/game.json (bundle layout), then exe dir
-        auto gameCfgPath = m_ResourceDir / "game.json";
-        if (!fs::exists(gameCfgPath))
-            gameCfgPath = CHEngine::AppPaths::ExecutableDir() / "game.json";
-        std::string text = CHEngine::FileSystem::ReadFileText(gameCfgPath);
+        fs::path exeDir = CHEngine::AppPaths::ExecutableDir();
 
-        if (!text.empty()) {
+        // Try Resources/game.json (.app bundle), then exe dir (dev/flat)
+        fs::path cfgPath = m_ResourceDir / "game.json";
+        if (!fs::exists(cfgPath)) cfgPath = exeDir / "game.json";
+
+        std::string text = CHEngine::FileSystem::ReadFileText(cfgPath);
+        if (!text.empty())
+        {
             try {
                 auto j = json::parse(text);
                 std::string rel = j.value("startup_scene", "");
                 if (!rel.empty())
-                    return (CHEngine::AppPaths::ExecutableDir() / rel).string();
+                    return (exeDir / rel).string();
             } catch (...) {}
         }
 
-        CHE_CORE_WARN("[Player] game.json not found or invalid, using default scene path");
-        return (CHEngine::AppPaths::ExecutableDir() / "scenes/main.chscene").string();
+        CHE_CORE_WARN("[Player] game.json not found, using default scene path");
+        return (exeDir / "scenes/main.chscene").string();
     }
 };
 
