@@ -6,7 +6,7 @@
 #include <CHEngine/Utils/AppPaths.h>
 #include <CHEngine/Render/RenderFacade.h>
 #include <FileSystem/FileSystem.h>
-#include <FileSystem/PakFile.h>
+#include <CHEngine/ResourceManager/AssetPack.h>
 
 #include <nlohmann/json.hpp>
 #include <filesystem>

@@ -26,6 +26,7 @@
 // Mesh & Model Loading -----------
 #include "CHEngine/Mesh/Mesh.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
+#include "CHEngine/ResourceManager/AssetPack.h"
 // ================================
 
 // Scene --------------------------
