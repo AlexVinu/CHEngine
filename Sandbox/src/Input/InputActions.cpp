@@ -99,8 +99,6 @@ bool InputActions::LoadFromJson(const std::filesystem::path& path)
 
 void InputActions::PushContext(InputContext ctx)
 {
-    // Prevent duplicate at the top — double-push with single-pop would leave a stale entry.
-    if (!g_ContextStack.empty() && g_ContextStack.back() == ctx) return;
     g_ContextStack.push_back(ctx);
 }
 
@@ -118,13 +116,7 @@ void InputActions::PopContext(InputContext ctx)
 
 bool InputActions::IsActiveContext(InputContext ctx)
 {
-    // Only the top-most context (and below, up to a barrier) should be active.
-    // Currently returns true if ctx is anywhere on the stack — this allows
-    // deeper contexts to remain active when a higher context is pushed.
-    // For now we preserve existing behaviour but document the intent.
-    // TODO: implement context barriers so pushed Game context blocks Editor shortcuts.
-    if (g_ContextStack.empty()) return false;
-    return g_ContextStack.back() == ctx;
+    return std::find(g_ContextStack.begin(), g_ContextStack.end(), ctx) != g_ContextStack.end();
 }
 
 void InputActions::BeginFrame()
