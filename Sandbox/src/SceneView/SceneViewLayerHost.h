@@ -75,7 +75,14 @@ public:
     void AddSpherePrimitive();
     void AddCameraEntity();
     void AddEmptyEntity();
-    void SetSelection(CHEngine::EntityHandle handle);
+
+    // UI entities (pre-wired with UIRectTransformComponent + specific component)
+    void AddUICanvas();
+    void AddUIPanel();
+    void AddUIText();
+    void AddUIButton();
+    void AddUIImage();
+    void AddUISlider();    void SetSelection(CHEngine::EntityHandle handle);
     void DestroyEntityByUuid(const CHEngine::UUID& object_id);
 
     void OnRendererApiSelected(CHEngine::ERenderAPI api) ;

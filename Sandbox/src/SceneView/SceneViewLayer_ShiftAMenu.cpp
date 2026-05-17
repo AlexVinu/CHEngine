@@ -102,6 +102,31 @@ void Draw(SceneViewLayer& layer)
     if (ImGui::Selectable("  Empty Entity", false, 0, ImVec2(w, 0))) { host.AddEmptyEntity(); EditorPopup::Close(); }
     ImGui::PopStyleVar();
 
+    ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
+
+    // ── UI ────────────────────────────────────────────────────────────────────
+    // BeginMenu creates a Blender-style submenu: stays open while mouse moves
+    // diagonally toward it (ImGui handles this with an internal hover timer).
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
+    if (ImGui::BeginMenu("  UI  \xe2\x96\xb6", true))  // ▶
+    {
+        UIThemeRetro::PushHeadingFont();
+        ImGui::TextDisabled("UI Elements");
+        UIThemeRetro::PopFont();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        if (ImGui::MenuItem("  Canvas"))       { host.AddUICanvas();  EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Panel"))        { host.AddUIPanel();   EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Text"))         { host.AddUIText();    EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Button"))       { host.AddUIButton();  EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Image"))        { host.AddUIImage();   EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Slider"))       { host.AddUISlider();  EditorPopup::Close(); }
+
+        ImGui::EndMenu();
+    }
+    ImGui::PopStyleVar();
+
     ImGui::End();
 }
 
