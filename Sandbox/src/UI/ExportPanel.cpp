@@ -50,13 +50,28 @@ void ExportPanel::Draw(SceneViewLayerHost& host)
     // Settings
     ImGui::SeparatorText("Настройки");
 
-    ImGui::Text("Выходная папка");
+    ImGui::Text("Куда сохранить");
     ImGui::SetNextItemWidth(-1);
     ImGui::InputText("##outdir", m_OutputDir, sizeof(m_OutputDir));
 
     ImGui::Text("Название игры");
     ImGui::SetNextItemWidth(-1);
-    ImGui::InputText("##title", m_GameTitle, sizeof(m_GameTitle));
+    if (ImGui::InputText("##title", m_GameTitle, sizeof(m_GameTitle)))
+        {}  // live preview updates below
+
+#ifdef __APPLE__
+    // Show what will be created
+    if (m_OutputDir[0] && m_GameTitle[0]) {
+        std::string preview = std::string(m_OutputDir) + "/" + m_GameTitle + ".app";
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.8f, 0.5f, 1.0f));
+        ImGui::TextWrapped("→ %s", preview.c_str());
+        ImGui::PopStyleColor();
+    }
+    ImGui::Text("Bundle ID");
+    ImGui::SetNextItemWidth(-1);
+    ImGui::InputText("##bundleid", m_BundleId, sizeof(m_BundleId));
+    ImGui::SetItemTooltip("com.company.gamename — нужен macOS для идентификации приложения");
+#endif
 
     ImGui::Text("Разрешение окна");
     ImGui::SetNextItemWidth(100);
@@ -134,6 +149,7 @@ void ExportPanel::StartExport(SceneViewLayerHost& host)
     ExportConfig cfg;
     cfg.outputDir    = m_OutputDir;
     cfg.gameTitle    = m_GameTitle;
+    cfg.bundleId     = m_BundleId;
     cfg.windowWidth  = m_Width;
     cfg.windowHeight = m_Height;
     cfg.startupScene = startupScene;
@@ -176,7 +192,7 @@ void ExportPanel::StartExport(SceneViewLayerHost& host)
         m_Success = ok;
         m_Done    = true;
         m_StatusMsg = ok
-            ? "Готово: " + cfg.outputDir.string()
+            ? "Готово: " + ExportManager::GetResultPath(cfg).string()
             : "Экспорт упал. Смотри логи.";
     });
 }

@@ -29,6 +29,7 @@ private:
     // Settings
     char m_OutputDir[512]    = {};
     char m_GameTitle[128]    = "My Game";
+    char m_BundleId[256]     = "com.chengine.game";
     int  m_Width             = 1280;
     int  m_Height            = 720;
 

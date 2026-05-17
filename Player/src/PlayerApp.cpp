@@ -14,6 +14,8 @@
 #include <fstream>
 #include <string>
 
+namespace fs = std::filesystem;
+
 using json = nlohmann::json;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,8 +77,16 @@ public:
         : CHEngine::Application(config)
     {
         // Mount asset pack if present
-        auto pakPath = CHEngine::AppPaths::ExecutableDir() / "game.chepak";
-        if (std::filesystem::exists(pakPath))
+        // On macOS inside a .app bundle the binary lives in Contents/MacOS/,
+        // resources are in Contents/Resources/. Try both locations.
+        fs::path exeDir      = CHEngine::AppPaths::ExecutableDir();
+        fs::path resourceDir = exeDir / "../Resources"; // .app bundle layout
+        if (!fs::exists(resourceDir)) resourceDir = exeDir; // flat / dev layout
+
+        // Mount asset pack
+        fs::path pakPath = resourceDir / "game.chepak";
+        if (!fs::exists(pakPath)) pakPath = exeDir / "game.chepak"; // fallback
+        if (fs::exists(pakPath))
         {
             if (CHEngine::FileSystem::MountPak(pakPath))
                 CHE_CORE_INFO("[Player] Mounted {}", pakPath.string());
@@ -84,25 +94,29 @@ public:
                 CHE_CORE_WARN("[Player] Failed to mount pak: {}", pakPath.string());
         }
 
-        // Read game.json for startup scene
+        m_ResourceDir = resourceDir;
         std::string startupScene = ReadStartupScene();
 
-        // Load shaders needed for game rendering (no editor-only shaders like Grid)
+        // Shaders: try pak first (FileSystem falls through), then disk
+        fs::path shadersDir = exeDir / "shaders";
         CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-            "Mesh",   CHEngine::AppPaths::ExecutableDir() / "shaders/mesh.slang");
+            "Mesh",   shadersDir / "mesh.slang");
         CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
-            "Sphere", CHEngine::AppPaths::ExecutableDir() / "shaders/sphere_impostor.slang");
+            "Sphere", shadersDir / "sphere_impostor.slang");
 
         PushLayer(new PlayerLayer(startupScene));
     }
 
     ~PlayerApp() override = default;
 
-private:
+    fs::path m_ResourceDir;
+
     std::string ReadStartupScene()
     {
-        // Try game.json in exe dir (or pak)
-        auto gameCfgPath = CHEngine::AppPaths::ExecutableDir() / "game.json";
+        // Try Resources/game.json (bundle layout), then exe dir
+        auto gameCfgPath = m_ResourceDir / "game.json";
+        if (!fs::exists(gameCfgPath))
+            gameCfgPath = CHEngine::AppPaths::ExecutableDir() / "game.json";
         std::string text = CHEngine::FileSystem::ReadFileText(gameCfgPath);
 
         if (!text.empty()) {
