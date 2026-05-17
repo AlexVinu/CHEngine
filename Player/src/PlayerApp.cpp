@@ -6,6 +6,7 @@
 #include <CHEngine/Scene/SceneSerializer.h>
 #include <CHEngine/World/World.h>
 #include <CHEngine/Utils/AppPaths.h>
+#include <CHEngine/Render/RenderFacade.h>
 #include <FileSystem/FileSystem.h>
 #include <FileSystem/PakFile.h>
 
@@ -54,8 +55,24 @@ public:
 
     void OnUpdate(CHEngine::Timestep dt) override
     {
-        if (m_World)
-            m_World->Update(dt);
+        if (!m_World) return;
+
+        // Set viewport size every frame so RenderSystem knows the render target dimensions.
+        // The editor does this via EditorViewport::BeginSceneRender; without it the
+        // viewport is zero/undefined and nothing renders (black screen).
+        auto* win = CHEngine::Application::Get().GetWindow();
+        if (win)
+        {
+            uint32_t w = win->GetWidth();
+            uint32_t h = win->GetHeight();
+            if (w > 0 && h > 0)
+                CHEngine::RenderFacade::SetViewportSize(w, h);
+        }
+
+        // Make sure no editor-only pre-scene callbacks are active
+        CHEngine::RenderFacade::ClearPreSceneCallback();
+
+        m_World->Update(dt);
     }
 
     void OnImGuiRender() override {}
