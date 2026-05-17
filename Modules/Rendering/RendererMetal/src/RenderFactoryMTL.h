@@ -14,6 +14,8 @@
 #include "VertexArrayMTL.h"
 #include "RenderApiMTL.h"
 
+#include <SlangBackend/SlangBackend.h>
+
 namespace CHModules
 {
     using BufferPoolMTL   = CHEngine::HandlePool<UnifiedBufferMTL, CHEngine::BufferTag>;
@@ -93,6 +95,9 @@ namespace CHModules
         void Delete(class IndexBufferMTL*  ptr);
         void Delete(class VertexArrayMTL*  ptr);
         void Delete(class RenderApiMTL*    ptr);
+
+        // Slang shader compiler — one instance per factory, initialised in Init().
+        CHModules::SlangBackend Slang;
 
     private:
         template<typename T, typename... Args>

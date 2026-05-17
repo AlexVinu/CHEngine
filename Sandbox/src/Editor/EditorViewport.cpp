@@ -2,7 +2,6 @@
 
 #include <CHEngine/Application.h>
 #include <CHEngine/Utils/AppPaths.h>
-#include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <Render/UniformBlocks.h>
 #include <Render/IRenderFactory.h>
@@ -24,21 +23,21 @@ namespace Sandbox {
 EditorViewport::EditorViewport()
     : m_FbScale{ 1.0f, 1.0f }
 {
-    m_MeshShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+    m_MeshShader = CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>(
         std::string("Mesh"), CHEngine::AppPaths::ExecutableDir() / "shaders/mesh.slang");
-    CHEngine::RenderFacade::SetDefaultMeshShader(m_MeshShader);
+    CHEngine::Application::Get().Render().SetDefaultMeshShader(m_MeshShader);
 
-    m_GridShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+    m_GridShader = CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>(
         std::string("Grid"), CHEngine::AppPaths::ExecutableDir() / "shaders/grid.slang");
 
-    m_SphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+    m_SphereShader = CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>(
         std::string("Sphere"), CHEngine::AppPaths::ExecutableDir() / "shaders/sphere.slang");
 
-    m_SphereImpostorShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+    m_SphereImpostorShader = CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>(
         std::string("SphereImpostor"), CHEngine::AppPaths::ExecutableDir() / "shaders/sphere_impostor.slang");
-    CHEngine::RenderFacade::SetDefaultSphereImpostorShader(m_SphereImpostorShader);
+    CHEngine::Application::Get().Render().SetDefaultSphereImpostorShader(m_SphereImpostorShader);
 
-    m_PBRShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+    m_PBRShader = CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>(
         std::string("PBR"), CHEngine::AppPaths::ExecutableDir() / "shaders/pbr.slang");
 
     BuildGrid();
@@ -73,7 +72,7 @@ void EditorViewport::BeginSceneRender(Ref<SceneSession> scene_session)
         const uint32_t vpW = static_cast<uint32_t>(m_ViewportSize.x * m_FbScale.x);
         const uint32_t vpH = static_cast<uint32_t>(m_ViewportSize.y * m_FbScale.y);
         if (vpW > 0 && vpH > 0)
-            CHEngine::RenderFacade::SetViewportSize(vpW, vpH);
+            CHEngine::Application::Get().Render().SetViewportSize(vpW, vpH);
     }
 
     if (scene_session->GetSessionState() != SceneSession::State::Play)
@@ -90,25 +89,25 @@ void EditorViewport::BeginSceneRender(Ref<SceneSession> scene_session)
         cameraUBO.CameraPos[2] = camPos.z;
         cameraUBO.CameraPos[3] = 0.0f;
 
-        CHEngine::RenderFacade::SetSceneCamera(cameraUBO);
+        CHEngine::Application::Get().Render().SetSceneCamera(cameraUBO);
 
         // Register grid as a PRE-SCENE callback: grid is drawn FIRST (clears HDR),
         // then MainColorPass draws objects ON TOP of the grid.
         if (m_ShowGrid && scene_session->GetSessionState() == SceneSession::State::Edit
             && m_GridVB.IsValid() && m_GridIB.IsValid() && m_GridPipeline.IsValid())
         {
-            CHEngine::RenderFacade::SetPreSceneCallback([this, scene_session]() {
+            CHEngine::Application::Get().Render().SetPreSceneCallback([this, scene_session]() {
                 this->RegisterEditorPasses(scene_session);
             });
         }
         else
         {
-            CHEngine::RenderFacade::ClearPreSceneCallback();
+            CHEngine::Application::Get().Render().ClearPreSceneCallback();
         }
 
         // Update grid camera UBO so the grid shader knows InvViewProj
         if (m_GridCameraUBO.IsValid()) {
-            if (auto* f = CHEngine::RenderFacade::GetRenderFactory()) {
+            if (auto* f = CHEngine::Application::Get().Render().GetRenderFactory()) {
                 f->UpdateBuffer(m_GridCameraUBO,
                     std::span<const std::byte>(
                         reinterpret_cast<const std::byte*>(&cameraUBO), sizeof(cameraUBO)));
@@ -118,7 +117,7 @@ void EditorViewport::BeginSceneRender(Ref<SceneSession> scene_session)
     else
     {
         // Play mode: editor grid must not render.
-        CHEngine::RenderFacade::ClearPreSceneCallback();
+        CHEngine::Application::Get().Render().ClearPreSceneCallback();
     }
 }
 
@@ -129,8 +128,8 @@ void EditorViewport::RegisterEditorPasses(Ref<SceneSession> scene_session)
     // GridPass: drawn FIRST — clears HDR to background color, draws grid.
     // MainColorPass (called after) loads this content and draws objects on top.
     // Objects naturally cover the grid since they render AFTER it.
-    CHEngine::TextureHandle hdrTarget   = CHEngine::RenderFacade::GetViewportHDRTexture();
-    CHEngine::TextureHandle depthTarget = CHEngine::RenderFacade::GetViewportDepthTexture();
+    CHEngine::TextureHandle hdrTarget   = CHEngine::Application::Get().Render().GetViewportHDRTexture();
+    CHEngine::TextureHandle depthTarget = CHEngine::Application::Get().Render().GetViewportDepthTexture();
     if (!hdrTarget.IsValid()) return;
 
     // We need the Camera UBO — get it via a helper in RenderFacade
@@ -144,8 +143,8 @@ void EditorViewport::RegisterEditorPasses(Ref<SceneSession> scene_session)
     gridPass.ColorLoadOp   = CHEngine::ELoadOp::Clear;
     gridPass.ColorStoreOp  = CHEngine::EStoreOp::Store;
     gridPass.ClearColor    = { 0.033f, 0.038f, 0.050f, 1.0f };  // editor background
-    gridPass.ViewportWidth  = CHEngine::RenderFacade::GetViewportWidth();
-    gridPass.ViewportHeight = CHEngine::RenderFacade::GetViewportHeight();
+    gridPass.ViewportWidth  = CHEngine::Application::Get().Render().GetViewportWidth();
+    gridPass.ViewportHeight = CHEngine::Application::Get().Render().GetViewportHeight();
 
     // Render into HDR as the background layer.
     gridPass.ColorAttachments.push_back(hdrTarget);
@@ -177,7 +176,7 @@ void EditorViewport::RegisterEditorPasses(Ref<SceneSession> scene_session)
     draw.InstanceCount = 1;
     gridPass.Draws.push_back(std::move(draw));
 
-    CHEngine::RenderFacade::GetFrameGraph().AddPass(std::move(gridPass));
+    CHEngine::Application::Get().Render().GetFrameGraph().AddPass(std::move(gridPass));
 }
 
 void EditorViewport::EndSceneRender()
@@ -355,7 +354,7 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
 
         const uint32_t newW = static_cast<uint32_t>(panelSize.x * m_FbScale.x);
         const uint32_t newH = static_cast<uint32_t>(panelSize.y * m_FbScale.y);
-        CHEngine::RenderFacade::SetViewportSize(newW, newH);
+        CHEngine::Application::Get().Render().SetViewportSize(newW, newH);
 
         camera_controller.SetAspectRatio(panelSize.x / panelSize.y);
         scene_session->ViewportSize = { panelSize.x, panelSize.y };
@@ -365,7 +364,7 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
     }
 
     // Display viewport output texture in ImGui.
-    const uint64_t colorTexID = CHEngine::RenderFacade::GetViewportColorTexID();
+    const uint64_t colorTexID = CHEngine::Application::Get().Render().GetViewportColorTexID();
     if (colorTexID != 0)
     {
         static bool s_LoggedOnce = false;
@@ -418,7 +417,7 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
 
 void EditorViewport::BuildGrid()
 {
-    CHEngine::IRenderFactory* f = CHEngine::RenderFacade::GetRenderFactory();
+    CHEngine::IRenderFactory* f = CHEngine::Application::Get().Render().GetRenderFactory();
     if (!f) return;
 
     // Full-screen NDC quad — the grid shader reconstructs world position via InvViewProj.

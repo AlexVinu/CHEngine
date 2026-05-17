@@ -6,11 +6,8 @@
 #include "Profiler.h"
 #include "CHEngine/Input/Input.h"
 #include "CHEngine/EngineConfig.h"
-#include "Physics/PhysicsFacade.h"
-#include "Render/RenderFacade.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
 #include "CHEngine/Utils/AppPaths.h"
-#include "UI/UIFacade.h"
 
 #include <imgui.h>
 
@@ -78,10 +75,10 @@ namespace CHEngine {
                 return false;
             }
 
-            out_selection->WindowModuleName = config.WindowModuleOverride ? config.WindowModuleOverride : GetDefaultWindowModuleName();
+            out_selection->WindowModuleName   = config.WindowModuleOverride   ? config.WindowModuleOverride   : GetDefaultWindowModuleName();
             out_selection->RendererModuleName = config.RendererModuleOverride ? config.RendererModuleOverride : module_names.Renderer;
-            out_selection->ImGuiModuleName = config.ImGuiModuleOverride ? config.ImGuiModuleOverride : module_names.ImGui;
-            out_selection->PhysicsModuleName = config.PhysicsModuleOverride ? config.PhysicsModuleOverride : GetDefaultPhysicsModuleName();
+            out_selection->ImGuiModuleName    = config.ImGuiModuleOverride    ? config.ImGuiModuleOverride    : module_names.ImGui;
+            out_selection->PhysicsModuleName  = config.PhysicsModuleOverride  ? config.PhysicsModuleOverride  : GetDefaultPhysicsModuleName();
 
             if (config.WindowModuleOverride)
                 CHE_CORE_INFO("Window module override: {}", out_selection->WindowModuleName.c_str());
@@ -92,9 +89,9 @@ namespace CHEngine {
             if (config.PhysicsModuleOverride)
                 CHE_CORE_INFO("Physics module override: {}", out_selection->PhysicsModuleName.c_str());
 
-            const bool window_loaded = module_manager->LoadModule(out_selection->WindowModuleName);
+            const bool window_loaded   = module_manager->LoadModule(out_selection->WindowModuleName);
             const bool renderer_loaded = module_manager->LoadModule(out_selection->RendererModuleName);
-            const bool imgui_loaded = module_manager->LoadModule(out_selection->ImGuiModuleName);
+            const bool imgui_loaded    = module_manager->LoadModule(out_selection->ImGuiModuleName);
 
             bool physics_loaded = false;
             if (config.PhysicsEnabled)
@@ -102,9 +99,9 @@ namespace CHEngine {
             else
                 CHE_CORE_INFO("Physics module loading disabled by startup config.");
 
-            *out_window_factory = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
-            *out_render_factory = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
-            *out_imgui_factory = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
+            *out_window_factory  = module_manager->GetModule<IWindowFactory>(ModuleType::Window);
+            *out_render_factory  = module_manager->GetModule<IRenderFactory>(ModuleType::Render);
+            *out_imgui_factory   = module_manager->GetModule<IImGuiFactory>(ModuleType::ImGui);
             *out_physics_factory = physics_loaded ? module_manager->GetModule<IPhysicsFactory>(ModuleType::Physics) : nullptr;
 
             if (!window_loaded || !*out_window_factory)
@@ -226,7 +223,6 @@ namespace CHEngine {
         CHE_CORE_INFO("Startup succeeded");
 
         m_RenderAPIType = selected_api;
-        m_RenderFactory = render_factory;
 
         EngineConfig::CommitRendererPreference(m_RenderAPIType);
 
@@ -235,39 +231,38 @@ namespace CHEngine {
         m_Window = Scope<Window>(Window::Create(m_WindowFactory, render_api));
         m_Window->SetEventCallback([this](Event& e) { OnEvent(e); });
 
-        // ─── 3. Initialize renderer (GLAD / device) ──────────────────────────────
+        // ─── 3. Initialise render subsystem (GLAD / device / FrameGraph) ─────────
         RendererInitInfo renderInitInfo = m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api);
-        RenderFacade::InitRenderer(renderInitInfo);
+        m_Render = std::make_unique<RenderSubsystem>(render_factory, renderInitInfo);
+
+        // ─── 3b. ResourceManager (must init after Render, destructs before it) ──
+        m_Resources = std::make_unique<ResourceManager>();
 
         // ─── 4. Create ImGui layer ────────────────────────────────────────────────
         if (m_ImGuiFactory)
-            UIFacade::SetLayer(m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow()));
+        {
+            IImGuiLayer* layer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow());
+            m_UI = std::make_unique<UISubsystem>(m_ImGuiFactory, layer);
+        }
 
-        // ─── 5. Create default shader ─────────────────────────────────────────────
-        m_Shader = ResourceManager::Instance().Load<ShaderHandle>(
+        // ─── 5. Load default shader ───────────────────────────────────────────────
+        m_Shader = m_Resources->Load<ShaderHandle>(
             std::string("Basic"),
             AppPaths::ExecutableDir() / "shaders/basic.slang"
         );
 
         // ─── 6. Physics ────────────────────────────────────────────────────────────
         if (m_PhysicsFactory)
-        {
-            if (!PhysicsFacade::Init(m_PhysicsFactory))
-                CHE_CORE_WARN("Failed to initialize physics facade!");
-        }
+            m_Physics = std::make_unique<PhysicsSubsystem>(m_PhysicsFactory);
     }
 
     Application::~Application()
     {
         m_LayerStack.Clear();
-
-        if (IImGuiLayer* layer = UIFacade::GetLayer(); layer && m_ImGuiFactory)
-            m_ImGuiFactory->Delete(layer);
-        UIFacade::SetLayer(nullptr);
-
-        PhysicsFacade::Shutdown();
-
-        RenderFacade::Shutdown();
+        // Subsystems (m_Resources → m_UI → m_Physics → m_Render → m_Window → m_ModuleManager)
+        // destruct in reverse declaration order automatically.
+        // ~UISubsystem() deletes the ImGui layer via the factory.
+        // ~RenderSubsystem() calls Shutdown() which releases the factory.
     }
 
     void Application::PushLayer(Layer* layer)
@@ -302,7 +297,8 @@ namespace CHEngine {
 
     bool Application::OnWindowResized(WindowResizeEvent& e)
     {
-        RenderFacade::SetViewport(e.GetWidth(), e.GetHeight());
+        if (m_Render)
+            m_Render->SetViewport(e.GetWidth(), e.GetHeight());
         return false;
     }
 
@@ -314,10 +310,10 @@ namespace CHEngine {
 
     void Application::Run()
     {
-        m_LastFrameTime      = std::chrono::steady_clock::now();
-        float shaderPollAcc  = 0.0f;
+        m_LastFrameTime     = std::chrono::steady_clock::now();
+        float shaderPollAcc = 0.0f;
 
-        constexpr float ShaderPollInterval = 0.5f; // шейдеры — раз в полсекунды
+        constexpr float ShaderPollInterval = 0.5f;
 
         // Flush any pending OS events before the first frame so that macOS
         // fullscreen state (restored from the previous session) is applied
@@ -327,8 +323,7 @@ namespace CHEngine {
 
         while (m_Running)
         {
-            // ── Poll OS events at frame START so ImGui_ImplGlfw_NewFrame sees
-            //    the correct window size (critical for macOS fullscreen) ──────
+            // ── Poll OS events at frame START ───────────────────────────────
             m_Window->GetPlatformWindow()->PollEvents();
 
             // ── Delta time ──────────────────────────────────────────────────
@@ -342,42 +337,40 @@ namespace CHEngine {
             shaderPollAcc += dt;
             if (shaderPollAcc >= ShaderPollInterval) {
                 shaderPollAcc = 0.0f;
-                RenderFacade::PollShaders();
+                m_Render->PollShaders();
             }
 
             Input::BeginFrame(m_Window->GetPlatformWindow());
 
-            RenderFacade::BeginFrame();
-
-            RenderFacade::BeginFrameGraph();
+            m_Render->BeginFrame();
+            m_Render->BeginFrameGraph();
 
             for (Scope<Layer>& layer : m_LayerStack)
                 layer->OnUpdate(dt);
 
-            RenderFacade::EndFrameGraph();
+            m_Render->EndFrameGraph();
 
-            if (UIFacade::GetLayer())
+            if (m_UI)
             {
-                UIFacade::Begin();
+                m_UI->Begin();
                 for (Scope<Layer>& layer : m_LayerStack)
                     layer->OnImGuiRender();
-                UIFacade::End();
+                m_UI->End();
             }
 
-            RenderFacade::EndFrame();
+            m_Render->EndFrame();
 
             m_Window->OnUpdate();
         }
 
         // ── Overlay «Restarting...» — one final frame ────────────────────────
-        if (m_RestartRequested && UIFacade::GetLayer())
+        if (m_RestartRequested && m_UI)
         {
-            RenderFacade::BeginFrame();
+            m_Render->BeginFrame();
+            m_Render->BeginFrameGraph();
+            m_Render->EndFrameGraph();
 
-            RenderFacade::BeginFrameGraph();
-            RenderFacade::EndFrameGraph();
-
-            UIFacade::Begin();
+            m_UI->Begin();
 
             ImVec2 displaySize = ImGui::GetIO().DisplaySize;
             ImGui::GetBackgroundDrawList()->AddRectFilled(
@@ -395,9 +388,9 @@ namespace CHEngine {
             ImGui::TextUnformatted(text);
             ImGui::End();
 
-            UIFacade::End();
+            m_UI->End();
 
-            RenderFacade::EndFrame();
+            m_Render->EndFrame();
 
             m_Window->OnUpdate();
         }

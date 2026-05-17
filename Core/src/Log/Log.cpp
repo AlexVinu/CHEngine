@@ -6,15 +6,12 @@ namespace CHEngine {
 
     void Log::init()
     {
-        spdlog::set_pattern("%^[%T] %n: %v%$");
-        GetEngineContext().CoreLogger = spdlog::stdout_color_mt("CHENGINE");
-        GetEngineContext().CoreLogger->set_level(spdlog::level::trace);
-
-        GetEngineContext().ModuleLogger = spdlog::stdout_color_mt("MODULE");
-        GetEngineContext().ModuleLogger->set_level(spdlog::level::trace);
-
-        GetEngineContext().ClientLogger = spdlog::stdout_color_mt("APP");
-        GetEngineContext().ClientLogger->set_level(spdlog::level::trace);
+        // No-op: logging is now initialised by EngineContext::EngineContext().
+        // The first call to GetEngineContext() (triggered by any CHE_CORE_* macro
+        // or direct access) initialises the Meyers-singleton and its constructor
+        // sets up spdlog loggers.  Calling Log::init() explicitly is no longer
+        // required and is kept only for backwards compatibility.
+        (void)GetEngineContext(); // ensure the singleton is alive
     }
 
     Ref<spdlog::logger>& Log::GetCoreLogger() { return GetEngineContext().CoreLogger; }

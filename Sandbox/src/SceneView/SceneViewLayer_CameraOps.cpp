@@ -8,7 +8,7 @@
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Entity.h>
 
-#include "InputActions.h"
+#include "InputSystem.h"
 
 #include <imgui.h>
 #include <ImGuizmo.h>
@@ -65,7 +65,7 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
 {
     ImGuiIO& io = ImGui::GetIO();
 
-    using IA = Sandbox::InputActions;
+    Sandbox::InputSystem& IA = Sandbox::GetInputSystem();
 
     Sandbox::EditorCameraController::InputSnapshot inputSnapshot{};
     inputSnapshot.IsViewportHovered = SceneViewLayerAccess::Viewport(layer).IsViewportHovered();
@@ -73,17 +73,17 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
     inputSnapshot.IsCtrlPressed = io.KeyCtrl;
     inputSnapshot.IsAltPressed = io.KeyAlt;
     inputSnapshot.IsShiftPressed = io.KeyShift;
-    inputSnapshot.IsFocusPressed = IA::Triggered("Editor.Camera.Focus");
-    inputSnapshot.MouseWheel = IA::GetAxis(IA::Axis::MouseWheel);
-    inputSnapshot.MouseDelta = { IA::GetAxis(IA::Axis::MouseDeltaX), IA::GetAxis(IA::Axis::MouseDeltaY) };
+    inputSnapshot.IsFocusPressed = IA.Triggered("Editor.Camera.Focus");
+    inputSnapshot.MouseWheel = IA.GetAxis(Sandbox::InputSystem::Axis::MouseWheel);
+    inputSnapshot.MouseDelta = { IA.GetAxis(Sandbox::InputSystem::Axis::MouseDeltaX), IA.GetAxis(Sandbox::InputSystem::Axis::MouseDeltaY) };
 
-    inputSnapshot.IsOrbitByRmbDrag       = IA::Down("Editor.Camera.OrbitRmb");
-    inputSnapshot.IsOrbitByAltLmbDrag    = IA::Down("Editor.Camera.OrbitAltLmb");
-    inputSnapshot.IsOrbitByMmbDrag       = IA::Down("Editor.Camera.OrbitMmb");
+    inputSnapshot.IsOrbitByRmbDrag       = IA.Down("Editor.Camera.OrbitRmb");
+    inputSnapshot.IsOrbitByAltLmbDrag    = IA.Down("Editor.Camera.OrbitAltLmb");
+    inputSnapshot.IsOrbitByMmbDrag       = IA.Down("Editor.Camera.OrbitMmb");
 
-    inputSnapshot.IsPanByAltShiftLmbDrag = IA::Down("Editor.Camera.PanAltShift");
-    inputSnapshot.IsPanByShiftMmbDrag    = IA::Down("Editor.Camera.PanShiftMmb");
-    inputSnapshot.IsPanByShiftRmbDrag    = IA::Down("Editor.Camera.PanShiftRmb");
+    inputSnapshot.IsPanByAltShiftLmbDrag = IA.Down("Editor.Camera.PanAltShift");
+    inputSnapshot.IsPanByShiftMmbDrag    = IA.Down("Editor.Camera.PanShiftMmb");
+    inputSnapshot.IsPanByShiftRmbDrag    = IA.Down("Editor.Camera.PanShiftRmb");
 
     Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
     SceneViewLayerAccess::CameraController(layer).UpdateCameraInput(

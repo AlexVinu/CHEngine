@@ -1,6 +1,6 @@
 #include "ScriptEditorPanel.h"
 
-#include "InputActions.h"
+#include "InputSystem.h"
 
 #include <TextEditor.h>
 #include <imgui.h>
@@ -19,8 +19,7 @@ namespace Sandbox {
 static const char* kNewScriptTemplate = R"(-- Entity Script: {name}
 -- Callbacks (все опциональны):
 --   OnStart(entity, world)
---   OnUpdate(entity, world, dt)        -- до физики
---   OnLateUpdate(entity, world, dt)    -- после физики
+--   OnUpdate(entity, world, dt)
 --   OnStop(entity, world)
 --
 -- entity API: GetName/GetUUID/IsValid/Destroy
@@ -48,10 +47,6 @@ function OnUpdate(entity, world, dt)
     entity:SetPosition(pos.x, pos.y, pos.z)
 end
 
-function OnLateUpdate(entity, world, dt)
-    -- Вызывается ПОСЛЕ физики — можно читать пост-физический Transform.
-end
-
 function OnStop(entity, world)
     Log.Info("Script stopped: " .. entity:GetName())
 end
@@ -60,8 +55,7 @@ end
 static const char* kNewWorldScriptTemplate = R"(-- World Script: {name}
 -- Callbacks (все опциональны):
 --   OnStart(world)
---   OnUpdate(world, dt)        -- до физики
---   OnLateUpdate(world, dt)    -- после физики
+--   OnUpdate(world, dt)
 --   OnStop(world)
 --
 -- world API: FindByName(name), FindByUUID(uuid_str), SpawnEntity(name) -> uuid_str,
@@ -79,9 +73,6 @@ function OnUpdate(world, dt)
     --     local uuid = world:SpawnEntity("Bullet")
     --     Log.Info("Spawned " .. uuid)
     -- end
-end
-
-function OnLateUpdate(world, dt)
 end
 
 function OnStop(world)
@@ -251,7 +242,7 @@ void ScriptEditorPanel::Draw()
 
     // ── Горячие клавиши ─────────────────────────────────────────────────────
     bool wantSave = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-                 && Sandbox::InputActions::Triggered("Editor.Script.Save");
+                 && GetInputSystem().Triggered("Editor.Script.Save");
     if (wantSave) Save();
 
     // ── Menu bar ─────────────────────────────────────────────────────────────
@@ -417,7 +408,7 @@ void ScriptEditorPanel::DrawInPanel()
     // Just render the editor contents directly (same as Draw body after Begin).
     // Hot keys
     bool wantSave = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-                 && Sandbox::InputActions::Triggered("Editor.Script.Save");
+                 && GetInputSystem().Triggered("Editor.Script.Save");
     if (wantSave) Save();
 
     // Editor + AI pane (reuse same split logic)

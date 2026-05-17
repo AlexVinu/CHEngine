@@ -1,7 +1,7 @@
 #include "chepch.h"
 #include "MeshLoader.h"
 
-#include "CHEngine/Render/RenderFacade.h"
+#include "CHEngine/Application.h"
 #include "Render/Core/RenderTypes.h"
 #include "Log/Log.h"
 
@@ -79,7 +79,7 @@ namespace CHEngine
 			}
 		}
 
-		IRenderFactory* f = RenderFacade::GetRenderFactory();
+		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 		if (!f) { CHE_CORE_ERROR("MeshLoader::GetOrCreate — no render factory"); return {}; }
 
 		std::vector<float> flat;
@@ -167,7 +167,7 @@ namespace CHEngine
 		// stride is 44 bytes (11 floats). Currently uploads full buffer; future: pack UVs.
 		constexpr uint64_t kVertexStride = sizeof(Vertex);
 
-		IRenderFactory* f = RenderFacade::GetRenderFactory();
+		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 		if (!f) { CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — no render factory"); return; }
 
 		// Upload all UV data individually — not optimal but correct.
@@ -180,7 +180,7 @@ namespace CHEngine
 	void MeshLoader::DeleteRecord(MeshGpuRecord* r)
 	{
 		if (!r) return;
-		IRenderFactory* f = RenderFacade::GetRenderFactory();
+		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 		if (f)
 		{
 			if (r->vb.IsValid()) f->Delete(r->vb);

@@ -13,7 +13,6 @@
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Mesh/PrimitiveMeshFactory.h>
-#include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
 
@@ -1080,13 +1079,13 @@ void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_ind
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (d0.IsValid())
-            CHEngine::ResourceManager::Instance().Unload(d0);
+            CHEngine::Application::Get().Resources().Unload(d0);
         if (mat_ref->m_Material)
         {
             mat_ref->m_Material->DiffuseMap = CHEngine::TextureHandle{};
             mat_ref->m_Material->DiffuseMapPath.clear();
         }
-        mat_ref->DiffuseMap = CHEngine::ResourceManager::Instance().Load<CHEngine::TextureHandle>(filepath);
+        mat_ref->DiffuseMap = CHEngine::Application::Get().Resources().Load<CHEngine::TextureHandle>(filepath);
         mat_ref->DiffuseMapPath = mat_ref->DiffuseMap.IsValid() ? filepath : "";
     });
 }
@@ -1112,7 +1111,7 @@ void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_ind
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (d0.IsValid())
-            CHEngine::ResourceManager::Instance().Unload(d0);
+            CHEngine::Application::Get().Resources().Unload(d0);
         mat_ref->DiffuseMap = CHEngine::TextureHandle{};
         mat_ref->DiffuseMapPath.clear();
         if (mat_ref->m_Material)
@@ -1145,13 +1144,13 @@ void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_in
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (s0.IsValid())
-            CHEngine::ResourceManager::Instance().Unload(s0);
+            CHEngine::Application::Get().Resources().Unload(s0);
         if (mat_ref->m_Material)
         {
             mat_ref->m_Material->SpecularMap = CHEngine::TextureHandle{};
             mat_ref->m_Material->SpecularMapPath.clear();
         }
-        mat_ref->SpecularMap = CHEngine::ResourceManager::Instance().Load<CHEngine::TextureHandle>(filepath);
+        mat_ref->SpecularMap = CHEngine::Application::Get().Resources().Load<CHEngine::TextureHandle>(filepath);
         mat_ref->SpecularMapPath = mat_ref->SpecularMap.IsValid() ? filepath : "";
     });
 }
@@ -1177,7 +1176,7 @@ void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_in
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (s0.IsValid())
-            CHEngine::ResourceManager::Instance().Unload(s0);
+            CHEngine::Application::Get().Resources().Unload(s0);
         mat_ref->SpecularMap = CHEngine::TextureHandle{};
         mat_ref->SpecularMapPath.clear();
         if (mat_ref->m_Material)

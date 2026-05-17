@@ -7,6 +7,17 @@
 
 namespace CHModules
 {
+    // ── Implementation detail ─────────────────────────────────────────────────
+    // Defined here so that slang.h stays out of the public header.
+
+    struct SlangBackendImpl
+    {
+        Slang::ComPtr<slang::IGlobalSession> GlobalSession;
+        CHEngine::ERenderAPI                 Api = CHEngine::ERenderAPI::NONE;
+    };
+
+    // ── Internal helpers (file-scope, unchanged from old code) ────────────────
+
     namespace {
 
         struct TargetMapping
@@ -16,60 +27,58 @@ namespace CHModules
             bool               supported;
         };
 
-		static void ExtractEntryPoint(
-			slang::IComponentType* linked,
-			int                    entryIdx,
-			std::vector<uint8_t>& out,
-			std::string& errorLog)
-		{
-			Slang::ComPtr<slang::IBlob> blob, diag;
-			const SlangResult hr = linked->getEntryPointCode(entryIdx, 0, blob.writeRef(), diag.writeRef());
-			if (SLANG_SUCCEEDED(hr) && blob)
-			{
-				const uint8_t* p = static_cast<const uint8_t*>(blob->getBufferPointer());
-				out.assign(p, p + blob->getBufferSize());
-			}
-			else if (diag)
-			{
-				errorLog += static_cast<const char*>(diag->getBufferPointer());
-			}
-		}
+        static void ExtractEntryPoint(
+            slang::IComponentType* linked,
+            int                    entryIdx,
+            std::vector<uint8_t>& out,
+            std::string& errorLog)
+        {
+            Slang::ComPtr<slang::IBlob> blob, diag;
+            const SlangResult hr = linked->getEntryPointCode(entryIdx, 0, blob.writeRef(), diag.writeRef());
+            if (SLANG_SUCCEEDED(hr) && blob)
+            {
+                const uint8_t* p = static_cast<const uint8_t*>(blob->getBufferPointer());
+                out.assign(p, p + blob->getBufferSize());
+            }
+            else if (diag)
+            {
+                errorLog += static_cast<const char*>(diag->getBufferPointer());
+            }
+        }
 
-		static void ReflectParams(slang::ProgramLayout* layout, CompiledShader& out)
-		{
-			if (!layout)
-				return;
+        static void ReflectParams(slang::ProgramLayout* layout, CompiledShader& out)
+        {
+            if (!layout)
+                return;
 
-			const uint32_t count = static_cast<uint32_t>(layout->getParameterCount());
-			for (uint32_t i = 0; i < count; ++i)
-			{
-				slang::VariableLayoutReflection* var = layout->getParameterByIndex(i);
-				if (!var)
-					continue;
+            const uint32_t count = static_cast<uint32_t>(layout->getParameterCount());
+            for (uint32_t i = 0; i < count; ++i)
+            {
+                slang::VariableLayoutReflection* var = layout->getParameterByIndex(i);
+                if (!var)
+                    continue;
 
-				ShaderParamInfo info;
-				info.binding = static_cast<uint32_t>(var->getBindingIndex());
-				info.set = static_cast<uint32_t>(var->getBindingSpace());
+                ShaderParamInfo info;
+                info.binding = static_cast<uint32_t>(var->getBindingIndex());
+                info.set = static_cast<uint32_t>(var->getBindingSpace());
 
-				slang::TypeLayoutReflection* typeLayout = var->getTypeLayout();
-				if (typeLayout)
-				{
-					info.size = static_cast<uint32_t>(typeLayout->getSize());
-					const auto kind = typeLayout->getKind();
-					info.isSampler =
-						kind == slang::TypeReflection::Kind::Resource ||
-						kind == slang::TypeReflection::Kind::SamplerState;
-				}
+                slang::TypeLayoutReflection* typeLayout = var->getTypeLayout();
+                if (typeLayout)
+                {
+                    info.size = static_cast<uint32_t>(typeLayout->getSize());
+                    const auto kind = typeLayout->getKind();
+                    info.isSampler =
+                        kind == slang::TypeReflection::Kind::Resource ||
+                        kind == slang::TypeReflection::Kind::SamplerState;
+                }
 
-				if (const char* name = var->getName())
-					out.params[name] = info;
-			}
-		}
+                if (const char* name = var->getName())
+                    out.params[name] = info;
+            }
+        }
 
-		static Slang::ComPtr<slang::IGlobalSession> m_GlobalSession;
-		static CHEngine::ERenderAPI                 m_Api = CHEngine::ERenderAPI::NONE;
+    } // anonymous namespace
 
-    }
     TargetMapping ResolveTarget(CHEngine::ERenderAPI api)
     {
         switch (api)
@@ -90,16 +99,32 @@ namespace CHModules
         }
     }
 
+    // ── SlangBackend public API ───────────────────────────────────────────────
+
+    SlangBackend::SlangBackend()
+        : m_Impl(std::make_unique<SlangBackendImpl>())
+    {
+    }
+
+    SlangBackend::~SlangBackend() = default;
+
+    bool SlangBackend::IsInitialised() const
+    {
+        return m_Impl && m_Impl->GlobalSession != nullptr;
+    }
+
     bool SlangBackend::Init(CHEngine::ERenderAPI api)
     {
         const TargetMapping mapping = ResolveTarget(api);
         if (!mapping.supported)
             return false;
 
-        if (SLANG_FAILED(slang::createGlobalSession(m_GlobalSession.writeRef())))
+        Slang::ComPtr<slang::IGlobalSession> globalSession;
+        if (SLANG_FAILED(slang::createGlobalSession(globalSession.writeRef())))
             return false;
 
-        m_Api = api;
+        m_Impl->GlobalSession = std::move(globalSession);
+        m_Impl->Api           = api;
         return true;
     }
 
@@ -116,7 +141,7 @@ namespace CHModules
         // Reusing a session causes Slang to serve cached modules whose
         // GLSL name-mangling differs between vert/frag stages, producing
         // "struct fields mismatch" link errors for shared UBO types.
-        const TargetMapping mapping = ResolveTarget(m_Api);
+        const TargetMapping mapping = ResolveTarget(m_Impl->Api);
 
         // CRITICAL: matrices are uploaded as column-major (std140 / glm
         // default). Force column-major on the target so Slang emits
@@ -130,7 +155,7 @@ namespace CHModules
 
         slang::TargetDesc targetDesc{};
         targetDesc.format                    = mapping.target;
-        targetDesc.profile                   = m_GlobalSession->findProfile(mapping.profile);
+        targetDesc.profile                   = m_Impl->GlobalSession->findProfile(mapping.profile);
         targetDesc.compilerOptionEntries     = &matrixLayoutOpt;
         targetDesc.compilerOptionEntryCount  = 1;
 
@@ -140,7 +165,7 @@ namespace CHModules
         sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR;
 
         Slang::ComPtr<slang::ISession> session;
-        if (SLANG_FAILED(m_GlobalSession->createSession(sessionDesc, session.writeRef())))
+        if (SLANG_FAILED(m_Impl->GlobalSession->createSession(sessionDesc, session.writeRef())))
         {
             result.errorLog = "Slang: failed to create session";
             return result;
@@ -196,7 +221,7 @@ namespace CHModules
 
         ReflectParams(linked->getLayout(), result);
 
-        if (m_Api == CHEngine::ERenderAPI::METAL)
+        if (m_Impl->Api == CHEngine::ERenderAPI::METAL)
         {
             // Metal MSL: both stages must live in ONE library.
             // getTargetCode() produces a single MSL blob with all entry points.
@@ -226,20 +251,4 @@ namespace CHModules
         return result;
     }
 
-    SlangBackend* SlangBackend::GetForApi(CHEngine::ERenderAPI api)
-    {
-        static SlangBackend s_Instance;
-        if (m_Api != api)
-        {
-            if (!s_Instance.Init(api))
-                return nullptr;
-        }
-        return &s_Instance;
-    }
-
-    void SlangBackend::Shutdown()
-    {
-        m_GlobalSession.setNull();
-        m_Api = CHEngine::ERenderAPI::NONE;
-    }
-}
+} // namespace CHModules

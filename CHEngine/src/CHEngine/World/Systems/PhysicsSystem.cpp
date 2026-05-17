@@ -5,7 +5,7 @@
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
 #include "CHEngine/World/WorldEvents.h"
-#include "CHEngine/Physics/PhysicsFacade.h"
+#include "CHEngine/Application.h"
 
 
 #include <algorithm>
@@ -109,7 +109,7 @@ void PhysicsSystem::RebuildPhysicsRuntime(World& world)
 {
     ClearPhysicsRuntime(world);
 
-    IPhysicsWorld* runtimeWorld = PhysicsFacade::CreateWorld(world.GetPhysicsWorldDesc());
+    IPhysicsWorld* runtimeWorld = Application::Get().Physics()->CreateWorld(world.GetPhysicsWorldDesc());
     if (!runtimeWorld)
         return;
 
@@ -124,7 +124,7 @@ void PhysicsSystem::RebuildPhysicsRuntime(World& world)
 
         auto bodyDesc = rigidBody.BodyDesc;
         auto shapeDesc = rigidBody.ShapeDesc;
-        auto* shape = PhysicsFacade::CreateShape(shapeDesc);
+        auto* shape = Application::Get().Physics()->CreateShape(shapeDesc);
         rigidBody.Shape = shape;
         rigidBody.Body = world.GetPhysicsRuntimeWorld()->CreateRigidBody(bodyDesc, shape);
 
@@ -146,15 +146,15 @@ void PhysicsSystem::ClearPhysicsRuntime(World& world)
                 runtimeWorld->DestroyRigidBody(rigidBody.Body);
             rigidBody.Body = nullptr;
 
-            if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
-                PhysicsFacade::Delete(rigidBody.Shape);
+            if (Application::Get().HasPhysics() && rigidBody.Shape)
+                Application::Get().Physics()->Delete(rigidBody.Shape);
             rigidBody.Shape = nullptr;
 
             });
     }
 
     if (runtimeWorld)
-        PhysicsFacade::DestroyWorld(runtimeWorld);
+        Application::Get().Physics()->DestroyWorld(runtimeWorld);
 }
 
 void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
@@ -178,7 +178,7 @@ void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
     initialTransform.Position = transform.Position;
     initialTransform.Rotation = glm::quat(glm::radians(transform.Rotation));
 
-    auto* shape = PhysicsFacade::CreateShape(rigidBody.ShapeDesc);
+    auto* shape = Application::Get().Physics()->CreateShape(rigidBody.ShapeDesc);
     rigidBody.Shape = shape;
     rigidBody.Body = runtimeWorld->CreateRigidBody(rigidBody.BodyDesc, shape);
 
@@ -202,8 +202,8 @@ void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
         world.GetPhysicsRuntimeWorld()->DestroyRigidBody(rigidBody.Body);
     rigidBody.Body = nullptr;
 
-    if (PhysicsFacade::IsAvailable() && rigidBody.Shape)
-        PhysicsFacade::Delete(rigidBody.Shape);
+    if (Application::Get().HasPhysics() && rigidBody.Shape)
+        Application::Get().Physics()->Delete(rigidBody.Shape);
     rigidBody.Shape = nullptr;
 }
 } // namespace CHEngine

@@ -5,6 +5,7 @@
 #include <RenderData.h>
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -38,12 +39,24 @@ namespace CHModules
         bool valid = false;
     };
 
+    // Forward-declared implementation detail — keeps slang.h out of this public header.
+    struct SlangBackendImpl;
+
     class CHE_SLANG_API SlangBackend
     {
     public:
-        virtual ~SlangBackend() = default;
+        SlangBackend();
+        ~SlangBackend();  // must be defined in .cpp where SlangBackendImpl is complete
 
+        SlangBackend(const SlangBackend&) = delete;
+        SlangBackend& operator=(const SlangBackend&) = delete;
+
+        // Initialise the backend for the given render API.
+        // Must be called once before any Compile() calls.
+        // Returns false if the API is unsupported.
         bool Init(CHEngine::ERenderAPI api);
+
+        bool IsInitialised() const;
 
         // sourcePath: optional full path of the source file. When provided,
         // Slang uses its directory to resolve `import` directives.
@@ -53,7 +66,7 @@ namespace CHModules
             const String& fragEntry  = String("fragMain"),
             const String& sourcePath = String());
 
-        static SlangBackend* GetForApi(CHEngine::ERenderAPI api);
-        static void Shutdown();
+    private:
+        std::unique_ptr<SlangBackendImpl> m_Impl;
     };
 }

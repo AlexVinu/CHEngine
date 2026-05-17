@@ -7,7 +7,6 @@
 #include "CHEngine/Scene/Scene.h"
 #include "CHEngine/Utils/MathUtils.h"
 
-#include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Application.h>
 
 #include <imgui_internal.h>
@@ -119,7 +118,7 @@ void UvEditorPanel::Draw(SceneViewLayerHost& host)
     bool hasTexture = false;
     if (diffuseTex.IsValid())
     {
-        CHEngine::IRenderFactory* factory = CHEngine::RenderFacade::GetRenderFactory();
+        CHEngine::IRenderFactory* factory = CHEngine::Application::Get().Render().GetRenderFactory();
         if (factory)
         {
             uint64_t nativeID = factory->GetTextureNativeID(diffuseTex);

@@ -7,9 +7,9 @@
 #include <memory>
 #include <unordered_map>
 
-#include "CHEngine/Render/RenderFacade.h"
 #include "CHEngine/Mesh/Material.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
+#include "CHEngine/Application.h"
 
 // OBJ loader implementation (header-only lib — compile exactly once here)
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -60,7 +60,7 @@ namespace CHEngine {
 			if (!texName.empty())
 			{
 				std::string texPath = baseDir + texName;
-				TextureHandle texHandle = ResourceManager::Instance().Load<TextureHandle>(std::filesystem::path(texPath));
+				TextureHandle texHandle = Application::Get().Resources().Load<TextureHandle>(std::filesystem::path(texPath));
 				if (texHandle.IsValid())
 				{
 					base->DiffuseMapPath = texPath;

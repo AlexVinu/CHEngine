@@ -8,7 +8,6 @@
 
 #include <CHEngine/Application.h>
 #include <CHEngine/Mesh/Material.h>
-#include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/SceneSerializer.h>
@@ -95,7 +94,7 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
 
                 if (!mesh.Mat)
                     mesh.Mat = CHEngine::MaterialInstance::FromBase(
-                        std::make_shared<CHEngine::Material>(CHEngine::RenderFacade::GetDefaultMeshShader()));
+                        std::make_shared<CHEngine::Material>(CHEngine::Application::Get().Render().GetDefaultMeshShader()));
 
                 const CHEngine::ShaderHandle shaderHandle = mesh.Mat->GetMaterial()->GetShaderHandle();
                 if (shaderHandle.IsValid())
@@ -561,10 +560,10 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     Project* proj2 = proj_manager->Current();
     const auto& abs_path = proj2 ? proj2->AssetsAbsPath() : std::filesystem::path{};
 
-    auto modelHandle = CHEngine::ResourceManager::Instance().Load<CHEngine::ModelHandle>(
-        abs_path / loadPath, CHEngine::RenderFacade::GetDefaultMeshShader());
+    auto modelHandle = CHEngine::Application::Get().Resources().Load<CHEngine::ModelHandle>(
+        abs_path / loadPath, CHEngine::Application::Get().Render().GetDefaultMeshShader());
     const CHEngine::LoadedModel* result = modelHandle.IsValid()
-        ? CHEngine::ResourceManager::Instance().GetModel(modelHandle) : nullptr;
+        ? CHEngine::Application::Get().Resources().GetModel(modelHandle) : nullptr;
 
     if (!result || result->meshes.empty())
     {

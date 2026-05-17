@@ -4,7 +4,7 @@
 
 #include <Render/UniformBlocks.h>
 
-#include "CHEngine/Render/RenderFacade.h"
+#include "CHEngine/Application.h"
 
 namespace CHEngine
 {
@@ -18,15 +18,15 @@ Material::Material(ShaderHandle handler)
 Material::~Material()
 {
     if (DiffuseMap.IsValid())
-        RenderFacade::DestroyTexture(DiffuseMap);
+        Application::Get().Render().DestroyTexture(DiffuseMap);
     if (SpecularMap.IsValid())
-        RenderFacade::DestroyTexture(SpecularMap);
+        Application::Get().Render().DestroyTexture(SpecularMap);
     if (NormalMap.IsValid())
-        RenderFacade::DestroyTexture(NormalMap);
+        Application::Get().Render().DestroyTexture(NormalMap);
     if (ORMmap.IsValid())
-        RenderFacade::DestroyTexture(ORMmap);
+        Application::Get().Render().DestroyTexture(ORMmap);
     if (EmissiveMap.IsValid())
-        RenderFacade::DestroyTexture(EmissiveMap);
+        Application::Get().Render().DestroyTexture(EmissiveMap);
 }
 
 void Material::FillUBOMaterial(UBOMaterial& out) const
@@ -61,15 +61,15 @@ MaterialInstance::MaterialInstance(Ref<Material> base)
 MaterialInstance::~MaterialInstance()
 {
     if (DiffuseMap.IsValid())
-        RenderFacade::DestroyTexture(DiffuseMap);
+        Application::Get().Render().DestroyTexture(DiffuseMap);
     if (SpecularMap.IsValid())
-        RenderFacade::DestroyTexture(SpecularMap);
+        Application::Get().Render().DestroyTexture(SpecularMap);
     if (NormalMap.IsValid())
-        RenderFacade::DestroyTexture(NormalMap);
+        Application::Get().Render().DestroyTexture(NormalMap);
     if (ORMmap.IsValid())
-        RenderFacade::DestroyTexture(ORMmap);
+        Application::Get().Render().DestroyTexture(ORMmap);
     if (EmissiveMap.IsValid())
-        RenderFacade::DestroyTexture(EmissiveMap);
+        Application::Get().Render().DestroyTexture(EmissiveMap);
     DiffuseMap = {};
     SpecularMap = {};
     NormalMap = {};

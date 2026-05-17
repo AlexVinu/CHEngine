@@ -1,6 +1,6 @@
 #include "ShaderLoader.h"
 
-#include "CHEngine/Render/RenderFacade.h"
+#include "CHEngine/Application.h"
 
 namespace CHEngine
 {
@@ -11,7 +11,7 @@ namespace CHEngine
 		if (auto handle = m_HandlesBimap.left.find(filepath); handle != m_HandlesBimap.left.end())
 			return handle->second;
 
-		auto handle = RenderFacade::CreateShaderFromFile(String(name), String(filepath.string()));
+		auto handle = Application::Get().Render().CreateShaderFromFile(String(name), String(filepath.string()));
 		m_HandlesBimap.insert({ filepath, handle });
 		return handle;
 	}
@@ -22,7 +22,7 @@ namespace CHEngine
 		if (it != m_HandlesBimap.right.end())
 			m_HandlesBimap.right.erase(it);
 
-		RenderFacade::DestroyShader(handle);
+		Application::Get().Render().DestroyShader(handle);
 	}
 
 	size_t ShaderLoader::GetMemoryUsage() const

@@ -7,11 +7,14 @@
 #include "CHEngine/Layer/LayerStack.h"
 #include "Window.h"
 
-#include "UI/UIFacade.h"
-
 #include "WindowSystem/IWindowFactory.h"
 #include "Physics/IPhysicsFactory.h"
 #include "Render/IRenderFactory.h"
+
+#include "Render/RenderSubsystem.h"
+#include "Physics/PhysicsSubsystem.h"
+#include "UI/UISubsystem.h"
+#include "ResourceManager/ResourceManager.h"
 
 #include "ModuleManager.h"
 
@@ -57,12 +60,27 @@ namespace CHEngine {
 
         Window* GetWindow() const { return m_Window.get(); }
 
-        ERenderAPI     GetRenderAPIType()   const { return m_RenderAPIType; }
-        IRenderFactory* GetRenderFactory()  const { return m_RenderFactory; }
+        ERenderAPI GetRenderAPIType() const { return m_RenderAPIType; }
+
+        // ── Subsystem accessors ───────────────────────────────────────────────
+        // Render is always valid after a successful startup.
+        RenderSubsystem&  Render()    { CHE_CORE_ASSERT(m_Render,   "Render subsystem not initialised"); return *m_Render; }
+
+        // Physics and UI are optional — check HasPhysics()/HasUI() before calling.
+        PhysicsSubsystem* Physics()   { return m_Physics.get(); }
+        UISubsystem*      UI()        { return m_UI.get();      }
+        ResourceManager&  Resources() { return *m_Resources;    }
+
+        bool HasPhysics() const { return m_Physics != nullptr; }
+        bool HasUI()      const { return m_UI      != nullptr; }
+
+        // Legacy: direct factory pointer (used by renderer modules themselves)
+        IRenderFactory* GetRenderFactory() const { return m_Render ? m_Render->GetRenderFactory() : nullptr; }
 
         void RequestRestart();
         bool IsRestartRequested() const { return m_RestartRequested; }
 
+        // Legacy active-shader helpers (used by Application::Run and layers).
         ShaderHandle GetActiveShader() const         { return m_Shader; }
         void         SetActiveShader(ShaderHandle h) { m_Shader = h; }
 
@@ -74,22 +92,35 @@ namespace CHEngine {
 
         static Application* s_Instance;
 
-        Scope<ModuleManager>  m_ModuleManager;
+        // ── Modules (FIRST — must outlive all subsystems) ─────────────────────
+        Scope<ModuleManager> m_ModuleManager;
 
+        // ── Window ────────────────────────────────────────────────────────────
+        Scope<Window> m_Window;
+
+        // ── Subsystems (destruction order = reverse of declaration order) ─────
+        // Render owns IRenderFactory* → must outlive Window.
+        // ResourceManager holds handles into Render → declared AFTER m_Render,
+        // destructs BEFORE it (C++ reverses declaration order).
+        // Physics and UI are optional (nullptr when disabled/unavailable).
+        // All Scope<> members destruct BEFORE m_ModuleManager (which unloads DLLs).
+        Scope<RenderSubsystem>   m_Render;
+        Scope<PhysicsSubsystem>  m_Physics;
+        Scope<UISubsystem>       m_UI;
+        Scope<ResourceManager>   m_Resources;
+
+        // ── Factory pointers (non-owning, lifetime = module) ──────────────────
         IWindowFactory*  m_WindowFactory  = nullptr;
         IImGuiFactory*   m_ImGuiFactory   = nullptr;
         IPhysicsFactory* m_PhysicsFactory = nullptr;
-        IRenderFactory*  m_RenderFactory  = nullptr;
 
         bool       m_Running = true;
         LayerStack m_LayerStack;
 
         ShaderHandle m_Shader;
 
-        ERenderAPI m_RenderAPIType       = ERenderAPI::OPENGL;
-        bool       m_RestartRequested    = false;
-
-        Scope<Window> m_Window;
+        ERenderAPI m_RenderAPIType    = ERenderAPI::OPENGL;
+        bool       m_RestartRequested = false;
 
         std::chrono::steady_clock::time_point m_LastFrameTime;
     };

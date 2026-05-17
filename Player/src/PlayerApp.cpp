@@ -4,7 +4,6 @@
 #include <CHEngine/Scene/SceneSerializer.h>
 #include <CHEngine/World/World.h>
 #include <CHEngine/Utils/AppPaths.h>
-#include <CHEngine/Render/RenderFacade.h>
 #include <FileSystem/FileSystem.h>
 #include <FileSystem/PakFile.h>
 
@@ -75,15 +74,15 @@ public:
         {
             uint32_t w = win->GetWidth(), h = win->GetHeight();
             if (w > 0 && h > 0)
-                CHEngine::RenderFacade::SetViewportSize(w, h);
+                CHEngine::Application::Get().Render().SetViewportSize(w, h);
         }
-        CHEngine::RenderFacade::ClearPreSceneCallback();
+        CHEngine::Application::Get().Render().ClearPreSceneCallback();
         m_World->Update(dt);
     }
 
     void OnImGuiRender() override
     {
-        uint64_t texID = CHEngine::RenderFacade::GetViewportColorTexID();
+        uint64_t texID = CHEngine::Application::Get().Render().GetViewportColorTexID();
 
         static double s_LastLog = -1.0;
         double now = ImGui::GetTime();
@@ -162,21 +161,21 @@ public:
         fs::path shadersDir = exeDir / "shaders";
         CHE_CORE_INFO("[Player] Shaders dir exists: {}", fs::exists(shadersDir));
 
-        auto meshShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        auto meshShader = CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>(
             "Mesh",   shadersDir / "mesh.slang");
-        auto sphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
+        auto sphereShader = CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>(
             "Sphere", shadersDir / "sphere_impostor.slang");
 
         CHE_CORE_INFO("[Player] Mesh shader valid: {}", meshShader.IsValid());
         CHE_CORE_INFO("[Player] Sphere shader valid: {}", sphereShader.IsValid());
 
         if (meshShader.IsValid())
-            CHEngine::RenderFacade::SetDefaultMeshShader(meshShader);
+            CHEngine::Application::Get().Render().SetDefaultMeshShader(meshShader);
         else
             CHE_CORE_ERROR("[Player] Mesh shader FAILED — objects will not render!");
 
         if (sphereShader.IsValid())
-            CHEngine::RenderFacade::SetDefaultSphereImpostorShader(sphereShader);
+            CHEngine::Application::Get().Render().SetDefaultSphereImpostorShader(sphereShader);
 
         std::string startupScene = ReadStartupScene();
         CHE_CORE_INFO("[Player] Startup scene: {}", startupScene);

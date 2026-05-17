@@ -19,8 +19,6 @@ namespace CHEngine {
 		ResourceManager();
 		~ResourceManager();
 
-		static ResourceManager& Instance();
-
 		template<class Handle, class... Args>
 		Handle Load(Args&&... args)
 		{

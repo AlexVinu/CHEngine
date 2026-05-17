@@ -3,6 +3,7 @@
 #include <CheStl/String.h>
 #include <Render/UniformBlocks.h>
 #include <Render/Pipeline/VertexLayout.h>
+#include <SlangBackend/SlangBackend.h>
 
 #include <unordered_map>
 #include <cstdint>
@@ -12,10 +13,12 @@ namespace CHModules
     class ShaderMTL
     {
     public:
+        // slang: reference to the factory-owned SlangBackend (must outlive this shader)
         ShaderMTL(const String& slangSource,
                   const String& vertEntry,
                   const String& fragEntry,
-                  const String& sourcePath = String());
+                  const String& sourcePath,
+                  SlangBackend& slang);
         ~ShaderMTL();
 
 		void Bind() const;
@@ -50,7 +53,8 @@ namespace CHModules
                           const String& fragEntry,
                           const String& sourcePath);
 
-        void* m_Library      = nullptr;  // id<MTLLibrary>
+        SlangBackend* m_Slang  = nullptr; // owned by factory; valid for shader lifetime
+        void* m_Library        = nullptr;  // id<MTLLibrary>
         void* m_VertexFunc   = nullptr;  // id<MTLFunction>
         void* m_FragmentFunc = nullptr;  // id<MTLFunction>
 

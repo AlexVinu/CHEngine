@@ -40,7 +40,7 @@ namespace CHModules {
         const String& fragEntry,
         const String& sourcePath)
     {
-        auto* shader = new ShaderOGL(slangSource, vertEntry, fragEntry, sourcePath);
+        auto* shader = new ShaderOGL(slangSource, vertEntry, fragEntry, sourcePath, Slang);
         return Shaders.Add(shader);
     }
 
@@ -193,6 +193,9 @@ namespace CHModules {
     {
         Api.Init(init);
         m_UBOOffsetAlignment = Api.GetUniformBufferOffsetAlignment();
+
+        if (!Slang.Init(CHEngine::ERenderAPI::OPENGL))
+            CHE_CORE_ERROR("RenderFactoryOGL: failed to initialise SlangBackend for OpenGL");
     }
 
     void RenderFactoryOGL::Shutdown()

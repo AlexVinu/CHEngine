@@ -4,7 +4,7 @@
 
 #import <Metal/Metal.h>
 #include <Log/Log.h>
-#include "CHEngine/UI/UIFacade.h"
+#include "CHEngine/Application.h"
 
 namespace CHModules {
 
@@ -257,7 +257,8 @@ void FrameGraphBackendMTL::Execute(const Vector<CHEngine::PassDesc>& passes)
                 ctx.CommandBuffer        = (void*)cmdBuf;
                 ctx.RenderEncoder        = (void*)screenEnc;
                 ctx.RenderPassDescriptor = MTLGlobals::g_ScreenRPDesc;
-                CHEngine::UIFacade::SetRenderContext(ctx);
+                if (auto* ui = CHEngine::Application::Get().UI())
+                    ui->SetRenderContext(ctx);
             }
         }
     }

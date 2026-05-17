@@ -14,6 +14,7 @@
 #include <algorithm>
 #include <stdexcept>
 
+// TODO: Запихать все сообщения в jsonы
 namespace Sandbox {
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -349,7 +350,7 @@ AVAILABLE ACTIONS (use as many as needed, in logical order):
 
 {"type":"add_world_script","template":"<wasd|rotate_y|bounce|orbit>","content":"<raw lua>"}
   World-level script: глобальный для сцены, не привязан к энтити.
-  Колбэки: OnStart(world), OnUpdate(world,dt), OnLateUpdate(world,dt), OnStop(world).
+  Колбэки: OnStart(world), OnUpdate(world,dt), OnStop(world).
   world API: SpawnEntity(name), FindByName, FindByUUID, DestroyEntity, ForEach.
   Передай "content" с raw Lua-кодом, либо "template", либо оба пустые → файл с дефолтным world-шаблоном.
 

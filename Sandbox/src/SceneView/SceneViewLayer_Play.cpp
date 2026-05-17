@@ -3,7 +3,7 @@
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 
-#include "InputActions.h"
+#include "InputSystem.h"
 
 #include <CHEngine/World/ISystem.h>
 #include <CHEngine/World/World.h>
@@ -21,8 +21,8 @@ void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
     ctx->UpdateState(SceneSession::State::Play);
     ctx->RuntimeWorld->SetActiveCamera(nullptr);
 
-    if (!Sandbox::InputActions::IsActiveContext(Sandbox::InputContext::Game))
-        Sandbox::InputActions::PushContext(Sandbox::InputContext::Game);
+    if (!Sandbox::GetInputSystem().IsActiveContext(Sandbox::InputContext::Game))
+        Sandbox::GetInputSystem().PushContext(Sandbox::InputContext::Game);
 }
 
 void SceneViewLayerPlay::EnterPauseMode(SceneViewLayer& layer)
@@ -54,6 +54,6 @@ void SceneViewLayerPlay::StopPlayMode(SceneViewLayer& layer)
     ctx->UpdateState(SceneSession::State::Edit);
     ctx->RuntimeWorld->SetActiveCamera(ctx->ViewportCamera.get());
 
-    Sandbox::InputActions::PopContext(Sandbox::InputContext::Game);
+    Sandbox::GetInputSystem().PopContext(Sandbox::InputContext::Game);
 }
 

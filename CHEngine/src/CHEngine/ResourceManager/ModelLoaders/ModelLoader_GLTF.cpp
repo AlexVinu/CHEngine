@@ -6,7 +6,7 @@
 #include <memory>
 #include <vector>
 
-#include "CHEngine/Render/RenderFacade.h"
+#include "CHEngine/Application.h"
 
 // GLTF/GLB loader implementation (header-only lib — compile exactly once here)
 // STB_IMAGE_IMPLEMENTATION defined here so stbi_load is available for OBJ loader too
@@ -53,7 +53,7 @@ namespace CHEngine {
 				const auto& img = model.images[imgIdx];
 				if (!img.image.empty() && img.width > 0 && img.height > 0)
 				{
-					base->DiffuseMap = RenderFacade::CreateTexture(
+					base->DiffuseMap = CHEngine::Application::Get().Render().CreateTexture(
 						img.image.data(),
 						static_cast<uint32_t>(img.width),
 						static_cast<uint32_t>(img.height),

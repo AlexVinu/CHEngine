@@ -10,6 +10,8 @@
 #include "RenderApiOGL.h"
 #include "IsRenderAvailable.h"
 
+#include <SlangBackend/SlangBackend.h>
+
 #include <unordered_map>
 #include <vector>
 #include <memory>
@@ -97,6 +99,9 @@ namespace CHModules
 
         // Backend-internal API state (GLAD loader + draw helpers).
         RendererApiOGL Api;
+
+        // Slang shader compiler — one instance per factory, initialised in Init().
+        CHModules::SlangBackend Slang;
 
     private:
         // ShaderHandle index → list of dependent PipelineHandles (for hot-reload).

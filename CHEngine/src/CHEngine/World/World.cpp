@@ -6,7 +6,6 @@
 #include "Systems/LuaScriptSystem.h"
 #include "Systems/PhysicsSystem.h"
 #include "Systems/RenderSystem.h"
-#include "CHEngine/Physics/PhysicsFacade.h"
 #include "CHEngine/Scene/Entity.h"
 #include "WorldEvents.h"
 
@@ -133,14 +132,8 @@ namespace CHEngine
         m_Scheduler.EmplaceSystem<LifetimeSystem>();
         m_Scheduler.EmplaceSystem<ComponentValidationSystem>();
 
-        // Lua scripts: пара систем с общим host'ом.
-        // PreSim (priority 5) — OnUpdate до физики.
-        // PostSim (priority 150) — OnLateUpdate после физики.
-        {
-            auto scriptHost = MakeScriptHost();
-            m_Scheduler.EmplaceSystem<LuaPreSimSystem>(scriptHost);
-            m_Scheduler.EmplaceSystem<LuaPostSimSystem>(scriptHost);
-        }
+        // Lua scripts: одна система, фаза Simulation, до физики.
+        m_Scheduler.EmplaceSystem<LuaScriptSystem>();
 
         m_Scheduler.EmplaceSystem<PhysicsSystem>();
         m_RenderSystem = &m_Scheduler.EmplaceSystem<RenderSystem>();

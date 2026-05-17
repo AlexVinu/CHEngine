@@ -20,6 +20,10 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     CHEngine_CORE
 )
 
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE /utf-8 /W4)
+endif()
+
 if(UNIX AND NOT APPLE)
     target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 endif()

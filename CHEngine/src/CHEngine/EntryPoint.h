@@ -124,11 +124,13 @@ static void ParseStartupArgs(int argc, char** argv, CHEngine::ApplicationConfig&
 
 int main(int argc, char** argv)
 {
-    CHEngine::Log::init();
+    // EngineContext is a Meyers-singleton: the first CHE_CORE_* call below
+    // triggers GetEngineContext() which constructs the singleton and runs
+    // EngineContext::EngineContext() — that initialises spdlog and the default
+    // allocator.  Explicit Log::init() / MemorySystem::Initialize() are no
+    // longer needed here.
     CHE_CORE_INFO("Init CHEngine");
     CHE_CORE_CRITICAL("WELCOME TO HELL!");
-
-    CHEngine::MemorySystem::Initialize();
 
     // Приоритет: CLI аргумент > engine.json > дефолт (OpenGL)
     CHEngine::ApplicationConfig config;

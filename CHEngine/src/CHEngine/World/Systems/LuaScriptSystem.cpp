@@ -414,10 +414,9 @@ struct ScriptInstance
     sol::environment   env;
     sol::safe_function onStart;
     sol::safe_function onUpdate;
-    sol::safe_function onLateUpdate;
     sol::safe_function onStop;
     bool               started  = false;
-    bool               hasError = false;  // после первой ошибки в Update/LateUpdate — не вызывать снова
+    bool               hasError = false;  // после первой ошибки в Update — не вызывать снова
     std::string        path;
 };
 
@@ -505,14 +504,10 @@ public:
         CHE_CORE_INFO("[Lua] Scripts stopped and cleared");
     }
 
-    // ── Run в Pre/Post фазе ──────────────────────────────────────────────────
-    void RunPreSim(World& world, DeferredOps& deferred, Timestep dt)
+    // ── Run ──────────────────────────────────────────────────────────────────
+    void Run(World& world, DeferredOps& deferred, Timestep dt)
     {
-        DispatchUpdate(world, deferred, dt, /*late=*/false);
-    }
-    void RunPostSim(World& world, DeferredOps& deferred, Timestep dt)
-    {
-        DispatchUpdate(world, deferred, dt, /*late=*/true);
+        DispatchUpdate(world, deferred, dt);
     }
 
 private:
@@ -673,15 +668,14 @@ private:
             if (obj.is<sol::safe_function>()) return obj.as<sol::safe_function>();
             return {};
         };
-        outInst.onStart      = pick("OnStart");
-        outInst.onUpdate     = pick("OnUpdate");
-        outInst.onLateUpdate = pick("OnLateUpdate");
-        outInst.onStop       = pick("OnStop");
+        outInst.onStart  = pick("OnStart");
+        outInst.onUpdate = pick("OnUpdate");
+        outInst.onStop   = pick("OnStop");
         return true;
     }
 
-    // ── Универсальный диспатч update/lateUpdate ──────────────────────────────
-    void DispatchUpdate(World& world, DeferredOps& deferred, Timestep dt, bool late)
+    // ── Диспатч OnUpdate ─────────────────────────────────────────────────────
+    void DispatchUpdate(World& world, DeferredOps& deferred, Timestep dt)
     {
         auto scene = world.GetSceneRef();
         if (!scene) return;
@@ -689,9 +683,8 @@ private:
         for (auto& [key, inst] : m_Instances)
         {
             if (!inst.started)  continue;
-            if (inst.hasError)  continue;  // скрипт уже сломан — не спамить
-            auto& fn = late ? inst.onLateUpdate : inst.onUpdate;
-            if (!fn.valid()) continue;
+            if (inst.hasError)  continue;  
+            if (!inst.onUpdate.valid()) continue;
 
             try
             {
@@ -703,11 +696,11 @@ private:
                     if (!scene->IsEntityHandleValid(h)) continue;
                     ScriptEntity se{ h, &world, &deferred };
                     ScriptWorld  sw{ &world, &deferred };
-                    auto res = fn(se, sw, (float)dt);
+                    auto res = inst.onUpdate(se, sw, (float)dt);
                     if (!res.valid())
                     {
                         sol::error e = res;
-                        CHE_CORE_ERROR("[Lua] {} '{}': {}", late ? "OnLateUpdate" : "OnUpdate", inst.path, e.what());
+                        CHE_CORE_ERROR("[Lua] OnUpdate '{}': {}", inst.path, e.what());
                         CHE_CORE_ERROR("[Lua] Script '{}' disabled until Play is restarted", inst.path);
                         inst.hasError = true;
                     }
@@ -715,11 +708,11 @@ private:
                 else
                 {
                     ScriptWorld sw{ &world, &deferred };
-                    auto res = fn(sw, (float)dt);
+                    auto res = inst.onUpdate(sw, (float)dt);
                     if (!res.valid())
                     {
                         sol::error e = res;
-                        CHE_CORE_ERROR("[Lua] {} '{}': {}", late ? "OnLateUpdate" : "OnUpdate", inst.path, e.what());
+                        CHE_CORE_ERROR("[Lua] OnUpdate '{}': {}", inst.path, e.what());
                         CHE_CORE_ERROR("[Lua] Script '{}' disabled until Play is restarted", inst.path);
                         inst.hasError = true;
                     }
@@ -727,7 +720,7 @@ private:
             }
             catch (const std::exception& ex)
             {
-                CHE_CORE_ERROR("[Lua] Exception in {} '{}': {}", late ? "OnLateUpdate" : "OnUpdate", inst.path, ex.what());
+                CHE_CORE_ERROR("[Lua] Exception in OnUpdate '{}': {}", inst.path, ex.what());
                 inst.hasError = true;
             }
         }
@@ -843,45 +836,28 @@ private:
 };
 
 // ═════════════════════════════════════════════════════════════════════════════
-// LuaPreSimSystem / LuaPostSimSystem
+// LuaScriptSystem — единственная ISystem-обёртка
 // ═════════════════════════════════════════════════════════════════════════════
-LuaPreSimSystem::LuaPreSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority)
+LuaScriptSystem::LuaScriptSystem(uint8_t priority)
     : ISystem(SystemPhase::Simulation, priority)
-    , m_Host(std::move(host))
+    , m_Host(std::make_shared<ScriptHost>())
 {}
 
-LuaPreSimSystem::~LuaPreSimSystem() = default;
+LuaScriptSystem::~LuaScriptSystem() = default;
 
-void LuaPreSimSystem::OnBegin(World& world, DeferredOps& deferred_ops)
+void LuaScriptSystem::OnBegin(World& world, DeferredOps& deferred_ops)
 {
     if (m_Host) m_Host->OnBegin(world, deferred_ops);
 }
 
-void LuaPreSimSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
+void LuaScriptSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 {
-    if (m_Host) m_Host->RunPreSim(world, deferred_ops, dt);
+    if (m_Host) m_Host->Run(world, deferred_ops, dt);
 }
 
-void LuaPreSimSystem::OnEnd(World& world, DeferredOps& deferred_ops)
+void LuaScriptSystem::OnEnd(World& world, DeferredOps& deferred_ops)
 {
     if (m_Host) m_Host->OnEnd(world, deferred_ops);
-}
-
-LuaPostSimSystem::LuaPostSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority)
-    : ISystem(SystemPhase::Simulation, priority)
-    , m_Host(std::move(host))
-{}
-
-LuaPostSimSystem::~LuaPostSimSystem() = default;
-
-void LuaPostSimSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
-{
-    if (m_Host) m_Host->RunPostSim(world, deferred_ops, dt);
-}
-
-std::shared_ptr<ScriptHost> MakeScriptHost()
-{
-    return std::make_shared<ScriptHost>();
 }
 
 } // namespace CHEngine

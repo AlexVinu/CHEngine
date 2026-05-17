@@ -29,7 +29,11 @@ namespace CHModules
                                                      const String& fragEntry,
                                                      const String& sourcePath)
     {
-        return CreateImpl<ShaderVK>(slangSource, vertEntry, fragEntry, sourcePath);
+        // Lazy-init the Slang backend on first use (VK factory has no explicit Init()).
+        if (!Slang.IsInitialised())
+            Slang.Init(CHEngine::ERenderAPI::VULKAN);
+
+        return CreateImpl<ShaderVK>(slangSource, vertEntry, fragEntry, sourcePath, Slang);
     }
 
     CHEngine::IRenderApi* RenderFactoryVK::CreateRenderAPI()

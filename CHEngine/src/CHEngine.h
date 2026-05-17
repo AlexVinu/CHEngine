@@ -42,7 +42,7 @@
 // ================================
 
 // Physics ------------------------
-#include "CHEngine/Physics/PhysicsFacade.h"
+#include "CHEngine/Physics/PhysicsSubsystem.h"
 // ================================
 
 // Utils --------------------------

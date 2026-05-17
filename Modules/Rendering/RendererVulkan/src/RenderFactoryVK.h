@@ -1,11 +1,14 @@
 #pragma once
 
 #include "Render/IRenderFactory.h"
+#include <SlangBackend/SlangBackend.h>
 
 namespace CHModules
 {
     struct RenderFactoryVK : public CHEngine::IRenderFactory
     {
+        // Slang shader compiler — lazily initialised on first CreateShader() call.
+        CHModules::SlangBackend Slang;
         CHEngine::IVertexBuffer* CreateVertexBuffer(float* verticies, uint32_t size) override;
         CHEngine::IIndexBuffer*  CreateIndexBuffer(uint32_t* indices, uint32_t count) override;
         CHEngine::IVertexArray*  CreateVertexArray() override;

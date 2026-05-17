@@ -2,9 +2,6 @@
 #include "ShaderOGL.h"
 
 #include <Render/UniformBlocks.h>
-
-#include <SlangBackend/SlangBackend.h>
-
 #include <glad/glad.h>
 
 #include <string>
@@ -154,14 +151,13 @@ namespace CHModules
 	                                      const String& fragEntry,
 	                                      const String& sourcePath)
 	{
-		SlangBackend* backend = SlangBackend::GetForApi(CHEngine::ERenderAPI::OPENGL);
-		if (!backend)
+		if (!m_Slang || !m_Slang->IsInitialised())
 		{
-			CHE_CORE_ERROR("ShaderOGL: SlangBackend unavailable for OpenGL");
+			CHE_CORE_ERROR("ShaderOGL: SlangBackend not initialised");
 			return 0;
 		}
 
-		CompiledShader compiled = backend->Compile(slangSource, vertEntry, fragEntry, sourcePath);
+		CompiledShader compiled = m_Slang->Compile(slangSource, vertEntry, fragEntry, sourcePath);
 		if (!compiled.valid)
 		{
 			CHE_CORE_ERROR("ShaderOGL: Slang compilation failed:\n{0}", compiled.errorLog);
@@ -349,7 +345,9 @@ namespace CHModules
 	ShaderOGL::ShaderOGL(const String& slangSource,
 	                     const String& vertEntry,
 	                     const String& fragEntry,
-	                     const String& sourcePath)
+	                     const String& sourcePath,
+	                     SlangBackend& slang)
+		: m_Slang(&slang)
 	{
 		m_ProgramID = CompileSlangProgram(slangSource, vertEntry, fragEntry, sourcePath);
 		CHE_CORE_ASSERT(m_ProgramID, "ShaderOGL: failed to compile/link shader");

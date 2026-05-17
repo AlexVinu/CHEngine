@@ -10,14 +10,9 @@ namespace CHEngine {
 // ─────────────────────────────────────────────────────────────────────────────
 // Lua scripting system
 //
-// Состоит из ScriptHost (владеет sol::state, инстансами скриптов, хуками) и
-// двух тонких ISystem-обёрток, разделяющих этот host:
-//
-//   LuaPreSimSystem  (priority 5, Simulation) — OnUpdate (до физики)
-//   LuaPostSimSystem (priority 150, Simulation) — OnLateUpdate (после физики)
-//
-// PreSim также делает OnBegin/OnEnd: загружает/выгружает скрипты и подписывает
-// хуки на добавление/удаление ScriptComponent.
+// Одна ISystem-обёртка, фаза Simulation (priority 5 — до физики).
+// Внутри держит ScriptHost (sol::state, инстансы скриптов, хуки на
+// добавление/удаление ScriptComponent).
 //
 // Уровни скриптов:
 //   Entity scripts — ScriptComponent::Scripts[] на конкретной энтити
@@ -26,11 +21,9 @@ namespace CHEngine {
 // Lua-колбэки (все опциональны):
 //   Entity:  OnStart(entity, world)
 //            OnUpdate(entity, world, dt)
-//            OnLateUpdate(entity, world, dt)
 //            OnStop(entity, world)
 //   World:   OnStart(world)
 //            OnUpdate(world, dt)
-//            OnLateUpdate(world, dt)
 //            OnStop(world)
 //
 // Полный API — в LuaScriptSystem.cpp в SetupAPI().
@@ -38,38 +31,20 @@ namespace CHEngine {
 
 class ScriptHost;
 
-class LuaPreSimSystem final : public ISystem
+class LuaScriptSystem final : public ISystem
 {
 public:
-    explicit LuaPreSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority = 5);
-    ~LuaPreSimSystem() override;
+    explicit LuaScriptSystem(uint8_t priority = 5);
+    ~LuaScriptSystem() override;
 
-    const char* GetName() const override { return "LuaPreSimSystem"; }
+    const char* GetName() const override { return "LuaScriptSystem"; }
 
     void OnBegin(World& world, DeferredOps& deferred_ops) override;
     void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
     void OnEnd(World& world, DeferredOps& deferred_ops) override;
 
 private:
-    std::shared_ptr<ScriptHost> m_Host;
+    Ref<ScriptHost> m_Host;
 };
-
-class LuaPostSimSystem final : public ISystem
-{
-public:
-    explicit LuaPostSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority = 150);
-    ~LuaPostSimSystem() override;
-
-    const char* GetName() const override { return "LuaPostSimSystem"; }
-
-    void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
-
-private:
-    std::shared_ptr<ScriptHost> m_Host;
-};
-
-// Factory: создаёт пару связанных систем с общим host'ом. Сами системы регистрируются
-// вызывающей стороной (World::RegisterDefaultSystems).
-std::shared_ptr<ScriptHost> MakeScriptHost();
 
 } // namespace CHEngine

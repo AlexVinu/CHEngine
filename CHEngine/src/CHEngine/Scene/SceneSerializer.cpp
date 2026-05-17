@@ -10,8 +10,8 @@
 #include <unordered_set>
 #include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Mesh/PrimitiveMeshFactory.h>
-#include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
+#include <CHEngine/Application.h>
 
 #include <CHEngine/Scene/Components.h>
 #include "Entity.h"
@@ -76,21 +76,21 @@ static void DestroyTexturesForInstance(MaterialInstance* p,
     if (d.IsValid())
     {
         if (p->DiffuseMap.IsValid())
-            RenderFacade::DestroyTexture(d);
+            CHEngine::Application::Get().Render().DestroyTexture(d);
         else if (p->m_Material && p->m_Material->DiffuseMap.IsValid())
         {
             if (baseDiffuseDestroyed.insert(p->m_Material.get()).second)
-                RenderFacade::DestroyTexture(d);
+                CHEngine::Application::Get().Render().DestroyTexture(d);
         }
     }
     if (s.IsValid())
     {
         if (p->SpecularMap.IsValid())
-            RenderFacade::DestroyTexture(s);
+            CHEngine::Application::Get().Render().DestroyTexture(s);
         else if (p->m_Material && p->m_Material->SpecularMap.IsValid())
         {
             if (baseSpecDestroyed.insert(p->m_Material.get()).second)
-                RenderFacade::DestroyTexture(s);
+                CHEngine::Application::Get().Render().DestroyTexture(s);
         }
     }
 }
@@ -131,13 +131,13 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
         TextureHandle oldD, oldS;
         mat.ResolveTextures(oldD, oldS);
         if (oldD.IsValid())
-            ResourceManager::Instance().Unload(oldD);
+            Application::Get().Resources().Unload(oldD);
         if (mat.m_Material)
         {
             mat.m_Material->DiffuseMap = TextureHandle{};
             mat.m_Material->DiffuseMapPath.clear();
         }
-        mat.DiffuseMap     = ResourceManager::Instance().Load<TextureHandle>(std::filesystem::path(diffPath));
+        mat.DiffuseMap     = Application::Get().Resources().Load<TextureHandle>(std::filesystem::path(diffPath));
         mat.DiffuseMapPath = mat.DiffuseMap.IsValid() ? diffPath : "";
     }
 
@@ -147,13 +147,13 @@ void ApplyMaterialFromJson(const json& mj, MaterialInstance& mat)
         TextureHandle oldD, oldS;
         mat.ResolveTextures(oldD, oldS);
         if (oldS.IsValid())
-            ResourceManager::Instance().Unload(oldS);
+            Application::Get().Resources().Unload(oldS);
         if (mat.m_Material)
         {
             mat.m_Material->SpecularMap = TextureHandle{};
             mat.m_Material->SpecularMapPath.clear();
         }
-        mat.SpecularMap     = ResourceManager::Instance().Load<TextureHandle>(std::filesystem::path(specPath));
+        mat.SpecularMap     = Application::Get().Resources().Load<TextureHandle>(std::filesystem::path(specPath));
         mat.SpecularMapPath = mat.SpecularMap.IsValid() ? specPath : "";
     }
 }
@@ -317,15 +317,15 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             {
                 Mesh cubeMesh = PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
                 cubeMesh.Mat = MaterialInstance::FromBase(
-                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                    std::make_shared<Material>(CHEngine::Application::Get().Render().GetDefaultMeshShader()));
                 importedMeshes.push_back(std::move(cubeMesh));
                 hasImportedMeshes = true;
             }
             else if (meshPath == ":primitive:sphere")
             {
-                ShaderHandle sphereShader = RenderFacade::GetDefaultSphereImpostorShader();
+                ShaderHandle sphereShader = CHEngine::Application::Get().Render().GetDefaultSphereImpostorShader();
                 if (!sphereShader.IsValid())
-                    sphereShader = RenderFacade::GetDefaultMeshShader();
+                    sphereShader = CHEngine::Application::Get().Render().GetDefaultMeshShader();
                 Mesh sphereMesh = PrimitiveMeshFactory::CreateSphereImpostor({ 0.6f, 0.7f, 0.9f });
                 sphereMesh.Mat = MaterialInstance::FromBase(
                     std::make_shared<Material>(sphereShader));
@@ -334,10 +334,10 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             }
             else
             {
-                auto modelHandle = ResourceManager::Instance().Load<ModelHandle>(
-                    std::filesystem::path(meshPath), RenderFacade::GetDefaultMeshShader());
+                auto modelHandle = Application::Get().Resources().Load<ModelHandle>(
+                    std::filesystem::path(meshPath), CHEngine::Application::Get().Render().GetDefaultMeshShader());
                 const LoadedModel* result = modelHandle.IsValid()
-                    ? ResourceManager::Instance().GetModel(modelHandle) : nullptr;
+                    ? Application::Get().Resources().GetModel(modelHandle) : nullptr;
                 if (result && !result->meshes.empty()) {
                     importedMeshes = result->meshes; // copy — Mesh copy-ctor AddRefs GPU records
 
@@ -467,7 +467,7 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             {
                 if (!meshItem.Mat)
                     meshItem.Mat = MaterialInstance::FromBase(
-                        std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                        std::make_shared<Material>(CHEngine::Application::Get().Render().GetDefaultMeshShader()));
             }
 
             if (o.contains("materials") && o["materials"].is_array())

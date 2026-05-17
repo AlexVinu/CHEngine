@@ -6,7 +6,6 @@
 
 #include <CHEngine/Utils/FileDialog.h>
 #include <CHEngine/Mesh/Material.h>
-#include <CHEngine/Render/RenderFacade.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Light.h>
 #include <CHEngine/Scene/SceneCamera.h>

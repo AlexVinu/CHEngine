@@ -4,7 +4,6 @@
 
 #include <Log/Log.h>
 #include <Render/UniformBlocks.h>
-#include <SlangBackend/SlangBackend.h>
 
 #import <Metal/Metal.h>
 
@@ -29,13 +28,12 @@ bool ShaderMTL::CompileSlang(const String& slangSource,
         return false;
     }
 
-    SlangBackend* backend = SlangBackend::GetForApi(CHEngine::ERenderAPI::METAL);
-    if (!backend) {
-        CHE_CORE_ERROR("ShaderMTL: SlangBackend unavailable for Metal");
+    if (!m_Slang || !m_Slang->IsInitialised()) {
+        CHE_CORE_ERROR("ShaderMTL: SlangBackend not initialised");
         return false;
     }
 
-    CompiledShader compiled = backend->Compile(slangSource, vertEntry, fragEntry, sourcePath);
+    CompiledShader compiled = m_Slang->Compile(slangSource, vertEntry, fragEntry, sourcePath);
     if (!compiled.valid) {
         CHE_CORE_ERROR("ShaderMTL: Slang compilation failed:\n{}", compiled.errorLog);
         return false;
@@ -110,7 +108,9 @@ bool ShaderMTL::CompileSlang(const String& slangSource,
 ShaderMTL::ShaderMTL(const String& slangSource,
                      const String& vertEntry,
                      const String& fragEntry,
-                     const String& sourcePath)
+                     const String& sourcePath,
+                     SlangBackend& slang)
+    : m_Slang(&slang)
 {
     if (!CompileSlang(slangSource, vertEntry, fragEntry, sourcePath))
         CHE_CORE_ERROR("ShaderMTL: failed to compile '{}'", sourcePath.c_str());

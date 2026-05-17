@@ -3,7 +3,6 @@
 #include "VulkanGlobals.h"
 
 #include <Log/Log.h>
-#include <SlangBackend/SlangBackend.h>
 
 namespace CHModules
 {
@@ -50,14 +49,13 @@ namespace CHModules
             return false;
         }
 
-        SlangBackend* backend = SlangBackend::GetForApi(CHEngine::ERenderAPI::VULKAN);
-        if (!backend)
+        if (!m_Slang || !m_Slang->IsInitialised())
         {
-            CHE_CORE_ERROR("ShaderVK: SlangBackend unavailable for Vulkan");
+            CHE_CORE_ERROR("ShaderVK: SlangBackend not initialised");
             return false;
         }
 
-        CompiledShader compiled = backend->Compile(slangSource, vertEntry, fragEntry, sourcePath);
+        CompiledShader compiled = m_Slang->Compile(slangSource, vertEntry, fragEntry, sourcePath);
         if (!compiled.valid)
         {
             CHE_CORE_ERROR("ShaderVK: Slang compilation failed:\n{0}", compiled.errorLog);
@@ -100,7 +98,9 @@ namespace CHModules
     ShaderVK::ShaderVK(const String& slangSource,
                        const String& vertEntry,
                        const String& fragEntry,
-                       const String& sourcePath)
+                       const String& sourcePath,
+                       SlangBackend& slang)
+        : m_Slang(&slang)
     {
         if (!BuildModules(slangSource, vertEntry, fragEntry, sourcePath))
             CHE_CORE_WARN("ShaderVK: shader was created without valid modules");

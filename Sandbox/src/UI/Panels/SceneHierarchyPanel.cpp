@@ -34,7 +34,7 @@ void SceneHierarchyPanel::EnsureLogo()
         }
         std::fclose(f);
     }
-    m_Logo = CHEngine::RenderFacade::CreateTextureFromFile(path);
+    m_Logo = CHEngine::Application::Get().Render().CreateTextureFromFile(path);
 }
 
 // Draw only the content (no panel wrapper) — used as a tab inside CameraPanel

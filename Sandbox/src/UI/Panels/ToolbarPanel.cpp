@@ -7,7 +7,7 @@
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Utils/FileDialog.h>
 
-#include "InputActions.h"
+#include "InputSystem.h"
 #include "UIThemeActive.h"
 
 #include <cstdio>
@@ -22,13 +22,13 @@ ToolbarPanel::ToolbarPanel()
 
 void ToolbarPanel::LoadIcons()
 {
-    m_IconTranslate = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_translate.png");
-    m_IconRotate    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_rotate.png");
-    m_IconScale     = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_scale.png");
-    m_IconPlay      = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_play.png");
-    m_IconPause     = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_pause.png");
-    m_IconStop      = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_stop.png");
-    m_IconResume    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_resume.png");
+    m_IconTranslate = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_translate.png");
+    m_IconRotate    = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_rotate.png");
+    m_IconScale     = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_scale.png");
+    m_IconPlay      = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_play.png");
+    m_IconPause     = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_pause.png");
+    m_IconStop      = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_stop.png");
+    m_IconResume    = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_resume.png");
     m_IconsLoaded   = true;
 }
 
@@ -36,7 +36,7 @@ void ToolbarPanel::LoadIcons()
 static ImTextureID ToImTex(CHEngine::TextureHandle h)
 {
     if (!h.IsValid()) return static_cast<ImTextureID>(0);
-    auto* f = CHEngine::RenderFacade::GetRenderFactory();
+    auto* f = CHEngine::Application::Get().Render().GetRenderFactory();
     if (!f) return static_cast<ImTextureID>(0);
     return static_cast<ImTextureID>(f->GetTextureNativeID(h));
 }
@@ -61,22 +61,22 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
     // ── Keyboard shortcuts (driven by InputActions / keybindings.json) ───────
     if (!ImGui::GetIO().WantTextInput)
     {
-        using IA = Sandbox::InputActions;
+        InputSystem& IA = GetInputSystem();
 
-        if (IA::Triggered("Editor.Gizmo.Translate"))
+        if (IA.Triggered("Editor.Gizmo.Translate"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::TRANSLATE; }, [] {}, false));
-        if (IA::Triggered("Editor.Gizmo.Rotate"))
+        if (IA.Triggered("Editor.Gizmo.Rotate"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::ROTATE; }, [] {}, false));
-        if (IA::Triggered("Editor.Gizmo.Scale"))
+        if (IA.Triggered("Editor.Gizmo.Scale"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::SCALE; }, [] {}, false));
-        if (IA::Triggered("Editor.Profiler.Toggle"))
+        if (IA.Triggered("Editor.Profiler.Toggle"))
             host.GetShowProfiler() = !host.GetShowProfiler();
 
         // Delete / Backspace — удаление выделенного объекта (только в Edit-режиме)
-        if (IA::Triggered("Editor.Entity.Delete")
+        if (IA.Triggered("Editor.Entity.Delete")
             && activeSession->GetSessionState() == SceneSession::State::Edit)
         {
             Ref<EditorWorldContext> s = host.GetActiveSceneSession();
@@ -88,11 +88,11 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
             }
         }
 
-        if (IA::Triggered("Editor.History.Undo"))
+        if (IA.Triggered("Editor.History.Undo"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.RequestUndo(); }, [] {}, false));
 
-        if (IA::Triggered("Editor.Play.Toggle"))
+        if (IA.Triggered("Editor.Play.Toggle"))
         {
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] {
@@ -102,7 +102,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
                     else if (s->GetSessionState() == SceneSession::State::Pause)  host.ResumeFromPause();
                 }, [] {}, false));
         }
-        if (IA::Triggered("Editor.Play.Stop") &&
+        if (IA.Triggered("Editor.Play.Stop") &&
             activeSession->GetSessionState() != SceneSession::State::Edit)
         {
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(

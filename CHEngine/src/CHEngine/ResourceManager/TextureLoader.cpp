@@ -1,7 +1,7 @@
 #include "TextureLoader.h"
 
 #include "ResourceManager.h"
-#include "CHEngine/Render/RenderFacade.h"
+#include "CHEngine/Application.h"
 
 namespace CHEngine
 {
@@ -12,7 +12,7 @@ namespace CHEngine
 		if (auto handle = m_HandlesBimap.left.find(filepath); handle != m_HandlesBimap.left.end())
 			return handle->second;
 
-		auto handle = (Handle<void>)RenderFacade::CreateTextureFromFile(filepath.string());
+		auto handle = (Handle<void>)Application::Get().Render().CreateTextureFromFile(filepath.string());
 		m_HandlesBimap.insert({ filepath, handle });
 		return handle;
 	}
@@ -21,7 +21,7 @@ namespace CHEngine
 	{
 		if (auto it = m_HandlesBimap.right.find(handle); it != m_HandlesBimap.right.end())
 			m_HandlesBimap.right.erase(it);
-		RenderFacade::DestroyTexture(handle);
+		Application::Get().Render().DestroyTexture(handle);
 	}
 
 	size_t TextureLoader::GetMemoryUsage() const

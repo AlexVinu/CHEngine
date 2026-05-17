@@ -3,6 +3,7 @@
 #include <CheStl/String.h>
 
 #include "Render/UniformBlocks.h"
+#include <SlangBackend/SlangBackend.h>
 
 #include <glad/glad.h>
 #include <array>
@@ -12,10 +13,12 @@ namespace CHModules
 	class ShaderOGL
 	{
 	public:
+		// slang: reference to the factory-owned SlangBackend (must outlive this shader)
 		ShaderOGL(const String& slangSource,
 		          const String& vertEntry,
 		          const String& fragEntry,
-		          const String& sourcePath = String());
+		          const String& sourcePath,
+		          SlangBackend& slang);
 		 ~ShaderOGL();
 
 		ShaderOGL(const ShaderOGL&) = delete;
@@ -38,13 +41,15 @@ namespace CHModules
 		 void SetInt(const String& name, int value) ;
 
 	private:
-		GLuint m_ProgramID;
+		GLuint        m_ProgramID;
+		SlangBackend* m_Slang = nullptr; // owned by the factory; always valid during shader lifetime
+
 		// Compile a .slang source through SlangBackend (→ GLSL) and link a GL program.
 		// Returns the program ID on success, 0 on failure.
-		static GLuint CompileSlangProgram(const String& slangSource,
-		                                  const String& vertEntry,
-		                                  const String& fragEntry,
-		                                  const String& sourcePath);
+		GLuint CompileSlangProgram(const String& slangSource,
+		                           const String& vertEntry,
+		                           const String& fragEntry,
+		                           const String& sourcePath);
 
 		// Auto-assign sampler uniforms to sequential texture units (0,1,2,...)
 		// in declaration order, regardless of Slang's emitted binding indices.

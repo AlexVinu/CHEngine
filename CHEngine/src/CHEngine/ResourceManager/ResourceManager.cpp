@@ -6,12 +6,6 @@
 namespace CHEngine
 {
 
-	ResourceManager& ResourceManager::Instance()
-	{
-		static ResourceManager s_Instance;
-		return s_Instance;
-	}
-
 	ResourceManager::ResourceManager()
 	{
 		m_ResourceLoaders[static_cast<size_t>(ELoaderResourceType::Texture)] = std::make_unique<TextureLoader>();

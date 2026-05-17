@@ -5,7 +5,6 @@
 
 #include "CHEngine/Mesh/Material.h"
 #include "CHEngine/Mesh/Mesh.h"
-#include "CHEngine/Render/RenderFacade.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
@@ -42,11 +41,11 @@ namespace CHEngine {
 
     bool RenderSystem::EnsureGPUResources()
     {
-        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        IRenderFactory* factory = Application::Get().Render().GetRenderFactory();
         if (!factory) return false;
 
-        const uint32_t vw = RenderFacade::GetViewportWidth();
-        const uint32_t vh = RenderFacade::GetViewportHeight();
+        const uint32_t vw = Application::Get().Render().GetViewportWidth();
+        const uint32_t vh = Application::Get().Render().GetViewportHeight();
         if (vw == 0 || vh == 0) return false;
 
         const bool sizeChanged = (vw != m_LastViewportW || vh != m_LastViewportH);
@@ -97,7 +96,7 @@ namespace CHEngine {
         // Create MeshPipeline once (or when default shader becomes available).
         if (!m_MeshPipeline.IsValid())
         {
-            ShaderHandle defaultShader = RenderFacade::GetDefaultMeshShader();
+            ShaderHandle defaultShader = Application::Get().Render().GetDefaultMeshShader();
             if (!defaultShader.IsValid()) return false;
 
             PipelineDesc pipeDesc;
@@ -157,7 +156,7 @@ namespace CHEngine {
         // Load tonemap shader once.
         if (!m_TonemapShader.IsValid())
         {
-            m_TonemapShader = ResourceManager::Instance().Load<ShaderHandle>(
+            m_TonemapShader = Application::Get().Resources().Load<ShaderHandle>(
                 std::string("Tonemap"), AppPaths::ExecutableDir() / "shaders/tonemap.slang");
             if (!m_TonemapShader.IsValid())
                 CHE_CORE_ERROR("RenderSystem: failed to load tonemap shader");
@@ -203,7 +202,7 @@ namespace CHEngine {
         if (!EnsureGPUResources())
             return;
 
-        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        IRenderFactory* factory = Application::Get().Render().GetRenderFactory();
         if (!factory) return;
 
         // Upload per-frame UBOs.
@@ -259,20 +258,20 @@ namespace CHEngine {
 
         // Expose HDR and Depth targets BEFORE the pre-scene callback so that
         // RegisterEditorPasses() can read them via GetViewportHDRTexture().
-        RenderFacade::SetViewportHDRTexture(m_HDRTarget);
-        RenderFacade::SetViewportDepthTexture(m_DepthTarget);
+        Application::Get().Render().SetViewportHDRTexture(m_HDRTarget);
+        Application::Get().Render().SetViewportDepthTexture(m_DepthTarget);
 
         // Hook: editor background passes (grid) injected BEFORE MainColorPass.
         // GridPass clears HDR + Depth, draws grid.  MainColorPass then loads
         // the grid content and draws objects on top with depth test.
-        if (auto& cb = RenderFacade::GetPreSceneCallbackRef(); cb)
+        if (auto& cb = Application::Get().Render().GetPreSceneCallbackRef(); cb)
             cb();
 
         // Build per-shader passes.
-        const bool hasPreScene = static_cast<bool>(RenderFacade::GetPreSceneCallbackRef());
+        const bool hasPreScene = static_cast<bool>(Application::Get().Render().GetPreSceneCallbackRef());
 
-        const uint32_t vw = RenderFacade::GetViewportWidth();
-        const uint32_t vh = RenderFacade::GetViewportHeight();
+        const uint32_t vw = Application::Get().Render().GetViewportWidth();
+        const uint32_t vh = Application::Get().Render().GetViewportHeight();
 
         // Group draws by shader for multi-pipeline support (mesh + PBR).
         // Using a simple linear scan since draw count is typically small (<1000).
@@ -316,7 +315,7 @@ namespace CHEngine {
             clearPass.DepthAttachment = m_DepthTarget;
             clearPass.Writes.push_back(m_HDRTarget);
             if (m_DepthTarget.IsValid()) clearPass.Writes.push_back(m_DepthTarget);
-            RenderFacade::GetFrameGraph().AddPass(std::move(clearPass));
+            Application::Get().Render().GetFrameGraph().AddPass(std::move(clearPass));
         }
 
         for (size_t g = 0; g < shaderHandles.size(); ++g)
@@ -383,7 +382,7 @@ namespace CHEngine {
                 pass.Draws.push_back(std::move(draw));
             }
 
-            RenderFacade::GetFrameGraph().AddPass(std::move(pass));
+            Application::Get().Render().GetFrameGraph().AddPass(std::move(pass));
         }
 
         // TonemapPass: ACES HDR → LDR (RGBA8 target for ImGui display).
@@ -404,10 +403,10 @@ namespace CHEngine {
         tonemapPass.Reads.push_back(m_HDRTarget);   // Reads from MainColorPass output
         tonemapPass.Writes.push_back(m_LDRTarget);  // Writes LDR output
 
-        RenderFacade::GetFrameGraph().AddPass(std::move(tonemapPass));
+        Application::Get().Render().GetFrameGraph().AddPass(std::move(tonemapPass));
 
         // Set final output texture for ImGui display
-        RenderFacade::SetViewportOutputTexture(m_LDRTarget);
+        Application::Get().Render().SetViewportOutputTexture(m_LDRTarget);
     }
 
     // ============================================================================
@@ -416,12 +415,12 @@ namespace CHEngine {
 
     PipelineHandle RenderSystem::GetOrCreatePipeline(ShaderHandle shader)
     {
-        if (shader == RenderFacade::GetDefaultMeshShader() && m_MeshPipeline.IsValid())
+        if (shader == Application::Get().Render().GetDefaultMeshShader() && m_MeshPipeline.IsValid())
             return m_MeshPipeline;
         if (shader == m_PBRShader && m_PBRPipeline.IsValid())
             return m_PBRPipeline;
 
-        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        IRenderFactory* factory = Application::Get().Render().GetRenderFactory();
         if (!factory || !shader.IsValid()) return {};
 
         PipelineDesc pipeDesc;
@@ -444,7 +443,7 @@ namespace CHEngine {
         }
 
         // Cache for future reuse
-        if (shader == RenderFacade::GetDefaultMeshShader())
+        if (shader == Application::Get().Render().GetDefaultMeshShader())
             m_MeshPipeline = pipe;
         else
         {
@@ -461,7 +460,7 @@ namespace CHEngine {
 
     bool RenderSystem::EnsureObjectUBO(uint32_t requiredDraws)
     {
-        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        IRenderFactory* factory = Application::Get().Render().GetRenderFactory();
         if (!factory) return false;
 
         if (m_ObjectUBOAlignedStride == 0)
@@ -510,7 +509,7 @@ namespace CHEngine {
 
     bool RenderSystem::EnsureMaterialUBO(uint32_t requiredDraws)
     {
-        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        IRenderFactory* factory = Application::Get().Render().GetRenderFactory();
         if (!factory) return false;
 
         if (m_MaterialUBOAlignedStride == 0)
@@ -594,7 +593,7 @@ namespace CHEngine {
                     {
                         mesh.Mat = MaterialInstance::FromBase(
                             std::make_shared<Material>(
-                                RenderFacade::GetDefaultMeshShader()));
+                                Application::Get().Render().GetDefaultMeshShader()));
                     }
 
                     const ShaderHandle shaderHandle = mesh.Mat->GetMaterial()->GetShaderHandle();
@@ -676,7 +675,7 @@ namespace CHEngine {
         out.CameraPos[2] = pos.z;
         out.CameraPos[3] = 0.0f;
 
-        RenderFacade::SetSceneCamera(out);
+        Application::Get().Render().SetSceneCamera(out);
         return true;
     }
 
@@ -779,7 +778,7 @@ namespace CHEngine {
         if (drawCount == 0 || !m_ObjectUBORing.IsValid())
             return;
 
-        IRenderFactory* factory = RenderFacade::GetRenderFactory();
+        IRenderFactory* factory = Application::Get().Render().GetRenderFactory();
         if (!factory)
             return;
 

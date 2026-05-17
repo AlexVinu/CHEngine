@@ -9,9 +9,8 @@
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Utils/AppPaths.h>
 
-#include "InputActions.h"
+#include "InputSystem.h"
 
-#include <CHEngine/Render/RenderFacade.h>
 #include <Render/UniformBlocks.h>
 
 #include <glm/gtc/type_ptr.hpp>
@@ -133,7 +132,7 @@ public:
 		ImGui::Begin("Shader Manager");
 
 		auto& app = CHEngine::Application::Get();
-		const auto& entries = CHEngine::RenderFacade::GetShaderEntries();
+		const auto& entries = CHEngine::Application::Get().Render().GetShaderEntries();
 		CHEngine::ShaderHandle activeShader = app.GetActiveShader();
 
 		const char* activeName = "(unknown)";
@@ -171,7 +170,7 @@ public:
 
 			ImGui::SameLine();
 			if (ImGui::Button(("Reload##reload" + std::to_string(i)).c_str(), ImVec2(60, 0)))
-				CHEngine::RenderFacade::ReloadShader(e.handle);
+				CHEngine::Application::Get().Render().ReloadShader(e.handle);
 		}
 
 		ImGui::End();
@@ -215,16 +214,19 @@ public:
 	SandboxApp(const CHEngine::ApplicationConfig& config)
 		: CHEngine::Application(config)
 	{
+		// Initialise InputSystem first — callers assume it's registered before layers start.
+		m_Input = std::make_unique<Sandbox::InputSystem>();
+		Sandbox::RegisterInputSystem(m_Input.get());
+		m_Input->LoadFromJson(CHEngine::AppPaths::ExecutableDir() / "config/keybindings.json");
+
 		// Try to restore the last used project so the editor can start immediately.
 		const std::string lastProj = CHEngine::EngineConfig::LoadLastProject();
 		m_ProjectManager = MakeRef<ProjectManager>();
 		if (!lastProj.empty())
 			m_ProjectManager->Open(lastProj);
 
-		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Flat", CHEngine::AppPaths::ExecutableDir() / "shaders/flat.slang");
-		CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>("Neon", CHEngine::AppPaths::ExecutableDir() / "shaders/neon.slang");
-
-		Sandbox::InputActions::LoadFromJson(CHEngine::AppPaths::ExecutableDir() / "config/keybindings.json");
+		CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>("Flat", CHEngine::AppPaths::ExecutableDir() / "shaders/flat.slang");
+		CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>("Neon", CHEngine::AppPaths::ExecutableDir() / "shaders/neon.slang");
 
 		m_MutualWorlds = MakeRef<std::vector<Ref<EditorWorldContext>>>();
 		m_MutualWorlds->reserve(16);
@@ -235,11 +237,15 @@ public:
 		// PushLayer(new ExampleLayer());
 	}
 
-	~SandboxApp() {}
+	~SandboxApp()
+	{
+		Sandbox::RegisterInputSystem(nullptr);
+	}
 
 private:
+	std::unique_ptr<Sandbox::InputSystem>     m_Input;
 	Ref<std::vector<Ref<EditorWorldContext>>> m_MutualWorlds;
-	Ref<ProjectManager> m_ProjectManager;
+	Ref<ProjectManager>                       m_ProjectManager;
 };
 
 CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config)

@@ -7,7 +7,6 @@
 #include "UIThemeActive.h"
 
 #include <CHEngine/Application.h>
-#include <CHEngine/Render/RenderFacade.h>
 #include <Render/Handles.h>
 
 #include <imgui.h>
@@ -29,16 +28,16 @@ static bool                   s_IconsLoaded = false;
 static void EnsureIcons()
 {
     if (s_IconsLoaded) return;
-    s_IconTranslate = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_translate.png");
-    s_IconRotate    = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_rotate.png");
-    s_IconScale     = CHEngine::RenderFacade::CreateTextureFromFile("editor_assets/icons/icon_scale.png");
+    s_IconTranslate = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_translate.png");
+    s_IconRotate    = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_rotate.png");
+    s_IconScale     = CHEngine::Application::Get().Render().CreateTextureFromFile("editor_assets/icons/icon_scale.png");
     s_IconsLoaded   = true; // даже если не загрузились — не пытаемся каждый кадр
 }
 
 static ImTextureID ToImTex(CHEngine::TextureHandle h)
 {
     if (!h.IsValid()) return static_cast<ImTextureID>(0);
-    auto* f = CHEngine::RenderFacade::GetRenderFactory();
+    auto* f = CHEngine::Application::Get().Render().GetRenderFactory();
     return f ? static_cast<ImTextureID>(f->GetTextureNativeID(h)) : static_cast<ImTextureID>(0);
 }
 

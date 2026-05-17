@@ -2,7 +2,6 @@
 
 #include "SceneViewLayerHost.h"
 
-#include <CHEngine/Render/RenderFacade.h>
 #include <Render/Handles.h>
 #include <imgui.h>
 

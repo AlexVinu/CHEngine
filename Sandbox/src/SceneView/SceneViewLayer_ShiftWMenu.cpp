@@ -3,7 +3,7 @@
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 #include "EditorPopupState.h"
-#include "InputActions.h"
+#include "InputSystem.h"
 #include "TilingManager.h"
 #include "UIThemeRetroOS.h"
 
@@ -29,7 +29,7 @@ void Draw(SceneViewLayer& layer)
     // Open on Shift+W
     if (!ImGui::GetIO().WantTextInput)
     {
-        if (Sandbox::InputActions::Triggered("Editor.Menu.AddWindow"))
+        if (Sandbox::GetInputSystem().Triggered("Editor.Menu.AddWindow"))
         {
             if (EditorPopup::IsOpen(EditorPopup::ID::ShiftW))
                 EditorPopup::Close();          // toggle off
@@ -44,7 +44,7 @@ void Draw(SceneViewLayer& layer)
     if (!EditorPopup::IsOpen(EditorPopup::ID::ShiftW))
         return;
 
-    if (Sandbox::InputActions::Triggered("Editor.Popup.Close"))
+    if (Sandbox::GetInputSystem().Triggered("Editor.Popup.Close"))
     { EditorPopup::Close(); return; }
 
     ImGui::SetNextWindowPos(s_Pos, ImGuiCond_Always);

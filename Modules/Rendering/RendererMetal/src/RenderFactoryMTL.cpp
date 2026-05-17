@@ -3,7 +3,7 @@
 
 #include "FrameGraphBackendMTL.h"
 #include "TextureMTL.h"    // Legacy TextureMTL
-#include "CHEngine/UI/UIFacade.h"
+#include "CHEngine/Application.h"
 #include <Log/Log.h>
 
 namespace CHModules
@@ -24,7 +24,7 @@ namespace CHModules
         const String& fragEntry,
         const String& sourcePath)
     {
-        auto* sh = new ShaderMTL(slangSource, vertEntry, fragEntry, sourcePath);
+        auto* sh = new ShaderMTL(slangSource, vertEntry, fragEntry, sourcePath, Slang);
         return Shaders.Add(sh);
     }
 
@@ -124,6 +124,9 @@ namespace CHModules
         // Create and initialize the Metal render API (sets up device, command queue, framebuffer)
         m_RenderApi = std::make_unique<RenderApiMTL>();
         m_RenderApi->Init(init);
+
+        if (!Slang.Init(CHEngine::ERenderAPI::METAL))
+            CHE_CORE_ERROR("RenderFactoryMTL: failed to initialise SlangBackend for Metal");
     }
 
     void RenderFactoryMTL::Shutdown()
@@ -145,7 +148,8 @@ namespace CHModules
         if (!m_RenderApi) return;
         m_RenderApi->BeginFrame();
         // Provide ImGui with the current Metal command buffer + encoder
-        CHEngine::UIFacade::SetRenderContext(m_RenderApi->GetRenderContext());
+        if (auto* ui = CHEngine::Application::Get().UI())
+            ui->SetRenderContext(m_RenderApi->GetRenderContext());
     }
 
     void RenderFactoryMTL::EndFrame()
