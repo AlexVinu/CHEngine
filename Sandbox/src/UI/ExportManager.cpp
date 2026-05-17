@@ -210,7 +210,7 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg, const fs::path& binDir
         CHE_CORE_WARN("[Export] Could not set executable bit: {}", ec.message());
 #endif
 
-    // Copy dylibs/dlls — they go next to the executable so @executable_path works
+    // Copy dylibs/dlls — next to executable so @executable_path works
     if (!cfg.engineBinDir.empty() && fs::exists(cfg.engineBinDir))
     {
         for (auto& entry : fs::directory_iterator(cfg.engineBinDir, ec))
@@ -225,6 +225,30 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg, const fs::path& binDir
                 CHE_CORE_WARN("[Export] Could not copy {}: {}",
                     entry.path().filename().string(), ec.message());
         }
+    }
+
+    // Copy shaders next to the executable — player loads them from exeDir/shaders/
+    // (ResourceManager reads shaders via direct file I/O, bypassing the pak)
+    fs::path shadersSource = cfg.engineBinDir / "shaders";
+    fs::path shadersDest   = binDir / "shaders";
+    if (fs::exists(shadersSource))
+    {
+        fs::create_directories(shadersDest, ec);
+        for (auto& entry : fs::recursive_directory_iterator(shadersSource, ec))
+        {
+            if (!entry.is_regular_file()) continue;
+            fs::path rel = fs::relative(entry.path(), shadersSource, ec);
+            fs::path dst = shadersDest / rel;
+            fs::create_directories(dst.parent_path(), ec);
+            fs::copy_file(entry.path(), dst, fs::copy_options::overwrite_existing, ec);
+            if (ec)
+                CHE_CORE_WARN("[Export] Shader copy failed {}: {}", rel.string(), ec.message());
+        }
+        CHE_CORE_INFO("[Export] Shaders copied to {}", shadersDest.string());
+    }
+    else
+    {
+        CHE_CORE_ERROR("[Export] Shaders source not found: {}", shadersSource.string());
     }
 
     return true;

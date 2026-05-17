@@ -30,6 +30,10 @@ public:
 
     void OnAttach() override
     {
+        // Diagnostics
+        CHE_CORE_INFO("[Player] Pak mounted: {}", CHEngine::FileSystem::IsPakMounted());
+        CHE_CORE_INFO("[Player] Loading scene from: {}", m_StartupScenePath);
+
         CHEngine::SceneSerializer serializer;
         auto scene = serializer.LoadFromFile(m_StartupScenePath);
 
@@ -37,7 +41,16 @@ public:
             CHE_CORE_ERROR("[Player] Failed to load scene: {}", m_StartupScenePath);
             scene = MakeRef<CHEngine::Scene>();
         } else {
-            CHE_CORE_INFO("[Player] Loaded scene: {}", m_StartupScenePath);
+            // Count objects for diagnostics
+            int objCount = 0, camCount = 0, meshCount = 0;
+            scene->ForEach<CHEngine::TagComponent>(
+                [&](CHEngine::EntityHandle, const CHEngine::UUID&, CHEngine::TagComponent&) { ++objCount; });
+            scene->ForEach<CHEngine::CameraComponent>(
+                [&](CHEngine::EntityHandle, const CHEngine::UUID&, CHEngine::CameraComponent&) { ++camCount; });
+            scene->ForEach<CHEngine::MeshComponent>(
+                [&](CHEngine::EntityHandle, const CHEngine::UUID&, CHEngine::MeshComponent&) { ++meshCount; });
+            CHE_CORE_INFO("[Player] Scene loaded: {} objects, {} cameras, {} meshes",
+                          objCount, camCount, meshCount);
         }
 
         // Update camera projection for the window size
@@ -89,7 +102,21 @@ public:
         // The engine renders into an offscreen LDR texture. The ONLY way to get
         // pixels onto the window surface is via ImGui::Image — same as the editor.
         uint64_t texID = CHEngine::RenderFacade::GetViewportColorTexID();
-        if (texID == 0) return;
+        if (texID == 0)
+        {
+            // Texture not ready yet — draw magenta so we know ImGui layer IS running
+            ImGui::SetNextWindowPos(ImVec2(0, 0));
+            ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
+            ImGui::SetNextWindowBgAlpha(1.0f);
+            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.6f, 0.0f, 0.6f, 1.0f));
+            ImGui::Begin("##no_tex", nullptr,
+                ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings);
+            ImGui::TextUnformatted("Render texture not ready (texID=0)");
+            ImGui::End();
+            ImGui::PopStyleColor();
+            return;
+        }
 
         ImGuiIO& io = ImGui::GetIO();
         ImVec2   displaySize = io.DisplaySize;
@@ -161,17 +188,21 @@ public:
         // ── Load shaders ──────────────────────────────────────────────────────
         fs::path shadersDir = exeDir / "shaders";
 
+        CHE_CORE_INFO("[Player] Loading shaders from: {}", shadersDir.string());
+        CHE_CORE_INFO("[Player] Shaders dir exists: {}", fs::exists(shadersDir));
+
         auto meshShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
             "Mesh",   shadersDir / "mesh.slang");
         auto sphereShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
             "Sphere", shadersDir / "sphere_impostor.slang");
 
-        // CRITICAL: RenderSystem::EnsureGPUResources() checks these.
-        // Without them it returns false and draws nothing.
+        CHE_CORE_INFO("[Player] Mesh shader valid: {}", meshShader.IsValid());
+        CHE_CORE_INFO("[Player] Sphere shader valid: {}", sphereShader.IsValid());
+
         if (meshShader.IsValid())
             CHEngine::RenderFacade::SetDefaultMeshShader(meshShader);
         else
-            CHE_CORE_WARN("[Player] Mesh shader not loaded — scene will not render");
+            CHE_CORE_ERROR("[Player] Mesh shader FAILED — objects will not render!");
 
         if (sphereShader.IsValid())
             CHEngine::RenderFacade::SetDefaultSphereImpostorShader(sphereShader);
