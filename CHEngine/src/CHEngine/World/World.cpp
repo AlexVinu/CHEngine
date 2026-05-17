@@ -6,6 +6,7 @@
 #include "Systems/LuaScriptSystem.h"
 #include "Systems/PhysicsSystem.h"
 #include "Systems/RenderSystem.h"
+#include "Systems/UIRenderSystem.h"
 #include "CHEngine/Physics/PhysicsFacade.h"
 #include "CHEngine/Scene/Entity.h"
 #include "WorldEvents.h"
@@ -144,6 +145,7 @@ namespace CHEngine
 
         m_Scheduler.EmplaceSystem<PhysicsSystem>();
         m_RenderSystem = &m_Scheduler.EmplaceSystem<RenderSystem>();
+        m_Scheduler.EmplaceSystem<UIRenderSystem>();
     }
 
     void World::RefreshRenderTransforms()
