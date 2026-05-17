@@ -2,7 +2,6 @@
 #include "SceneViewLayerHost.h"
 
 #include <imgui.h>
-#include <imgui_internal.h>
 
 #ifdef CHE_HAS_CURL
 #include <curl/curl.h>
@@ -346,6 +345,12 @@ AVAILABLE ACTIONS (use as many as needed, in logical order):
   bounce   = up/down bouncing
   orbit    = orbits around origin
   (omit template or leave "" for empty script)
+
+{"type":"add_world_script","template":"<wasd|rotate_y|bounce|orbit>","content":"<raw lua>"}
+  World-level script: глобальный для сцены, не привязан к энтити.
+  Колбэки: OnStart(world), OnUpdate(world,dt), OnLateUpdate(world,dt), OnStop(world).
+  world API: SpawnEntity(name), FindByName, FindByUUID, DestroyEntity, ForEach.
+  Передай "content" с raw Lua-кодом, либо "template", либо оба пустые → файл с дефолтным world-шаблоном.
 
 ── EDITOR ACTIONS ──
 {"type":"select","entity":"<name>"}
@@ -717,6 +722,20 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
             else
                 host.CreateAndAttachScriptToEntityByName(ent);
         }
+        else if (type == "add_world_script")
+        {
+            // World-script (Scene::WorldScripts) — глобально для сцены.
+            // Принимает либо имя шаблона из библиотеки kScript* (wasd/rotate_y/...),
+            // либо raw Lua-код в поле "content".
+            std::string tmpl    = JsonField(act, "template");
+            std::string content = JsonField(act, "content");
+            if (!content.empty())
+                host.CreateAndAttachWorldScriptWithContent(content);
+            else if (std::string lua = GetScriptTemplate(tmpl); !lua.empty())
+                host.CreateAndAttachWorldScriptWithContent(lua);
+            else
+                host.CreateAndAttachWorldScript();
+        }
         else if (type == "select")
         {
             host.SelectEntityByName(JsonField(act, "entity"));
@@ -865,7 +884,7 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
     }
 
     // Always on top (above dim background)
-    ImGui::BringWindowToDisplayFront(ImGui::GetCurrentWindow());
+    ImGui::SetWindowFocus();
 
     // macOS focus recovery after screen recording / system dialogs
     if (ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) &&

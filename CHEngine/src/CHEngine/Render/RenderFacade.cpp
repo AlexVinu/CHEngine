@@ -30,6 +30,9 @@ namespace CHEngine
     // ── Default mesh shader ───────────────────────────────────────────────────
     static ShaderHandle s_DefaultMeshShader;
 
+    // ── Default sphere impostor shader ────────────────────────────────────────
+    static ShaderHandle s_DefaultSphereImpostorShader;
+
     // ── Per-frame scene camera ────────────────────────────────────────────────
     static UBOCamera s_SceneCamera{};
     static bool      s_SceneCameraValid = false;
@@ -345,6 +348,18 @@ namespace CHEngine
     ShaderHandle RenderFacade::GetDefaultMeshShader()
     {
         return s_DefaultMeshShader;
+    }
+
+    // ── Default sphere impostor shader ────────────────────────────────────────
+
+    void RenderFacade::SetDefaultSphereImpostorShader(ShaderHandle h)
+    {
+        s_DefaultSphereImpostorShader = h;
+    }
+
+    ShaderHandle RenderFacade::GetDefaultSphereImpostorShader()
+    {
+        return s_DefaultSphereImpostorShader;
     }
 
     // ── Scene camera ──────────────────────────────────────────────────────────

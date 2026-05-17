@@ -3,68 +3,73 @@
 #include "CHEngine/World/ISystem.h"
 #include "CHEngine/Scene/Scene.h"
 #include <memory>
-#include <unordered_map>
 #include <cstdint>
 
 namespace CHEngine {
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LuaScriptSystem
+// Lua scripting system
 //
-// Фаза: Simulation (приоритет 5 — выполняется раньше физики).
+// Состоит из ScriptHost (владеет sol::state, инстансами скриптов, хуками) и
+// двух тонких ISystem-обёрток, разделяющих этот host:
 //
-// Жизненный цикл скрипта:
-//   OnBegin  → загружает все ScriptComponent, вызывает OnStart(entity)
-//   Run      → вызывает OnUpdate(entity, dt) каждый кадр
-//   OnEnd    → вызывает OnStop(entity), очищает инстансы
+//   LuaPreSimSystem  (priority 5, Simulation) — OnUpdate (до физики)
+//   LuaPostSimSystem (priority 150, Simulation) — OnLateUpdate (после физики)
 //
-// Lua API доступный в скриптах:
-//   entity:GetName()                → string
-//   entity:GetPosition()            → {x, y, z}
-//   entity:GetRotation()            → {x, y, z} (Euler degrees)
-//   entity:GetScale()               → {x, y, z}
-//   entity:SetPosition(x, y, z)
-//   entity:SetRotation(x, y, z)
-//   entity:SetScale(x, y, z)
-//   entity:GetColor()               → {r, g, b, a}
-//   entity:SetColor(r, g, b, a)
+// PreSim также делает OnBegin/OnEnd: загружает/выгружает скрипты и подписывает
+// хуки на добавление/удаление ScriptComponent.
 //
-//   Input.IsKeyDown(key)            → bool
-//   Input.IsKeyPressed(key)         → bool
-//   Input.IsKeyReleased(key)        → bool
-//   Input.GetMouseX()               → float
-//   Input.GetMouseY()               → float
-//   Input.GetMouseDeltaX()          → float
-//   Input.GetMouseDeltaY()          → float
+// Уровни скриптов:
+//   Entity scripts — ScriptComponent::Scripts[] на конкретной энтити
+//   World scripts  — Scene::WorldScripts (глобальные для сцены)
 //
-//   Key.W, Key.A, Key.S, Key.D, Key.Space, Key.Escape ...
+// Lua-колбэки (все опциональны):
+//   Entity:  OnStart(entity, world)
+//            OnUpdate(entity, world, dt)
+//            OnLateUpdate(entity, world, dt)
+//            OnStop(entity, world)
+//   World:   OnStart(world)
+//            OnUpdate(world, dt)
+//            OnLateUpdate(world, dt)
+//            OnStop(world)
 //
-//   Log.Info(msg)
-//   Log.Warn(msg)
-//   Log.Error(msg)
+// Полный API — в LuaScriptSystem.cpp в SetupAPI().
 // ─────────────────────────────────────────────────────────────────────────────
 
-class LuaScriptSystem final : public ISystem
+class ScriptHost;
+
+class LuaPreSimSystem final : public ISystem
 {
 public:
-    explicit LuaScriptSystem(uint8_t priority = 5);
-    ~LuaScriptSystem() override;
+    explicit LuaPreSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority = 5);
+    ~LuaPreSimSystem() override;
 
-    const char* GetName() const override { return "LuaScriptSystem"; }
+    const char* GetName() const override { return "LuaPreSimSystem"; }
 
     void OnBegin(World& world, DeferredOps& deferred_ops) override;
     void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
     void OnEnd(World& world, DeferredOps& deferred_ops) override;
 
 private:
-    // PIMPL — sol2 включается только в .cpp
-    struct Impl;
-    std::unique_ptr<Impl> m_Impl;
-
-    static uint64_t MakeKey(EntityHandle h)
-    {
-        return (uint64_t)h.index | ((uint64_t)h.generation << 32u);
-    }
+    std::shared_ptr<ScriptHost> m_Host;
 };
+
+class LuaPostSimSystem final : public ISystem
+{
+public:
+    explicit LuaPostSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority = 150);
+    ~LuaPostSimSystem() override;
+
+    const char* GetName() const override { return "LuaPostSimSystem"; }
+
+    void Run(World& world, DeferredOps& deferred_ops, Timestep dt) override;
+
+private:
+    std::shared_ptr<ScriptHost> m_Host;
+};
+
+// Factory: создаёт пару связанных систем с общим host'ом. Сами системы регистрируются
+// вызывающей стороной (World::RegisterDefaultSystems).
+std::shared_ptr<ScriptHost> MakeScriptHost();
 
 } // namespace CHEngine

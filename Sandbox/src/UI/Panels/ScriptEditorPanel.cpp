@@ -16,26 +16,27 @@ namespace Sandbox {
 // ─────────────────────────────────────────────────────────────────────────────
 // Шаблон нового скрипта
 // ─────────────────────────────────────────────────────────────────────────────
-static const char* kNewScriptTemplate = R"(-- Script: {name}
--- Lua API:
---   entity:GetName()                -> string
---   entity:GetPosition()            -> {x, y, z}
---   entity:SetPosition(x, y, z)
---   entity:GetRotation()            -> {x, y, z}  (Euler degrees)
---   entity:SetRotation(x, y, z)
---   entity:GetScale()               -> {x, y, z}
---   entity:SetScale(x, y, z)
---   entity:GetColor()               -> {r, g, b, a}
---   entity:SetColor(r, g, b, a)
---   Input.IsKeyDown(Key.W)          -> bool
---   Input.IsKeyPressed(Key.Space)   -> bool
---   Log.Info("msg")
+static const char* kNewScriptTemplate = R"(-- Entity Script: {name}
+-- Callbacks (все опциональны):
+--   OnStart(entity, world)
+--   OnUpdate(entity, world, dt)        -- до физики
+--   OnLateUpdate(entity, world, dt)    -- после физики
+--   OnStop(entity, world)
+--
+-- entity API: GetName/GetUUID/IsValid/Destroy
+--             HasTransform/HasColor/HasLight/HasMesh/HasRigidBody/HasScript/HasLifetime/HasVisibility/HasCamera
+--             AddTransform/AddColor/AddVisibility/AddLifetime/AddLight (+ Remove*)
+--             GetPosition/SetPosition, GetRotation/SetRotation, GetScale/SetScale
+--             GetColor/SetColor, GetVisibility/SetVisibility
+--             GetLifetime/SetLifetime, GetLightIntensity/SetLightIntensity, GetLightColor/SetLightColor
+-- world API:  FindByName, FindByUUID, SpawnEntity, DestroyEntity, ForEach
+-- modules:    Input.IsKeyDown/IsKeyPressed, Key.W/A/S/D/Space/..., Log.Info/Warn/Error
 
-function OnStart(entity)
+function OnStart(entity, world)
     Log.Info("Script started: " .. entity:GetName())
 end
 
-function OnUpdate(entity, dt)
+function OnUpdate(entity, world, dt)
     -- Движение WASD
     local pos = entity:GetPosition()
 
@@ -47,8 +48,44 @@ function OnUpdate(entity, dt)
     entity:SetPosition(pos.x, pos.y, pos.z)
 end
 
-function OnStop(entity)
+function OnLateUpdate(entity, world, dt)
+    -- Вызывается ПОСЛЕ физики — можно читать пост-физический Transform.
+end
+
+function OnStop(entity, world)
     Log.Info("Script stopped: " .. entity:GetName())
+end
+)";
+
+static const char* kNewWorldScriptTemplate = R"(-- World Script: {name}
+-- Callbacks (все опциональны):
+--   OnStart(world)
+--   OnUpdate(world, dt)        -- до физики
+--   OnLateUpdate(world, dt)    -- после физики
+--   OnStop(world)
+--
+-- world API: FindByName(name), FindByUUID(uuid_str), SpawnEntity(name) -> uuid_str,
+--            DestroyEntity(entity), ForEach(function(entity) ... end)
+-- modules:   Input.*, Key.*, Log.*
+
+function OnStart(world)
+    Log.Info("World script started")
+end
+
+function OnUpdate(world, dt)
+    -- Глобальная игровая логика, спавн, ввод, и т.д.
+    -- Пример:
+    -- if Input.IsKeyPressed(Key.Space) then
+    --     local uuid = world:SpawnEntity("Bullet")
+    --     Log.Info("Spawned " .. uuid)
+    -- end
+end
+
+function OnLateUpdate(world, dt)
+end
+
+function OnStop(world)
+    Log.Info("World script stopped")
 end
 )";
 
@@ -132,6 +169,25 @@ void ScriptEditorPanel::NewScript(const std::string& filePath)
         content.replace(pos, 6, name);
 
     // Пишем файл
+    std::ofstream f(filePath);
+    if (f) f << content;
+
+    Open(filePath);
+    m_IsDirty = false;
+}
+
+void ScriptEditorPanel::NewWorldScript(const std::string& filePath)
+{
+    auto dir = std::filesystem::path(filePath).parent_path();
+    if (!dir.empty() && !std::filesystem::exists(dir))
+        std::filesystem::create_directories(dir);
+
+    std::string name = std::filesystem::path(filePath).stem().string();
+    std::string content = kNewWorldScriptTemplate;
+    auto pos = content.find("{name}");
+    if (pos != std::string::npos)
+        content.replace(pos, 6, name);
+
     std::ofstream f(filePath);
     if (f) f << content;
 

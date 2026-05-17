@@ -109,9 +109,10 @@ PSOut fragMain(VSOut input)
     float3 normal   = normalize(hitPoint - sphereCenter);
     float3 viewDir  = -rayDir;
 
-    // Exact sphere-surface depth for correct Z-buffering
+    // Exact sphere-surface depth for correct Z-buffering.
+    // clipPos.z / clipPos.w is OpenGL NDC z in [-1, 1]; gl_FragDepth expects [0, 1].
     float4 clipPos = mul(camera.ViewProjection, float4(hitPoint, 1.0f));
-    o.depth = clipPos.z / clipPos.w;
+    o.depth = clipPos.z / clipPos.w * 0.5 + 0.5;
 
     // Blinn-Phong shading
     float3 baseColor    = input.Color;

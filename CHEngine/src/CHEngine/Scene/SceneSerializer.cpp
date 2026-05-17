@@ -184,6 +184,48 @@ json SerializeRigidBody(const RigidBody3DComponent& rigidBody)
     return rigidBodyJson;
 }
 
+json SerializeScripts(const std::vector<ScriptEntry>& scripts)
+{
+    json arr = json::array();
+    for (const auto& entry : scripts)
+    {
+        json e;
+        e["path"]    = entry.Path;
+        e["enabled"] = entry.Enabled;
+        arr.push_back(std::move(e));
+    }
+    return arr;
+}
+
+// Reads scripts from object `o`. Supports new "scripts": [...] and legacy
+// "script": {"path": "...", "enabled": ...} (single entry). New format wins
+// if both are present.
+std::vector<ScriptEntry> DeserializeScripts(const json& o)
+{
+    std::vector<ScriptEntry> result;
+    if (o.contains("scripts") && o["scripts"].is_array())
+    {
+        for (const auto& e : o["scripts"])
+        {
+            if (!e.is_object()) continue;
+            std::string path = e.value("path", "");
+            if (path.empty()) continue;
+            result.push_back(ScriptEntry{ std::move(path), e.value("enabled", true) });
+        }
+        if (o.contains("script"))
+            CHE_CORE_WARN("SceneSerializer: both 'scripts' and 'script' present; using 'scripts'");
+        return result;
+    }
+    if (o.contains("script") && o["script"].is_object())
+    {
+        const auto& sj = o["script"];
+        std::string path = sj.value("path", "");
+        if (!path.empty())
+            result.push_back(ScriptEntry{ std::move(path), sj.value("enabled", true) });
+    }
+    return result;
+}
+
 RigidBody3DComponent DeserializeRigidBody(const json& rbj)
 {
     RigidBody3DComponent rigidBody{};
@@ -281,15 +323,12 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             }
             else if (meshPath == ":primitive:sphere")
             {
-                // Use impostor mesh (same as SceneViewLayerHost::AddSpherePrimitive)
-                // The sphere impostor shader is applied by the Sandbox after loading.
-                // Using GetSphereImpostorShader() here is not possible (engine layer),
-                // so we keep the default shader as a placeholder — it will be visually
-                // wrong until the Sandbox can re-bind the correct shader post-load.
-                // TODO: move sphere shader binding to a post-load fixup in Sandbox.
+                ShaderHandle sphereShader = RenderFacade::GetDefaultSphereImpostorShader();
+                if (!sphereShader.IsValid())
+                    sphereShader = RenderFacade::GetDefaultMeshShader();
                 Mesh sphereMesh = PrimitiveMeshFactory::CreateSphereImpostor({ 0.6f, 0.7f, 0.9f });
                 sphereMesh.Mat = MaterialInstance::FromBase(
-                    std::make_shared<Material>(RenderFacade::GetDefaultMeshShader()));
+                    std::make_shared<Material>(sphereShader));
                 importedMeshes.push_back(std::move(sphereMesh));
                 hasImportedMeshes = true;
             }
@@ -484,16 +523,26 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             obj->RemoveComponent<RigidBody3DComponent>();
         }
 
-        // Script component
-        if (o.contains("script") && o["script"].is_object()) {
-            const auto& sj = o["script"];
-            std::string scriptPath = sj.value("path", "");
-            bool enabled = sj.value("enabled", true);
-            if (!scriptPath.empty()) {
-                if (obj->HasComponent<ScriptComponent>())
-                    obj->RemoveComponent<ScriptComponent>();
-                obj->AddComponent<ScriptComponent>(ScriptComponent{ scriptPath, enabled });
-            }
+        // Script component (multi-script; backward compat with legacy "script")
+        auto scriptEntries = DeserializeScripts(o);
+        if (!scriptEntries.empty())
+        {
+            if (obj->HasComponent<ScriptComponent>())
+                obj->RemoveComponent<ScriptComponent>();
+            obj->AddComponent<ScriptComponent>(ScriptComponent{ std::move(scriptEntries) });
+        }
+    }
+
+    // World-level scripts
+    scene->WorldScripts.clear();
+    if (data.contains("world_scripts") && data["world_scripts"].is_array())
+    {
+        for (const auto& e : data["world_scripts"])
+        {
+            if (!e.is_object()) continue;
+            std::string path = e.value("path", "");
+            if (path.empty()) continue;
+            scene->WorldScripts.push_back(ScriptEntry{ std::move(path), e.value("enabled", true) });
         }
     }
 
@@ -506,6 +555,8 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
     json j;
     j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
+    if (!scene->WorldScripts.empty())
+        j["world_scripts"] = SerializeScripts(scene->WorldScripts);
 
     scene->ForEach<IDComponent>([&](EntityHandle handle, const UUID& uuid, IDComponent&) {
         Entity* entity = scene->TryGetEntity(handle);
@@ -580,10 +631,8 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
         if (entity->HasComponent<ScriptComponent>())
         {
             const auto& sc = entity->GetComponent<ScriptComponent>();
-            json script;
-            script["path"]    = sc.ScriptPath;
-            script["enabled"] = sc.Enabled;
-            o["script"] = script;
+            if (!sc.Scripts.empty())
+                o["scripts"] = SerializeScripts(sc.Scripts);
         }
                 if (entity->HasComponent<RigidBody3DComponent>())
             o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());
@@ -649,6 +698,8 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
     json j;
     j["version"] = kSceneFormatVersion;
     j["objects"]  = json::array();
+    if (!scene->WorldScripts.empty())
+        j["world_scripts"] = SerializeScripts(scene->WorldScripts);
 
     scene->ForEach<IDComponent>([&](EntityHandle handle, const UUID& uuid, IDComponent&) {
         Entity* entity = scene->TryGetEntity(handle);
@@ -723,10 +774,8 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
         if (entity->HasComponent<ScriptComponent>())
         {
             const auto& sc = entity->GetComponent<ScriptComponent>();
-            json script;
-            script["path"]    = sc.ScriptPath;
-            script["enabled"] = sc.Enabled;
-            o["script"] = script;
+            if (!sc.Scripts.empty())
+                o["scripts"] = SerializeScripts(sc.Scripts);
         }
                 if (entity->HasComponent<RigidBody3DComponent>())
             o["rigidBody"] = SerializeRigidBody(entity->GetComponent<RigidBody3DComponent>());

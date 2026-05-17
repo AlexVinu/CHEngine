@@ -35,6 +35,10 @@ public:
 	Scene(Scene&&);
 	Scene& operator=(Scene&&);
 
+	// World-level scripts attached to the scene (not bound to any entity).
+	// Loaded by LuaScriptSystem alongside per-entity ScriptComponent scripts.
+	std::vector<ScriptEntry> WorldScripts;
+
 	EntityHandle CreateEntity(const std::string& name = "Object");
 	EntityHandle CreateEntity(const std::string& name, const UUID& uuid);
 

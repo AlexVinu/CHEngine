@@ -45,6 +45,9 @@ public:
     // Создать новый пустой скрипт и открыть его
     void NewScript(const std::string& filePath);
 
+    // То же для world-скриптов (использует kNewWorldScriptTemplate с world-callbacks).
+    void NewWorldScript(const std::string& filePath);
+
     bool IsOpen()  const { return m_IsOpen; }
     bool HasFile() const { return !m_FilePath.empty(); }
     const std::string& GetFilePath() const { return m_FilePath; }

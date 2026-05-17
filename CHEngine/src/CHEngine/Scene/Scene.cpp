@@ -179,6 +179,8 @@ namespace CHEngine {
 
 			CopyComponents(CopyableSceneComponents{}, destinationRegistry, sourceRegistry, destinationEntt, sourceEntt);
 		}
+
+		WorldScripts = source.WorldScripts;
 	}
 
 	EntityHandle Scene::CreateEntity(const std::string& name, const UUID& uuid)

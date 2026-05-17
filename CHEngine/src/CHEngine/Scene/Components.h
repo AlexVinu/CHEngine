@@ -88,10 +88,15 @@ namespace CHEngine {
         bool DestroyOnExpire = true;
     };
 
+    struct ScriptEntry
+    {
+        std::string Path;
+        bool        Enabled = true;
+    };
+
     struct ScriptComponent
     {
-        std::string ScriptPath;
-        bool        Enabled = true;
+        std::vector<ScriptEntry> Scripts;
     };
 
 	template<typename... Components>

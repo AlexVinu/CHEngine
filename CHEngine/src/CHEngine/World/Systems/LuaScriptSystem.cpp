@@ -1,19 +1,18 @@
 #include "chepch.h"
 #include "LuaScriptSystem.h"
 
-// sol2 — подключаем только здесь (PIMPL)
-// SOL_ALL_SAFETIES_ON включает SOL_SAFE_REFERENCES, что добавляет type-check
-// в конструкторы sol::table/sol::environment и вызывает lua_error() без pcall-защиты
-// (индекс LUA_REGISTRYINDEX = -1001000 → PANIC). Используем точечные флаги вместо всех сразу.
-#define SOL_SAFE_USERTYPE   1   // проверяем типы usertype при вызове методов
-#define SOL_SAFE_FUNCTION   1   // ошибки функций через safe_function
-#define SOL_SAFE_GETTER     1   // геттеры проверяют типы
-#define SOL_SAFE_NUMERICS   0   // числовые преобразования — не нужна проверка
-#define SOL_SAFE_REFERENCES 0   // ВЫКЛЮЧАЕМ: конструкторы reference вызывают
-                                // lua_error на LUA_REGISTRYINDEX → unprotected PANIC
+// sol2 — подключаем только здесь (PIMPL'е аналог: всё в .cpp).
+// SOL_SAFE_REFERENCES даёт unprotected lua_error() на LUA_REGISTRYINDEX
+// (см. историю проекта) — оставляем выключенным.
+#define SOL_SAFE_USERTYPE   1
+#define SOL_SAFE_FUNCTION   1
+#define SOL_SAFE_GETTER     1
+#define SOL_SAFE_NUMERICS   0
+#define SOL_SAFE_REFERENCES 0
 #include <sol/sol.hpp>
 
 #include "CHEngine/World/World.h"
+#include "CHEngine/World/DeferredOps.h"
 #include "CHEngine/Scene/Scene.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/Components.h"
@@ -21,28 +20,72 @@
 #include <Input/KeyCodes.h>
 #include "Log/Log.h"
 
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+#include <boost/uuid/string_generator.hpp>
+
 #include <filesystem>
 #include <unordered_map>
 #include <string>
+#include <mutex>
 
 namespace CHEngine {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ScriptEntity — враппер вокруг EntityHandle + World* для Lua API
-// ─────────────────────────────────────────────────────────────────────────────
+// ═════════════════════════════════════════════════════════════════════════════
+// Forward
+// ═════════════════════════════════════════════════════════════════════════════
+class ScriptHost;
+
+// ─── Глобальный диспатч World* → ScriptHost* для функций-указателей хуков ────
+// Component hooks в DeferredOps — это `void(*)(World&, EntityHandle)`,
+// без захвата. Дойти до нужного host'а можно только через World, поэтому
+// держим небольшую таблицу. Доступ — из главного потока (как и весь scheduler).
+static std::unordered_map<World*, ScriptHost*> g_HostByWorld;
+static std::mutex g_HostMapMutex;
+
+static void RegisterHost(World* w, ScriptHost* h)
+{
+    std::lock_guard lk(g_HostMapMutex);
+    g_HostByWorld[w] = h;
+}
+static void UnregisterHost(World* w)
+{
+    std::lock_guard lk(g_HostMapMutex);
+    g_HostByWorld.erase(w);
+}
+static ScriptHost* FindHost(World* w)
+{
+    std::lock_guard lk(g_HostMapMutex);
+    auto it = g_HostByWorld.find(w);
+    return it == g_HostByWorld.end() ? nullptr : it->second;
+}
+
+// ─── Lua panic handler (без него unprotected lua_error → abort) ──────────────
+static int LuaPanicHandler(lua_State* L)
+{
+    const char* msg = lua_tostring(L, -1);
+    CHE_CORE_CRITICAL("[Lua] PANIC: {}", msg ? msg : "(unknown error)");
+    throw std::runtime_error(msg ? msg : "Lua panic");
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ScriptEntity — обёртка вокруг EntityHandle для Lua
+// ═════════════════════════════════════════════════════════════════════════════
 struct ScriptEntity
 {
     EntityHandle handle;
-    World*       world = nullptr;
+    World*       world    = nullptr;
+    DeferredOps* deferred = nullptr;
 
-    // Вспомогательный метод — получить Entity* из сцены
+    Scene* GetScene() const { return world ? world->GetSceneRef().get() : nullptr; }
     Entity* GetEntity() const
     {
-        auto scene = world->GetSceneRef();
+        auto* scene = GetScene();
         return scene ? scene->TryGetEntity(handle) : nullptr;
     }
 
-    // ── Имя ───────────────────────────────────────────────────────────────────
+    bool IsValid() const { return GetEntity() != nullptr; }
+
     std::string GetName() const
     {
         if (auto* e = GetEntity(); e && e->HasComponent<TagComponent>())
@@ -50,169 +93,731 @@ struct ScriptEntity
         return "Unknown";
     }
 
-    // ── Позиция ───────────────────────────────────────────────────────────────
+    std::string GetUUID() const
+    {
+        auto* scene = GetScene();
+        if (!scene) return {};
+        return boost::uuids::to_string(scene->GetUUID(handle));
+    }
+
+    void Destroy() const
+    {
+        if (deferred && handle.IsValid())
+            deferred->DestroyEntity(handle);
+    }
+
+    // ── HasX ─────────────────────────────────────────────────────────────────
+    template<typename T>
+    bool HasT() const
+    {
+        auto* e = GetEntity();
+        return e && e->HasComponent<T>();
+    }
+    bool HasTransform()  const { return HasT<TransformComponent>(); }
+    bool HasColor()      const { return HasT<ColorComponent>();     }
+    bool HasVisibility() const { return HasT<VisibilityComponent>(); }
+    bool HasLifetime()   const { return HasT<LifetimeComponent>();  }
+    bool HasLight()      const { return HasT<LightComponent>();     }
+    bool HasCamera()     const { return HasT<CameraComponent>();    }
+    bool HasMesh()       const { return HasT<MeshComponent>();      }
+    bool HasRigidBody()  const { return HasT<RigidBody3DComponent>(); }
+    bool HasScript()     const { return HasT<ScriptComponent>();    }
+
+    // ── AddX (deferred) ──────────────────────────────────────────────────────
+    void AddTransform()                            const { if (deferred) deferred->AddComponent<TransformComponent>(handle); }
+    void AddColor(float r, float g, float b, float a) const
+    {
+        if (!deferred) return;
+        deferred->AddComponent<ColorComponent>(handle, ColorComponent{ { r, g, b, a } });
+    }
+    void AddVisibility(bool visible) const
+    {
+        if (!deferred) return;
+        deferred->AddComponent<VisibilityComponent>(handle, VisibilityComponent{ visible });
+    }
+    void AddLifetime(float seconds, bool destroyOnExpire) const
+    {
+        if (!deferred) return;
+        deferred->AddComponent<LifetimeComponent>(handle, LifetimeComponent{ seconds, destroyOnExpire });
+    }
+    void AddLight(const std::string& typeStr, float intensity,
+                  float r, float g, float b, float range) const
+    {
+        if (!deferred) return;
+        Light data;
+        if (typeStr == "Directional")      data.Type = LightType::Directional;
+        else if (typeStr == "Point")       data.Type = LightType::Point;
+        else if (typeStr == "Spot")        data.Type = LightType::Spot;
+        else
+        {
+            CHE_CORE_WARN("[Lua] AddLight: unknown type '{}', defaulting to Point", typeStr);
+            data.Type = LightType::Point;
+        }
+        data.Color     = { r, g, b };
+        data.Intensity = intensity;
+        data.Range     = range;
+        deferred->AddComponent<LightComponent>(handle, LightComponent{ data });
+    }
+
+    // ── RemoveX (deferred) ───────────────────────────────────────────────────
+    void RemoveTransform()  const { if (deferred) deferred->RemoveComponent<TransformComponent>(handle); }
+    void RemoveColor()      const { if (deferred) deferred->RemoveComponent<ColorComponent>(handle); }
+    void RemoveVisibility() const { if (deferred) deferred->RemoveComponent<VisibilityComponent>(handle); }
+    void RemoveLifetime()   const { if (deferred) deferred->RemoveComponent<LifetimeComponent>(handle); }
+    void RemoveLight()      const { if (deferred) deferred->RemoveComponent<LightComponent>(handle); }
+
+    // ── Get/Set (немедленно) ─────────────────────────────────────────────────
+    static sol::table Vec3Table(sol::state_view lua, float x, float y, float z)
+    {
+        auto t = lua.create_table();
+        t["x"] = x; t["y"] = y; t["z"] = z;
+        return t;
+    }
+
     sol::table GetPosition(sol::this_state s) const
     {
         sol::state_view lua(s);
-        auto tbl = lua.create_table();
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
         {
-            auto& p = e->GetComponent<TransformComponent>().ObjectTransform.Position;
-            tbl["x"] = p.x; tbl["y"] = p.y; tbl["z"] = p.z;
+            const auto& p = e->GetComponent<TransformComponent>().ObjectTransform.Position;
+            return Vec3Table(lua, p.x, p.y, p.z);
         }
-        return tbl;
+        return Vec3Table(lua, 0, 0, 0);
     }
-
     void SetPosition(float x, float y, float z) const
     {
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
-        {
-            auto& p = e->GetComponent<TransformComponent>().ObjectTransform.Position;
-            p.x = x; p.y = y; p.z = z;
-        }
+            e->GetComponent<TransformComponent>().ObjectTransform.Position = { x, y, z };
     }
 
-    // ── Поворот (Euler degrees) ───────────────────────────────────────────────
     sol::table GetRotation(sol::this_state s) const
     {
         sol::state_view lua(s);
-        auto tbl = lua.create_table();
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
         {
-            auto& r = e->GetComponent<TransformComponent>().ObjectTransform.Rotation;
-            tbl["x"] = r.x; tbl["y"] = r.y; tbl["z"] = r.z;
+            const auto& r = e->GetComponent<TransformComponent>().ObjectTransform.Rotation;
+            return Vec3Table(lua, r.x, r.y, r.z);
         }
-        return tbl;
+        return Vec3Table(lua, 0, 0, 0);
     }
-
     void SetRotation(float x, float y, float z) const
     {
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
-        {
-            auto& r = e->GetComponent<TransformComponent>().ObjectTransform.Rotation;
-            r.x = x; r.y = y; r.z = z;
-        }
+            e->GetComponent<TransformComponent>().ObjectTransform.Rotation = { x, y, z };
     }
 
-    // ── Масштаб ───────────────────────────────────────────────────────────────
     sol::table GetScale(sol::this_state s) const
     {
         sol::state_view lua(s);
-        auto tbl = lua.create_table();
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
         {
-            auto& sc = e->GetComponent<TransformComponent>().ObjectTransform.Scale;
-            tbl["x"] = sc.x; tbl["y"] = sc.y; tbl["z"] = sc.z;
+            const auto& sc = e->GetComponent<TransformComponent>().ObjectTransform.Scale;
+            return Vec3Table(lua, sc.x, sc.y, sc.z);
         }
-        return tbl;
+        return Vec3Table(lua, 1, 1, 1);
     }
-
     void SetScale(float x, float y, float z) const
     {
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
-        {
-            auto& sc = e->GetComponent<TransformComponent>().ObjectTransform.Scale;
-            sc.x = x; sc.y = y; sc.z = z;
-        }
+            e->GetComponent<TransformComponent>().ObjectTransform.Scale = { x, y, z };
     }
 
-    // ── Цвет ─────────────────────────────────────────────────────────────────
     sol::table GetColor(sol::this_state s) const
     {
         sol::state_view lua(s);
-        auto tbl = lua.create_table();
+        auto t = lua.create_table();
         if (auto* e = GetEntity(); e && e->HasComponent<ColorComponent>())
         {
-            auto& c = e->GetComponent<ColorComponent>().Color;
-            tbl["r"] = c.r; tbl["g"] = c.g; tbl["b"] = c.b; tbl["a"] = c.a;
+            const auto& c = e->GetComponent<ColorComponent>().Color;
+            t["r"] = c.r; t["g"] = c.g; t["b"] = c.b; t["a"] = c.a;
         }
-        return tbl;
+        else
+        {
+            t["r"] = 1.0f; t["g"] = 1.0f; t["b"] = 1.0f; t["a"] = 1.0f;
+        }
+        return t;
     }
-
     void SetColor(float r, float g, float b, float a) const
     {
         auto* e = GetEntity();
         if (!e) return;
-        // Add ColorComponent if missing (mirrors editor behaviour)
         if (!e->HasComponent<ColorComponent>())
             e->AddComponent<ColorComponent>();
         e->GetComponent<ColorComponent>().Color = { r, g, b, a };
     }
-};
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Impl — хранит sol::state и инстансы скриптов
-// ─────────────────────────────────────────────────────────────────────────────
-// Кастомный Lua panic handler: вместо abort() — логируем и бросаем исключение.
-// Перехватывается снаружи через try/catch чтобы движок не падал.
-static int LuaPanicHandler(lua_State* L)
-{
-    const char* msg = lua_tostring(L, -1);
-    CHE_CORE_CRITICAL("[LuaScriptSystem] Lua PANIC: {}", msg ? msg : "(unknown error)");
-    throw std::runtime_error(msg ? msg : "Lua panic");
-}
-
-struct LuaScriptSystem::Impl
-{
-    sol::state lua;
-
-    Impl()
+    bool GetVisibility() const
     {
-        // Переопределяем panic handler: без этого lua_error() вне pcall → abort().
-        lua_atpanic(lua.lua_state(), &LuaPanicHandler);
+        if (auto* e = GetEntity(); e && e->HasComponent<VisibilityComponent>())
+            return e->GetComponent<VisibilityComponent>().Visible;
+        return false;
+    }
+    void SetVisibility(bool v) const
+    {
+        if (auto* e = GetEntity(); e && e->HasComponent<VisibilityComponent>())
+            e->GetComponent<VisibilityComponent>().Visible = v;
     }
 
-    struct ScriptInstance
+    float GetLifetime() const
     {
-        sol::environment   env;
-        sol::safe_function onStart;
-        sol::safe_function onUpdate;
-        sol::safe_function onStop;
-        bool started = false;
-    };
+        if (auto* e = GetEntity(); e && e->HasComponent<LifetimeComponent>())
+            return e->GetComponent<LifetimeComponent>().RemainingSeconds;
+        return 0.0f;
+    }
+    void SetLifetime(float seconds) const
+    {
+        if (auto* e = GetEntity(); e && e->HasComponent<LifetimeComponent>())
+            e->GetComponent<LifetimeComponent>().RemainingSeconds = seconds;
+    }
 
-    std::unordered_map<uint64_t, ScriptInstance> instances;
+    float GetLightIntensity() const
+    {
+        if (auto* e = GetEntity(); e && e->HasComponent<LightComponent>())
+            return e->GetComponent<LightComponent>().LightData.Intensity;
+        return 0.0f;
+    }
+    void SetLightIntensity(float v) const
+    {
+        if (auto* e = GetEntity(); e && e->HasComponent<LightComponent>())
+            e->GetComponent<LightComponent>().LightData.Intensity = v;
+    }
 
-    // ── Регистрация всего API движка ─────────────────────────────────────────
+    sol::table GetLightColor(sol::this_state s) const
+    {
+        sol::state_view lua(s);
+        if (auto* e = GetEntity(); e && e->HasComponent<LightComponent>())
+        {
+            const auto& c = e->GetComponent<LightComponent>().LightData.Color;
+            return Vec3Table(lua, c.r, c.g, c.b);
+        }
+        return Vec3Table(lua, 1, 1, 1);
+    }
+    void SetLightColor(float r, float g, float b) const
+    {
+        if (auto* e = GetEntity(); e && e->HasComponent<LightComponent>())
+            e->GetComponent<LightComponent>().LightData.Color = { r, g, b };
+    }
+
+    float GetLightRange() const
+    {
+        if (auto* e = GetEntity(); e && e->HasComponent<LightComponent>())
+            return e->GetComponent<LightComponent>().LightData.Range;
+        return 0.0f;
+    }
+    void SetLightRange(float v) const
+    {
+        if (auto* e = GetEntity(); e && e->HasComponent<LightComponent>())
+            e->GetComponent<LightComponent>().LightData.Range = v;
+    }
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ScriptWorld — обёртка вокруг World для Lua
+// ═════════════════════════════════════════════════════════════════════════════
+struct ScriptWorld
+{
+    World*       world    = nullptr;
+    DeferredOps* deferred = nullptr;
+
+    ScriptEntity MakeEntity(EntityHandle h) const { return ScriptEntity{ h, world, deferred }; }
+
+    sol::object FindByName(const std::string& name, sol::this_state s) const
+    {
+        sol::state_view lua(s);
+        auto* scene = world ? world->GetSceneRef().get() : nullptr;
+        if (!scene) return sol::lua_nil;
+
+        EntityHandle found{};
+        scene->ForEach<TagComponent>([&](EntityHandle h, const UUID&, TagComponent& tag) {
+            if (!found.IsValid() && tag.Name == name)
+                found = h;
+        });
+        if (!found.IsValid()) return sol::lua_nil;
+        return sol::make_object(lua, MakeEntity(found));
+    }
+
+    sol::object FindByUUID(const std::string& uuidStr, sol::this_state s) const
+    {
+        sol::state_view lua(s);
+        auto* scene = world ? world->GetSceneRef().get() : nullptr;
+        if (!scene) return sol::lua_nil;
+
+        UUID uuid;
+        try { uuid = boost::uuids::string_generator{}(uuidStr); }
+        catch (...) { return sol::lua_nil; }
+
+        EntityHandle h = scene->TryGetEntityHandleByUUID(uuid);
+        if (!h.IsValid()) return sol::lua_nil;
+        return sol::make_object(lua, MakeEntity(h));
+    }
+
+    std::string SpawnEntity(const std::string& name) const
+    {
+        if (!deferred) return {};
+        UUID uuid = boost::uuids::random_generator{}();
+        deferred->CreateEntityWithUUID(name, uuid);
+        return boost::uuids::to_string(uuid);
+    }
+
+    void DestroyEntity(const ScriptEntity& e) const
+    {
+        if (deferred && e.handle.IsValid())
+            deferred->DestroyEntity(e.handle);
+    }
+
+    void ForEach(sol::function fn, sol::this_state s) const
+    {
+        sol::state_view lua(s);
+        auto* scene = world ? world->GetSceneRef().get() : nullptr;
+        if (!scene) return;
+        scene->ForEach<IDComponent>([&](EntityHandle h, const UUID&, IDComponent&) {
+            ScriptEntity se = MakeEntity(h);
+            auto res = fn(se);
+            if (!res.valid())
+            {
+                sol::error err = res;
+                CHE_CORE_ERROR("[Lua] ForEach callback error: {}", err.what());
+            }
+        });
+    }
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ScriptKey / ScriptInstance
+// ═════════════════════════════════════════════════════════════════════════════
+struct ScriptKey
+{
+    enum class Kind : uint8_t { Entity, World };
+    Kind     kind;
+    uint64_t entityKey;   // 0 для World scripts
+    uint32_t scriptIndex; // индекс в ScriptComponent::Scripts или Scene::WorldScripts
+
+    bool operator==(const ScriptKey& o) const noexcept
+    {
+        return kind == o.kind && entityKey == o.entityKey && scriptIndex == o.scriptIndex;
+    }
+};
+
+struct ScriptKeyHash
+{
+    size_t operator()(const ScriptKey& k) const noexcept
+    {
+        size_t h = std::hash<uint64_t>{}(k.entityKey);
+        h ^= std::hash<uint32_t>{}(k.scriptIndex) + 0x9e3779b9 + (h << 6) + (h >> 2);
+        h ^= (size_t)k.kind + 0x9e3779b9 + (h << 6) + (h >> 2);
+        return h;
+    }
+};
+
+struct ScriptInstance
+{
+    sol::environment   env;
+    sol::safe_function onStart;
+    sol::safe_function onUpdate;
+    sol::safe_function onLateUpdate;
+    sol::safe_function onStop;
+    bool               started  = false;
+    bool               hasError = false;  // после первой ошибки в Update/LateUpdate — не вызывать снова
+    std::string        path;
+};
+
+static uint64_t EntityKey(EntityHandle h)
+{
+    return (uint64_t)h.index | ((uint64_t)h.generation << 32u);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// ScriptHost
+// ═════════════════════════════════════════════════════════════════════════════
+class ScriptHost
+{
+public:
+    ScriptHost()
+    {
+        lua_atpanic(m_Lua.lua_state(), &LuaPanicHandler);
+        SetupAPI();
+    }
+
+    // ── OnBegin (PreSim) ─────────────────────────────────────────────────────
+    void OnBegin(World& world, DeferredOps& deferred)
+    {
+        m_Instances.clear();
+        RegisterHost(&world, this);
+
+        // Подписки на дин. загрузку/выгрузку ScriptComponent
+        m_AddedHook = deferred.SubscribeOnComponentAdded<ScriptComponent>(&OnScriptComponentAddedTrampoline);
+        m_RemovedHook = deferred.SubscribeOnComponentRemoved<ScriptComponent>(&OnScriptComponentRemovedTrampoline);
+
+        auto scene = world.GetSceneRef();
+        if (!scene) return;
+
+        // Entity scripts
+        scene->ForEach<ScriptComponent>([&](EntityHandle handle, const UUID&, ScriptComponent& sc) {
+            LoadEntityScripts(world, deferred, handle, sc);
+        });
+
+        // World scripts
+        LoadWorldScripts(world, deferred);
+
+        CHE_CORE_INFO("[Lua] Loaded {} script instance(s)", m_Instances.size());
+    }
+
+    // ── OnEnd (PreSim) ───────────────────────────────────────────────────────
+    void OnEnd(World& world, DeferredOps& deferred)
+    {
+        // OnStop для всех инстансов
+        auto scene = world.GetSceneRef();
+        for (auto& [key, inst] : m_Instances)
+        {
+            if (!inst.started || !inst.onStop.valid()) continue;
+            try
+            {
+                if (key.kind == ScriptKey::Kind::Entity && scene)
+                {
+                    EntityHandle h{};
+                    h.index = (uint32_t)(key.entityKey & 0xFFFFFFFFu);
+                    h.generation = (uint32_t)((key.entityKey >> 32) & 0xFFFFFFFFu);
+                    ScriptEntity se{ h, &world, &deferred };
+                    ScriptWorld sw{ &world, &deferred };
+                    auto res = inst.onStop(se, sw);
+                    if (!res.valid()) { sol::error e = res; CHE_CORE_ERROR("[Lua] OnStop '{}': {}", inst.path, e.what()); }
+                }
+                else
+                {
+                    ScriptWorld sw{ &world, &deferred };
+                    auto res = inst.onStop(sw);
+                    if (!res.valid()) { sol::error e = res; CHE_CORE_ERROR("[Lua] OnStop '{}': {}", inst.path, e.what()); }
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                CHE_CORE_ERROR("[Lua] Exception in OnStop '{}': {}", inst.path, ex.what());
+            }
+        }
+
+        if (m_AddedHook.IsValid())   deferred.Unsubscribe(m_AddedHook);
+        if (m_RemovedHook.IsValid()) deferred.Unsubscribe(m_RemovedHook);
+        m_AddedHook = {};
+        m_RemovedHook = {};
+
+        m_Instances.clear();
+        UnregisterHost(&world);
+        CHE_CORE_INFO("[Lua] Scripts stopped and cleared");
+    }
+
+    // ── Run в Pre/Post фазе ──────────────────────────────────────────────────
+    void RunPreSim(World& world, DeferredOps& deferred, Timestep dt)
+    {
+        DispatchUpdate(world, deferred, dt, /*late=*/false);
+    }
+    void RunPostSim(World& world, DeferredOps& deferred, Timestep dt)
+    {
+        DispatchUpdate(world, deferred, dt, /*late=*/true);
+    }
+
+private:
+    sol::state                                                            m_Lua;
+    std::unordered_map<ScriptKey, ScriptInstance, ScriptKeyHash>          m_Instances;
+    DeferredOps::HookHandle                                               m_AddedHook;
+    DeferredOps::HookHandle                                               m_RemovedHook;
+
+    // ── Хук-trampolines (function-pointer типов в DeferredOps) ───────────────
+    static void OnScriptComponentAddedTrampoline(World& w, EntityHandle h)
+    {
+        ScriptHost* host = FindHost(&w);
+        if (!host) return;
+        auto scene = w.GetSceneRef();
+        if (!scene) return;
+        auto* entity = scene->TryGetEntity(h);
+        if (!entity || !entity->HasComponent<ScriptComponent>()) return;
+        auto& sc = entity->GetComponent<ScriptComponent>();
+        // DeferredOps мы тут не имеем — для динамических операций из скриптов
+        // нам нужен deferred. Берём его из World.
+        host->LoadEntityScripts(w, w.GetDeferredOps(), h, sc);
+    }
+
+    static void OnScriptComponentRemovedTrampoline(World& w, EntityHandle h)
+    {
+        ScriptHost* host = FindHost(&w);
+        if (!host) return;
+        host->StopAndUnloadEntity(w, w.GetDeferredOps(), h);
+    }
+
+    // ── Загрузка скриптов энтити ─────────────────────────────────────────────
+    void LoadEntityScripts(World& world, DeferredOps& deferred, EntityHandle handle, const ScriptComponent& sc)
+    {
+        for (uint32_t i = 0; i < (uint32_t)sc.Scripts.size(); ++i)
+        {
+            const auto& entry = sc.Scripts[i];
+            if (!entry.Enabled || entry.Path.empty()) continue;
+
+            ScriptKey key{ ScriptKey::Kind::Entity, EntityKey(handle), i };
+            if (m_Instances.find(key) != m_Instances.end())
+                continue; // уже загружен
+
+            try
+            {
+                ScriptInstance inst;
+                if (!LoadFile(entry.Path, inst)) continue;
+                m_Instances[key] = std::move(inst);
+
+                auto& live = m_Instances[key];
+                if (live.onStart.valid())
+                {
+                    ScriptEntity se{ handle, &world, &deferred };
+                    ScriptWorld  sw{ &world, &deferred };
+                    auto res = live.onStart(se, sw);
+                    if (!res.valid())
+                    {
+                        sol::error e = res;
+                        CHE_CORE_ERROR("[Lua] OnStart '{}': {}", live.path, e.what());
+                        live.hasError = true;
+                    }
+                }
+                live.started = true;
+            }
+            catch (const std::exception& ex)
+            {
+                CHE_CORE_ERROR("[Lua] Exception loading '{}': {}", entry.Path, ex.what());
+            }
+        }
+    }
+
+    void LoadWorldScripts(World& world, DeferredOps& deferred)
+    {
+        auto scene = world.GetSceneRef();
+        if (!scene) return;
+        for (uint32_t i = 0; i < (uint32_t)scene->WorldScripts.size(); ++i)
+        {
+            const auto& entry = scene->WorldScripts[i];
+            if (!entry.Enabled || entry.Path.empty()) continue;
+
+            ScriptKey key{ ScriptKey::Kind::World, 0, i };
+            try
+            {
+                ScriptInstance inst;
+                if (!LoadFile(entry.Path, inst)) continue;
+                m_Instances[key] = std::move(inst);
+
+                auto& live = m_Instances[key];
+                if (live.onStart.valid())
+                {
+                    ScriptWorld sw{ &world, &deferred };
+                    auto res = live.onStart(sw);
+                    if (!res.valid())
+                    {
+                        sol::error e = res;
+                        CHE_CORE_ERROR("[Lua] OnStart '{}': {}", live.path, e.what());
+                        live.hasError = true;
+                    }
+                }
+                live.started = true;
+            }
+            catch (const std::exception& ex)
+            {
+                CHE_CORE_ERROR("[Lua] Exception loading world script '{}': {}", entry.Path, ex.what());
+            }
+        }
+    }
+
+    void StopAndUnloadEntity(World& world, DeferredOps& deferred, EntityHandle handle)
+    {
+        const uint64_t ek = EntityKey(handle);
+        for (auto it = m_Instances.begin(); it != m_Instances.end(); )
+        {
+            if (it->first.kind == ScriptKey::Kind::Entity && it->first.entityKey == ek)
+            {
+                if (it->second.started && it->second.onStop.valid())
+                {
+                    try
+                    {
+                        ScriptEntity se{ handle, &world, &deferred };
+                        ScriptWorld  sw{ &world, &deferred };
+                        auto res = it->second.onStop(se, sw);
+                        if (!res.valid()) { sol::error e = res; CHE_CORE_ERROR("[Lua] OnStop '{}': {}", it->second.path, e.what()); }
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        CHE_CORE_ERROR("[Lua] Exception in OnStop '{}': {}", it->second.path, ex.what());
+                    }
+                }
+                it = m_Instances.erase(it);
+            }
+            else ++it;
+        }
+    }
+
+    // ── Загрузка одного файла в инстанс ──────────────────────────────────────
+    bool LoadFile(const std::string& path, ScriptInstance& outInst)
+    {
+        if (!std::filesystem::exists(path))
+        {
+            CHE_CORE_ERROR("[Lua] Script not found: {}", path);
+            return false;
+        }
+
+        sol::environment env(m_Lua, sol::create, m_Lua.globals());
+        auto result = m_Lua.safe_script_file(path, env, sol::script_pass_on_error);
+        if (!result.valid())
+        {
+            sol::error err = result;
+            CHE_CORE_ERROR("[Lua] Error loading '{}': {}", path, err.what());
+            return false;
+        }
+
+        outInst.env  = std::move(env);
+        outInst.path = path;
+
+        auto pick = [&](const char* name) -> sol::safe_function {
+            auto obj = outInst.env.get<sol::object>(name);
+            if (obj.is<sol::safe_function>()) return obj.as<sol::safe_function>();
+            return {};
+        };
+        outInst.onStart      = pick("OnStart");
+        outInst.onUpdate     = pick("OnUpdate");
+        outInst.onLateUpdate = pick("OnLateUpdate");
+        outInst.onStop       = pick("OnStop");
+        return true;
+    }
+
+    // ── Универсальный диспатч update/lateUpdate ──────────────────────────────
+    void DispatchUpdate(World& world, DeferredOps& deferred, Timestep dt, bool late)
+    {
+        auto scene = world.GetSceneRef();
+        if (!scene) return;
+
+        for (auto& [key, inst] : m_Instances)
+        {
+            if (!inst.started)  continue;
+            if (inst.hasError)  continue;  // скрипт уже сломан — не спамить
+            auto& fn = late ? inst.onLateUpdate : inst.onUpdate;
+            if (!fn.valid()) continue;
+
+            try
+            {
+                if (key.kind == ScriptKey::Kind::Entity)
+                {
+                    EntityHandle h{};
+                    h.index      = (uint32_t)(key.entityKey & 0xFFFFFFFFu);
+                    h.generation = (uint32_t)((key.entityKey >> 32) & 0xFFFFFFFFu);
+                    if (!scene->IsEntityHandleValid(h)) continue;
+                    ScriptEntity se{ h, &world, &deferred };
+                    ScriptWorld  sw{ &world, &deferred };
+                    auto res = fn(se, sw, (float)dt);
+                    if (!res.valid())
+                    {
+                        sol::error e = res;
+                        CHE_CORE_ERROR("[Lua] {} '{}': {}", late ? "OnLateUpdate" : "OnUpdate", inst.path, e.what());
+                        CHE_CORE_ERROR("[Lua] Script '{}' disabled until Play is restarted", inst.path);
+                        inst.hasError = true;
+                    }
+                }
+                else
+                {
+                    ScriptWorld sw{ &world, &deferred };
+                    auto res = fn(sw, (float)dt);
+                    if (!res.valid())
+                    {
+                        sol::error e = res;
+                        CHE_CORE_ERROR("[Lua] {} '{}': {}", late ? "OnLateUpdate" : "OnUpdate", inst.path, e.what());
+                        CHE_CORE_ERROR("[Lua] Script '{}' disabled until Play is restarted", inst.path);
+                        inst.hasError = true;
+                    }
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                CHE_CORE_ERROR("[Lua] Exception in {} '{}': {}", late ? "OnLateUpdate" : "OnUpdate", inst.path, ex.what());
+                inst.hasError = true;
+            }
+        }
+    }
+
+    // ── Lua API регистрация ──────────────────────────────────────────────────
     void SetupAPI()
     {
-        lua.open_libraries(
-            sol::lib::base,
-            sol::lib::math,
-            sol::lib::string,
-            sol::lib::table,
-            sol::lib::io,
-            sol::lib::os
+        m_Lua.open_libraries(
+            sol::lib::base, sol::lib::math, sol::lib::string,
+            sol::lib::table, sol::lib::io,  sol::lib::os
         );
 
-        // ── Entity usertype ───────────────────────────────────────────────────
-        lua.new_usertype<ScriptEntity>("Entity",
-            "GetName",     &ScriptEntity::GetName,
-            "GetPosition", &ScriptEntity::GetPosition,
-            "SetPosition", &ScriptEntity::SetPosition,
-            "GetRotation", &ScriptEntity::GetRotation,
-            "SetRotation", &ScriptEntity::SetRotation,
-            "GetScale",    &ScriptEntity::GetScale,
-            "SetScale",    &ScriptEntity::SetScale,
-            "GetColor",    &ScriptEntity::GetColor,
-            "SetColor",    &ScriptEntity::SetColor
+        // ── Entity ────────────────────────────────────────────────────────────
+        m_Lua.new_usertype<ScriptEntity>("Entity",
+            "GetName",        &ScriptEntity::GetName,
+            "GetUUID",        &ScriptEntity::GetUUID,
+            "IsValid",        &ScriptEntity::IsValid,
+            "Destroy",        &ScriptEntity::Destroy,
+
+            "HasTransform",   &ScriptEntity::HasTransform,
+            "HasColor",       &ScriptEntity::HasColor,
+            "HasVisibility",  &ScriptEntity::HasVisibility,
+            "HasLifetime",    &ScriptEntity::HasLifetime,
+            "HasLight",       &ScriptEntity::HasLight,
+            "HasCamera",      &ScriptEntity::HasCamera,
+            "HasMesh",        &ScriptEntity::HasMesh,
+            "HasRigidBody",   &ScriptEntity::HasRigidBody,
+            "HasScript",      &ScriptEntity::HasScript,
+
+            "AddTransform",   &ScriptEntity::AddTransform,
+            "AddColor",       &ScriptEntity::AddColor,
+            "AddVisibility",  &ScriptEntity::AddVisibility,
+            "AddLifetime",    &ScriptEntity::AddLifetime,
+            "AddLight",       &ScriptEntity::AddLight,
+
+            "RemoveTransform",  &ScriptEntity::RemoveTransform,
+            "RemoveColor",      &ScriptEntity::RemoveColor,
+            "RemoveVisibility", &ScriptEntity::RemoveVisibility,
+            "RemoveLifetime",   &ScriptEntity::RemoveLifetime,
+            "RemoveLight",      &ScriptEntity::RemoveLight,
+
+            "GetPosition",    &ScriptEntity::GetPosition,
+            "SetPosition",    &ScriptEntity::SetPosition,
+            "GetRotation",    &ScriptEntity::GetRotation,
+            "SetRotation",    &ScriptEntity::SetRotation,
+            "GetScale",       &ScriptEntity::GetScale,
+            "SetScale",       &ScriptEntity::SetScale,
+
+            "GetColor",       &ScriptEntity::GetColor,
+            "SetColor",       &ScriptEntity::SetColor,
+
+            "GetVisibility",  &ScriptEntity::GetVisibility,
+            "SetVisibility",  &ScriptEntity::SetVisibility,
+
+            "GetLifetime",    &ScriptEntity::GetLifetime,
+            "SetLifetime",    &ScriptEntity::SetLifetime,
+
+            "GetLightIntensity", &ScriptEntity::GetLightIntensity,
+            "SetLightIntensity", &ScriptEntity::SetLightIntensity,
+            "GetLightColor",     &ScriptEntity::GetLightColor,
+            "SetLightColor",     &ScriptEntity::SetLightColor,
+            "GetLightRange",     &ScriptEntity::GetLightRange,
+            "SetLightRange",     &ScriptEntity::SetLightRange
+        );
+
+        // ── World ─────────────────────────────────────────────────────────────
+        m_Lua.new_usertype<ScriptWorld>("World",
+            "FindByName",    &ScriptWorld::FindByName,
+            "FindByUUID",    &ScriptWorld::FindByUUID,
+            "SpawnEntity",   &ScriptWorld::SpawnEntity,
+            "DestroyEntity", &ScriptWorld::DestroyEntity,
+            "ForEach",       &ScriptWorld::ForEach
         );
 
         // ── Input ─────────────────────────────────────────────────────────────
-        auto inputTable = lua.create_named_table("Input");
-        inputTable["IsKeyDown"]            = [](int key) { return Input::IsKeyDown(key); };
-        inputTable["IsKeyPressed"]         = [](int key) { return Input::IsKeyPressed(key); };
-        inputTable["IsKeyReleased"]        = [](int key) { return Input::IsKeyReleased(key); };
-        inputTable["IsMouseButtonDown"]    = [](int btn) { return Input::IsMouseButtonDown(btn); };
-        inputTable["IsMouseButtonPressed"] = [](int btn) { return Input::IsMouseButtonPressed(btn); };
-        inputTable["GetMouseX"]            = [] { return Input::GetMouseX(); };
-        inputTable["GetMouseY"]            = [] { return Input::GetMouseY(); };
-        inputTable["GetMouseDeltaX"]       = [] { return Input::GetMouseDeltaX(); };
-        inputTable["GetMouseDeltaY"]       = [] { return Input::GetMouseDeltaY(); };
+        auto input = m_Lua.create_named_table("Input");
+        input["IsKeyDown"]            = [](int key) { return Input::IsKeyDown(key); };
+        input["IsKeyPressed"]         = [](int key) { return Input::IsKeyPressed(key); };
+        input["IsKeyReleased"]        = [](int key) { return Input::IsKeyReleased(key); };
+        input["IsMouseButtonDown"]    = [](int btn) { return Input::IsMouseButtonDown(btn); };
+        input["IsMouseButtonPressed"] = [](int btn) { return Input::IsMouseButtonPressed(btn); };
+        input["GetMouseX"]            = [] { return Input::GetMouseX(); };
+        input["GetMouseY"]            = [] { return Input::GetMouseY(); };
+        input["GetMouseDeltaX"]       = [] { return Input::GetMouseDeltaX(); };
+        input["GetMouseDeltaY"]       = [] { return Input::GetMouseDeltaY(); };
 
-        // ── Key constants ─────────────────────────────────────────────────────
-        auto K = lua.create_named_table("Key");
-        K["Space"]     = (int)Key::Space;
+        // ── Key ──────────────────────────────────────────────────────────────
+        auto K = m_Lua.create_named_table("Key");
+        K["Space"]    = (int)Key::Space;
         K["A"]=(int)Key::A; K["B"]=(int)Key::B; K["C"]=(int)Key::C; K["D"]=(int)Key::D;
         K["E"]=(int)Key::E; K["F"]=(int)Key::F; K["G"]=(int)Key::G; K["H"]=(int)Key::H;
         K["I"]=(int)Key::I; K["J"]=(int)Key::J; K["K"]=(int)Key::K; K["L"]=(int)Key::L;
@@ -220,182 +825,63 @@ struct LuaScriptSystem::Impl
         K["Q"]=(int)Key::Q; K["R"]=(int)Key::R; K["S"]=(int)Key::S; K["T"]=(int)Key::T;
         K["U"]=(int)Key::U; K["V"]=(int)Key::V; K["W"]=(int)Key::W; K["X"]=(int)Key::X;
         K["Y"]=(int)Key::Y; K["Z"]=(int)Key::Z;
-        K["Escape"]     = (int)Key::Escape;
-        K["Enter"]      = (int)Key::Enter;
-        K["Tab"]        = (int)Key::Tab;
-        K["Backspace"]  = (int)Key::Backspace;
-        K["Left"]       = (int)Key::Left;
-        K["Right"]      = (int)Key::Right;
-        K["Up"]         = (int)Key::Up;
-        K["Down"]       = (int)Key::Down;
-        K["LeftShift"]  = (int)Key::LeftShift;
-        K["LeftCtrl"]   = (int)Key::LeftControl;
+        K["Escape"] = (int)Key::Escape;     K["Enter"]     = (int)Key::Enter;
+        K["Tab"]    = (int)Key::Tab;        K["Backspace"] = (int)Key::Backspace;
+        K["Left"]   = (int)Key::Left;       K["Right"]     = (int)Key::Right;
+        K["Up"]     = (int)Key::Up;         K["Down"]      = (int)Key::Down;
+        K["LeftShift"] = (int)Key::LeftShift;
+        K["LeftCtrl"]  = (int)Key::LeftControl;
         K["F1"]=(int)Key::F1;  K["F2"]=(int)Key::F2;  K["F3"]=(int)Key::F3;
         K["F4"]=(int)Key::F4;  K["F5"]=(int)Key::F5;  K["F12"]=(int)Key::F12;
 
-        // ── Log ───────────────────────────────────────────────────────────────
-        auto logTable = lua.create_named_table("Log");
-        logTable["Info"]  = [](const std::string& msg) { CHE_CORE_INFO("[Lua] {}", msg); };
-        logTable["Warn"]  = [](const std::string& msg) { CHE_CORE_WARN("[Lua] {}", msg); };
-        logTable["Error"] = [](const std::string& msg) { CHE_CORE_ERROR("[Lua] {}", msg); };
-    }
-
-    // ── Загрузка скрипта в изолированное окружение ───────────────────────────
-    bool LoadScript(uint64_t key, const std::string& path)
-    {
-        if (!std::filesystem::exists(path))
-        {
-            CHE_CORE_ERROR("[LuaScriptSystem] Script not found: {}", path);
-            return false;
-        }
-
-        sol::environment env(lua, sol::create, lua.globals());
-
-        auto result = lua.safe_script_file(path, env, sol::script_pass_on_error);
-        if (!result.valid())
-        {
-            sol::error err = result;
-            CHE_CORE_ERROR("[LuaScriptSystem] Error loading '{}': {}", path, err.what());
-            return false;
-        }
-
-        ScriptInstance inst;
-        inst.env = std::move(env);
-
-        auto fnStart  = inst.env.get<sol::object>("OnStart");
-        auto fnUpdate = inst.env.get<sol::object>("OnUpdate");
-        auto fnStop   = inst.env.get<sol::object>("OnStop");
-
-        if (fnStart.is<sol::safe_function>())  inst.onStart  = fnStart.as<sol::safe_function>();
-        if (fnUpdate.is<sol::safe_function>()) inst.onUpdate = fnUpdate.as<sol::safe_function>();
-        if (fnStop.is<sol::safe_function>())   inst.onStop   = fnStop.as<sol::safe_function>();
-
-        instances[key] = std::move(inst);
-        return true;
+        // ── Log ──────────────────────────────────────────────────────────────
+        auto log = m_Lua.create_named_table("Log");
+        log["Info"]  = [](const std::string& m) { CHE_CORE_INFO("[Lua] {}", m); };
+        log["Warn"]  = [](const std::string& m) { CHE_CORE_WARN("[Lua] {}", m); };
+        log["Error"] = [](const std::string& m) { CHE_CORE_ERROR("[Lua] {}", m); };
     }
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// LuaScriptSystem
-// ─────────────────────────────────────────────────────────────────────────────
-LuaScriptSystem::LuaScriptSystem(uint8_t priority)
+// ═════════════════════════════════════════════════════════════════════════════
+// LuaPreSimSystem / LuaPostSimSystem
+// ═════════════════════════════════════════════════════════════════════════════
+LuaPreSimSystem::LuaPreSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority)
     : ISystem(SystemPhase::Simulation, priority)
-    , m_Impl(std::make_unique<Impl>())
+    , m_Host(std::move(host))
+{}
+
+LuaPreSimSystem::~LuaPreSimSystem() = default;
+
+void LuaPreSimSystem::OnBegin(World& world, DeferredOps& deferred_ops)
 {
-    m_Impl->SetupAPI();
+    if (m_Host) m_Host->OnBegin(world, deferred_ops);
 }
 
-LuaScriptSystem::~LuaScriptSystem() = default;
-
-// ── OnBegin: загрузка скриптов + OnStart ─────────────────────────────────────
-void LuaScriptSystem::OnBegin(World& world, DeferredOps& /*deferred_ops*/)
+void LuaPreSimSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 {
-    m_Impl->instances.clear();
-
-    auto scene = world.GetSceneRef();
-    if (!scene) return;
-
-    scene->ForEach<ScriptComponent>(
-        [&](EntityHandle handle, const UUID&, ScriptComponent& sc)
-        {
-            if (!sc.Enabled || sc.ScriptPath.empty()) return;
-
-            uint64_t key = MakeKey(handle);
-
-            // Оборачиваем в try/catch — LuaPanicHandler бросает std::runtime_error
-            // при unprotected lua_error (например, sol2 safety checks).
-            try
-            {
-                if (!m_Impl->LoadScript(key, sc.ScriptPath)) return;
-
-                auto& inst = m_Impl->instances[key];
-                if (inst.onStart.valid())
-                {
-                    ScriptEntity se{ handle, &world };
-                    auto res = inst.onStart(se);
-                    if (!res.valid())
-                    {
-                        sol::error err = res;
-                        CHE_CORE_ERROR("[LuaScriptSystem] OnStart error in '{}': {}", sc.ScriptPath, err.what());
-                    }
-                }
-                inst.started = true;
-            }
-            catch (const std::exception& ex)
-            {
-                CHE_CORE_ERROR("[LuaScriptSystem] Exception in OnBegin for '{}': {}", sc.ScriptPath, ex.what());
-                sc.Enabled = false;
-            }
-        });
-
-    CHE_CORE_INFO("[LuaScriptSystem] Loaded {} script(s)", m_Impl->instances.size());
+    if (m_Host) m_Host->RunPreSim(world, deferred_ops, dt);
 }
 
-// ── Run: OnUpdate каждый кадр ────────────────────────────────────────────────
-void LuaScriptSystem::Run(World& world, DeferredOps& /*deferred_ops*/, Timestep dt)
+void LuaPreSimSystem::OnEnd(World& world, DeferredOps& deferred_ops)
 {
-    auto scene = world.GetSceneRef();
-    if (!scene) return;
-
-    scene->ForEach<ScriptComponent>(
-        [&](EntityHandle handle, const UUID&, ScriptComponent& sc)
-        {
-            if (!sc.Enabled) return;
-
-            auto it = m_Impl->instances.find(MakeKey(handle));
-            if (it == m_Impl->instances.end()) return;
-
-            auto& inst = it->second;
-            if (!inst.started || !inst.onUpdate.valid()) return;
-
-            try
-            {
-                ScriptEntity se{ handle, &world };
-                auto res = inst.onUpdate(se, (float)dt);
-                if (!res.valid())
-                {
-                    sol::error err = res;
-                    CHE_CORE_ERROR("[LuaScriptSystem] OnUpdate error in '{}': {}", sc.ScriptPath, err.what());
-                    sc.Enabled = false;
-                }
-            }
-            catch (const std::exception& ex)
-            {
-                CHE_CORE_ERROR("[LuaScriptSystem] Exception in OnUpdate for '{}': {}", sc.ScriptPath, ex.what());
-                sc.Enabled = false;
-            }
-        });
+    if (m_Host) m_Host->OnEnd(world, deferred_ops);
 }
 
-// ── OnEnd: OnStop + очистка ───────────────────────────────────────────────────
-void LuaScriptSystem::OnEnd(World& world, DeferredOps& /*deferred_ops*/)
+LuaPostSimSystem::LuaPostSimSystem(std::shared_ptr<ScriptHost> host, uint8_t priority)
+    : ISystem(SystemPhase::Simulation, priority)
+    , m_Host(std::move(host))
+{}
+
+LuaPostSimSystem::~LuaPostSimSystem() = default;
+
+void LuaPostSimSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 {
-    auto scene = world.GetSceneRef();
-    if (scene)
-    {
-        scene->ForEach<ScriptComponent>(
-            [&](EntityHandle handle, const UUID&, ScriptComponent& sc)
-            {
-                auto it = m_Impl->instances.find(MakeKey(handle));
-                if (it == m_Impl->instances.end()) return;
+    if (m_Host) m_Host->RunPostSim(world, deferred_ops, dt);
+}
 
-                auto& inst = it->second;
-                if (inst.started && inst.onStop.valid())
-                {
-                    ScriptEntity se{ handle, &world };
-                    auto res = inst.onStop(se);
-                    if (!res.valid())
-                    {
-                        sol::error err = res;
-                        CHE_CORE_ERROR("[LuaScriptSystem] OnStop error in '{}': {}", sc.ScriptPath, err.what());
-                    }
-                }
-                (void)sc;
-            });
-    }
-
-    m_Impl->instances.clear();
-    CHE_CORE_INFO("[LuaScriptSystem] Scripts stopped and cleared");
+std::shared_ptr<ScriptHost> MakeScriptHost()
+{
+    return std::make_shared<ScriptHost>();
 }
 
 } // namespace CHEngine

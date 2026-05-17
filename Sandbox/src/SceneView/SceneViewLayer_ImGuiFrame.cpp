@@ -188,8 +188,10 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
             {
                 std::string name = selEnt->GetComponent<CHEngine::TagComponent>().Name;
                 bool hasScript   = selEnt->HasComponent<CHEngine::ScriptComponent>();
-                std::string path = hasScript
-                    ? selEnt->GetComponent<CHEngine::ScriptComponent>().ScriptPath : "";
+                const auto* scriptComp = hasScript
+                    ? &selEnt->GetComponent<CHEngine::ScriptComponent>() : nullptr;
+                std::string path = (scriptComp && !scriptComp->Scripts.empty())
+                    ? scriptComp->Scripts[0].Path : "";
 
                 // Capture &layer (long-lived) instead of &host (local/frame-scoped)
                 scriptEditor.SetEntityContext(name, hasScript, path,

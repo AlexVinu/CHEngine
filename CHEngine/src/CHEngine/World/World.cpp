@@ -132,7 +132,16 @@ namespace CHEngine
     {
         m_Scheduler.EmplaceSystem<LifetimeSystem>();
         m_Scheduler.EmplaceSystem<ComponentValidationSystem>();
-        m_Scheduler.EmplaceSystem<LuaScriptSystem>();
+
+        // Lua scripts: пара систем с общим host'ом.
+        // PreSim (priority 5) — OnUpdate до физики.
+        // PostSim (priority 150) — OnLateUpdate после физики.
+        {
+            auto scriptHost = MakeScriptHost();
+            m_Scheduler.EmplaceSystem<LuaPreSimSystem>(scriptHost);
+            m_Scheduler.EmplaceSystem<LuaPostSimSystem>(scriptHost);
+        }
+
         m_Scheduler.EmplaceSystem<PhysicsSystem>();
         m_RenderSystem = &m_Scheduler.EmplaceSystem<RenderSystem>();
     }

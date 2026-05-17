@@ -36,6 +36,7 @@ EditorViewport::EditorViewport()
 
     m_SphereImpostorShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
         std::string("SphereImpostor"), CHEngine::AppPaths::ExecutableDir() / "shaders/sphere_impostor.slang");
+    CHEngine::RenderFacade::SetDefaultSphereImpostorShader(m_SphereImpostorShader);
 
     m_PBRShader = CHEngine::ResourceManager::Instance().Load<CHEngine::ShaderHandle>(
         std::string("PBR"), CHEngine::AppPaths::ExecutableDir() / "shaders/pbr.slang");

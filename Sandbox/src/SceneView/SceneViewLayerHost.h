@@ -84,6 +84,8 @@ public:
 
     void OpenScriptInEditor(const std::string& path) ;
     void CreateAndAttachScript(CHEngine::EntityHandle handle, const std::string& entityName) ;
+    void CreateAndAttachWorldScript() ;
+    void CreateAndAttachWorldScriptWithContent(const std::string& luaContent) ;
 
     // ── Global AI overlay commands ────────────────────────────────────────────
     void ApplyLayoutPreset(const std::string& presetName) ;

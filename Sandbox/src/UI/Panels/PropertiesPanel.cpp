@@ -1050,7 +1050,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             ImGui::Spacing();
         });
 
-    DrawComponent<CHEngine::ScriptComponent>("Script",
+    DrawComponent<CHEngine::ScriptComponent>("Scripts",
         true,
         propsReadOnly,
         *activeSession,
@@ -1058,37 +1058,105 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
         selectedEntity,
         "Script",
         [&](CHEngine::ScriptComponent& script) {
-            if (script.ScriptPath.empty())
+            int removeIdx = -1;
+            for (int i = 0; i < static_cast<int>(script.Scripts.size()); ++i)
             {
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.57f, 1.0f));
-                ImGui::TextUnformatted("No script assigned");
-                ImGui::PopStyleColor();
-                if (!propsReadOnly)
-                {
-                    if (ImGui::Button("Create Script##newScript"))
-                    {
-                        std::string tag = selectedEntity->HasComponent<CHEngine::TagComponent>()
-                            ? selectedEntity->GetComponent<CHEngine::TagComponent>().Name
-                            : "Entity";
-                        host.CreateAndAttachScript(selectedHandle, tag);
-                    }
-                }
-            }
-            else
-            {
-                std::string filename = std::filesystem::path(script.ScriptPath).filename().string();
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.85f, 0.55f, 1.0f));
+                const auto& entry = script.Scripts[i];
+                ImGui::PushID(i);
+
+                // Filename label
+                std::string filename = entry.Path.empty()
+                    ? "(no path)"
+                    : std::filesystem::path(entry.Path).filename().string();
+                ImGui::PushStyleColor(ImGuiCol_Text,
+                    entry.Path.empty()
+                        ? ImVec4(0.55f, 0.55f, 0.57f, 1.0f)
+                        : ImVec4(0.55f, 0.85f, 0.55f, 1.0f));
                 ImGui::TextUnformatted(filename.c_str());
                 ImGui::PopStyleColor();
-                ImGui::SameLine();
-                if (ImGui::SmallButton("Edit##editScript"))
-                    host.OpenScriptInEditor(script.ScriptPath);
+
+                if (!propsReadOnly)
+                {
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("Edit") && !entry.Path.empty())
+                        host.OpenScriptInEditor(entry.Path);
+
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("Browse"))
+                    {
+                        std::string picked = CHEngine::FileDialog::OpenFile("Lua Script", "*.lua");
+                        if (!picked.empty())
+                        {
+                            int idx = i;
+                            selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                                [idx, picked](CHEngine::ScriptComponent& sc) {
+                                    if (idx < static_cast<int>(sc.Scripts.size()))
+                                        sc.Scripts[idx].Path = picked;
+                                });
+                        }
+                    }
+
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        removeIdx = i;
+
+                    // Enabled checkbox on next line
+                    bool enabled = entry.Enabled;
+                    if (ImGui::Checkbox("Enabled", &enabled))
+                    {
+                        int idx = i;
+                        selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                            [idx, enabled](CHEngine::ScriptComponent& sc) {
+                                if (idx < static_cast<int>(sc.Scripts.size()))
+                                    sc.Scripts[idx].Enabled = enabled;
+                            });
+                    }
+                }
+
+                ImGui::Separator();
+                ImGui::PopID();
             }
-            bool enabled = script.Enabled;
-            if (ImGui::Checkbox("Enabled##scriptEnabled", &enabled))
+
+            // Apply removal after the loop (avoid invalidating the range)
+            if (removeIdx >= 0)
             {
+                int idx = removeIdx;
                 selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
-                    [&](CHEngine::ScriptComponent& sc) { sc.Enabled = enabled; });
+                    [idx](CHEngine::ScriptComponent& sc) {
+                        if (idx < static_cast<int>(sc.Scripts.size()))
+                            sc.Scripts.erase(sc.Scripts.begin() + idx);
+                    });
+            }
+
+            if (script.Scripts.empty())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.57f, 1.0f));
+                ImGui::TextUnformatted("No scripts assigned");
+                ImGui::PopStyleColor();
+            }
+
+            if (!propsReadOnly)
+            {
+                ImGui::Spacing();
+                if (ImGui::Button("+ Add Script"))
+                {
+                    std::string tag = selectedEntity->HasComponent<CHEngine::TagComponent>()
+                        ? selectedEntity->GetComponent<CHEngine::TagComponent>().Name
+                        : "Entity";
+                    host.CreateAndAttachScript(selectedHandle, tag);
+                }
+                ImGui::SameLine();
+                if (ImGui::Button("Browse..."))
+                {
+                    std::string picked = CHEngine::FileDialog::OpenFile("Lua Script", "*.lua");
+                    if (!picked.empty())
+                    {
+                        selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
+                            [picked](CHEngine::ScriptComponent& sc) {
+                                sc.Scripts.push_back(CHEngine::ScriptEntry{ picked, true });
+                            });
+                    }
+                }
             }
             ImGui::Spacing();
         });

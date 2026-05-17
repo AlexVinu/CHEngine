@@ -11,6 +11,7 @@
 
 #include <boost/container_hash/hash.hpp>
 #include <cstdio>
+#include <filesystem>
 #include <optional>
 
 namespace Sandbox {
@@ -51,6 +52,73 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
         ImGui::PopStyleColor();
         return;
     }
+
+    // ── World Scripts ─────────────────────────────────────────────────────────
+    bool inPlayMode = (activeSession->GetSessionState() != SceneSession::State::Edit);
+    if (ImGui::CollapsingHeader("World Scripts"))
+    {
+        auto& worldScripts = scene_ptr->WorldScripts;
+        int removeWsIdx = -1;
+
+        for (int i = 0; i < static_cast<int>(worldScripts.size()); ++i)
+        {
+            auto& entry = worldScripts[i];
+            ImGui::PushID(1000 + i);
+
+            std::string filename = entry.Path.empty()
+                ? "(no path)"
+                : std::filesystem::path(entry.Path).filename().string();
+            ImGui::PushStyleColor(ImGuiCol_Text,
+                entry.Path.empty()
+                    ? ImVec4(0.55f, 0.55f, 0.57f, 1.0f)
+                    : ImVec4(0.55f, 0.85f, 0.55f, 1.0f));
+            ImGui::TextUnformatted(filename.c_str());
+            ImGui::PopStyleColor();
+
+            if (!inPlayMode)
+            {
+                ImGui::SameLine();
+                if (ImGui::SmallButton("Edit") && !entry.Path.empty())
+                    host.OpenScriptInEditor(entry.Path);
+                ImGui::SameLine();
+                if (ImGui::SmallButton("x"))
+                    removeWsIdx = i;
+
+                bool enabled = entry.Enabled;
+                if (ImGui::Checkbox("Enabled", &enabled))
+                    entry.Enabled = enabled;
+            }
+
+            ImGui::Separator();
+            ImGui::PopID();
+        }
+
+        if (removeWsIdx >= 0)
+            worldScripts.erase(worldScripts.begin() + removeWsIdx);
+
+        if (worldScripts.empty())
+        {
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.57f, 1.0f));
+            ImGui::TextUnformatted("No world scripts");
+            ImGui::PopStyleColor();
+        }
+
+        if (!inPlayMode)
+        {
+            ImGui::Spacing();
+            if (ImGui::Button("+ New World Script"))
+                host.CreateAndAttachWorldScript();
+            ImGui::SameLine();
+            if (ImGui::Button("Browse..."))
+            {
+                std::string picked = CHEngine::FileDialog::OpenFile("Lua Script", "*.lua");
+                if (!picked.empty())
+                    worldScripts.push_back(CHEngine::ScriptEntry{ picked, true });
+            }
+        }
+        ImGui::Spacing();
+    }
+    // ─────────────────────────────────────────────────────────────────────────
 
     // Кнопки добавления объектов убраны — используй Shift+A
     ImGui::Spacing();

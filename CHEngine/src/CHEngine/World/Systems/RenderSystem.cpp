@@ -346,15 +346,9 @@ namespace CHEngine {
             pass.Writes.push_back(m_HDRTarget);
             pass.Writes.push_back(m_DepthTarget);
 
-            // Determine range of draws for this shader group
-            uint32_t groupEnd = (g + 1 < shaderStarts.size()) ? shaderStarts[g + 1] : drawCount;
-            uint32_t groupStart = shaderStarts[g];
-
-            for (uint32_t i = groupStart; i < groupEnd; ++i)
+            for (uint32_t i = 0; i < drawCount; ++i)
             {
                 const DrawItem& item = m_DrawList[i];
-                
-                // Only include draws matching this group's shader
                 if (item.shader != sh) continue;
 
                 DrawDesc draw;

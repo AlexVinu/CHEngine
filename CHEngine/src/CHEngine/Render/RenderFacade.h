@@ -95,6 +95,10 @@ namespace CHEngine
         static void         SetDefaultMeshShader(ShaderHandle h);
         static ShaderHandle GetDefaultMeshShader();
 
+        // ── Default sphere impostor shader ────────────────────────────────────
+        static void         SetDefaultSphereImpostorShader(ShaderHandle h);
+        static ShaderHandle GetDefaultSphereImpostorShader();
+
         // ── Per-frame scene camera ────────────────────────────────────────────
         static void             SetSceneCamera(const UBOCamera& cam);
         static const UBOCamera& GetSceneCamera();
