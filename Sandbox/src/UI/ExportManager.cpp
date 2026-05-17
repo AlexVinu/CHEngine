@@ -227,6 +227,25 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg, const fs::path& binDir
         }
     }
 
+    // Copy scenes next to the executable — player loads scenes via direct path
+    // (pak lookup can fail due to path resolution; disk is 100% reliable)
+    fs::path scenesSource = cfg.projectDir / "Scenes";
+    if (!fs::exists(scenesSource)) scenesSource = cfg.projectDir / "scenes";
+    fs::path scenesDest = binDir / "Scenes";
+    if (fs::exists(scenesSource))
+    {
+        fs::create_directories(scenesDest, ec);
+        for (auto& entry : fs::recursive_directory_iterator(scenesSource, ec))
+        {
+            if (!entry.is_regular_file()) continue;
+            fs::path rel = fs::relative(entry.path(), scenesSource, ec);
+            fs::path dst = scenesDest / rel;
+            fs::create_directories(dst.parent_path(), ec);
+            fs::copy_file(entry.path(), dst, fs::copy_options::overwrite_existing, ec);
+        }
+        CHE_CORE_INFO("[Export] Scenes copied to {}", scenesDest.string());
+    }
+
     // Copy shaders next to the executable — player loads them from exeDir/shaders/
     // (ResourceManager reads shaders via direct file I/O, bypassing the pak)
     fs::path shadersSource = cfg.engineBinDir / "shaders";

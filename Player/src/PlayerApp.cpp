@@ -210,6 +210,12 @@ public:
         std::string startupScene = ReadStartupScene();
         CHE_CORE_INFO("[Player] Startup scene: {}", startupScene);
 
+        // Quick check: can we read the scene file at all?
+        std::string sceneText = CHEngine::FileSystem::ReadFileText(
+            fs::path(startupScene));
+        CHE_CORE_INFO("[Player] Scene file size: {} bytes (0 = not found or empty)",
+                      sceneText.size());
+
         PushLayer(new PlayerLayer(startupScene));
     }
 
