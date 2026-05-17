@@ -35,6 +35,7 @@ namespace UITheme
     inline ImFont* g_FontBody    = nullptr;
     inline ImFont* g_FontHeading = nullptr;
 
+
     inline void PushHeadingFont() { if (g_FontHeading) ImGui::PushFont(g_FontHeading); }
     inline void PopFont()         { ImGui::PopFont(); }
 
@@ -109,7 +110,6 @@ namespace UITheme
         if (!g_FontBody)    g_FontBody    = io.FontDefault;
         if (!g_FontHeading) g_FontHeading = io.FontDefault;
     }
-
 
     // =========================================================================
     //  Style (colours, rounding, spacing)
@@ -240,15 +240,47 @@ namespace UITheme
                             ImGuiWindowFlags extraFlags = 0,
                             bool /*resetSize*/ = false)
     {
-        ImGui::SetNextWindowPos (pos,  ImGuiCond_Always);   // position locked every frame
-        ImGui::SetNextWindowSize(size, ImGuiCond_Always);   // size    locked every frame
+        ImGui::SetNextWindowPos (pos,  ImGuiCond_Always);
+        ImGui::SetNextWindowSize(size, ImGuiCond_Always);
         PushHeadingFont();
         bool open = ImGui::Begin(title, nullptr,
             ImGuiWindowFlags_NoCollapse |
             ImGuiWindowFlags_NoMove     |
-            ImGuiWindowFlags_NoResize   |   // size driven by window fractions, not user drag
+            ImGuiWindowFlags_NoResize   |
             extraFlags);
         PopFont();  // content drawn in body font
+
+        // ── Gradient title bar overlay ────────────────────────────────────────
+        // Drawn after Begin() so it overlays ImGui's flat TitleBg colour.
+        if (open)
+        {
+            ImDrawList* dl  = ImGui::GetWindowDrawList();
+            ImVec2      wp  = ImGui::GetWindowPos();
+            // TitleBarHeight = FontSize + FramePaddingY*2 (window has NoCollapse).
+            float       tbH = ImGui::GetFontSize() + ImGui::GetStyle().FramePadding.y * 2.0f;
+            ImVec2      tl  = wp;
+            ImVec2      br  = ImVec2(wp.x + ImGui::GetWindowWidth(), wp.y + tbH);
+            float       r   = ImGui::GetStyle().WindowRounding;
+
+            // Rounded-top gradient (matches window rounding)
+            dl->AddRectFilledMultiColor(
+                ImVec2(tl.x, tl.y + r), br,
+                IM_COL32(52,  95, 180, 210),   // left-top:  mid blue
+                IM_COL32(52,  95, 180, 210),   // right-top
+                IM_COL32(22,  48, 110, 210),   // right-bottom: deep blue
+                IM_COL32(22,  48, 110, 210));  // left-bottom
+
+            // Top rounded cap (same colour as top row)
+            dl->AddRectFilled(tl, ImVec2(br.x, tl.y + r),
+                IM_COL32(52, 95, 180, 210), r,
+                ImDrawFlags_RoundCornersTop);
+
+            // Thin accent line at bottom of title bar
+            dl->AddLine(ImVec2(tl.x, br.y - 1), ImVec2(br.x, br.y - 1),
+                IM_COL32(80, 140, 255, 80), 1.0f);
+
+        }
+
         return open;
     }
 

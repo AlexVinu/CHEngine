@@ -327,6 +327,14 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
                 ImGui::EndPopup();
             }
 
+            // 📦 Export
+            ImGui::SameLine(0, 4);
+            vcenter(ImGui::GetFrameHeight());
+            if (ImGui::Button("Export##exportbtn", ImVec2(62, 0)))
+                host.OpenExportPanel();
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip("Export project as standalone game");
+
             // ⚙ Settings
             ImGui::SameLine(0, 4);
             vcenter(ImGui::GetFrameHeight());

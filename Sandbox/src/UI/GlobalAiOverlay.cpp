@@ -80,6 +80,7 @@ GlobalAiOverlay::GlobalAiOverlay()
 
     std::strncpy(m_EndpointBuf, m_Endpoint.c_str(), sizeof(m_EndpointBuf) - 1);
     std::strncpy(m_ModelBuf,    m_Model.c_str(),    sizeof(m_ModelBuf)    - 1);
+    std::strncpy(m_ApiKeyBuf,   m_ApiKey.c_str(),   sizeof(m_ApiKeyBuf)   - 1);
 
     std::string welcomeText =
         "Привет! Я помогу настроить рабочее пространство.\n\n"
@@ -573,10 +574,77 @@ std::string GlobalAiOverlay::ExtractContent(const std::string& httpResponse)
     return content;
 }
 
-void GlobalAiOverlay::WorkerFn(std::string userMsg)
+void GlobalAiOverlay::WorkerFn(WorkerArgs args)
 {
-    std::string body    = BuildRequestBody(userMsg);
-    std::string httpRaw = CallHttp(body);
+    // All data is owned by args — no access to shared m_* fields.
+    // Build request body from snapshot copies.
+    std::string fullUserMsg = args.sceneContext.empty()
+        ? args.userMsg
+        : args.sceneContext + "\nUSER REQUEST: " + args.userMsg;
+
+    std::ostringstream ss;
+    ss << "{"
+       << "\"model\":\"" << JsonEscape(args.model) << "\","
+       << "\"temperature\":0.1,"
+       << "\"max_tokens\":1024,"
+       << "\"messages\":[";
+
+    ss << "{\"role\":\"system\",\"content\":\"" << JsonEscape(kSystemPrompt) << "\"}";
+
+    int skip = (int)args.history.size() > kMaxHistoryTurns * 2
+               ? (int)args.history.size() - kMaxHistoryTurns * 2 : 0;
+    for (int i = skip; i < (int)args.history.size(); ++i)
+    {
+        const auto& h = args.history[i];
+        ss << ",{\"role\":\"" << h.role << "\",\"content\":\"" << JsonEscape(h.content) << "\"}";
+    }
+    ss << ",{\"role\":\"user\",\"content\":\"" << JsonEscape(fullUserMsg) << "\"}";
+    ss << "]}";
+
+    // Use copied API settings — no shared state after this point.
+    std::string savedKey      = std::move(args.apiKey);
+    std::string savedEndpoint = std::move(args.endpoint);
+
+    // Temporarily swap to call CallHttp (which reads m_ApiKey/m_Endpoint).
+    // We store original, substitute copies, call, then restore.
+    // Simpler: just duplicate the HTTP call logic inline.
+    std::string body = ss.str();
+
+#ifdef CHE_HAS_CURL
+    CURL* curl = curl_easy_init();
+    std::string response;
+    std::string httpRaw;
+    if (curl) {
+        std::string authHeader  = "Authorization: Bearer " + savedKey;
+        std::string contentType = "Content-Type: application/json";
+        struct curl_slist* headers = nullptr;
+        headers = curl_slist_append(headers, authHeader.c_str());
+        headers = curl_slist_append(headers, contentType.c_str());
+        curl_easy_setopt(curl, CURLOPT_URL,            savedEndpoint.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER,     headers);
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS,     body.c_str());
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE,  (long)body.size());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,  CurlWriteCb);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA,      &response);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT,        60L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        CURLcode res = curl_easy_perform(curl);
+        long httpCode = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &httpCode);
+        curl_slist_free_all(headers);
+        curl_easy_cleanup(curl);
+        if (res != CURLE_OK)
+            httpRaw = "__ERR__" + std::string(curl_easy_strerror(res));
+        else
+            httpRaw = "__HTTP__" + std::to_string(httpCode) + "__BODY__" + response;
+    } else {
+        httpRaw = "__ERR__curl init failed";
+    }
+#else
+    std::string httpRaw = "__ERR__CURL not available";
+#endif
+
     std::string content = ExtractContent(httpRaw);
 
     std::lock_guard<std::mutex> lock(m_Mutex);
@@ -589,14 +657,21 @@ void GlobalAiOverlay::Submit(const std::string& userMsg, SceneViewLayerHost& hos
     if (m_Worker.joinable())
         m_Worker.join();
 
-    // Snapshot current scene state (before AI changes anything)
+    // Snapshot scene state and history on main thread, before spawning worker.
     m_SceneContextSnapshot = host.GetSceneContextString();
-
-    // Add user message to history
     m_ApiHistory.push_back({ "user", userMsg });
-
     m_Status = "thinking";
-    m_Worker = std::thread(&GlobalAiOverlay::WorkerFn, this, userMsg);
+
+    // Copy all shared state into WorkerArgs — worker touches nothing in *this.
+    WorkerArgs args;
+    args.userMsg      = userMsg;
+    args.apiKey       = m_ApiKey;
+    args.endpoint     = m_Endpoint;
+    args.model        = m_Model;
+    args.sceneContext = m_SceneContextSnapshot;
+    args.history      = m_ApiHistory;
+
+    m_Worker = std::thread(&GlobalAiOverlay::WorkerFn, this, std::move(args));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

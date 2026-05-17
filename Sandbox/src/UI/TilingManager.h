@@ -39,10 +39,11 @@ public:
     void ResetLayout();
 
     // Programmatically insert a panel without ghost interaction
-    void InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge)
+    bool InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge)
     {
-        m_Layout.InsertPanel(newPanel, nearPanel, edge);
-        m_LayoutChanged = true;
+        bool ok = m_Layout.InsertPanel(newPanel, nearPanel, edge);
+        if (ok) m_LayoutChanged = true;
+        return ok;
     }
 
     // Apply a named layout preset: "script_focus" | "model_focus" | "default"

@@ -599,19 +599,18 @@ void SceneViewLayerHost::SelectEntityByName(const std::string& name)
 }
 
 // ── Helper: collect entities by name (two-phase: find then modify) ────────────
-// Do NOT call AddComponent/RemoveComponent inside ForEach — it can invalidate
-// entt iterators. Collect first, then apply changes outside the loop.
-static std::vector<CHEngine::Entity*> FindEntitiesByName(CHEngine::Scene* scene,
-                                                          const std::string& name)
+// Collect EntityHandles by name — safe to call AddComponent on results afterwards.
+// Entity* from TryGetEntity can become dangling after AddComponent reallocates
+// entt storage; handles remain stable, so we re-resolve via TryGetEntity each time.
+static std::vector<CHEngine::EntityHandle> FindHandlesByName(CHEngine::Scene* scene,
+                                                              const std::string& name)
 {
-    std::vector<CHEngine::Entity*> result;
+    std::vector<CHEngine::EntityHandle> result;
     if (!scene || name.empty()) return result;
     scene->ForEach<CHEngine::TagComponent>(
         [&](CHEngine::EntityHandle h, const CHEngine::UUID&, CHEngine::TagComponent& tag) {
-            if (tag.Name == name) {
-                auto* e = scene->TryGetEntity(h);
-                if (e) result.push_back(e);
-            }
+            if (tag.Name == name)
+                result.push_back(h);
         });
     return result;
 }
@@ -673,13 +672,14 @@ void SceneViewLayerHost::CreateAndAttachScriptWithContent(const std::string& ent
     if (!scene) return;
 
     std::string absPath = scriptPath.string();
-    auto entities = FindEntitiesByName(scene.get(), entityName);
+    auto handles = FindHandlesByName(scene.get(), entityName);
     // Fallback to SelectedEntity if name not found
-    if (entities.empty()) {
-        auto* e = scene->TryGetEntity(session->SelectedEntity);
-        if (e) entities.push_back(e);
-    }
-    for (auto* e : entities) {
+    if (handles.empty() && scene->IsEntityHandleValid(session->SelectedEntity))
+        handles.push_back(session->SelectedEntity);
+
+    for (auto h : handles) {
+        auto* e = scene->TryGetEntity(h);
+        if (!e) continue;
         if (!e->HasComponent<CHEngine::ScriptComponent>())
         {
             CHEngine::ScriptComponent sc;
@@ -821,8 +821,9 @@ void SceneViewLayerHost::SetEntityPositionByName(const std::string& name,
                                                   float x, float y, float z)
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
-    for (auto* e : FindEntitiesByName(session->EditorScene.get(), name))
-        if (e->HasComponent<CHEngine::TransformComponent>())
+    auto* scene0 = session->EditorScene.get();
+    for (auto h : FindHandlesByName(scene0, name))
+        if (auto* e = scene0->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
             e->PatchComponent<CHEngine::TransformComponent>(
                 [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Position = {x,y,z}; });
 }
@@ -831,8 +832,9 @@ void SceneViewLayerHost::SetEntityRotationByName(const std::string& name,
                                                   float x, float y, float z)
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
-    for (auto* e : FindEntitiesByName(session->EditorScene.get(), name))
-        if (e->HasComponent<CHEngine::TransformComponent>())
+    auto* scene1 = session->EditorScene.get();
+    for (auto h : FindHandlesByName(scene1, name))
+        if (auto* e = scene1->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
             e->PatchComponent<CHEngine::TransformComponent>(
                 [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Rotation = {x,y,z}; });
 }
@@ -841,8 +843,9 @@ void SceneViewLayerHost::SetEntityScaleByName(const std::string& name,
                                                float x, float y, float z)
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
-    for (auto* e : FindEntitiesByName(session->EditorScene.get(), name))
-        if (e->HasComponent<CHEngine::TransformComponent>())
+    auto* scene2 = session->EditorScene.get();
+    for (auto h : FindHandlesByName(scene2, name))
+        if (auto* e = scene2->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
             e->PatchComponent<CHEngine::TransformComponent>(
                 [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Scale = {x,y,z}; });
 }
@@ -852,11 +855,15 @@ void SceneViewLayerHost::SetEntityColorByName(const std::string& name,
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
     // Two-phase: collect first, then AddComponent (safe outside ForEach)
-    auto entities = FindEntitiesByName(session->EditorScene.get(), name);
-    for (auto* e : entities) {
+    auto* scene3 = session->EditorScene.get();
+    for (auto h : FindHandlesByName(scene3, name)) {
+        auto* e = scene3->TryGetEntity(h);
+        if (!e) continue;
         if (!e->HasComponent<CHEngine::ColorComponent>())
             e->AddComponent<CHEngine::ColorComponent>();
-        e->PatchComponent<CHEngine::ColorComponent>(
+        // Re-resolve after AddComponent (may have reallocated storage)
+        e = scene3->TryGetEntity(h);
+        if (e) e->PatchComponent<CHEngine::ColorComponent>(
             [r,g,b,a](CHEngine::ColorComponent& cc) { cc.Color = {r,g,b,a}; });
     }
 }
@@ -864,11 +871,14 @@ void SceneViewLayerHost::SetEntityColorByName(const std::string& name,
 void SceneViewLayerHost::SetEntityVisibleByName(const std::string& name, bool visible)
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
-    auto entities = FindEntitiesByName(session->EditorScene.get(), name);
-    for (auto* e : entities) {
+    auto* scene4 = session->EditorScene.get();
+    for (auto h : FindHandlesByName(scene4, name)) {
+        auto* e = scene4->TryGetEntity(h);
+        if (!e) continue;
         if (!e->HasComponent<CHEngine::VisibilityComponent>())
             e->AddComponent<CHEngine::VisibilityComponent>();
-        e->PatchComponent<CHEngine::VisibilityComponent>(
+        e = scene4->TryGetEntity(h);
+        if (e) e->PatchComponent<CHEngine::VisibilityComponent>(
             [visible](CHEngine::VisibilityComponent& vc) { vc.Visible = visible; });
     }
 }
@@ -878,8 +888,9 @@ void SceneViewLayerHost::RenameEntityByName(const std::string& oldName,
 {
     if (newName.empty()) return;
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
-    for (auto* e : FindEntitiesByName(session->EditorScene.get(), oldName))
-        if (e->HasComponent<CHEngine::TagComponent>())
+    auto* scene5 = session->EditorScene.get();
+    for (auto h : FindHandlesByName(scene5, oldName))
+        if (auto* e = scene5->TryGetEntity(h); e && e->HasComponent<CHEngine::TagComponent>())
             e->PatchComponent<CHEngine::TagComponent>(
                 [&](CHEngine::TagComponent& tag) { tag.Name = newName; });
 }
@@ -909,11 +920,14 @@ void SceneViewLayerHost::SetEntityLightByName(const std::string& name,
     if (lightType == "point") ltype = CHEngine::LightType::Point;
     if (lightType == "spot")  ltype = CHEngine::LightType::Spot;
 
-    auto entities = FindEntitiesByName(session->EditorScene.get(), name);
-    for (auto* e : entities) {
+    auto* scene6 = session->EditorScene.get();
+    for (auto h : FindHandlesByName(scene6, name)) {
+        auto* e = scene6->TryGetEntity(h);
+        if (!e) continue;
         if (!e->HasComponent<CHEngine::LightComponent>())
             e->AddComponent<CHEngine::LightComponent>();
-        e->PatchComponent<CHEngine::LightComponent>(
+        e = scene6->TryGetEntity(h);
+        if (e) e->PatchComponent<CHEngine::LightComponent>(
             [ltype, r, g, b, intensity](CHEngine::LightComponent& lc) {
                 lc.LightData.Type      = ltype;
                 lc.LightData.Color     = { r, g, b };
@@ -967,6 +981,11 @@ void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
     const auto& scripts = entity->GetComponent<CHEngine::ScriptComponent>().Scripts;
     if (!scripts.empty())
         OpenScriptInEditor(scripts[0].Path);
+}
+
+void SceneViewLayerHost::OpenExportPanel()
+{
+    SceneViewLayerAccess::Export(m_Layer).Open();
 }
 
 std::string SceneViewLayerHost::GetSceneContextString()

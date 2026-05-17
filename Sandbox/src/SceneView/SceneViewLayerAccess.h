@@ -27,6 +27,7 @@ class SceneBrowserPanel;
 class ScriptEditorPanel;
 class TilingManager;
 class GlobalAiOverlay;
+class ExportPanel;
 } // namespace Sandbox
 
 /// Friend accessors for internal compilation units (host, IO, play mode, etc.).
@@ -53,4 +54,5 @@ struct SceneViewLayerAccess
     static Sandbox::ScriptEditorPanel& ScriptEditor(SceneViewLayer& layer);
     static Sandbox::TilingManager&     Tiling(SceneViewLayer& layer);
     static Sandbox::GlobalAiOverlay&   GlobalAi(SceneViewLayer& layer);
+    static Sandbox::ExportPanel&       Export  (SceneViewLayer& layer);
 };

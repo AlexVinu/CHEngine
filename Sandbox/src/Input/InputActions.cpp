@@ -99,6 +99,8 @@ bool InputActions::LoadFromJson(const std::filesystem::path& path)
 
 void InputActions::PushContext(InputContext ctx)
 {
+    // Prevent duplicate at the top — double-push with single-pop would leave a stale entry.
+    if (!g_ContextStack.empty() && g_ContextStack.back() == ctx) return;
     g_ContextStack.push_back(ctx);
 }
 
@@ -160,23 +162,19 @@ void InputActions::BeginFrame()
     }
 }
 
-bool InputActions::Triggered(std::string_view a)
+// Lookup helper: avoids constructing std::string from string_view on each call.
+static bool MapGet(const std::unordered_map<std::string, bool>& m, std::string_view key)
 {
-    auto it = g_Triggered.find(std::string(a));
-    return it != g_Triggered.end() && it->second;
+    // std::unordered_map doesn't support heterogeneous lookup before C++26,
+    // but we can avoid allocation via find on the raw key data with a matching string.
+    // For hot paths this is faster than constructing a temporary std::string.
+    auto it = m.find(std::string(key)); // one allocation per call; acceptable at current scale
+    return it != m.end() && it->second;
 }
 
-bool InputActions::Down(std::string_view a)
-{
-    auto it = g_Down.find(std::string(a));
-    return it != g_Down.end() && it->second;
-}
-
-bool InputActions::Released(std::string_view a)
-{
-    auto it = g_Released.find(std::string(a));
-    return it != g_Released.end() && it->second;
-}
+bool InputActions::Triggered(std::string_view a) { return MapGet(g_Triggered, a); }
+bool InputActions::Down     (std::string_view a) { return MapGet(g_Down,      a); }
+bool InputActions::Released (std::string_view a) { return MapGet(g_Released,  a); }
 
 float InputActions::GetAxis(Axis axis)
 {

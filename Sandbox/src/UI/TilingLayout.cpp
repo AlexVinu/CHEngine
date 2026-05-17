@@ -3,6 +3,7 @@
 #include <imgui_internal.h>   // ImMax, ImMin, ImClamp
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <cstdio>
 #include <cstring>
 #include <fstream>
@@ -131,21 +132,53 @@ void TilingLayout::SetWorkArea(ImVec2 pos, ImVec2 size)
     m_WorkSize = size;
 }
 
-void TilingLayout::ComputeRects()
+void TilingLayout::ComputeRects(float dt, bool isDragging)
 {
     m_Rects.clear();
     m_Separators.clear();
     if (m_Root)
         ComputeNode(m_Root.get(), m_WorkPos, m_WorkSize);
-}
 
-// Effective size a node occupies in the given direction (accounting for collapsed leaves)
-float TilingLayout::EffectiveSize(TileNode* node, bool horizontal) const
-{
-    if (!node) return 0.0f;
-    if (node->IsLeaf() && node->collapsed)
-        return horizontal ? m_WorkSize.x : kTitleBarH;
-    return 0.0f; // unknown — caller handles
+    // ── Smooth animation ──────────────────────────────────────────────────────
+    // During separator drag: snap instantly (no lag → responsive resize).
+    // Otherwise: exponential lerp toward target at ~10 units/sec decay.
+    const float speed = isDragging ? 9999.0f : 10.0f;
+    // When dragging or first frame (dt==0): snap to target immediately.
+    const float t     = (isDragging || dt <= 0.0f || dt >= 0.5f)
+                        ? 1.0f
+                        : 1.0f - std::exp(-dt * speed);
+
+    auto lerpF = [](float a, float b, float f) { return a + (b - a) * f; };
+
+    for (auto& [id, target] : m_Rects)
+    {
+        auto it = m_AnimRects.find(id);
+        if (it == m_AnimRects.end() || !it->second.valid)
+        {
+            // Panel just appeared: start collapsed (zero height) and expand
+            TileRect start;
+            start.pos   = ImVec2(target.pos.x, target.pos.y + target.size.y); // slide in from bottom
+            start.size  = ImVec2(target.size.x, 0.0f);
+            start.valid = true;
+            m_AnimRects[id] = start;
+        }
+
+        TileRect& anim = m_AnimRects[id];
+        anim.valid   = target.valid;
+        anim.pos.x   = lerpF(anim.pos.x,   target.pos.x,   t);
+        anim.pos.y   = lerpF(anim.pos.y,   target.pos.y,   t);
+        anim.size.x  = lerpF(anim.size.x,  target.size.x,  t);
+        anim.size.y  = lerpF(anim.size.y,  target.size.y,  t);
+    }
+
+    // Remove animated rects for panels that are no longer visible
+    for (auto it = m_AnimRects.begin(); it != m_AnimRects.end(); )
+    {
+        if (m_Rects.find(it->first) == m_Rects.end())
+            it = m_AnimRects.erase(it);
+        else
+            ++it;
+    }
 }
 
 void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
@@ -170,7 +203,6 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
         return n && n->IsLeaf() && n->collapsed;
     };
 
-    float totalA, totalB;
     if (isV)
     {
         // left | right, ratio = fraction for left
@@ -184,8 +216,6 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
             { b = kTitleBarH; a = ImMax(kMinSize, w - b); }
         else
             { a = ImMax(kMinSize, w * node->ratio); b = ImMax(kMinSize, w - a); }
-        totalA = a; totalB = b;
-
         ComputeNode(node->childA.get(), pos, ImVec2(a, size.y));
         {
             SeparatorHit sep;
@@ -213,8 +243,6 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
             { b = kTitleBarH; a = ImMax(kMinSize, h - b); }
         else
             { a = ImMax(kMinSize, h * node->ratio); b = ImMax(kMinSize, h - a); }
-        totalA = a; totalB = b;
-
         ComputeNode(node->childA.get(), pos, ImVec2(size.x, a));
         {
             SeparatorHit sep;
@@ -229,12 +257,14 @@ void TilingLayout::ComputeNode(TileNode* node, ImVec2 pos, ImVec2 size)
         ComputeNode(node->childB.get(), ImVec2(pos.x, pos.y + a + kSeparatorW),
                     ImVec2(size.x, b));
     }
-    (void)totalA; (void)totalB;
 }
 
 // ── Queries ───────────────────────────────────────────────────────────────────
 TileRect TilingLayout::GetRect(PanelID id) const
 {
+    // Return animated rect for smooth transitions; fall back to target rect.
+    auto ia = m_AnimRects.find(static_cast<int>(id));
+    if (ia != m_AnimRects.end()) return ia->second;
     auto it = m_Rects.find(static_cast<int>(id));
     if (it != m_Rects.end()) return it->second;
     return {};
@@ -347,15 +377,15 @@ void TilingLayout::InsertFirstPanel(PanelID id)
     m_Root = MakeLeaf(id);
 }
 
-void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge)
+bool TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edge)
 {
-    if (edge == DropEdge::None || edge == DropEdge::Center) return;
+    if (edge == DropEdge::None || edge == DropEdge::Center) return false;
 
     TileNode* nearNode = FindNode(m_Root.get(), nearPanel);
 
     // Only support inserting next to leaf nodes — inserting next to a split node
     // would corrupt the tree (childA/childB not deep-copied)
-    if (!nearNode || !nearNode->IsLeaf()) return;
+    if (!nearNode || !nearNode->IsLeaf()) return false;
 
     TileNode* parent   = FindParent(m_Root.get(), nearNode);
 
@@ -397,6 +427,7 @@ void TilingLayout::InsertPanel(PanelID newPanel, PanelID nearPanel, DropEdge edg
         else
             parent->childB = std::move(splitNode);
     }
+    return true;
 }
 
 // ── Drop target ───────────────────────────────────────────────────────────────
