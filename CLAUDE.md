@@ -2,6 +2,23 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Правила написания кода (обязательно)
+
+### RAII — строгое соблюдение
+Все ресурсы (память, файлы, хендлы, мьютексы, потоки, GPU-объекты) **обязаны** управляться через RAII:
+- Используй `std::unique_ptr` / `std::shared_ptr` вместо сырых owning-указателей
+- Используй `std::lock_guard` / `std::unique_lock` — никогда не лочи/анлочи вручную
+- Деструктор класса, владеющего ресурсом, должен его освобождать
+- Никаких `new`/`delete` напрямую — только через RAII-обёртки или `MakeRef`/`MakeScope`
+- `std::thread` — всегда `join()` или `detach()` в деструкторе, никогда не оставлять joinable
+- Никаких `std::system()` с пользовательскими путями — только `std::filesystem::permissions()`
+- Ресурсы GPU (текстуры, буферы, шейдеры) — только через Handle-систему движка
+
+### Прочие обязательные практики
+- Не коммитить и не пушить без явного разрешения пользователя
+- Коммиты только на русском языке (человеческий стиль, не AI-слог)
+- Соавтор коммитов: `Doshcanran <Doshcanran@users.noreply.github.com>`
+
 ## Build commands
 
 ```bash
