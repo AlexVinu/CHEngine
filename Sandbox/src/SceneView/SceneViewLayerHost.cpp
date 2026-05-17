@@ -455,6 +455,110 @@ void SceneViewLayerHost::SetSelection(CHEngine::EntityHandle handle)
     SceneViewLayerAccess::ActiveRef(m_Layer)->SelectedEntity = handle;
 }
 
+// ── UI entity helpers ─────────────────────────────────────────────────────────
+// Each helper creates an entity, adds UIRectTransformComponent (centered on screen)
+// plus the component(s) relevant to the element type.
+
+namespace {
+    // Default rect: centered on screen, reasonable size
+    CHEngine::UIRectTransformComponent MakeDefaultRect(float w, float h) {
+        CHEngine::UIRectTransformComponent rt;
+        rt.AnchorMin = { 0.5f, 0.5f };
+        rt.AnchorMax = { 0.5f, 0.5f };
+        rt.Position  = { 0.0f, 0.0f };
+        rt.Size      = { w, h };
+        rt.Pivot     = { 0.5f, 0.5f };
+        return rt;
+    }
+}
+
+void SceneViewLayerHost::AddUICanvas()
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto h = scene->CreateEntity("UI Canvas", boost::uuids::random_generator()());
+    auto* e = scene->TryGetEntity(h);
+    if (!e) return;
+    e->AddComponent<CHEngine::UICanvasComponent>();
+    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(800, 600));
+    session->SelectedEntity = h;
+}
+
+void SceneViewLayerHost::AddUIPanel()
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto h = scene->CreateEntity("UI Panel", boost::uuids::random_generator()());
+    auto* e = scene->TryGetEntity(h);
+    if (!e) return;
+    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(200, 120));
+    e->AddComponent<CHEngine::UIPanelComponent>();
+    session->SelectedEntity = h;
+}
+
+void SceneViewLayerHost::AddUIText()
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto h = scene->CreateEntity("UI Text", boost::uuids::random_generator()());
+    auto* e = scene->TryGetEntity(h);
+    if (!e) return;
+    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(200, 40));
+    CHEngine::UITextComponent txt;
+    txt.Text = "Text";
+    e->AddComponent<CHEngine::UITextComponent>(txt);
+    session->SelectedEntity = h;
+}
+
+void SceneViewLayerHost::AddUIButton()
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto h = scene->CreateEntity("UI Button", boost::uuids::random_generator()());
+    auto* e = scene->TryGetEntity(h);
+    if (!e) return;
+    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(160, 44));
+    CHEngine::UIPanelComponent panel;
+    panel.Color        = { 0.04f, 0.52f, 1.00f, 1.0f };
+    panel.CornerRadius = 6.0f;
+    e->AddComponent<CHEngine::UIPanelComponent>(panel);
+    CHEngine::UITextComponent txt;
+    txt.Text = "Button";
+    e->AddComponent<CHEngine::UITextComponent>(txt);
+    e->AddComponent<CHEngine::UIButtonComponent>();
+    session->SelectedEntity = h;
+}
+
+void SceneViewLayerHost::AddUIImage()
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto h = scene->CreateEntity("UI Image", boost::uuids::random_generator()());
+    auto* e = scene->TryGetEntity(h);
+    if (!e) return;
+    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(200, 200));
+    e->AddComponent<CHEngine::UIImageComponent>();
+    session->SelectedEntity = h;
+}
+
+void SceneViewLayerHost::AddUISlider()
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto h = scene->CreateEntity("UI Slider", boost::uuids::random_generator()());
+    auto* e = scene->TryGetEntity(h);
+    if (!e) return;
+    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(240, 32));
+    e->AddComponent<CHEngine::UISliderComponent>();
+    session->SelectedEntity = h;
+}
+
 void SceneViewLayerHost::DestroyEntityByUuid(const CHEngine::UUID& object_id)
 {
     Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);

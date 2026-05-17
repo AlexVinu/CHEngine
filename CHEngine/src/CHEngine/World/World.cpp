@@ -6,6 +6,8 @@
 #include "Systems/LuaScriptSystem.h"
 #include "Systems/PhysicsSystem.h"
 #include "Systems/RenderSystem.h"
+#include "Systems/UIRenderSystem.h"
+#include "CHEngine/Physics/PhysicsFacade.h"
 #include "CHEngine/Scene/Entity.h"
 #include "WorldEvents.h"
 
@@ -137,6 +139,9 @@ namespace CHEngine
 
         m_Scheduler.EmplaceSystem<PhysicsSystem>();
         m_RenderSystem = &m_Scheduler.EmplaceSystem<RenderSystem>();
+        // UIRenderSystem is NOT in the scheduler — it must run during the ImGui phase
+        // (GetForegroundDrawList only works between ImGui::NewFrame and EndFrame)
+        // Called explicitly from SceneViewLayer_ImGuiFrame and PlayerLayer::OnImGuiRender
     }
 
     void World::RefreshRenderTransforms()

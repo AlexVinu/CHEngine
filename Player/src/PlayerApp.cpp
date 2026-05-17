@@ -5,7 +5,7 @@
 #include <CHEngine/World/World.h>
 #include <CHEngine/Utils/AppPaths.h>
 #include <FileSystem/FileSystem.h>
-#include <FileSystem/PakFile.h>
+#include <CHEngine/ResourceManager/AssetPack.h>
 
 #include <nlohmann/json.hpp>
 #include <filesystem>

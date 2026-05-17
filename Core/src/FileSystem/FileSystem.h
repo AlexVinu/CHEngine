@@ -2,6 +2,8 @@
 
 #include "Core.h"
 #include "Memory/Buffer.h"
+// PakReader/PakBuilder moved to CHEngine/ResourceManager/AssetPack.h
+// Kept here for FileSystem internal use only
 #include "PakFile.h"
 
 #include <filesystem>
