@@ -192,9 +192,6 @@ namespace CHEngine {
 
 		entity->AddComponent<TagComponent>(TagComponent{ name });
 		entity->AddComponent<IDComponent>(IDComponent{ uuid });
-		entity->AddComponent<TransformComponent>();
-		entity->AddComponent<MeshComponent>();
-		entity->AddComponent<ColorComponent>();
 		entity->AddComponent<VisibilityComponent>();
 
 		const EntityHandle handle = m_SceneRegistry->EntityPool.Add(entity);

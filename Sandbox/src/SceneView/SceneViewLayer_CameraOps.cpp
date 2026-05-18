@@ -3,12 +3,10 @@
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 
-#include <CHEngine/Input/Input.h>
-#include <Input/KeyCodes.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Entity.h>
 
-#include "InputSystem.h"
+#include <CHEngine/Input/InputSystem.h>
 
 #include <imgui.h>
 #include <ImGuizmo.h>
@@ -63,19 +61,15 @@ void FocusOnSelected(SceneViewLayer& layer)
 
 void UpdateEditorCameraInput(SceneViewLayer& layer)
 {
-    ImGuiIO& io = ImGui::GetIO();
-
-    Sandbox::InputSystem& IA = Sandbox::GetInputSystem();
+    CHEngine::InputSystem& IA = CHEngine::GetInputSystem();
 
     Sandbox::EditorCameraController::InputSnapshot inputSnapshot{};
     inputSnapshot.IsViewportHovered = SceneViewLayerAccess::Viewport(layer).IsViewportHovered();
     inputSnapshot.IsGizmoUsing = ImGuizmo::IsUsing();
-    inputSnapshot.IsCtrlPressed = io.KeyCtrl;
-    inputSnapshot.IsAltPressed = io.KeyAlt;
-    inputSnapshot.IsShiftPressed = io.KeyShift;
+    inputSnapshot.IsCtrlPressed = IA.IsModifierDown(CHEngine::Mod_Ctrl);
     inputSnapshot.IsFocusPressed = IA.Triggered("Editor.Camera.Focus");
-    inputSnapshot.MouseWheel = IA.GetAxis(Sandbox::InputSystem::Axis::MouseWheel);
-    inputSnapshot.MouseDelta = { IA.GetAxis(Sandbox::InputSystem::Axis::MouseDeltaX), IA.GetAxis(Sandbox::InputSystem::Axis::MouseDeltaY) };
+    inputSnapshot.MouseWheel = IA.GetAxis(CHEngine::InputSystem::Axis::MouseWheel);
+    inputSnapshot.MouseDelta = { IA.GetAxis(CHEngine::InputSystem::Axis::MouseDeltaX), IA.GetAxis(CHEngine::InputSystem::Axis::MouseDeltaY) };
 
     inputSnapshot.IsOrbitByRmbDrag       = IA.Down("Editor.Camera.OrbitRmb");
     inputSnapshot.IsOrbitByAltLmbDrag    = IA.Down("Editor.Camera.OrbitAltLmb");

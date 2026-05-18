@@ -77,7 +77,28 @@ namespace CHModules
 				src = std::regex_replace(src, re, "$1 $2 = $1($3)");
 			}
 
-			// 7. Исправляем UV Y-флип тонмапа: формула написана для Metal (FBO Y=0 сверху),
+			// 7. Разделённые texture2D/sampler (Vulkan/Metal стиль) → комбинированный sampler2D.
+			//    Slang для некоторых таргетов генерирует:
+			//      uniform texture2D uiTexture_0;
+			//      uniform sampler   uiSampler_0;
+			//      texture(sampler2D(uiTexture_0, uiSampler_0), uv)
+			//    GLSL 4.1 такого не поддерживает — нужен комбинированный sampler2D.
+			//    Шаг 7a: "uniform texture2D NAME;" → "uniform sampler2D NAME;"
+			//    Шаг 7b: "uniform sampler NAME;"  → убрать
+			//    Шаг 7c: "sampler2D(TEX, SAM)"   → "TEX"
+			{
+				std::regex re_tex2d(R"(uniform\s+texture2D\s+(\w+)\s*;)");
+				src = std::regex_replace(src, re_tex2d, "uniform sampler2D $1;");
+
+				std::regex re_samp(R"(uniform\s+sampler\s+\w+\s*;\n?)");
+				src = std::regex_replace(src, re_samp, "");
+
+				// sampler2D(tex, samp) → tex  (аргументы могут содержать пробелы)
+				std::regex re_cast(R"(sampler2D\s*\(\s*(\w+)\s*,\s*\w+\s*\))");
+				src = std::regex_replace(src, re_cast, "$1");
+			}
+
+			// 8. Исправляем UV Y-флип тонмапа: формула написана для Metal (FBO Y=0 сверху),
 			//    в OpenGL FBO Y=0 снизу → нужна стандартная UV (без переворота).
 			//
 			//    Metal:   UV.y = 0.5 - pos.y * 0.5   (переворот нужен, т.к. Metal FBO Y=0 сверху)
@@ -227,6 +248,9 @@ namespace CHModules
 			{ { "ObjectUBO",   "block_ObjectUBO_0",   "_ObjectUBO",   "ObjectUBO_0"   }, 1, static_cast<GLint>(sizeof(CHEngine::UBOObject))   },
 			{ { "LightingUBO", "block_LightingUBO_0", "_LightingUBO", "LightingUBO_0" }, 2, static_cast<GLint>(sizeof(CHEngine::UBOLighting)) },
 			{ { "MaterialUBO", "block_MaterialUBO_0", "_MaterialUBO", "MaterialUBO_0" }, 3, static_cast<GLint>(sizeof(CHEngine::UBOMaterial)) },
+			// UI shader UBOs — binding points match UIRendererBackend slot assignments
+			{ { "UICameraUBO", "block_UICameraUBO_0", "_UICameraUBO", "UICameraUBO_0" }, 0, 80  },
+			{ { "UIDrawUBO",   "block_UIDrawUBO_0",   "_UIDrawUBO",   "UIDrawUBO_0"   }, 1, 64  },
 		};
 		constexpr int kBlockCount = static_cast<int>(sizeof(blocks) / sizeof(blocks[0]));
 

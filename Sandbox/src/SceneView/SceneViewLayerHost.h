@@ -76,8 +76,10 @@ public:
     void AddCameraEntity();
     void AddEmptyEntity();
 
-    // UI entities (pre-wired with UIRectTransformComponent + specific component)
-    void AddUICanvas();
+    // UI entities. Canvas is a separate entity (overlay or world); elements
+    // attach to a canvas via UIRectTransformComponent::CanvasRef.
+    void AddUIOverlayCanvas();
+    void AddUIWorldCanvas();
     void AddUIPanel();
     void AddUIText();
     void AddUIButton();

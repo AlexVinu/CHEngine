@@ -245,6 +245,10 @@ namespace CHEngine {
             m_UI = std::make_unique<UISubsystem>(m_ImGuiFactory, layer);
         }
 
+        // ─── 4b. Native UI backend (MSDF text, quad batching) ─────────────────────
+        m_NativeUI = std::make_unique<UIRendererBackend>();
+        m_NativeUI->Init(render_factory);
+
         // ─── 5. Load default shader ───────────────────────────────────────────────
         m_Shader = m_Resources->Load<ShaderHandle>(
             std::string("Basic"),
@@ -259,9 +263,10 @@ namespace CHEngine {
     Application::~Application()
     {
         m_LayerStack.Clear();
-        // Subsystems (m_Resources → m_UI → m_Physics → m_Render → m_Window → m_ModuleManager)
+        // Subsystems (m_Resources → m_NativeUI → m_UI → m_Physics → m_Render → m_Window → m_ModuleManager)
         // destruct in reverse declaration order automatically.
         // ~UISubsystem() deletes the ImGui layer via the factory.
+        // ~UIRendererBackend() releases GPU handles before ~RenderSubsystem().
         // ~RenderSubsystem() calls Shutdown() which releases the factory.
     }
 

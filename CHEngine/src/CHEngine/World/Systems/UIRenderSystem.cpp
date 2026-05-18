@@ -1,256 +1,356 @@
 #include "chepch.h"
 #include "UIRenderSystem.h"
 
+#include "CHEngine/Application.h"
 #include "CHEngine/World/World.h"
 #include "CHEngine/Scene/Scene.h"
+#include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/Components.h"
+#include "CHEngine/UI/UIRendererBackend.h"
+#include "CHEngine/UI/Font/FontAtlasLoader.h"
+#include "CHEngine/Utils/AppPaths.h"
 
-#include <imgui.h>
-#include <imgui_internal.h>
-#include <glm/glm.hpp>
+#include <Render/UniformBlocks.h>
+
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+
 #include <algorithm>
-#include <cmath>
+#include <filesystem>
+#include <unordered_map>
+#include <string>
+#include <vector>
+#include <cstring>
 
 namespace CHEngine {
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-static ImU32 ToImCol(const glm::vec4& c, float alpha = 1.0f)
-{
-    return IM_COL32(
-        (int)(c.r * 255),
-        (int)(c.g * 255),
-        (int)(c.b * 255),
-        (int)(c.a * alpha * 255));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── ResolveRect ─────────────────────────────────────────────────────────────
+//
+// Layout a child UIRectTransform inside a parent (canvas or another rect) whose
+// local coordinate system is (0,0)..(parentW,parentH) in pixels, Y-down.
 UIRenderSystem::UIRect UIRenderSystem::ResolveRect(
-    const UIRectTransformComponent& rt, float screenW, float screenH) const
+    const UIRectTransformComponent& rt, float parentW, float parentH)
 {
-    // Resolve anchor point in screen pixels
-    float anchorX = rt.AnchorMin.x * screenW;
-    float anchorY = rt.AnchorMin.y * screenH;
-
-    // Offset from anchor, adjusted for pivot
-    float pivotOffX = rt.Pivot.x * rt.Size.x;
-    float pivotOffY = rt.Pivot.y * rt.Size.y;
-
-    float x = anchorX + rt.Position.x - pivotOffX;
-    float y = anchorY + rt.Position.y - pivotOffY;
-
-    return { x, y, rt.Size.x, rt.Size.y };
+    float x = rt.AnchorMin.x * parentW - rt.Pivot.x * rt.Size;
+    float y = rt.AnchorMin.y * parentH - rt.Pivot.y * rt.Size;
+    return { x, y, rt.Size, rt.Size };
 }
 
-bool UIRenderSystem::IsHovered(const UIRect& r) const
+// ─── Font caching helper ─────────────────────────────────────────────────────
+
+namespace {
+
+using FontCache = std::unordered_map<std::string, FontAtlasHandle>;
+
+FontAtlasHandle GetFontFromCache(UIRendererBackend& backend,
+                                 FontCache& cache,
+                                 const std::string& path, float size)
 {
-    ImVec2 mp = ImGui::GetIO().MousePos;
-    return (mp.x >= r.x && mp.x <= r.x + r.w &&
-            mp.y >= r.y && mp.y <= r.y + r.h);
+    if (path.empty()) return FontAtlasHandle{};
+    std::string key = path + ":" + std::to_string(static_cast<int>(size));
+    auto it = cache.find(key);
+    if (it != cache.end()) return it->second;
+    std::filesystem::path fsPath(path);
+    if (!fsPath.is_absolute())
+        fsPath = AppPaths::ExecutableDir() / fsPath;
+    FontAtlasHandle h = backend.GetAtlasLoader().Load(fsPath, size);
+    cache[key] = h;
+    return h;
 }
 
-ImFont* UIRenderSystem::GetFont(const std::string& path, float size)
+} // namespace
+
+// ─── DrawElement ─────────────────────────────────────────────────────────────
+
+void UIRenderSystem::DrawElement(UIRendererBackend* backend,
+                                 Entity* entity,
+                                 const UIRect& rect,
+                                 float canvasAlpha)
 {
-    if (path.empty()) return ImGui::GetDefaultFont();
+    static thread_local FontCache fontCache; // small per-frame churn ok
 
-    std::string key = path + ":" + std::to_string((int)size);
-    auto it = m_FontCache.find(key);
-    if (it != m_FontCache.end()) return it->second;
+    const auto& rt = entity->GetComponent<UIRectTransformComponent>();
+    float alpha = canvasAlpha * rt.Alpha;
 
-    // Load font into ImGui atlas — note: atlas must be rebuilt after adding fonts.
-    // In CHEngine the backend rebuilds automatically when TexReady = false.
-    ImGuiIO& io = ImGui::GetIO();
-    ImFont* font = io.Fonts->AddFontFromFileTTF(path.c_str(), size);
-    if (!font) font = ImGui::GetDefaultFont();
+    auto entityColor = [&](glm::vec4 def) -> glm::vec4 {
+        return entity->HasComponent<ColorComponent>()
+            ? entity->GetComponent<ColorComponent>().Color
+            : def;
+    };
 
-    io.Fonts->Build();
-    m_FontCache[key] = font;
-    return font;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Draw helpers
-// ─────────────────────────────────────────────────────────────────────────────
-
-void UIRenderSystem::DrawPanel(ImDrawList* dl, const UIRect& r,
-                                const UIPanelComponent& c, float alpha)
-{
-    ImVec2 tl(r.x, r.y), br(r.x + r.w, r.y + r.h);
-    dl->AddRectFilled(tl, br, ToImCol(c.Color, alpha), c.CornerRadius);
-    if (c.BorderWidth > 0.0f)
-        dl->AddRect(tl, br, ToImCol(c.BorderColor, alpha), c.CornerRadius,
-                    ImDrawFlags_None, c.BorderWidth);
-}
-
-void UIRenderSystem::DrawImage(ImDrawList* dl, const UIRect& r,
-                                const UIImageComponent& c, float alpha)
-{
-    ImVec2 tl(r.x, r.y), br(r.x + r.w, r.y + r.h);
-    // Solid colour (no texture or texture not loaded)
-    dl->AddRectFilled(tl, br, ToImCol(c.Color, alpha));
-    // TODO Phase 2: resolve TexturePath → ImTextureID and draw AddImage
-}
-
-void UIRenderSystem::DrawText(ImDrawList* dl, const UIRect& r,
-                               const UITextComponent& c, float alpha)
-{
-    if (c.Text.empty()) return;
-
-    ImFont* font = GetFont(c.FontPath, c.FontSize);
-    ImU32   col  = ToImCol(c.Color, alpha);
-
-    // Calculate text size for alignment
-    ImVec2 textSz = font->CalcTextSizeA(c.FontSize, FLT_MAX,
-        c.WordWrap ? r.w : -1.0f, c.Text.c_str());
-
-    float tx = r.x, ty = r.y;
-
-    switch (c.HorizontalAlign) {
-    case UITextComponent::HAlign::Center: tx = r.x + (r.w - textSz.x) * 0.5f; break;
-    case UITextComponent::HAlign::Right:  tx = r.x +  r.w - textSz.x;          break;
-    default: break; // Left
-    }
-    switch (c.VerticalAlign) {
-    case UITextComponent::VAlign::Middle: ty = r.y + (r.h - textSz.y) * 0.5f; break;
-    case UITextComponent::VAlign::Bottom: ty = r.y +  r.h - textSz.y;          break;
-    default: break; // Top
+    if (entity->HasComponent<UIPanelComponent>())
+    {
+        const auto& c = entity->GetComponent<UIPanelComponent>();
+        glm::vec4 raw  = entityColor({ 0.10f, 0.10f, 0.12f, 0.90f });
+        glm::vec4 col  = { raw.r, raw.g, raw.b, raw.a * alpha };
+        glm::vec4 bcol = { c.BorderColor.r, c.BorderColor.g,
+                           c.BorderColor.b, c.BorderColor.a * alpha };
+        backend->DrawQuad(rect.x, rect.y, c.Width, rect.h,
+                          col, c.CornerRadius, c.BorderWidth, bcol);
     }
 
-    ImVec2 clipMin(r.x, r.y), clipMax(r.x + r.w, r.y + r.h);
-    dl->PushClipRect(clipMin, clipMax);
-    dl->AddText(font, c.FontSize, ImVec2(tx, ty), col,
-                c.Text.c_str(), nullptr,
-                c.WordWrap ? r.w : 0.0f);
-    dl->PopClipRect();
+    if (entity->HasComponent<UIImageComponent>())
+    {
+        const auto& c = entity->GetComponent<UIImageComponent>();
+        glm::vec4 raw  = entityColor({ 1.0f, 1.0f, 1.0f, 1.0f });
+        glm::vec4 tint = { raw.r, raw.g, raw.b, raw.a * alpha };
+        backend->DrawTexturedQuad(rect.x, rect.y, c.Width, rect.h,
+                                  TextureHandle{}, tint, 0.f);
+    }
+
+    if (entity->HasComponent<UIButtonComponent>())
+    {
+        const auto& btn = entity->GetComponent<UIButtonComponent>();
+        glm::vec4 col = btn.Interactable ? btn.NormalColor : btn.DisabledColor;
+        col.a *= alpha;
+        backend->DrawQuad(rect.x, rect.y, btn.Width, rect.h, col, btn.CornerRadius);
+    }
+
+    if (entity->HasComponent<UISliderComponent>())
+    {
+        const auto& c    = entity->GetComponent<UISliderComponent>();
+        float        norm = (c.Max > c.Min) ? (c.Value - c.Min) / (c.Max - c.Min) : 0.f;
+        norm = std::clamp(norm, 0.f, 1.f);
+
+        float trackY = rect.y + rect.h * 0.35f;
+        float trackH = rect.h * 0.30f;
+        glm::vec4 bg = { c.BackgroundColor.r, c.BackgroundColor.g,
+                         c.BackgroundColor.b, c.BackgroundColor.a * alpha };
+        backend->DrawQuad(rect.x, trackY, c.Width, trackH, bg, 4.f);
+
+        if (norm > 0.f)
+        {
+            glm::vec4 fill = { c.FillColor.r, c.FillColor.g,
+                               c.FillColor.b, c.FillColor.a * alpha };
+            backend->DrawQuad(rect.x, trackY, c.Width * norm, trackH, fill, 4.f);
+        }
+
+        float hx = rect.x + c.Width * norm - c.HandleSize * 0.5f;
+        float hy = rect.y + rect.h * 0.5f - c.HandleSize * 0.5f;
+        glm::vec4 hcol = { c.HandleColor.r, c.HandleColor.g,
+                           c.HandleColor.b, c.HandleColor.a * alpha };
+        backend->DrawQuad(hx, hy, c.HandleSize, c.HandleSize, hcol,
+                          c.HandleSize * 0.5f);
+    }
+
+    if (entity->HasComponent<UITextComponent>())
+    {
+        const auto& c = entity->GetComponent<UITextComponent>();
+        if (!c.Text.empty())
+        {
+            const float fontSize = rect.h;
+            FontAtlasHandle fh = GetFontFromCache(*backend, fontCache,
+                                                  c.FontPath, fontSize);
+            glm::vec4 col = { c.Color.r, c.Color.g, c.Color.b, c.Color.a * alpha };
+            backend->DrawUIText(c.Text, rect.x, rect.y, rect.w, rect.h,
+                                fh, fontSize, col);
+        }
+    }
 }
 
-void UIRenderSystem::DrawButton(ImDrawList* dl, const UIRect& r,
-                                 const UIButtonComponent& c, float alpha,
-                                 bool hovered, bool pressed)
-{
-    glm::vec4 col = c.NormalColor;
-    if (!c.Interactable) col = c.DisabledColor;
-    else if (pressed)    col = c.PressedColor;
-    else if (hovered)    col = c.HoverColor;
-
-    ImVec2 tl(r.x, r.y), br(r.x + r.w, r.y + r.h);
-    dl->AddRectFilled(tl, br, ToImCol(col, alpha), c.CornerRadius);
-}
-
-void UIRenderSystem::DrawSlider(ImDrawList* dl, const UIRect& r,
-                                 const UISliderComponent& c, float alpha)
-{
-    // Background track
-    ImVec2 tl(r.x, r.y + r.h * 0.35f);
-    ImVec2 br(r.x + r.w, r.y + r.h * 0.65f);
-    dl->AddRectFilled(tl, br, ToImCol(c.BackgroundColor, alpha), 4.0f);
-
-    // Fill
-    float norm  = (c.Max > c.Min) ? (c.Value - c.Min) / (c.Max - c.Min) : 0.0f;
-    float fillW = r.w * std::clamp(norm, 0.0f, 1.0f);
-    if (fillW > 0.0f)
-        dl->AddRectFilled(tl, ImVec2(tl.x + fillW, br.y),
-                          ToImCol(c.FillColor, alpha), 4.0f);
-
-    // Handle
-    float hx = r.x + fillW;
-    float hy = r.y + r.h * 0.5f;
-    float hs = c.HandleSize * 0.5f;
-    dl->AddCircleFilled(ImVec2(hx, hy), hs, ToImCol(c.HandleColor, alpha));
-    dl->AddCircle(ImVec2(hx, hy), hs, IM_COL32(0,0,0,60));
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Main render loop
-// ─────────────────────────────────────────────────────────────────────────────
+// ─── Run ─────────────────────────────────────────────────────────────────────
 
 void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*/)
 {
     auto scene = world.GetSceneRef();
     if (!scene) return;
 
-    // Must be inside an ImGui frame
-    if (!ImGui::GetCurrentContext()) return;
+    UIRendererBackend* backend = Application::Get().NativeUI();
+    if (!backend) return;
 
-    ImGuiIO& io  = ImGui::GetIO();
-    float    sw  = io.DisplaySize.x;
-    float    sh  = io.DisplaySize.y;
-    if (sw <= 0 || sh <= 0) return;
+    const uint32_t sw = Application::Get().Render().GetViewportWidth();
+    const uint32_t sh = Application::Get().Render().GetViewportHeight();
+    if (sw == 0 || sh == 0) return;
 
-    // ── Collect all screen-space canvas entities ───────────────────────────
-    // We only handle ScreenSpaceOverlay in Phase 1.
-    // World-space canvases are Phase 5.
-    struct DrawEntry {
-        int       sortOrder;
-        int       zOrder;
+    backend->BeginFrame(sw, sh);
+
+    // Step 1: build UUID → EntityHandle index of canvases.
+    struct CanvasInfo
+    {
         EntityHandle handle;
+        bool         isOverlay;
+        int          sortOrder;
     };
-    std::vector<DrawEntry> entries;
+    std::unordered_map<UUID, CanvasInfo, boost::hash<UUID>> canvasIndex;
+
+    scene->ForEach<UIOverlayCanvasComponent>(
+        [&](EntityHandle h, const UUID& uuid, UIOverlayCanvasComponent& c)
+        {
+            auto* e = scene->TryGetEntity(h);
+            if (e && e->HasComponent<VisibilityComponent>() &&
+                !e->GetComponent<VisibilityComponent>().Visible) return;
+            canvasIndex[uuid] = { h, /*overlay*/ true, c.SortOrder };
+        });
+
+    scene->ForEach<UIWorldCanvasComponent>(
+        [&](EntityHandle h, const UUID& uuid, UIWorldCanvasComponent& /*c*/)
+        {
+            auto* e = scene->TryGetEntity(h);
+            if (e && e->HasComponent<VisibilityComponent>() &&
+                !e->GetComponent<VisibilityComponent>().Visible) return;
+            canvasIndex[uuid] = { h, /*overlay*/ false, 0 };
+        });
+
+    if (canvasIndex.empty()) return;
+
+    // Step 2: group elements by CanvasRef.
+    std::unordered_map<UUID, std::vector<EntityHandle>, boost::hash<UUID>>
+        elementsByCanvas;
 
     scene->ForEach<UIRectTransformComponent>(
         [&](EntityHandle h, const UUID&, UIRectTransformComponent& rt)
         {
-            // Check if entity (or any ancestor) has a ScreenSpaceOverlay canvas.
-            // Phase 1 simplification: any entity with UIRectTransform is drawn.
-            int sortOrder = 0;
-            auto* e = scene->TryGetEntity(h);
-            if (e && e->HasComponent<UICanvasComponent>()) {
-                if (e->GetComponent<UICanvasComponent>().Mode ==
-                    UICanvasComponent::RenderMode::WorldSpace) return;
-                sortOrder = e->GetComponent<UICanvasComponent>().SortOrder;
-            }
-            entries.push_back({ sortOrder, rt.ZOrder, h });
+            auto it = canvasIndex.find(rt.CanvasRef);
+            if (it == canvasIndex.end()) return;
+            elementsByCanvas[rt.CanvasRef].push_back(h);
         });
 
-    // Sort by canvas sort order, then z-order within canvas
-    std::sort(entries.begin(), entries.end(), [](const DrawEntry& a, const DrawEntry& b) {
-        if (a.sortOrder != b.sortOrder) return a.sortOrder < b.sortOrder;
-        return a.zOrder < b.zOrder;
-    });
+    // Step 3: separate overlay & world canvas lists, sort overlay by SortOrder.
+    std::vector<UUID> overlayList;
+    std::vector<UUID> worldList;
+    overlayList.reserve(canvasIndex.size());
+    worldList.reserve(canvasIndex.size());
+    for (const auto& [uuid, info] : canvasIndex)
+        (info.isOverlay ? overlayList : worldList).push_back(uuid);
 
-    // Use foreground draw list so UI is always on top
-    ImDrawList* dl = ImGui::GetForegroundDrawList();
+    std::sort(overlayList.begin(), overlayList.end(),
+        [&](const UUID& a, const UUID& b)
+        { return canvasIndex[a].sortOrder < canvasIndex[b].sortOrder; });
 
-    for (auto& entry : entries)
+    auto SortElements = [&](std::vector<EntityHandle>& list)
     {
-        auto* e = scene->TryGetEntity(entry.handle);
-        if (!e) continue;
+        std::sort(list.begin(), list.end(),
+            [&](EntityHandle a, EntityHandle b)
+            {
+                auto* ea = scene->TryGetEntity(a);
+                auto* eb = scene->TryGetEntity(b);
+                int za = ea ? ea->GetComponent<UIRectTransformComponent>().ZOrder : 0;
+                int zb = eb ? eb->GetComponent<UIRectTransformComponent>().ZOrder : 0;
+                return za < zb;
+            });
+    };
 
-        auto& rt    = e->GetComponent<UIRectTransformComponent>();
-        UIRect rect = ResolveRect(rt, sw, sh);
-        float  alpha = rt.Alpha;
+    // ── Overlay pass ──────────────────────────────────────────────────────────
+    if (!overlayList.empty())
+    {
+        backend->BeginOverlay();
+        for (const UUID& uuid : overlayList)
+        {
+            auto* canvasEnt = scene->TryGetEntity(canvasIndex[uuid].handle);
+            if (!canvasEnt) continue;
+            const auto& c = canvasEnt->GetComponent<UIOverlayCanvasComponent>();
 
-        // ── Panel ─────────────────────────────────────────────────────────
-        if (e->HasComponent<UIPanelComponent>())
-            DrawPanel(dl, rect, e->GetComponent<UIPanelComponent>(), alpha);
+            // Size нормализован в [0..1] — конвертим в пиксели один раз.
+            const float canvasW = c.Size.x * static_cast<float>(sw);
+            const float canvasH = c.Size.y * static_cast<float>(sh);
 
-        // ── Image ─────────────────────────────────────────────────────────
-        if (e->HasComponent<UIImageComponent>())
-            DrawImage(dl, rect, e->GetComponent<UIImageComponent>(), alpha);
+            // Resolve canvas rect on screen (Unity-style anchor + pivot).
+            float canvasX = c.AnchorMin.x * static_cast<float>(sw)
+                          + c.Position.x - c.Pivot.x * canvasW;
+            float canvasY = c.AnchorMin.y * static_cast<float>(sh)
+                          + c.Position.y - c.Pivot.y * canvasH;
 
-        // ── Button ────────────────────────────────────────────────────────
-        if (e->HasComponent<UIButtonComponent>()) {
-            auto& btn = e->GetComponent<UIButtonComponent>();
-            bool hov  = btn.Interactable && IsHovered(rect);
-            bool press= hov && ImGui::IsMouseDown(ImGuiMouseButton_Left);
-            bool click= hov && ImGui::IsMouseReleased(ImGuiMouseButton_Left);
-            DrawButton(dl, rect, btn, alpha, hov, press);
+            // Draw canvas background using ColorComponent on the canvas entity.
+            glm::vec4 bg = { 0.0f, 0.0f, 0.0f, 0.0f };
+            if (canvasEnt->HasComponent<ColorComponent>())
+            {
+                const auto& cc = canvasEnt->GetComponent<ColorComponent>();
+                bg = { cc.Color.r, cc.Color.g, cc.Color.b, cc.Color.a * c.Alpha };
+            }
+            if (bg.a > 0.0f)
+                backend->DrawQuad(canvasX, canvasY, canvasW, canvasH, bg);
 
-            // Fire OnClick via Lua (handled by LuaScriptSystem on next frame)
-            // We write a flag into a thread-safe queue — Phase 3 TODO.
-            (void)click;
+            // Children: positions are in canvas-local pixels, but the overlay
+            // submission uses screen ortho, so offset by (canvasX, canvasY).
+            auto eit = elementsByCanvas.find(uuid);
+            if (eit == elementsByCanvas.end()) continue;
+            SortElements(eit->second);
+
+            backend->SetClipRect(canvasX, canvasY, canvasW, canvasH);
+            for (EntityHandle eh : eit->second)
+            {
+                auto* e = scene->TryGetEntity(eh);
+                if (!e) continue;
+                if (e->HasComponent<VisibilityComponent>() &&
+                    !e->GetComponent<VisibilityComponent>().Visible)
+                    continue;
+                const auto& rt = e->GetComponent<UIRectTransformComponent>();
+                UIRect r = ResolveRect(rt, canvasW, canvasH);
+                r.x += canvasX;
+                r.y += canvasY;
+                DrawElement(backend, e, r, c.Alpha);
+            }
+            backend->ClearClipRect();
         }
-
-        // ── Slider ────────────────────────────────────────────────────────
-        if (e->HasComponent<UISliderComponent>())
-            DrawSlider(dl, rect, e->GetComponent<UISliderComponent>(), alpha);
-
-        // ── Text (drawn last so it's on top of background elements) ───────
-        if (e->HasComponent<UITextComponent>())
-            DrawText(dl, rect, e->GetComponent<UITextComponent>(), alpha);
+        backend->EndCanvas();
     }
+
+    // ── World canvases ────────────────────────────────────────────────────────
+    if (!worldList.empty())
+    {
+        const auto& sceneCam = Application::Get().Render().GetSceneCamera();
+        glm::mat4 cameraVP;
+        std::memcpy(glm::value_ptr(cameraVP),
+                    sceneCam.ViewProjection, sizeof(cameraVP));
+
+        for (const UUID& uuid : worldList)
+        {
+            auto* canvasEnt = scene->TryGetEntity(canvasIndex[uuid].handle);
+            if (!canvasEnt) continue;
+            const auto& c = canvasEnt->GetComponent<UIWorldCanvasComponent>();
+            if (!canvasEnt->HasComponent<TransformComponent>()) continue;
+
+            glm::mat4 model =
+                canvasEnt->GetComponent<TransformComponent>().ObjectTransform.GetMatrix();
+
+            // Virtual pixel resolution of the canvas: 100 px per meter
+            // so that UI elements specified in pixels stay readable in world.
+            constexpr float kPixPerMeter = 100.0f;
+            glm::vec2 sizePx = c.Size * kPixPerMeter;
+
+            // pixelToLocal: maps canvas-pixel (0..Wpx, 0..Hpx, Y-down)
+            // → canvas-local meters in XY plane (X right, Y up), Z=0, centered at origin.
+            glm::mat4 pixelToLocal =
+                glm::translate(glm::mat4(1.0f), glm::vec3(-c.Size.x * 0.5f,  c.Size.y * 0.5f, 0.0f)) *
+                glm::scale    (glm::mat4(1.0f), glm::vec3(c.Size.x / sizePx.x,
+                                                          -c.Size.y / sizePx.y, 1.0f));
+
+            glm::mat4 viewProj = cameraVP * model * pixelToLocal;
+
+            backend->BeginCanvas(viewProj, /*depthTest*/ true);
+
+            // Canvas background quad using ColorComponent on the canvas entity.
+            glm::vec4 bg = { 0.0f, 0.0f, 0.0f, 0.0f };
+            if (canvasEnt->HasComponent<ColorComponent>())
+            {
+                const auto& cc = canvasEnt->GetComponent<ColorComponent>();
+                bg = { cc.Color.r, cc.Color.g, cc.Color.b, cc.Color.a * c.Alpha };
+            }
+            if (bg.a > 0.0f)
+                backend->DrawQuad(0.0f, 0.0f, sizePx.x, sizePx.y, bg);
+
+            auto eit = elementsByCanvas.find(uuid);
+            if (eit != elementsByCanvas.end())
+            {
+                SortElements(eit->second);
+                for (EntityHandle eh : eit->second)
+                {
+                    auto* e = scene->TryGetEntity(eh);
+                    if (!e) continue;
+                    if (e->HasComponent<VisibilityComponent>() &&
+                        !e->GetComponent<VisibilityComponent>().Visible)
+                        continue;
+                    const auto& rt = e->GetComponent<UIRectTransformComponent>();
+                    UIRect r = ResolveRect(rt, sizePx.x, sizePx.y);
+                    DrawElement(backend, e, r, c.Alpha);
+                }
+            }
+
+            backend->EndCanvas();
+        }
+    }
+
+    backend->Flush();
 }
 
 } // namespace CHEngine

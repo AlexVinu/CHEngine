@@ -560,16 +560,18 @@ namespace CHEngine {
 
         int entityCount = 0, meshCount = 0, skippedInvisible = 0, skippedNoBuffer = 0;
 
-        scene.ForEach<MeshComponent, TransformComponent, ColorComponent, VisibilityComponent>(
+        scene.ForEach<MeshComponent, TransformComponent, VisibilityComponent>(
             [&](EntityHandle handle, const UUID&, MeshComponent& meshComp,
-                TransformComponent& transformComp, ColorComponent& colorComp,
+                TransformComponent& transformComp,
                 VisibilityComponent& visibilityComp)
             {
                 ++entityCount;
                 if (!visibilityComp.Visible) { ++skippedInvisible; return; }
 
                 const Transform&  t     = transformComp.ObjectTransform;
-                const glm::vec4&  color = colorComp.Color;
+                auto entity = scene.TryGetEntity(handle);
+                bool has_color = entity->HasComponent<ColorComponent>();
+                const glm::vec4& color = has_color ? entity->GetComponent<ColorComponent>().Color : glm::vec4(1.0, 1.0, 1.0, 0.0);
 
                 const glm::mat4 model =
                     glm::translate(glm::mat4(1.0f), t.Position)

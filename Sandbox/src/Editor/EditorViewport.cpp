@@ -340,7 +340,13 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
                      | ImGuiWindowFlags_NoNavFocus);
     ImGui::PopStyleVar();
 
-    m_ViewportHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem);
+    {
+        ImVec2 mp = ImGui::GetMousePos();
+        ImVec2 wp = ImGui::GetWindowPos();
+        ImVec2 ws = ImGui::GetWindowSize();
+        m_ViewportHovered = (mp.x >= wp.x && mp.x < wp.x + ws.x &&
+                             mp.y >= wp.y && mp.y < wp.y + ws.y);
+    }
     // Use cursor screen pos (not window pos) — window has padding that offsets the image.
     // ImGuizmo::SetRect must match exactly where the Image is drawn.
     m_ViewportPos = ImGui::GetCursorScreenPos();

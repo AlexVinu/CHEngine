@@ -3,7 +3,10 @@
 #include <tuple>
 #include <vector>
 #include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/nil_generator.hpp>
+#include <boost/container_hash/hash.hpp>
+#include <spdlog/fmt/fmt.h>
 #include "CHEngine/Mesh/Mesh.h"
 #include "Light.h"
 #include "Transform.h"
@@ -17,7 +20,37 @@
 // TODO: Make check if components can be serialized
 namespace CHEngine {
 
-    using UUID = boost::uuids::uuid;
+	struct UUID {
+		UUID() : value(boost::uuids::nil_uuid()) {}
+		UUID(const boost::uuids::uuid& u) : value(u) {}
+
+		operator boost::uuids::uuid() const { return value; }
+		operator boost::uuids::uuid() { return value; }
+		UUID& operator=(const UUID& u) {
+			value = u.value;
+			return *this;
+		}
+        
+        operator std::string() const { return boost::uuids::to_string(value); }
+
+		bool operator==(const UUID& other) const { return value == other.value; }
+		bool operator!=(const UUID& other) const { return value != other.value; }
+		bool operator<(const UUID& other) const { return value < other.value; }
+
+		bool IsValid() const { return value != boost::uuids::nil_uuid(); }
+    private:
+        boost::uuids::uuid value;
+	};
+
+	inline std::ostream& operator<<(std::ostream& os, const UUID& u) {
+        os << static_cast<std::string>(u);
+		return os;
+	}
+
+	inline std::size_t hash_value(const UUID& u) {
+		return boost::hash<boost::uuids::uuid>()(static_cast<boost::uuids::uuid>(u));
+	}
+
     class IPhysicsBody;
     class IPhysicsShape;
 
@@ -33,6 +66,11 @@ namespace CHEngine {
 
     struct TagComponent {
         std::string         Name;
+    };
+
+    struct ParentNodeComponent
+    {
+        UUID Value = boost::uuids::nil_uuid();
     };
 
     // Render
@@ -105,35 +143,42 @@ namespace CHEngine {
     // UI Components
     // =========================================================================
 
-    // UICanvasComponent — root container that defines the UI space.
-    // Screen Space Overlay: drawn on top of everything, ignores camera.
-    // World Space: the Canvas is a quad in 3D space.
-    struct UICanvasComponent
+    // UIOverlayCanvasComponent — root container для screen-space UI.
+    struct UIOverlayCanvasComponent
     {
-        enum class RenderMode : uint8_t { ScreenSpaceOverlay = 0, WorldSpace = 1 };
-        RenderMode Mode      = RenderMode::ScreenSpaceOverlay;
-        int        SortOrder = 0;   // higher = drawn on top
+        glm::vec2 AnchorMin = { 0.5f, 0.5f };
+        glm::vec2 AnchorMax = { 0.5f, 0.5f };
+        glm::vec2 Position  = { 0.0f, 0.0f };
+        glm::vec2 Size      = { 1.0f, 1.0f }; // нормализованный размер (доля от экрана 0..1)
+        glm::vec2 Pivot     = { 0.5f, 0.5f };
+        int       SortOrder = 0;              // выше = поверх
+        float     Alpha     = 1.0f;
     };
 
-    // UIRectTransform — 2D layout, similar to Unity's RectTransform.
-    // Position is in pixels, anchored to a point on screen/parent.
-    // Anchor (0,0) = top-left, (1,1) = bottom-right, (0.5,0.5) = center.
+    // UIWorldCanvasComponent — root container для UI в мире.
+    struct UIWorldCanvasComponent
+    {
+        glm::vec2 Size       = { 2.0f, 1.0f };
+        float     Alpha      = 1.0f;
+        bool      DoubleSided = true;
+    };
+
+    // На самой канвас-entity этот компонент НЕ присутствует.
     struct UIRectTransformComponent
     {
-        glm::vec2 AnchorMin  = { 0.5f, 0.5f }; // normalized, top-left = (0,0)
-        glm::vec2 AnchorMax  = { 0.5f, 0.5f }; // for stretch: set different from Min
-        glm::vec2 Position   = { 0.0f, 0.0f }; // pixel offset from anchor
-        glm::vec2 Size       = { 160.0f, 40.0f }; // pixels
-        glm::vec2 Pivot      = { 0.5f, 0.5f }; // point inside element used as origin
-        float     Rotation   = 0.0f;            // degrees
-        float     Alpha      = 1.0f;            // 0=transparent, 1=opaque
-        int       ZOrder     = 0;               // depth within canvas
+        UUID      CanvasRef  = boost::uuids::nil_uuid();
+        glm::vec2 AnchorMin  = { 0.5f, 0.5f }; // нормализованный якорь внутри канваса
+        glm::vec2 AnchorMax  = { 0.5f, 0.5f };
+        float     Size       = 40.0f;  // высота / размер шрифта в пикселях
+        glm::vec2 Pivot      = { 0.5f, 0.5f };
+        float     Alpha      = 1.0f;
+        int       ZOrder     = 0;
     };
 
     // UIImageComponent — displays a flat colour or a texture.
     struct UIImageComponent
     {
-        glm::vec4   Color        = { 1.0f, 1.0f, 1.0f, 1.0f };
+        float       Width          = 160.0f;
         std::string TexturePath;   // empty = solid colour
         bool        PreserveAspect = true;
         bool        SlicedBorder   = false; // 9-slice (future)
@@ -158,21 +203,21 @@ namespace CHEngine {
     // UIPanelComponent — rounded background rectangle with optional border.
     struct UIPanelComponent
     {
-        glm::vec4 Color        = { 0.10f, 0.10f, 0.12f, 0.90f };
+        float     Width        = 160.0f;
         glm::vec4 BorderColor  = { 0.30f, 0.30f, 0.35f, 1.00f };
         float     BorderWidth  = 0.0f;
         float     CornerRadius = 6.0f;
     };
 
     // UIButtonComponent — clickable element with hover/pressed visual feedback.
-    // OnClick is a Lua function name called on the entity's script.
+    // Скрипт на entity вызывается через convention: function OnClick(entity).
     struct UIButtonComponent
     {
+        float       Width        = 160.0f;
         glm::vec4   NormalColor  = { 1.00f, 1.00f, 1.00f, 1.00f };
         glm::vec4   HoverColor   = { 0.85f, 0.90f, 1.00f, 1.00f };
         glm::vec4   PressedColor = { 0.65f, 0.75f, 1.00f, 1.00f };
         glm::vec4   DisabledColor= { 0.50f, 0.50f, 0.50f, 0.60f };
-        std::string OnClick;        // Lua function name ("OnButtonClick")
         bool        Interactable = true;
         float       CornerRadius = 6.0f;
     };
@@ -180,6 +225,7 @@ namespace CHEngine {
     // UISliderComponent — horizontal slider.
     struct UISliderComponent
     {
+        float     Width           = 200.0f;
         float     Value           = 0.5f;
         float     Min             = 0.0f;
         float     Max             = 1.0f;
@@ -188,7 +234,6 @@ namespace CHEngine {
         glm::vec4 HandleColor     = { 1.00f, 1.00f, 1.00f, 1.00f };
         float     HandleSize      = 16.0f;
         bool      Interactable    = true;
-        std::string OnChange;         // Lua function name
     };
 
 	template<typename... Components>
@@ -200,6 +245,7 @@ namespace CHEngine {
     // TODO: Copying between scenes could be better
     using CopyableSceneComponents = ComponentGroup<
         TransformComponent,
+        ParentNodeComponent,
         ColorComponent,
         VisibilityComponent,
         LightComponent,
@@ -208,7 +254,8 @@ namespace CHEngine {
         ScriptComponent,
         RigidBody3DComponent,
         MeshComponent,
-        UICanvasComponent,
+        UIOverlayCanvasComponent,
+        UIWorldCanvasComponent,
         UIRectTransformComponent,
         UIImageComponent,
         UITextComponent,
@@ -216,3 +263,10 @@ namespace CHEngine {
         UIButtonComponent,
         UISliderComponent>;
 }
+
+template <>
+struct fmt::formatter<CHEngine::UUID> : fmt::formatter<std::string> {
+    auto format(const CHEngine::UUID& u, fmt::format_context& ctx) const {
+        return fmt::formatter<std::string>::format(static_cast<std::string>(u), ctx);
+    }
+};

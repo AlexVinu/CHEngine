@@ -1,6 +1,6 @@
 #include "ScriptEditorPanel.h"
 
-#include "InputSystem.h"
+#include <CHEngine/Input/InputSystem.h>
 
 #include <TextEditor.h>
 #include <imgui.h>
@@ -242,7 +242,7 @@ void ScriptEditorPanel::Draw()
 
     // ── Горячие клавиши ─────────────────────────────────────────────────────
     bool wantSave = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-                 && GetInputSystem().Triggered("Editor.Script.Save");
+                 && CHEngine::GetInputSystem().Triggered("Editor.Script.Save");
     if (wantSave) Save();
 
     // ── Menu bar ─────────────────────────────────────────────────────────────
@@ -408,7 +408,7 @@ void ScriptEditorPanel::DrawInPanel()
     // Just render the editor contents directly (same as Draw body after Begin).
     // Hot keys
     bool wantSave = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows)
-                 && GetInputSystem().Triggered("Editor.Script.Save");
+                 && CHEngine::GetInputSystem().Triggered("Editor.Script.Save");
     if (wantSave) Save();
 
     // Editor + AI pane (reuse same split logic)

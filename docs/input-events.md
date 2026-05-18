@@ -177,7 +177,7 @@ public:
     }
 
     void OnImGuiRender() override {
-        // Вызывается каждый кадр между UIFacade::Begin/End
+        // Вызывается каждый кадр между UISubsystem::Begin/End
         ImGui::Begin("My Panel");
         ImGui::End();
     }
@@ -212,11 +212,7 @@ camera.Pitch += Input::GetMouseDeltaY() * 0.1f;
 // Pitch автоматически зажимается в диапазоне [-89°, +89°]
 
 // Передать в рендерер
-RenderFacade::SetSceneCamera(
-    camera.GetViewMatrix(),
-    camera.GetProjectionMatrix(),
-    camera.Position
-);
+Application::Get().Render().SetSceneCamera(cameraUBO);
 ```
 
 Либо через `CameraComponent` в ECS — `RenderSystem` сам найдёт Primary-камеру:

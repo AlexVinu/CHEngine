@@ -14,6 +14,7 @@ option(CHE_BUILD_PLAYER  "Build standalone Game Player" ON)
 option(CHE_BUILD_OPENGL "Build OpengGL render" ON)
 option(CHE_BUILD_VULKAN "Build Vulkan render" OFF)
 option(CHE_BUILD_PHYSICS "Build PhysX physics module" ON)
+option(CHE_BUILD_UI_NATIVE "Build native in-game UI (MSDF text, quad batching)" ON)
 if(APPLE)
     option(CHE_BUILD_METAL "Build Metal render" ON)
 endif()
@@ -75,6 +76,31 @@ add_subdirectory(${GLFW_VENDOR_DIR} vendors/GLFW)
 # GLAD: собирается как SHARED, vendor CMakeLists настроен с WINDOWS_EXPORT_ALL_SYMBOLS
 # и корректными output директориями для всех платформ
 add_subdirectory(${GLAD_VENDOR_DIR})
+
+# FreeType + msdf-atlas-gen (нужны до CHEngine, чтобы таргеты были доступны)
+if(CHE_BUILD_UI_NATIVE)
+    # FreeType — только TTF/OTF, без PNG/zlib/harfbuzz/brotli
+    set(FT_DISABLE_ZLIB     ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BZIP2    ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_PNG      ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_HARFBUZZ ON CACHE BOOL "" FORCE)
+    set(FT_DISABLE_BROTLI   ON CACHE BOOL "" FORCE)
+    add_subdirectory(${CHE_VENDOR_DIR}/freetype vendors/freetype)
+
+    # msdf-atlas-gen: без vcpkg, без Skia, без PNG в msdfgen
+    set(MSDF_ATLAS_USE_VCPKG          OFF CACHE BOOL "" FORCE)
+    set(MSDF_ATLAS_USE_SKIA           OFF CACHE BOOL "" FORCE)
+    set(MSDF_ATLAS_BUILD_STANDALONE   ON  CACHE BOOL "" FORCE)
+    set(MSDF_ATLAS_NO_ARTERY_FONT     OFF CACHE BOOL "" FORCE)
+    set(MSDF_ATLAS_INSTALL            OFF CACHE BOOL "" FORCE)
+    set(MSDF_ATLAS_DYNAMIC_RUNTIME    ON  CACHE BOOL "" FORCE)  # DLL CRT — согласовано с CHEngine SHARED
+    set(MSDFGEN_DISABLE_SVG           ON  CACHE BOOL "" FORCE)
+    set(MSDFGEN_DISABLE_PNG           ON  CACHE BOOL "" FORCE)
+    set(MSDFGEN_BUILD_STANDALONE      OFF CACHE BOOL "" FORCE)
+    # msdfgen-ext использует find_package(Freetype) — предоставляем наш таргет
+    add_library(Freetype::Freetype ALIAS freetype)
+    add_subdirectory(${CHE_VENDOR_DIR}/msdf-atlas-gen vendors/msdf-atlas-gen)
+endif()
 
 # Добавление подпроектов
 add_subdirectory(Core)      # Ядро

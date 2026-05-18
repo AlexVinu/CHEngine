@@ -305,14 +305,12 @@ void SceneViewLayerHost::AddDirectionalLight()
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Directional Light", object_id);
     if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
+        entity->AddComponent<CHEngine::TransformComponent>();
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
-        if (entity->HasComponent<CHEngine::TransformComponent>())
-        {
-            entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
-                transform_component.ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
-            });
-        }
+        entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
+            transform_component.ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+        });
         activeSession->SelectedEntity = handle;
     }
 }
@@ -327,14 +325,12 @@ void SceneViewLayerHost::AddPointLight()
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Point Light", object_id);
     if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
+        entity->AddComponent<CHEngine::TransformComponent>();
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Point } });
-        if (entity->HasComponent<CHEngine::TransformComponent>())
-        {
-            entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
-                transform_component.ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
-            });
-        }
+        entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
+            transform_component.ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+        });
         activeSession->SelectedEntity = handle;
     }
 }
@@ -349,15 +345,13 @@ void SceneViewLayerHost::AddSpotLight()
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Spot Light", object_id);
     if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
+        entity->AddComponent<CHEngine::TransformComponent>();
         entity->AddComponent<CHEngine::LightComponent>(
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Spot } });
-        if (entity->HasComponent<CHEngine::TransformComponent>())
-        {
-            entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
-                transform_component.ObjectTransform.Position = { 0.0f, 5.0f, 0.0f };
-                transform_component.ObjectTransform.Rotation = { -90.0f, 0.0f, 0.0f };
-            });
-        }
+        entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
+            transform_component.ObjectTransform.Position = { 0.0f, 5.0f, 0.0f };
+            transform_component.ObjectTransform.Rotation = { -90.0f, 0.0f, 0.0f };
+        });
         activeSession->SelectedEntity = handle;
     }
 }
@@ -375,8 +369,8 @@ void SceneViewLayerHost::AddCubePrimitive()
     if (!entity)
         return;
 
-    if (!entity->HasComponent<CHEngine::MeshComponent>())
-        entity->AddComponent<CHEngine::MeshComponent>(CHEngine::MeshComponent{});
+    entity->AddComponent<CHEngine::TransformComponent>();
+    entity->AddComponent<CHEngine::MeshComponent>();
 
     CHEngine::Mesh cube_mesh = CHEngine::PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
     cube_mesh.Mat = CHEngine::MaterialInstance::FromBase(
@@ -404,8 +398,8 @@ void SceneViewLayerHost::AddSpherePrimitive()
     if (!entity)
         return;
 
-    if (!entity->HasComponent<CHEngine::MeshComponent>())
-        entity->AddComponent<CHEngine::MeshComponent>(CHEngine::MeshComponent{});
+    entity->AddComponent<CHEngine::TransformComponent>();
+    entity->AddComponent<CHEngine::MeshComponent>();
 
     // Sphere impostor: 2 triangles + ray-sphere intersection in shader.
     // World radius is encoded as the entity's transform scale (scale == radius).
@@ -435,6 +429,7 @@ void SceneViewLayerHost::AddCameraEntity()
     if (!entity)
         return;
 
+    entity->AddComponent<CHEngine::TransformComponent>();
     entity->AddComponent<CHEngine::CameraComponent>();
     activeSession->SelectedEntity = handle;
 }
@@ -447,6 +442,8 @@ void SceneViewLayerHost::AddEmptyEntity()
         return;
     const CHEngine::UUID object_id = boost::uuids::random_generator()();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("New Object", object_id);
+    if (auto* entity = scene_ref->TryGetEntity(handle); entity)
+        entity->AddComponent<CHEngine::TransformComponent>();
     activeSession->SelectedEntity = handle;
 }
 
@@ -465,23 +462,104 @@ namespace {
         CHEngine::UIRectTransformComponent rt;
         rt.AnchorMin = { 0.5f, 0.5f };
         rt.AnchorMax = { 0.5f, 0.5f };
-        rt.Position  = { 0.0f, 0.0f };
-        rt.Size      = { w, h };
+        rt.Size      = h;
         rt.Pivot     = { 0.5f, 0.5f };
         return rt;
     }
 }
 
-void SceneViewLayerHost::AddUICanvas()
+namespace {
+    // Резолв канваса для нового UI-элемента:
+    //   1. Выбранная entity — канвас → её UUID.
+    //   2. Выбранная entity — UI-элемент с валидным CanvasRef → его CanvasRef.
+    //   3. Первый канвас в сцене.
+    //   4. Иначе nil_uuid() — caller создаёт overlay-канвас.
+    CHEngine::UUID ResolveTargetCanvas(const Ref<CHEngine::Scene>& scene,
+                                       CHEngine::EntityHandle selected)
+    {
+        auto IsCanvas = [](const CHEngine::Entity* e) {
+            return e && (e->HasComponent<CHEngine::UIOverlayCanvasComponent>() ||
+                         e->HasComponent<CHEngine::UIWorldCanvasComponent>());
+        };
+
+        if (scene->IsEntityHandleValid(selected))
+        {
+            auto* e = scene->TryGetEntity(selected);
+            if (IsCanvas(e))
+                return scene->GetUUID(selected);
+            if (e && e->HasComponent<CHEngine::UIRectTransformComponent>())
+            {
+                const auto& rt = e->GetComponent<CHEngine::UIRectTransformComponent>();
+                if (rt.CanvasRef.IsValid())
+                    return rt.CanvasRef;
+            }
+        }
+
+        CHEngine::UUID found = boost::uuids::nil_uuid();
+        scene->ForEach<CHEngine::UIOverlayCanvasComponent>(
+            [&](CHEngine::EntityHandle, const CHEngine::UUID& uuid,
+                CHEngine::UIOverlayCanvasComponent&)
+            { if (!found.IsValid()) found = uuid; });
+        if (!found.IsValid())
+        {
+            scene->ForEach<CHEngine::UIWorldCanvasComponent>(
+                [&](CHEngine::EntityHandle, const CHEngine::UUID& uuid,
+                    CHEngine::UIWorldCanvasComponent&)
+                { if (!found.IsValid()) found = uuid; });
+        }
+        return found;
+    }
+
+    // Создать UI-элемент, гарантировав наличие канваса.
+    // Возвращает handle нового элемента и его CanvasRef.
+    CHEngine::EntityHandle CreateUIElement(SceneViewLayerHost& host,
+                                           const Ref<EditorWorldContext>& session,
+                                           const Ref<CHEngine::Scene>& scene,
+                                           const std::string& name,
+                                           float w, float h)
+    {
+        CHEngine::UUID canvasUuid = ResolveTargetCanvas(scene, session->SelectedEntity);
+        if (!canvasUuid.IsValid())
+        {
+            host.AddUIOverlayCanvas();
+            canvasUuid = scene->GetUUID(session->SelectedEntity);
+        }
+
+        auto eh = scene->CreateEntity(name, boost::uuids::random_generator()());
+        auto* e = scene->TryGetEntity(eh);
+        if (!e) return {};
+
+        CHEngine::UIRectTransformComponent rt = MakeDefaultRect(w, h);
+        rt.CanvasRef = canvasUuid;
+        e->AddComponent<CHEngine::UIRectTransformComponent>(rt);
+        return eh;
+    }
+} // namespace
+
+void SceneViewLayerHost::AddUIOverlayCanvas()
 {
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI Canvas", boost::uuids::random_generator()());
+    auto h = scene->CreateEntity("UI Overlay Canvas", boost::uuids::random_generator()());
     auto* e = scene->TryGetEntity(h);
     if (!e) return;
-    e->AddComponent<CHEngine::UICanvasComponent>();
-    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(800, 600));
+    e->AddComponent<CHEngine::UIOverlayCanvasComponent>();
+    e->AddComponent<CHEngine::ColorComponent>(CHEngine::ColorComponent{ { 0.08f, 0.08f, 0.10f, 0.6f } });
+    session->SelectedEntity = h;
+}
+
+void SceneViewLayerHost::AddUIWorldCanvas()
+{
+    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto scene   = session->EditorScene;
+    if (!scene) return;
+    auto h = scene->CreateEntity("UI World Canvas", boost::uuids::random_generator()());
+    auto* e = scene->TryGetEntity(h);
+    if (!e) return;
+    e->AddComponent<CHEngine::TransformComponent>();
+    e->AddComponent<CHEngine::UIWorldCanvasComponent>();
+    e->AddComponent<CHEngine::ColorComponent>(CHEngine::ColorComponent{ { 0.08f, 0.08f, 0.10f, 0.6f } });
     session->SelectedEntity = h;
 }
 
@@ -490,12 +568,13 @@ void SceneViewLayerHost::AddUIPanel()
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI Panel", boost::uuids::random_generator()());
-    auto* e = scene->TryGetEntity(h);
-    if (!e) return;
-    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(200, 120));
-    e->AddComponent<CHEngine::UIPanelComponent>();
-    session->SelectedEntity = h;
+    auto eh = CreateUIElement(*this, session, scene, "UI Panel", 200, 120);
+    if (auto* e = scene->TryGetEntity(eh))
+    {
+        e->AddComponent<CHEngine::UIPanelComponent>();
+        e->AddComponent<CHEngine::ColorComponent>(CHEngine::ColorComponent{ { 0.10f, 0.10f, 0.12f, 0.90f } });
+    }
+    session->SelectedEntity = eh;
 }
 
 void SceneViewLayerHost::AddUIText()
@@ -503,14 +582,16 @@ void SceneViewLayerHost::AddUIText()
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI Text", boost::uuids::random_generator()());
-    auto* e = scene->TryGetEntity(h);
-    if (!e) return;
-    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(200, 40));
-    CHEngine::UITextComponent txt;
-    txt.Text = "Text";
-    e->AddComponent<CHEngine::UITextComponent>(txt);
-    session->SelectedEntity = h;
+    auto eh = CreateUIElement(*this, session, scene, "UI Text", 200, 40);
+    if (auto* e = scene->TryGetEntity(eh))
+    {
+        CHEngine::UITextComponent txt;
+        txt.Text     = "Text";
+        txt.FontPath = "assets/fonts/Roboto-Medium.ttf";
+        txt.FontSize = 24.0f;
+        e->AddComponent<CHEngine::UITextComponent>(txt);
+    }
+    session->SelectedEntity = eh;
 }
 
 void SceneViewLayerHost::AddUIButton()
@@ -518,19 +599,21 @@ void SceneViewLayerHost::AddUIButton()
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI Button", boost::uuids::random_generator()());
-    auto* e = scene->TryGetEntity(h);
-    if (!e) return;
-    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(160, 44));
-    CHEngine::UIPanelComponent panel;
-    panel.Color        = { 0.04f, 0.52f, 1.00f, 1.0f };
-    panel.CornerRadius = 6.0f;
-    e->AddComponent<CHEngine::UIPanelComponent>(panel);
-    CHEngine::UITextComponent txt;
-    txt.Text = "Button";
-    e->AddComponent<CHEngine::UITextComponent>(txt);
-    e->AddComponent<CHEngine::UIButtonComponent>();
-    session->SelectedEntity = h;
+    auto eh = CreateUIElement(*this, session, scene, "UI Button", 160, 44);
+    if (auto* e = scene->TryGetEntity(eh))
+    {
+        CHEngine::UIPanelComponent panel;
+        panel.CornerRadius = 6.0f;
+        e->AddComponent<CHEngine::UIPanelComponent>(panel);
+        e->AddComponent<CHEngine::ColorComponent>(CHEngine::ColorComponent{ { 0.04f, 0.52f, 1.00f, 1.0f } });
+        CHEngine::UITextComponent txt;
+        txt.Text     = "Button";
+        txt.FontPath = "assets/fonts/Roboto-Medium.ttf";
+        txt.FontSize = 20.0f;
+        e->AddComponent<CHEngine::UITextComponent>(txt);
+        e->AddComponent<CHEngine::UIButtonComponent>();
+    }
+    session->SelectedEntity = eh;
 }
 
 void SceneViewLayerHost::AddUIImage()
@@ -538,12 +621,13 @@ void SceneViewLayerHost::AddUIImage()
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI Image", boost::uuids::random_generator()());
-    auto* e = scene->TryGetEntity(h);
-    if (!e) return;
-    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(200, 200));
-    e->AddComponent<CHEngine::UIImageComponent>();
-    session->SelectedEntity = h;
+    auto eh = CreateUIElement(*this, session, scene, "UI Image", 200, 200);
+    if (auto* e = scene->TryGetEntity(eh))
+    {
+        e->AddComponent<CHEngine::UIImageComponent>();
+        e->AddComponent<CHEngine::ColorComponent>(CHEngine::ColorComponent{ { 1.0f, 1.0f, 1.0f, 1.0f } });
+    }
+    session->SelectedEntity = eh;
 }
 
 void SceneViewLayerHost::AddUISlider()
@@ -551,12 +635,10 @@ void SceneViewLayerHost::AddUISlider()
     auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI Slider", boost::uuids::random_generator()());
-    auto* e = scene->TryGetEntity(h);
-    if (!e) return;
-    e->AddComponent<CHEngine::UIRectTransformComponent>(MakeDefaultRect(240, 32));
-    e->AddComponent<CHEngine::UISliderComponent>();
-    session->SelectedEntity = h;
+    auto eh = CreateUIElement(*this, session, scene, "UI Slider", 240, 32);
+    if (auto* e = scene->TryGetEntity(eh))
+        e->AddComponent<CHEngine::UISliderComponent>();
+    session->SelectedEntity = eh;
 }
 
 void SceneViewLayerHost::DestroyEntityByUuid(const CHEngine::UUID& object_id)

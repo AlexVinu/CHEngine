@@ -74,6 +74,17 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     PREFIX ""
 )
 
+# Native UI: msdf-atlas-gen + freetype (CPU-only, линкуются статически в CHEngine)
+if(CHE_BUILD_UI_NATIVE)
+    target_compile_definitions(${PROJECT_NAME} PRIVATE CHE_UI_NATIVE)
+    target_link_libraries(${PROJECT_NAME} PRIVATE msdf-atlas-gen::msdf-atlas-gen freetype)
+    target_include_directories(${PROJECT_NAME} PRIVATE
+        "${CHE_VENDOR_DIR}/msdf-atlas-gen"
+        "${CHE_VENDOR_DIR}/msdf-atlas-gen/msdfgen"
+        "${CHE_VENDOR_DIR}/freetype/include"
+    )
+endif()
+
 # Определения препроцессора
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     CHE_BUILD_DLL

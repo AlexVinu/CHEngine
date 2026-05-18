@@ -9,7 +9,7 @@
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Utils/AppPaths.h>
 
-#include "InputSystem.h"
+#include <CHEngine/Input/InputSystem.h>
 
 #include <Render/UniformBlocks.h>
 
@@ -215,8 +215,8 @@ public:
 		: CHEngine::Application(config)
 	{
 		// Initialise InputSystem first — callers assume it's registered before layers start.
-		m_Input = std::make_unique<Sandbox::InputSystem>();
-		Sandbox::RegisterInputSystem(m_Input.get());
+		m_Input = std::make_unique<CHEngine::InputSystem>();
+		CHEngine::RegisterInputSystem(m_Input.get());
 		m_Input->LoadFromJson(CHEngine::AppPaths::ExecutableDir() / "config/keybindings.json");
 
 		// Try to restore the last used project so the editor can start immediately.
@@ -239,11 +239,11 @@ public:
 
 	~SandboxApp()
 	{
-		Sandbox::RegisterInputSystem(nullptr);
+		CHEngine::RegisterInputSystem(nullptr);
 	}
 
 private:
-	std::unique_ptr<Sandbox::InputSystem>     m_Input;
+	std::unique_ptr<CHEngine::InputSystem>    m_Input;
 	Ref<std::vector<Ref<EditorWorldContext>>> m_MutualWorlds;
 	Ref<ProjectManager>                       m_ProjectManager;
 };

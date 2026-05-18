@@ -47,4 +47,16 @@ private:
     Ref<ScriptHost> m_Host;
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Внешний API для вызова Lua-функций по имени из других C++ систем.
+// Безопасный no-op, если: ScriptHost для данного World ещё/уже не зарегистрирован,
+// у entity нет ScriptComponent, скрипт ещё не started, либо функция не определена.
+// Аргументы: первым параметром в Lua-функцию всегда передаётся ScriptEntity,
+// далее значения args (если есть).
+// ─────────────────────────────────────────────────────────────────────────────
+void LuaCallEntityFunction(World& world, DeferredOps& deferred,
+                           EntityHandle entity, const char* fnName);
+void LuaCallEntityFunction(World& world, DeferredOps& deferred,
+                           EntityHandle entity, const char* fnName, float arg);
+
 } // namespace CHEngine

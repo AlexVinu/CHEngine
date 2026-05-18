@@ -510,6 +510,47 @@ public:
         DispatchUpdate(world, deferred, dt);
     }
 
+    // ── Вызов произвольной функции по имени на всех скриптах сущности ────────
+    template<typename... Args>
+    void CallEntityFunctionImpl(World& world, DeferredOps& deferred,
+                                EntityHandle handle, const char* fnName, Args&&... args)
+    {
+        auto scene = world.GetSceneRef();
+        if (!scene || !scene->IsEntityHandleValid(handle)) return;
+        const uint64_t ek = EntityKey(handle);
+        ScriptEntity se{ handle, &world, &deferred };
+        for (auto& [key, inst] : m_Instances)
+        {
+            if (key.kind != ScriptKey::Kind::Entity) continue;
+            if (key.entityKey != ek) continue;
+            if (!inst.started || inst.hasError) continue;
+            sol::object obj = inst.env.get<sol::object>(fnName);
+            if (!obj.is<sol::safe_function>()) continue;
+            sol::safe_function fn = obj.as<sol::safe_function>();
+            try
+            {
+                auto res = fn(se, std::forward<Args>(args)...);
+                if (!res.valid())
+                {
+                    sol::error e = res;
+                    CHE_CORE_ERROR("[Lua] {} '{}': {}", fnName, inst.path, e.what());
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                CHE_CORE_ERROR("[Lua] Exception in {} '{}': {}", fnName, inst.path, ex.what());
+            }
+        }
+    }
+
+    void CallEntityFunction(World& world, DeferredOps& deferred,
+                            EntityHandle handle, const char* fnName)
+    { CallEntityFunctionImpl(world, deferred, handle, fnName); }
+
+    void CallEntityFunction(World& world, DeferredOps& deferred,
+                            EntityHandle handle, const char* fnName, float arg)
+    { CallEntityFunctionImpl(world, deferred, handle, fnName, arg); }
+
 private:
     sol::state                                                            m_Lua;
     std::unordered_map<ScriptKey, ScriptInstance, ScriptKeyHash>          m_Instances;
@@ -858,6 +899,22 @@ void LuaScriptSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 void LuaScriptSystem::OnEnd(World& world, DeferredOps& deferred_ops)
 {
     if (m_Host) m_Host->OnEnd(world, deferred_ops);
+}
+
+// ─── Внешний C++ API ─────────────────────────────────────────────────────────
+
+void LuaCallEntityFunction(World& world, DeferredOps& deferred,
+                           EntityHandle entity, const char* fnName)
+{
+    if (auto* host = FindHost(&world))
+        host->CallEntityFunction(world, deferred, entity, fnName);
+}
+
+void LuaCallEntityFunction(World& world, DeferredOps& deferred,
+                           EntityHandle entity, const char* fnName, float arg)
+{
+    if (auto* host = FindHost(&world))
+        host->CallEntityFunction(world, deferred, entity, fnName, arg);
 }
 
 } // namespace CHEngine

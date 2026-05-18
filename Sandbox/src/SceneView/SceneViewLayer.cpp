@@ -6,8 +6,8 @@
 
 #include "UIThemeActive.h"
 #include "ProjectManager.h"
-#include "InputSystem.h"
 
+#include <CHEngine/Input/InputSystem.h>
 #include <Log/Log.h>
 #include <Profiler.h>
 #include <filesystem>
@@ -69,8 +69,6 @@ void SceneViewLayer::OnProjectOpened()
 void SceneViewLayer::OnUpdate(CHEngine::Timestep dt)
 {
     CHE_PROFILE_FUNCTION();
-
-    Sandbox::GetInputSystem().BeginFrame();
 
     if (!m_ProjectManager->HasProject())
         return;

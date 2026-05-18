@@ -14,6 +14,7 @@
 #include "Render/RenderSubsystem.h"
 #include "Physics/PhysicsSubsystem.h"
 #include "UI/UISubsystem.h"
+#include "UI/UIRendererBackend.h"
 #include "ResourceManager/ResourceManager.h"
 
 #include "ModuleManager.h"
@@ -67,12 +68,14 @@ namespace CHEngine {
         RenderSubsystem&  Render()    { CHE_CORE_ASSERT(m_Render,   "Render subsystem not initialised"); return *m_Render; }
 
         // Physics and UI are optional — check HasPhysics()/HasUI() before calling.
-        PhysicsSubsystem* Physics()   { return m_Physics.get(); }
-        UISubsystem*      UI()        { return m_UI.get();      }
-        ResourceManager&  Resources() { return *m_Resources;    }
+        PhysicsSubsystem*  Physics()   { return m_Physics.get();   }
+        UISubsystem*       UI()        { return m_UI.get();        }
+        UIRendererBackend* NativeUI()  { return m_NativeUI.get();  }
+        ResourceManager&   Resources() { return *m_Resources;      }
 
-        bool HasPhysics() const { return m_Physics != nullptr; }
-        bool HasUI()      const { return m_UI      != nullptr; }
+        bool HasPhysics()  const { return m_Physics  != nullptr; }
+        bool HasUI()       const { return m_UI       != nullptr; }
+        bool HasNativeUI() const { return m_NativeUI != nullptr; }
 
         // Legacy: direct factory pointer (used by renderer modules themselves)
         IRenderFactory* GetRenderFactory() const { return m_Render ? m_Render->GetRenderFactory() : nullptr; }
@@ -107,6 +110,7 @@ namespace CHEngine {
         Scope<RenderSubsystem>   m_Render;
         Scope<PhysicsSubsystem>  m_Physics;
         Scope<UISubsystem>       m_UI;
+        Scope<UIRendererBackend> m_NativeUI;
         Scope<ResourceManager>   m_Resources;
 
         // ── Factory pointers (non-owning, lifetime = module) ──────────────────

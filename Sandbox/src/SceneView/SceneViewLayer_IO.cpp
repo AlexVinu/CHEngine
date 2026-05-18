@@ -60,14 +60,14 @@ bool TryParseUUIDString(const std::string& input, CHEngine::UUID& outUUID)
     if (hex.size() != 32)
         return false;
 
-    CHEngine::UUID parsed = boost::uuids::nil_uuid();
+    CHEngine::UUID parsed;
     for (size_t i = 0; i < 16; ++i)
     {
         const int hi = HexToNibble(hex[i * 2]);
         const int lo = HexToNibble(hex[i * 2 + 1]);
         if (hi < 0 || lo < 0)
             return false;
-        *(parsed.begin() + static_cast<std::ptrdiff_t>(i)) = static_cast<uint8_t>((hi << 4) | lo);
+        *(((boost::uuids::uuid)parsed).begin() + static_cast<std::ptrdiff_t>(i)) = static_cast<uint8_t>((hi << 4) | lo);
     }
 
     outUUID = parsed;
@@ -193,14 +193,6 @@ void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
         {
             path = (proj->RootDir() / ctx->SceneRelPath).string();
         }
-    }
-    else
-    {
-        // Fallback for editor-without-project use (legacy): use dialog.
-        const char* filters[] = { "*.chscene" };
-        path = CHEngine::FileDialog::SaveFile("Save Scene", "scene.chscene", filters, 1, ".chscene");
-        if (path.empty())
-            return;
     }
 
     Sandbox::EditorCameraState& camera_state = ctx->EditorCameraState;
@@ -606,8 +598,10 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
         return;
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity(result->name, objectID);
     auto* entity = scene_ref->TryGetEntity(handle);
-    if (!entity || !entity->HasComponent<CHEngine::TransformComponent>() || !entity->HasComponent<CHEngine::MeshComponent>())
+    if (!entity)
         return;
+    entity->AddComponent<CHEngine::TransformComponent>();
+    entity->AddComponent<CHEngine::MeshComponent>();
     entity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
         mesh_component.Meshes = std::move(meshes);
         mesh_component.SourcePath = sourceForScene;

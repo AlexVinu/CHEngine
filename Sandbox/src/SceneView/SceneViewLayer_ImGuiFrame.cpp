@@ -11,6 +11,7 @@
 
 #include "UIThemeActive.h"
 #include "TilingManager.h"
+#include <CHEngine/Input/InputSystem.h>
 
 #include <CHEngine/Scene/Components.h>
 
@@ -28,6 +29,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(layer);
     Sandbox::TilingManager&  tiling   = SceneViewLayerAccess::Tiling(layer);
 
+    CHEngine::GetInputSystem().BeginFrame();
     viewport.Begin();
     SceneViewLayerCameraOps::PrepareEditorCameraFrame(layer);
     UIActive::SyncLayout();

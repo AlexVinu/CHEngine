@@ -155,6 +155,24 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
                 host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                     [&host] { host.FocusOnSelected(); }, [] {}, false));
             }
+
+            // Add UI submenu — только если entity является канвасом.
+            if (const auto* ent = scene_ptr->TryGetEntity(handle);
+                ent && (ent->HasComponent<CHEngine::UIOverlayCanvasComponent>() ||
+                        ent->HasComponent<CHEngine::UIWorldCanvasComponent>()))
+            {
+                ImGui::Separator();
+                if (ImGui::BeginMenu("Add UI"))
+                {
+                    if (ImGui::MenuItem("Panel"))  { host.SetSelection(handle); host.AddUIPanel();  }
+                    if (ImGui::MenuItem("Text"))   { host.SetSelection(handle); host.AddUIText();   }
+                    if (ImGui::MenuItem("Button")) { host.SetSelection(handle); host.AddUIButton(); }
+                    if (ImGui::MenuItem("Image"))  { host.SetSelection(handle); host.AddUIImage();  }
+                    if (ImGui::MenuItem("Slider")) { host.SetSelection(handle); host.AddUISlider(); }
+                    ImGui::EndMenu();
+                }
+            }
+
             ImGui::Separator();
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.231f, 0.188f, 1.0f));
             if (ImGui::MenuItem("Delete")) deleteID = objectID;

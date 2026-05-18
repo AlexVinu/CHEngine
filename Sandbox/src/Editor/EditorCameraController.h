@@ -21,8 +21,6 @@ public:
         bool IsGizmoUsing = false;
 
         bool IsCtrlPressed = false;
-        bool IsAltPressed = false;
-        bool IsShiftPressed = false;
         bool IsFocusPressed = false;
 
         float MouseWheel = 0.0f;

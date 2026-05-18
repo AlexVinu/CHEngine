@@ -5,7 +5,8 @@
 
 namespace CHEngine
 {
-    // Owns the ImGui layer.  Constructed only when ImGui is available;
+    // Owns the ImGui layer.
+    // Constructed only when ImGui is available;
     // Application holds it as Scope<UISubsystem> (nullptr = ImGui disabled).
     class CHENGINE_API UISubsystem
     {

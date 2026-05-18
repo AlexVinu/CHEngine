@@ -7,7 +7,7 @@
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Utils/FileDialog.h>
 
-#include "InputSystem.h"
+#include <CHEngine/Input/InputSystem.h>
 #include "UIThemeActive.h"
 
 #include <cstdio>
@@ -61,7 +61,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
     // ── Keyboard shortcuts (driven by InputActions / keybindings.json) ───────
     if (!ImGui::GetIO().WantTextInput)
     {
-        InputSystem& IA = GetInputSystem();
+        CHEngine::InputSystem& IA = CHEngine::GetInputSystem();
 
         if (IA.Triggered("Editor.Gizmo.Translate"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(

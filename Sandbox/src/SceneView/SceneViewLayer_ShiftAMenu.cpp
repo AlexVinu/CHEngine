@@ -4,7 +4,7 @@
 #include "SceneViewLayerAccess.h"
 #include "SceneViewLayerHost.h"
 #include "EditorPopupState.h"
-#include "InputSystem.h"
+#include <CHEngine/Input/InputSystem.h>
 #include "UIThemeRetroOS.h"
 
 #include <imgui.h>
@@ -31,7 +31,7 @@ void Draw(SceneViewLayer& layer)
     // Open on Shift+A (viewport hovered, edit mode)
     if (viewport.IsViewportHovered() && ctx.GetSessionState() == SceneSession::State::Edit)
     {
-        if (Sandbox::GetInputSystem().Triggered("Editor.Menu.AddEntity"))
+        if (CHEngine::GetInputSystem().Triggered("Editor.Menu.AddEntity"))
         {
             EditorPopup::Open(EditorPopup::ID::ShiftA); // closes any other popup
             s_Pos = ImGui::GetMousePos();
@@ -42,7 +42,7 @@ void Draw(SceneViewLayer& layer)
         return;
 
     // Escape always closes
-    if (Sandbox::GetInputSystem().Triggered("Editor.Popup.Close"))
+    if (CHEngine::GetInputSystem().Triggered("Editor.Popup.Close"))
     { EditorPopup::Close(); return; }
 
     ImGui::SetNextWindowPos(s_Pos, ImGuiCond_Always);
@@ -53,16 +53,13 @@ void Draw(SceneViewLayer& layer)
     ImGui::Begin("##shift_a_menu", nullptr, kFlags);
     ImGui::PopStyleVar(3);
 
-    // Click outside THIS popup window → close
-    {
-        ImVec2 wPos  = ImGui::GetWindowPos();
-        ImVec2 wSize = ImGui::GetWindowSize();
-        ImGuiIO& io  = ImGui::GetIO();
-        bool outside = io.MousePos.x < wPos.x || io.MousePos.x > wPos.x + wSize.x ||
-                       io.MousePos.y < wPos.y || io.MousePos.y > wPos.y + wSize.y;
-        if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && outside)
-        { EditorPopup::Close(); ImGui::End(); return; }
-    }
+    // Click outside ALL popup windows → close.
+    // IMPORTANT: use IsWindowHovered(AnyWindow) so that clicking inside a
+    // child popup (e.g. the "UI ▶" submenu) doesn't trigger a false close
+    // before the MenuItem inside can return true.
+    if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
+        !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
+    { EditorPopup::Close(); ImGui::End(); return; }
 
     Sandbox::SceneViewLayerHost host(layer);
     const float w = 150.0f;
@@ -108,7 +105,7 @@ void Draw(SceneViewLayer& layer)
     // BeginMenu creates a Blender-style submenu: stays open while mouse moves
     // diagonally toward it (ImGui handles this with an internal hover timer).
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
-    if (ImGui::BeginMenu("  UI  \xe2\x96\xb6", true))  // ▶
+    if (ImGui::BeginMenu("UI", true))  // ▶
     {
         UIThemeRetro::PushHeadingFont();
         ImGui::TextDisabled("UI Elements");
@@ -116,12 +113,8 @@ void Draw(SceneViewLayer& layer)
         ImGui::Separator();
         ImGui::Spacing();
 
-        if (ImGui::MenuItem("  Canvas"))       { host.AddUICanvas();  EditorPopup::Close(); }
-        if (ImGui::MenuItem("  Panel"))        { host.AddUIPanel();   EditorPopup::Close(); }
-        if (ImGui::MenuItem("  Text"))         { host.AddUIText();    EditorPopup::Close(); }
-        if (ImGui::MenuItem("  Button"))       { host.AddUIButton();  EditorPopup::Close(); }
-        if (ImGui::MenuItem("  Image"))        { host.AddUIImage();   EditorPopup::Close(); }
-        if (ImGui::MenuItem("  Slider"))       { host.AddUISlider();  EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Canvas (Overlay)")) { host.AddUIOverlayCanvas(); EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Canvas (World)"))   { host.AddUIWorldCanvas();   EditorPopup::Close(); }
 
         ImGui::EndMenu();
     }

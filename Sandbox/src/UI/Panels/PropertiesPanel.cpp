@@ -12,8 +12,6 @@
 
 #include "UIThemeActive.h"
 
-#include <boost/uuid/uuid_io.hpp>
-
 #include <glm/gtc/type_ptr.hpp>
 
 #include <algorithm>
@@ -159,7 +157,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     }
 
     auto* selectedEntity = scene_ptr->TryGetEntity(selectedHandle);
-    if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::TransformComponent>())
+    if (!selectedEntity ||
+        (!selectedEntity->HasComponent<CHEngine::TransformComponent>() &&
+         !selectedEntity->HasComponent<CHEngine::UIRectTransformComponent>() &&
+         !selectedEntity->HasComponent<CHEngine::UIOverlayCanvasComponent>() &&
+         !selectedEntity->HasComponent<CHEngine::UIWorldCanvasComponent>()))
     {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.686f, 0.686f, 0.706f, 1.0f));
@@ -182,7 +184,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
 
     if (!selectedEntity->HasComponent<CHEngine::TagComponent>())
     {
-        const std::string uuidLabel = boost::uuids::to_string(scene_ptr->GetUUID(selectedHandle));
+        const std::string uuidLabel = scene_ptr->GetUUID(selectedHandle);
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
         ImGui::TextUnformatted("(no tag)");
         ImGui::PopStyleColor();
@@ -212,15 +214,6 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             DisplayAddComponentEntry<CHEngine::RigidBody3DComponent>("RigidBody 3D", selectedEntity, *activeSession);
             DisplayAddComponentEntry<CHEngine::LifetimeComponent>("Lifetime", selectedEntity, *activeSession);
             DisplayAddComponentEntry<CHEngine::ScriptComponent>("Script", selectedEntity, *activeSession);
-            ImGui::Separator();
-            ImGui::TextDisabled("UI");
-            DisplayAddComponentEntry<CHEngine::UICanvasComponent>       ("UI Canvas",     selectedEntity, *activeSession);
-            DisplayAddComponentEntry<CHEngine::UIRectTransformComponent>("UI Rect",       selectedEntity, *activeSession);
-            DisplayAddComponentEntry<CHEngine::UIPanelComponent>        ("UI Panel",      selectedEntity, *activeSession);
-            DisplayAddComponentEntry<CHEngine::UIImageComponent>        ("UI Image",      selectedEntity, *activeSession);
-            DisplayAddComponentEntry<CHEngine::UITextComponent>         ("UI Text",       selectedEntity, *activeSession);
-            DisplayAddComponentEntry<CHEngine::UIButtonComponent>       ("UI Button",     selectedEntity, *activeSession);
-            DisplayAddComponentEntry<CHEngine::UISliderComponent>       ("UI Slider",     selectedEntity, *activeSession);
             ImGui::EndPopup();
         }
         ImGui::Spacing();
@@ -1171,33 +1164,186 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
 
     // ── UI Components ─────────────────────────────────────────────────────────
 
-    DrawComponent<CHEngine::UICanvasComponent>("UI Canvas", true, propsReadOnly,
-        *activeSession, selectedHandle, selectedEntity, "UICanvas",
-        [&](CHEngine::UICanvasComponent& c) {
-            const char* modes[] = { "Screen Space Overlay", "World Space" };
-            int m = (int)c.Mode;
-            if (ImGui::Combo("Mode##canvas", &m, modes, 2))
-                selectedEntity->PatchComponent<CHEngine::UICanvasComponent>(
-                    [m](CHEngine::UICanvasComponent& cc) {
-                        cc.Mode = (CHEngine::UICanvasComponent::RenderMode)m; });
+    DrawComponent<CHEngine::UIOverlayCanvasComponent>("UI Overlay Canvas", true, propsReadOnly,
+        *activeSession, selectedHandle, selectedEntity, "UIOverlayCanvas",
+        [&](CHEngine::UIOverlayCanvasComponent& c) {
+            float pos[2] = { c.Position.x, c.Position.y };
+            if (ImGui::DragFloat2("Position##ovc", pos, 1.0f))
+                selectedEntity->PatchComponent<CHEngine::UIOverlayCanvasComponent>(
+                    [&](CHEngine::UIOverlayCanvasComponent& cc) { cc.Position = { pos[0], pos[1] }; });
+            float sz[2] = { c.Size.x, c.Size.y };
+            if (ImGui::DragFloat2("Size##ovc", sz, 0.01f, 0.0f, 1.0f, "%.2f"))
+                selectedEntity->PatchComponent<CHEngine::UIOverlayCanvasComponent>(
+                    [&](CHEngine::UIOverlayCanvasComponent& cc) { cc.Size = { sz[0], sz[1] }; });
+            float anc[2] = { c.AnchorMin.x, c.AnchorMin.y };
+            if (ImGui::DragFloat2("Anchor##ovc", anc, 0.01f, 0.0f, 1.0f))
+                selectedEntity->PatchComponent<CHEngine::UIOverlayCanvasComponent>(
+                    [&](CHEngine::UIOverlayCanvasComponent& cc) {
+                        cc.AnchorMin = cc.AnchorMax = { anc[0], anc[1] }; });
+            float pivot[2] = { c.Pivot.x, c.Pivot.y };
+            if (ImGui::DragFloat2("Pivot##ovc", pivot, 0.01f, 0.0f, 1.0f))
+                selectedEntity->PatchComponent<CHEngine::UIOverlayCanvasComponent>(
+                    [&](CHEngine::UIOverlayCanvasComponent& cc) { cc.Pivot = { pivot[0], pivot[1] }; });
             int so = c.SortOrder;
-            if (ImGui::InputInt("Sort Order##canvas", &so))
-                selectedEntity->PatchComponent<CHEngine::UICanvasComponent>(
-                    [so](CHEngine::UICanvasComponent& cc) { cc.SortOrder = so; });
+            if (ImGui::InputInt("Sort Order##ovc", &so))
+                selectedEntity->PatchComponent<CHEngine::UIOverlayCanvasComponent>(
+                    [so](CHEngine::UIOverlayCanvasComponent& cc) { cc.SortOrder = so; });
+            float a = c.Alpha;
+            if (ImGui::SliderFloat("Alpha##ovc", &a, 0.0f, 1.0f))
+                selectedEntity->PatchComponent<CHEngine::UIOverlayCanvasComponent>(
+                    [a](CHEngine::UIOverlayCanvasComponent& cc) { cc.Alpha = a; });
+            // ── Children list ─────────────────────────────────────────────────
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::TextUnformatted("UI Elements");
+            ImGui::Spacing();
+
+            CHEngine::UUID canvasUuid = boost::uuids::nil_uuid();
+            if (selectedEntity->HasComponent<CHEngine::IDComponent>())
+                canvasUuid = selectedEntity->GetComponent<CHEngine::IDComponent>().Value;
+
+            std::vector<CHEngine::EntityHandle> childHandles;
+            std::vector<CHEngine::UUID>         childUuids;
+            std::vector<std::string>            childNames;
+            scene_ptr->ForEach<CHEngine::UIRectTransformComponent>(
+                [&](CHEngine::EntityHandle h, const CHEngine::UUID& uuid,
+                    CHEngine::UIRectTransformComponent& rt)
+                {
+                    if (rt.CanvasRef != canvasUuid) return;
+                    std::string nm = "UI Element";
+                    auto* ce = scene_ptr->TryGetEntity(h);
+                    if (ce && ce->HasComponent<CHEngine::TagComponent>())
+                        nm = ce->GetComponent<CHEngine::TagComponent>().Name;
+                    childHandles.push_back(h);
+                    childUuids.push_back(uuid);
+                    childNames.push_back(std::move(nm));
+                });
+
+            if (childHandles.empty())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.57f, 1.0f));
+                ImGui::TextUnformatted("No UI elements");
+                ImGui::PopStyleColor();
+            }
+            else
+            {
+                for (int ci = 0; ci < (int)childHandles.size(); ++ci)
+                {
+                    bool isSel = (activeSession->SelectedEntity == childHandles[ci]);
+                    ImGui::PushID(ci);
+                    float avail = ImGui::GetContentRegionAvail().x - 28.0f;
+                    if (ImGui::Selectable(childNames[ci].c_str(), isSel,
+                                          ImGuiSelectableFlags_None, ImVec2(avail, 0)))
+                        host.SetSelection(childHandles[ci]);
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        host.DestroyEntityByUuid(childUuids[ci]);
+                    ImGui::PopID();
+                }
+            }
+
+            ImGui::Spacing();
+            if (!propsReadOnly && ImGui::Button("+ Add##ovc_add"))
+                ImGui::OpenPopup("AddUIElem##ovc");
+            if (ImGui::BeginPopup("AddUIElem##ovc"))
+            {
+                if (ImGui::MenuItem("Panel"))  { host.AddUIPanel();   ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Text"))   { host.AddUIText();    ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Button")) { host.AddUIButton();  ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Image"))  { host.AddUIImage();   ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Slider")) { host.AddUISlider();  ImGui::CloseCurrentPopup(); }
+                ImGui::EndPopup();
+            }
+            ImGui::Spacing();
+        });
+
+    DrawComponent<CHEngine::UIWorldCanvasComponent>("UI World Canvas", true, propsReadOnly,
+        *activeSession, selectedHandle, selectedEntity, "UIWorldCanvas",
+        [&](CHEngine::UIWorldCanvasComponent& c) {
+            float sz[2] = { c.Size.x, c.Size.y };
+            if (ImGui::DragFloat2("Size (m)##wc", sz, 0.05f, 0.01f, 1000.0f))
+                selectedEntity->PatchComponent<CHEngine::UIWorldCanvasComponent>(
+                    [&](CHEngine::UIWorldCanvasComponent& cc) { cc.Size = { sz[0], sz[1] }; });
+            float a = c.Alpha;
+            if (ImGui::SliderFloat("Alpha##wc", &a, 0.0f, 1.0f))
+                selectedEntity->PatchComponent<CHEngine::UIWorldCanvasComponent>(
+                    [a](CHEngine::UIWorldCanvasComponent& cc) { cc.Alpha = a; });
+            bool ds = c.DoubleSided;
+            if (ImGui::Checkbox("Double Sided##wc", &ds))
+                selectedEntity->PatchComponent<CHEngine::UIWorldCanvasComponent>(
+                    [ds](CHEngine::UIWorldCanvasComponent& cc) { cc.DoubleSided = ds; });
+            // ── Children list ─────────────────────────────────────────────────
+            ImGui::Separator();
+            ImGui::Spacing();
+            ImGui::TextUnformatted("UI Elements");
+            ImGui::Spacing();
+
+            CHEngine::UUID wcanvasUuid = boost::uuids::nil_uuid();
+            if (selectedEntity->HasComponent<CHEngine::IDComponent>())
+                wcanvasUuid = selectedEntity->GetComponent<CHEngine::IDComponent>().Value;
+
+            std::vector<CHEngine::EntityHandle> wChildHandles;
+            std::vector<CHEngine::UUID>         wChildUuids;
+            std::vector<std::string>            wChildNames;
+            scene_ptr->ForEach<CHEngine::UIRectTransformComponent>(
+                [&](CHEngine::EntityHandle h, const CHEngine::UUID& uuid,
+                    CHEngine::UIRectTransformComponent& rt)
+                {
+                    if (rt.CanvasRef != wcanvasUuid) return;
+                    std::string nm = "UI Element";
+                    auto* ce = scene_ptr->TryGetEntity(h);
+                    if (ce && ce->HasComponent<CHEngine::TagComponent>())
+                        nm = ce->GetComponent<CHEngine::TagComponent>().Name;
+                    wChildHandles.push_back(h);
+                    wChildUuids.push_back(uuid);
+                    wChildNames.push_back(std::move(nm));
+                });
+
+            if (wChildHandles.empty())
+            {
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.57f, 1.0f));
+                ImGui::TextUnformatted("No UI elements");
+                ImGui::PopStyleColor();
+            }
+            else
+            {
+                for (int ci = 0; ci < (int)wChildHandles.size(); ++ci)
+                {
+                    bool isSel = (activeSession->SelectedEntity == wChildHandles[ci]);
+                    ImGui::PushID(ci + 10000); // offset to avoid ID clash with overlay section
+                    float avail = ImGui::GetContentRegionAvail().x - 28.0f;
+                    if (ImGui::Selectable(wChildNames[ci].c_str(), isSel,
+                                          ImGuiSelectableFlags_None, ImVec2(avail, 0)))
+                        host.SetSelection(wChildHandles[ci]);
+                    ImGui::SameLine();
+                    if (ImGui::SmallButton("x"))
+                        host.DestroyEntityByUuid(wChildUuids[ci]);
+                    ImGui::PopID();
+                }
+            }
+
+            ImGui::Spacing();
+            if (!propsReadOnly && ImGui::Button("+ Add##wc_add"))
+                ImGui::OpenPopup("AddUIElem##wc");
+            if (ImGui::BeginPopup("AddUIElem##wc"))
+            {
+                if (ImGui::MenuItem("Panel"))  { host.AddUIPanel();   ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Text"))   { host.AddUIText();    ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Button")) { host.AddUIButton();  ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Image"))  { host.AddUIImage();   ImGui::CloseCurrentPopup(); }
+                if (ImGui::MenuItem("Slider")) { host.AddUISlider();  ImGui::CloseCurrentPopup(); }
+                ImGui::EndPopup();
+            }
             ImGui::Spacing();
         });
 
     DrawComponent<CHEngine::UIRectTransformComponent>("UI Rect Transform", true, propsReadOnly,
         *activeSession, selectedHandle, selectedEntity, "UIRect",
         [&](CHEngine::UIRectTransformComponent& rt) {
-            float pos[2] = { rt.Position.x, rt.Position.y };
-            if (ImGui::DragFloat2("Position##rt", pos, 1.0f))
+            float sz = rt.Size;
+            if (ImGui::DragFloat("Size##rt", &sz, 1.0f, 0.0f, 4000.0f))
                 selectedEntity->PatchComponent<CHEngine::UIRectTransformComponent>(
-                    [&](CHEngine::UIRectTransformComponent& r) { r.Position = { pos[0], pos[1] }; });
-            float sz[2] = { rt.Size.x, rt.Size.y };
-            if (ImGui::DragFloat2("Size##rt", sz, 1.0f, 0.0f, 4000.0f))
-                selectedEntity->PatchComponent<CHEngine::UIRectTransformComponent>(
-                    [&](CHEngine::UIRectTransformComponent& r) { r.Size = { sz[0], sz[1] }; });
+                    [sz](CHEngine::UIRectTransformComponent& r) { r.Size = sz; });
             float anc[2] = { rt.AnchorMin.x, rt.AnchorMin.y };
             if (ImGui::DragFloat2("Anchor##rt", anc, 0.01f, 0.0f, 1.0f))
                 selectedEntity->PatchComponent<CHEngine::UIRectTransformComponent>(
@@ -1207,10 +1353,6 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             if (ImGui::DragFloat2("Pivot##rt", pivot, 0.01f, 0.0f, 1.0f))
                 selectedEntity->PatchComponent<CHEngine::UIRectTransformComponent>(
                     [&](CHEngine::UIRectTransformComponent& r) { r.Pivot = { pivot[0], pivot[1] }; });
-            float rot = rt.Rotation;
-            if (ImGui::DragFloat("Rotation##rt", &rot, 0.5f))
-                selectedEntity->PatchComponent<CHEngine::UIRectTransformComponent>(
-                    [rot](CHEngine::UIRectTransformComponent& r) { r.Rotation = rot; });
             float alpha = rt.Alpha;
             if (ImGui::SliderFloat("Alpha##rt", &alpha, 0.0f, 1.0f))
                 selectedEntity->PatchComponent<CHEngine::UIRectTransformComponent>(
@@ -1221,10 +1363,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     DrawComponent<CHEngine::UIPanelComponent>("UI Panel", true, propsReadOnly,
         *activeSession, selectedHandle, selectedEntity, "UIPanel",
         [&](CHEngine::UIPanelComponent& c) {
-            float col[4] = { c.Color.r, c.Color.g, c.Color.b, c.Color.a };
-            if (ImGui::ColorEdit4("Color##panel", col))
+            float pw = c.Width;
+            if (ImGui::DragFloat("Width##panel", &pw, 1.0f, 0.0f, 4000.0f))
                 selectedEntity->PatchComponent<CHEngine::UIPanelComponent>(
-                    [&](CHEngine::UIPanelComponent& p) { p.Color = {col[0],col[1],col[2],col[3]}; });
+                    [pw](CHEngine::UIPanelComponent& p) { p.Width = pw; });
             float bcol[4] = { c.BorderColor.r, c.BorderColor.g, c.BorderColor.b, c.BorderColor.a };
             if (ImGui::ColorEdit4("Border Color##panel", bcol))
                 selectedEntity->PatchComponent<CHEngine::UIPanelComponent>(
@@ -1279,10 +1421,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     DrawComponent<CHEngine::UIImageComponent>("UI Image", true, propsReadOnly,
         *activeSession, selectedHandle, selectedEntity, "UIImage",
         [&](CHEngine::UIImageComponent& c) {
-            float col[4] = { c.Color.r, c.Color.g, c.Color.b, c.Color.a };
-            if (ImGui::ColorEdit4("Color##uiimg", col))
+            float iw = c.Width;
+            if (ImGui::DragFloat("Width##uiimg", &iw, 1.0f, 0.0f, 4000.0f))
                 selectedEntity->PatchComponent<CHEngine::UIImageComponent>(
-                    [&](CHEngine::UIImageComponent& i) { i.Color = {col[0],col[1],col[2],col[3]}; });
+                    [iw](CHEngine::UIImageComponent& i) { i.Width = iw; });
             char tbuf[512]; std::strncpy(tbuf, c.TexturePath.c_str(), sizeof(tbuf)-1); tbuf[sizeof(tbuf)-1]=0;
             if (ImGui::InputText("Texture##uiimg", tbuf, sizeof(tbuf)))
                 selectedEntity->PatchComponent<CHEngine::UIImageComponent>(
@@ -1297,6 +1439,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     DrawComponent<CHEngine::UIButtonComponent>("UI Button", true, propsReadOnly,
         *activeSession, selectedHandle, selectedEntity, "UIButton",
         [&](CHEngine::UIButtonComponent& c) {
+            float bw = c.Width;
+            if (ImGui::DragFloat("Width##uibtn", &bw, 1.0f, 0.0f, 4000.0f))
+                selectedEntity->PatchComponent<CHEngine::UIButtonComponent>(
+                    [bw](CHEngine::UIButtonComponent& b) { b.Width = bw; });
             float nc[4]={c.NormalColor.r,c.NormalColor.g,c.NormalColor.b,c.NormalColor.a};
             if (ImGui::ColorEdit4("Normal##uibtn", nc))
                 selectedEntity->PatchComponent<CHEngine::UIButtonComponent>(
@@ -1309,10 +1455,6 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             if (ImGui::ColorEdit4("Pressed##uibtn", pc))
                 selectedEntity->PatchComponent<CHEngine::UIButtonComponent>(
                     [&](CHEngine::UIButtonComponent& b){ b.PressedColor={pc[0],pc[1],pc[2],pc[3]}; });
-            char ocbuf[256]; std::strncpy(ocbuf, c.OnClick.c_str(), sizeof(ocbuf)-1); ocbuf[sizeof(ocbuf)-1]=0;
-            if (ImGui::InputText("OnClick (Lua)##uibtn", ocbuf, sizeof(ocbuf)))
-                selectedEntity->PatchComponent<CHEngine::UIButtonComponent>(
-                    [&](CHEngine::UIButtonComponent& b){ b.OnClick = ocbuf; });
             bool inter = c.Interactable;
             if (ImGui::Checkbox("Interactable##uibtn", &inter))
                 selectedEntity->PatchComponent<CHEngine::UIButtonComponent>(
@@ -1327,6 +1469,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     DrawComponent<CHEngine::UISliderComponent>("UI Slider", true, propsReadOnly,
         *activeSession, selectedHandle, selectedEntity, "UISlider",
         [&](CHEngine::UISliderComponent& c) {
+            float sw = c.Width;
+            if (ImGui::DragFloat("Width##uislider", &sw, 1.0f, 0.0f, 4000.0f))
+                selectedEntity->PatchComponent<CHEngine::UISliderComponent>(
+                    [sw](CHEngine::UISliderComponent& s) { s.Width = sw; });
             float val = c.Value;
             if (ImGui::SliderFloat("Value##uislider", &val, c.Min, c.Max))
                 selectedEntity->PatchComponent<CHEngine::UISliderComponent>(
@@ -1342,10 +1488,6 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             if (ImGui::ColorEdit4("Fill Color##uislider", fc))
                 selectedEntity->PatchComponent<CHEngine::UISliderComponent>(
                     [&](CHEngine::UISliderComponent& s){ s.FillColor={fc[0],fc[1],fc[2],fc[3]}; });
-            char och[256]; std::strncpy(och, c.OnChange.c_str(), sizeof(och)-1); och[sizeof(och)-1]=0;
-            if (ImGui::InputText("OnChange (Lua)##uislider", och, sizeof(och)))
-                selectedEntity->PatchComponent<CHEngine::UISliderComponent>(
-                    [&](CHEngine::UISliderComponent& s){ s.OnChange = och; });
             ImGui::Spacing();
         });
 
