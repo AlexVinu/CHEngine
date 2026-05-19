@@ -18,6 +18,8 @@ namespace CHEngine {
         inline void SetEventCallback(const EventCallbackFn& callback) override { m_Data.EventCallback = callback; }
         void SetVSync(bool enabled) override;
         bool IsVSync() const override;
+		virtual void SetMouse(bool) override;
+		virtual bool IsMouse() const override;
 
     private:
         void Init(const WindowProps& props, IWindowFactory* windowFactory, ERenderAPI renderApi);
@@ -28,6 +30,7 @@ namespace CHEngine {
             std::string Title;
             unsigned int Width, Height;
             bool VSync;
+            bool Mouse;
 
             EventCallbackFn EventCallback;
         };

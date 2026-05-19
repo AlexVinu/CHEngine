@@ -7,7 +7,6 @@
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Utils/FileDialog.h>
 
-#include <CHEngine/Input/InputSystem.h>
 #include "UIThemeActive.h"
 
 #include <cstdio>
@@ -61,22 +60,22 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
     // ── Keyboard shortcuts (driven by InputActions / keybindings.json) ───────
     if (!ImGui::GetIO().WantTextInput)
     {
-        CHEngine::InputSystem& IA = CHEngine::GetInputSystem();
+        CHEngine::InputSystem* input_system = CHEngine::Application::Get().InputSystem();
 
-        if (IA.Triggered("Editor.Gizmo.Translate"))
+        if (input_system->Triggered("Editor.Gizmo.Translate"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::TRANSLATE; }, [] {}, false));
-        if (IA.Triggered("Editor.Gizmo.Rotate"))
+        if (input_system->Triggered("Editor.Gizmo.Rotate"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::ROTATE; }, [] {}, false));
-        if (IA.Triggered("Editor.Gizmo.Scale"))
+        if (input_system->Triggered("Editor.Gizmo.Scale"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.GetGizmoOperation() = ImGuizmo::SCALE; }, [] {}, false));
-        if (IA.Triggered("Editor.Profiler.Toggle"))
+        if (input_system->Triggered("Editor.Profiler.Toggle"))
             host.GetShowProfiler() = !host.GetShowProfiler();
 
         // Delete / Backspace — удаление выделенного объекта (только в Edit-режиме)
-        if (IA.Triggered("Editor.Entity.Delete")
+        if (input_system->Triggered("Editor.Entity.Delete")
             && activeSession->GetSessionState() == SceneSession::State::Edit)
         {
             Ref<EditorWorldContext> s = host.GetActiveSceneSession();
@@ -88,11 +87,11 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
             }
         }
 
-        if (IA.Triggered("Editor.History.Undo"))
+        if (input_system->Triggered("Editor.History.Undo"))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.RequestUndo(); }, [] {}, false));
 
-        if (IA.Triggered("Editor.Play.Toggle"))
+        if (input_system->Triggered("Editor.Play.Toggle"))
         {
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] {
@@ -102,7 +101,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
                     else if (s->GetSessionState() == SceneSession::State::Pause)  host.ResumeFromPause();
                 }, [] {}, false));
         }
-        if (IA.Triggered("Editor.Play.Stop") &&
+        if (input_system->Triggered("Editor.Play.Stop") &&
             activeSession->GetSessionState() != SceneSession::State::Edit)
         {
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(

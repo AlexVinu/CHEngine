@@ -14,6 +14,7 @@ namespace CHEngine {
     float Input::s_MouseY     = 0.0f;
     float Input::s_PrevMouseX = 0.0f;
     float Input::s_PrevMouseY = 0.0f;
+    float Input::s_MouseWheel = 0.0f;
 
     // ─────────────────────────────────────────────────────────────────────────
     void Input::BeginFrame(IWindow* window)
@@ -34,6 +35,8 @@ namespace CHEngine {
             s_CurMouse[b] = window->IsMouseButtonDown(b);
 
         window->GetMousePosition(s_MouseX, s_MouseY);
+        s_MouseWheel = window->GetScrollDelta();
+        window->ClearScrollDelta();
     }
 
     // ── Клавиатура ────────────────────────────────────────────────────────────
@@ -78,5 +81,6 @@ namespace CHEngine {
     float Input::GetMouseY()      { return s_MouseY; }
     float Input::GetMouseDeltaX() { return s_MouseX - s_PrevMouseX; }
     float Input::GetMouseDeltaY() { return s_MouseY - s_PrevMouseY; }
+    float Input::GetMouseWheel()  { return s_MouseWheel; }
 
 } // namespace CHEngine

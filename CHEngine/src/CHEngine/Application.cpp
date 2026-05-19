@@ -228,7 +228,7 @@ namespace CHEngine {
 
         // ─── 2. Create window ────────────────────────────────────────────────────
         ERenderAPI render_api = render_factory->GetRenderApi();
-        m_Window = Scope<Window>(Window::Create(m_WindowFactory, render_api));
+        m_Window = Ref<Window>(Window::Create(m_WindowFactory, render_api));
         m_Window->SetEventCallback([this](Event& e) { OnEvent(e); });
 
         // ─── 3. Initialise render subsystem (GLAD / device / FrameGraph) ─────────
@@ -237,6 +237,9 @@ namespace CHEngine {
 
         // ─── 3b. ResourceManager (must init after Render, destructs before it) ──
         m_Resources = std::make_unique<ResourceManager>();
+
+        // ─── 3c. InputSystem (RAII; биндинги грузит клиент через LoadFromDirectory) ─
+        m_InputSystem = std::make_unique<::CHEngine::InputSystem>(m_Window);
 
         // ─── 4. Create ImGui layer ────────────────────────────────────────────────
         if (m_ImGuiFactory)
@@ -346,6 +349,7 @@ namespace CHEngine {
             }
 
             Input::BeginFrame(m_Window->GetPlatformWindow());
+            m_InputSystem->BeginFrame();
 
             m_Render->BeginFrame();
             m_Render->BeginFrameGraph();

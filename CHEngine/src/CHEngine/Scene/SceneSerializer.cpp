@@ -108,13 +108,17 @@ static json SerializeUIComponents(const Entity* entity)
     if (entity->HasComponent<UIRectTransformComponent>())
     {
         const auto& r = entity->GetComponent<UIRectTransformComponent>();
-        ui["rectTransform"]["canvasRef"] = boost::uuids::to_string(r.CanvasRef);
         ui["rectTransform"]["anchorMin"] = SerializeVec2(r.AnchorMin);
         ui["rectTransform"]["anchorMax"] = SerializeVec2(r.AnchorMax);
         ui["rectTransform"]["size"]      = r.Size;
         ui["rectTransform"]["pivot"]     = SerializeVec2(r.Pivot);
         ui["rectTransform"]["alpha"]     = r.Alpha;
         ui["rectTransform"]["zOrder"]    = r.ZOrder;
+    }
+    if (entity->HasComponent<ParentNodeComponent>())
+    {
+        const auto& p = entity->GetComponent<ParentNodeComponent>();
+        ui["parentNode"]["value"] = static_cast<std::string>(p.Value);
     }
     if (entity->HasComponent<UIPanelComponent>())
     {
@@ -214,10 +218,6 @@ static void DeserializeUIComponents(Entity* entity, const json& ui)
     {
         const auto& rj = ui["rectTransform"];
         UIRectTransformComponent r;
-        UUID canvasRef = boost::uuids::nil_uuid();
-        if (rj.contains("canvasRef") && rj["canvasRef"].is_string())
-            TryParseUUIDString(rj["canvasRef"].get<std::string>(), canvasRef);
-        r.CanvasRef = canvasRef;
         r.AnchorMin = ReadVec2(rj, "anchorMin", { 0.5f, 0.5f });
         r.AnchorMax = ReadVec2(rj, "anchorMax", { 0.5f, 0.5f });
         r.Size      = rj.value("size", 40.f);
@@ -228,6 +228,16 @@ static void DeserializeUIComponents(Entity* entity, const json& ui)
             entity->GetComponent<UIRectTransformComponent>() = r;
         else
             entity->AddComponent<UIRectTransformComponent>(r);
+    }
+    if (ui.contains("parentNode") && ui["parentNode"].is_object())
+    {
+        const auto& pj = ui["parentNode"];
+        ParentNodeComponent p;
+        TryParseUUIDString(pj["value"].get<std::string>(), p.Value);
+		if (entity->HasComponent<ParentNodeComponent>())
+			entity->GetComponent<ParentNodeComponent>() = p;
+		else
+			entity->AddComponent<ParentNodeComponent>(p);
     }
     if (ui.contains("panel") && ui["panel"].is_object())
     {

@@ -33,9 +33,10 @@ void ComponentValidationSystem::Run(World& world, DeferredOps& deferred_ops, Tim
     // UI Objects
     scene->ForEach<UIRectTransformComponent>([&](EntityHandle handle, const UUID& uuid, UIRectTransformComponent& transform)
         {
-            if (!transform.CanvasRef.IsValid())
+            Entity* entity = scene->TryGetEntity(handle);
+            if(!entity->HasComponent<ParentNodeComponent>() ||
+                !entity->GetComponent<ParentNodeComponent>().Value.IsValid())
             {
-                Entity* entity = scene->TryGetEntity(handle);
                 if (entity->HasComponent<UIImageComponent>()) deferred_ops.RemoveComponent<UIImageComponent>(handle);
                 if (entity->HasComponent<UITextComponent>()) deferred_ops.RemoveComponent<UITextComponent>(handle);
 				if (entity->HasComponent<UIPanelComponent>()) deferred_ops.RemoveComponent<UIPanelComponent>(handle);

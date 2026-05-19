@@ -26,6 +26,8 @@ public:
     const char* GetName() const override { return "UIInputSystem"; }
 
     void Run(World& world, DeferredOps& deferred, Timestep dt) override;
+	void OnBegin(World& world, DeferredOps& deferred_ops) override;
+	void OnEnd(World& world, DeferredOps& deferred_ops) override;
 
 private:
     EntityHandle m_PressedButton{};

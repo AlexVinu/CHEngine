@@ -1,6 +1,6 @@
 #pragma once
+#include <CheStl/MemoryTypes.h>
 
-#include "InputContext.h"
 #include "ActionMap.h"
 
 #include <filesystem>
@@ -11,22 +11,27 @@
 
 namespace CHEngine {
 
+    class Window;
+
 // Centralised input → action mapping.  Owns all state as member fields (RAII).
-// One instance is created by the application and registered via RegisterInputSystem().
-// Use GetInputSystem() to access it from anywhere.
+// Принадлежит Application (см. Application::InputSystem()).
 class CHENGINE_API InputSystem {
 public:
-    InputSystem();
+    InputSystem(Ref<Window>);
     ~InputSystem() = default;
 
     InputSystem(const InputSystem&)            = delete;
     InputSystem& operator=(const InputSystem&) = delete;
 
-    bool LoadFromJson(const std::filesystem::path& path);
+    // Загружает все *.json из каталога; stem каждого файла = контекст.
+    bool LoadFromDirectory(const std::filesystem::path& dir);
+
     void BeginFrame();
 
+    // Use json name with your bindings
     void PushContext(std::string_view ctx);
-    void PopContext(std::string_view ctx);
+    void PopContext (std::string_view ctx);
+
     bool IsActiveContext(std::string_view ctx) const;
 
     bool  Triggered(std::string_view action) const;
@@ -38,23 +43,22 @@ public:
     enum class Axis { MouseDeltaX, MouseDeltaY, MouseWheel };
     float GetAxis(Axis axis) const;
 
+    void SetMouse(bool active);
+    bool IsMouse() const;
 private:
-    ActionMap                  m_Map;
-    std::vector<InputContext>  m_ContextStack;
+	ActionMap                              m_Map;
+	std::vector<std::string>              m_ActiveContexts;
 
-    std::unordered_map<std::string, bool> m_Triggered;
-    std::unordered_map<std::string, bool> m_Down;
-    std::unordered_map<std::string, bool> m_Released;
+    std::unordered_map<std::string, bool>  m_Triggered;
+    std::unordered_map<std::string, bool>  m_Down;
+    std::unordered_map<std::string, bool>  m_Released;
 
     float   m_MouseDX     = 0.0f;
     float   m_MouseDY     = 0.0f;
     float   m_MouseWheel  = 0.0f;
     uint8_t m_CurrentMods = 0;
-};
 
-// ── Module-level accessor ─────────────────────────────────────────────────────
-// Application calls RegisterInputSystem() at startup and passes nullptr on shutdown.
-CHENGINE_API void RegisterInputSystem(InputSystem* sys);
-CHENGINE_API InputSystem& GetInputSystem();
+    Ref<Window> m_Window;
+};
 
 } // namespace CHEngine

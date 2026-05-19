@@ -29,5 +29,12 @@ struct EntityExpiredEvent {
 struct SaveWorldEvent {
 };
 
+struct ActivateMouseEvent
+{
+};
+struct DisableMouseEvent
+{
+};
+
 } // namespace CHEngine
 

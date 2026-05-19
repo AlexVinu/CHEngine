@@ -100,11 +100,11 @@ void UIInputSystem::Run(World& world, DeferredOps& deferred, Timestep /*dt*/)
     std::unordered_map<UUID, std::vector<EntityHandle>, boost::hash<UUID>>
         elementsByCanvas;
 
-    scene->ForEach<UIRectTransformComponent>(
-        [&](EntityHandle h, const UUID&, UIRectTransformComponent& rt)
+    scene->ForEach<UIRectTransformComponent, ParentNodeComponent>(
+        [&](EntityHandle h, const UUID&, UIRectTransformComponent& rt, ParentNodeComponent& parent)
         {
-            if (!canvasByUUID.count(rt.CanvasRef)) return;
-            elementsByCanvas[rt.CanvasRef].push_back(h);
+            if (!canvasByUUID.count(parent.Value)) return;
+            elementsByCanvas[parent.Value].push_back(h);
         });
 
     // ── Сначала обновляем активный слайдер (drag в процессе) ─────────────────
@@ -119,7 +119,8 @@ void UIInputSystem::Run(World& world, DeferredOps& deferred, Timestep /*dt*/)
         else
         {
             const auto& rt = e->GetComponent<UIRectTransformComponent>();
-            auto cit = canvasByUUID.find(rt.CanvasRef);
+            const auto& parent = e->GetComponent<ParentNodeComponent>();
+            auto cit = canvasByUUID.find(parent.Value);
             if (cit == canvasByUUID.end())
             {
                 m_ActiveSlider = {};
@@ -270,6 +271,18 @@ void UIInputSystem::Run(World& world, DeferredOps& deferred, Timestep /*dt*/)
         if (mReleased && !consumed)
             m_PressedButton = {};
     }
+}
+
+
+void UIInputSystem::OnBegin(World& world, DeferredOps& deferred_ops)
+{
+
+}
+
+
+void UIInputSystem::OnEnd(World& world, DeferredOps& deferred_ops)
+{
+
 }
 
 } // namespace CHEngine

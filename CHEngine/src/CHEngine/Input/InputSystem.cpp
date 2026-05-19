@@ -2,7 +2,7 @@
 
 #include <CHEngine/Input/Input.h>
 #include <Input/KeyCodes.h>
-
+#include <CHEngine/Window.h>
 #include <imgui.h>
 
 #include <algorithm>
@@ -11,49 +11,33 @@
 
 namespace CHEngine {
 
-// ── Module-level registration ─────────────────────────────────────────────────
-
-namespace {
-    InputSystem* s_Instance = nullptr;
-}
-
-void RegisterInputSystem(InputSystem* sys)
-{
-    s_Instance = sys;
-}
-
-InputSystem& GetInputSystem()
-{
-    assert(s_Instance && "InputSystem not registered — call RegisterInputSystem() first");
-    return *s_Instance;
-}
-
 // ── InputSystem implementation ────────────────────────────────────────────────
 
-InputSystem::InputSystem()
-    : m_ContextStack{ std::string(InputContexts::Editor) }
+InputSystem::InputSystem(Ref<Window> window)
+    :m_Window(window)
 {
 }
 
-bool InputSystem::LoadFromJson(const std::filesystem::path& path)
+bool InputSystem::LoadFromDirectory(const std::filesystem::path& dir)
 {
-    return m_Map.LoadFromJson(path);
+    return m_Map.LoadFromDirectory(dir);
 }
 
 // ── Context stack ─────────────────────────────────────────────────────────────
 
 void InputSystem::PushContext(std::string_view ctx)
 {
-    m_ContextStack.emplace_back(ctx);
+    if (IsActiveContext(ctx)) return;
+    m_ActiveContexts.emplace_back(ctx);
 }
 
 void InputSystem::PopContext(std::string_view ctx)
 {
-    for (auto it = m_ContextStack.rbegin(); it != m_ContextStack.rend(); ++it)
+    for (auto it = m_ActiveContexts.rbegin(); it != m_ActiveContexts.rend(); ++it)
     {
         if (*it == ctx)
         {
-            m_ContextStack.erase(std::next(it).base());
+            m_ActiveContexts.erase(std::next(it).base());
             return;
         }
     }
@@ -61,8 +45,8 @@ void InputSystem::PopContext(std::string_view ctx)
 
 bool InputSystem::IsActiveContext(std::string_view ctx) const
 {
-    return std::find(m_ContextStack.begin(), m_ContextStack.end(), ctx)
-           != m_ContextStack.end();
+    return std::find(m_ActiveContexts.begin(), m_ActiveContexts.end(), ctx)
+           != m_ActiveContexts.end();
 }
 
 // ── BeginFrame ────────────────────────────────────────────────────────────────
@@ -141,21 +125,22 @@ void InputSystem::BeginFrame()
     m_Down.clear();
     m_Released.clear();
 
-    ImGuiIO& io   = ImGui::GetIO();
-    m_MouseDX     = io.MouseDelta.x;
-    m_MouseDY     = io.MouseDelta.y;
-    m_MouseWheel  = io.MouseWheel;
+    m_MouseDX    = Input::GetMouseDeltaX();
+    m_MouseDY    = Input::GetMouseDeltaY();
+    m_MouseWheel = Input::GetMouseWheel();
 
     const uint8_t mods = CurrentMods();
     m_CurrentMods = mods;
 
     std::vector<ConsumedCombo> consumed;
-    for (auto it = m_ContextStack.rbegin(); it != m_ContextStack.rend(); ++it)
+    // top of stack имеет приоритет — итерируем сверху вниз.
+    for (auto it = m_ActiveContexts.rbegin(); it != m_ActiveContexts.rend(); ++it)
     {
-        const std::string& ctx = *it;
-        for (const auto& [name, action] : m_Map.All())
+        const auto* inner = m_Map.All(*it);
+        if (!inner) continue;
+
+        for (const auto& [name, action] : *inner)
         {
-            if (action.context != ctx) continue;
             for (const auto& b : action.bindings)
             {
                 if (IsConsumed(consumed, b)) continue;
@@ -195,6 +180,18 @@ float InputSystem::GetAxis(Axis axis) const
         case Axis::MouseWheel:  return m_MouseWheel;
     }
     return 0.0f;
+}
+
+
+void InputSystem::SetMouse(bool active)
+{
+    m_Window->SetMouse(active);
+}
+
+
+bool InputSystem::IsMouse() const
+{
+    return m_Window->IsMouse();
 }
 
 } // namespace CHEngine

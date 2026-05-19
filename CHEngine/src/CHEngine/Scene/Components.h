@@ -166,7 +166,6 @@ namespace CHEngine {
     // На самой канвас-entity этот компонент НЕ присутствует.
     struct UIRectTransformComponent
     {
-        UUID      CanvasRef  = boost::uuids::nil_uuid();
         glm::vec2 AnchorMin  = { 0.5f, 0.5f }; // нормализованный якорь внутри канваса
         glm::vec2 AnchorMax  = { 0.5f, 0.5f };
         float     Size       = 40.0f;  // высота / размер шрифта в пикселях

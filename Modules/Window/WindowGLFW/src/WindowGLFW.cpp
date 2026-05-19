@@ -126,7 +126,13 @@ namespace CHModules {
             glfwSwapInterval(enabled ? 1 : 0);
     }
 
-    CHEngine::RendererInitInfo WindowGLFW::GetRenderInitInfo(CHEngine::ERenderAPI render_api) const
+	void WindowGLFW::SetMouse(bool active)
+	{
+        if (active) glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+        else        glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+	}
+
+	CHEngine::RendererInitInfo WindowGLFW::GetRenderInitInfo(CHEngine::ERenderAPI render_api) const
     {
         CHEngine::RendererInitInfo info{};
 
@@ -211,48 +217,44 @@ namespace CHModules {
     void WindowGLFW::SetWindowContext(const CHEngine::WindowContext& context)
     {
         m_Context = context;
-        glfwSetWindowUserPointer(m_Window, &m_Context);
+        glfwSetWindowUserPointer(m_Window, this);
 
         glfwSetWindowSizeCallback(m_Window, [](GLFWwindow* window, int w, int h) {
-            // Ignore zero-size events fired during macOS fullscreen animation
             if (w <= 0 || h <= 0) return;
-            auto* ctx = (CHEngine::WindowContext*)glfwGetWindowUserPointer(window);
-            if (ctx && ctx->ResizeCallback)
-                ctx->ResizeCallback(ctx->UserPointer, w, h);
+            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
+            if (self->m_Context.ResizeCallback)
+                self->m_Context.ResizeCallback(self->m_Context.UserPointer, w, h);
         });
 
         glfwSetWindowCloseCallback(m_Window, [](GLFWwindow* window) {
-            auto* ctx = (CHEngine::WindowContext*)glfwGetWindowUserPointer(window);
-            if (ctx && ctx->CloseCallback)
-                ctx->CloseCallback(ctx->UserPointer);
+            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
+            if (self->m_Context.CloseCallback)
+                self->m_Context.CloseCallback(self->m_Context.UserPointer);
         });
 
         glfwSetKeyCallback(m_Window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-            auto* ctx = (CHEngine::WindowContext*)glfwGetWindowUserPointer(window);
-            if (ctx && ctx->KeyCallback) {
-                CHEngine::EventType _action = ConvertFromGLFW(action);
-                ctx->KeyCallback(ctx->UserPointer, key, scancode, (int)_action, mods);
-            }
+            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
+            if (self->m_Context.KeyCallback)
+                self->m_Context.KeyCallback(self->m_Context.UserPointer, key, scancode, (int)ConvertFromGLFW(action), mods);
         });
 
         glfwSetMouseButtonCallback(m_Window, [](GLFWwindow* window, int button, int action, int mods) {
-            auto* ctx = (CHEngine::WindowContext*)glfwGetWindowUserPointer(window);
-            if (ctx && ctx->MouseButtonCallback) {
-                CHEngine::EventType _action = ConvertFromGLFW(action);
-                ctx->MouseButtonCallback(ctx->UserPointer, button, (int)_action, mods);
-            }
+            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
+            if (self->m_Context.MouseButtonCallback)
+                self->m_Context.MouseButtonCallback(self->m_Context.UserPointer, button, (int)ConvertFromGLFW(action), mods);
         });
 
         glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double x, double y) {
-            auto* ctx = (CHEngine::WindowContext*)glfwGetWindowUserPointer(window);
-            if (ctx && ctx->ScrollCallback)
-                ctx->ScrollCallback(ctx->UserPointer, (float)x, (float)y);
+            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
+            self->m_ScrollDelta += (float)y;
+            if (self->m_Context.ScrollCallback)
+                self->m_Context.ScrollCallback(self->m_Context.UserPointer, (float)x, (float)y);
         });
 
         glfwSetCursorPosCallback(m_Window, [](GLFWwindow* window, double x, double y) {
-            auto* ctx = (CHEngine::WindowContext*)glfwGetWindowUserPointer(window);
-            if (ctx && ctx->CursorPosCallback)
-                ctx->CursorPosCallback(ctx->UserPointer, (float)x, (float)y);
+            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
+            if (self->m_Context.CursorPosCallback)
+                self->m_Context.CursorPosCallback(self->m_Context.UserPointer, (float)x, (float)y);
         });
     }
 

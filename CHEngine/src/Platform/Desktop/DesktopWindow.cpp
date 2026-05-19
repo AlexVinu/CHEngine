@@ -44,12 +44,24 @@ namespace CHEngine {
         return m_Data.VSync;
     }
 
-    void DesktopWindow::Init(const WindowProps& props, IWindowFactory* windowFactory, ERenderAPI renderApi)
+	void DesktopWindow::SetMouse(bool active)
+	{
+        m_PlatformWindow->SetMouse(active);
+        m_Data.Mouse = active;
+	}
+
+	bool DesktopWindow::IsMouse() const
+	{
+        return m_Data.Mouse;
+	}
+
+	void DesktopWindow::Init(const WindowProps& props, IWindowFactory* windowFactory, ERenderAPI renderApi)
     {
         m_Data.Title  = props.Title;
         m_Data.Width  = props.Width;
         m_Data.Height = props.Height;
         m_Data.VSync  = true;
+        m_Data.Mouse = true;
         m_WindowFactory = windowFactory;
 
         CHE_CORE_INFO("Creating window {0} ({1}, {2})", props.Title, props.Width, props.Height);

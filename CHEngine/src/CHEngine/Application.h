@@ -17,6 +17,7 @@
 #include "UI/UIRendererBackend.h"
 #include "ResourceManager/ResourceManager.h"
 
+#include "Input/InputSystem.h"
 #include "ModuleManager.h"
 
 #include "RenderData.h"
@@ -67,6 +68,8 @@ namespace CHEngine {
         // Render is always valid after a successful startup.
         RenderSubsystem&  Render()    { CHE_CORE_ASSERT(m_Render,   "Render subsystem not initialised"); return *m_Render; }
 
+        InputSystem*      InputSystem() { CHE_CORE_ASSERT(m_InputSystem, "InputSystem not initialised"); return m_InputSystem.get(); }
+
         // Physics and UI are optional — check HasPhysics()/HasUI() before calling.
         PhysicsSubsystem*  Physics()   { return m_Physics.get();   }
         UISubsystem*       UI()        { return m_UI.get();        }
@@ -99,7 +102,7 @@ namespace CHEngine {
         Scope<ModuleManager> m_ModuleManager;
 
         // ── Window ────────────────────────────────────────────────────────────
-        Scope<Window> m_Window;
+        Ref<Window> m_Window;
 
         // ── Subsystems (destruction order = reverse of declaration order) ─────
         // Render owns IRenderFactory* → must outlive Window.
@@ -112,6 +115,7 @@ namespace CHEngine {
         Scope<UISubsystem>       m_UI;
         Scope<UIRendererBackend> m_NativeUI;
         Scope<ResourceManager>   m_Resources;
+        Scope<::CHEngine::InputSystem>       m_InputSystem;
 
         // ── Factory pointers (non-owning, lifetime = module) ──────────────────
         IWindowFactory*  m_WindowFactory  = nullptr;

@@ -95,16 +95,6 @@ TriggerType ParseTrigger(const std::string& s)
     return TriggerType::Pressed;
 }
 
-// Context = first component of the action name before the first '.'
-// e.g. "Editor.Gizmo.Translate" → "Editor", "Game.Jump" → "Game"
-std::string ParseContext(std::string_view fullName)
-{
-    auto pos = fullName.find('.');
-    if (pos != std::string_view::npos)
-        return std::string(fullName.substr(0, pos));
-    return std::string(InputContexts::Editor);
-}
-
 } // namespace
 
 void ActionMap::Clear()
@@ -112,10 +102,8 @@ void ActionMap::Clear()
     m_Actions.clear();
 }
 
-bool ActionMap::LoadFromJson(const std::filesystem::path& path)
+bool ActionMap::LoadFromJson(std::string_view context, const std::filesystem::path& path)
 {
-    Clear();
-
     std::ifstream f(path);
     if (!f.is_open())
     {
@@ -140,14 +128,17 @@ bool ActionMap::LoadFromJson(const std::filesystem::path& path)
     const auto& keys = KeyNameMap();
     const auto& mice = MouseNameMap();
 
+    const std::string ctxStr(context);
+    auto& bucket = m_Actions[ctxStr];
+
+    size_t loaded = 0;
     for (auto it = j.begin(); it != j.end(); ++it)
     {
-        const std::string& name = it.key();
+        const std::string& localName = it.key();
         if (!it.value().is_array()) continue;
 
         InputAction action;
-        action.fullName = name;
-        action.context  = ParseContext(name);
+        action.fullName = ctxStr + "." + localName;
 
         for (const auto& b : it.value())
         {
@@ -174,17 +165,67 @@ bool ActionMap::LoadFromJson(const std::filesystem::path& path)
         }
 
         if (!action.bindings.empty())
-            m_Actions.emplace(name, std::move(action));
+        {
+            const std::string fullName = action.fullName;
+            bucket.emplace(fullName, std::move(action));
+            ++loaded;
+        }
     }
 
-    CHE_CORE_INFO("InputActions: loaded {} actions from {}", m_Actions.size(), path.string());
+    CHE_CORE_INFO("InputActions: loaded {} actions for context '{}' from {}",
+                  loaded, ctxStr, path.string());
     return true;
+}
+
+bool ActionMap::LoadFromDirectory(const std::filesystem::path& dir)
+{
+    std::error_code ec;
+    if (!std::filesystem::exists(dir, ec) || !std::filesystem::is_directory(dir, ec))
+    {
+        CHE_CORE_WARN("InputActions: directory not found: {}", dir.string());
+        return false;
+    }
+
+    bool any = false;
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec))
+    {
+        if (!entry.is_regular_file()) continue;
+        const auto& p = entry.path();
+        if (p.extension() != ".json") continue;
+
+        const std::string ctx = p.stem().string();
+        if (LoadFromJson(ctx, p))
+            any = true;
+    }
+    return any;
 }
 
 const InputAction* ActionMap::Find(std::string_view fullName) const
 {
-    auto it = m_Actions.find(std::string(fullName));
+    const auto pos = fullName.find('.');
+    if (pos == std::string_view::npos) return nullptr;
+
+    const std::string ctx(fullName.substr(0, pos));
+    auto cit = m_Actions.find(ctx);
+    if (cit == m_Actions.end()) return nullptr;
+
+    auto ait = cit->second.find(std::string(fullName));
+    return ait != cit->second.end() ? &ait->second : nullptr;
+}
+
+const std::unordered_map<std::string, InputAction>* ActionMap::All(std::string_view context) const
+{
+    auto it = m_Actions.find(std::string(context));
     return it != m_Actions.end() ? &it->second : nullptr;
+}
+
+std::vector<std::string> ActionMap::Contexts() const
+{
+    std::vector<std::string> out;
+    out.reserve(m_Actions.size());
+    for (const auto& [ctx, _] : m_Actions)
+        out.push_back(ctx);
+    return out;
 }
 
 } // namespace CHEngine

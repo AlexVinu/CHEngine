@@ -1205,11 +1205,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             std::vector<CHEngine::EntityHandle> childHandles;
             std::vector<CHEngine::UUID>         childUuids;
             std::vector<std::string>            childNames;
-            scene_ptr->ForEach<CHEngine::UIRectTransformComponent>(
+            scene_ptr->ForEach<CHEngine::UIRectTransformComponent, CHEngine::ParentNodeComponent>(
                 [&](CHEngine::EntityHandle h, const CHEngine::UUID& uuid,
-                    CHEngine::UIRectTransformComponent& rt)
+                    CHEngine::UIRectTransformComponent& rt, CHEngine::ParentNodeComponent& pr)
                 {
-                    if (rt.CanvasRef != canvasUuid) return;
+                    if (pr.Value != canvasUuid) return;
                     std::string nm = "UI Element";
                     auto* ce = scene_ptr->TryGetEntity(h);
                     if (ce && ce->HasComponent<CHEngine::TagComponent>())
@@ -1240,19 +1240,6 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         host.DestroyEntityByUuid(childUuids[ci]);
                     ImGui::PopID();
                 }
-            }
-
-            ImGui::Spacing();
-            if (!propsReadOnly && ImGui::Button("+ Add##ovc_add"))
-                ImGui::OpenPopup("AddUIElem##ovc");
-            if (ImGui::BeginPopup("AddUIElem##ovc"))
-            {
-                if (ImGui::MenuItem("Panel"))  { host.AddUIPanel();   ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Text"))   { host.AddUIText();    ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Button")) { host.AddUIButton();  ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Image"))  { host.AddUIImage();   ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Slider")) { host.AddUISlider();  ImGui::CloseCurrentPopup(); }
-                ImGui::EndPopup();
             }
             ImGui::Spacing();
         });
@@ -1285,11 +1272,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             std::vector<CHEngine::EntityHandle> wChildHandles;
             std::vector<CHEngine::UUID>         wChildUuids;
             std::vector<std::string>            wChildNames;
-            scene_ptr->ForEach<CHEngine::UIRectTransformComponent>(
-                [&](CHEngine::EntityHandle h, const CHEngine::UUID& uuid,
-                    CHEngine::UIRectTransformComponent& rt)
-                {
-                    if (rt.CanvasRef != wcanvasUuid) return;
+            scene_ptr->ForEach<CHEngine::UIRectTransformComponent, CHEngine::ParentNodeComponent>(
+				[&](CHEngine::EntityHandle h, const CHEngine::UUID& uuid,
+					CHEngine::UIRectTransformComponent& rt, CHEngine::ParentNodeComponent& pr)
+				{
+					if (pr.Value != wcanvasUuid) return;
                     std::string nm = "UI Element";
                     auto* ce = scene_ptr->TryGetEntity(h);
                     if (ce && ce->HasComponent<CHEngine::TagComponent>())
@@ -1320,19 +1307,6 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         host.DestroyEntityByUuid(wChildUuids[ci]);
                     ImGui::PopID();
                 }
-            }
-
-            ImGui::Spacing();
-            if (!propsReadOnly && ImGui::Button("+ Add##wc_add"))
-                ImGui::OpenPopup("AddUIElem##wc");
-            if (ImGui::BeginPopup("AddUIElem##wc"))
-            {
-                if (ImGui::MenuItem("Panel"))  { host.AddUIPanel();   ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Text"))   { host.AddUIText();    ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Button")) { host.AddUIButton();  ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Image"))  { host.AddUIImage();   ImGui::CloseCurrentPopup(); }
-                if (ImGui::MenuItem("Slider")) { host.AddUISlider();  ImGui::CloseCurrentPopup(); }
-                ImGui::EndPopup();
             }
             ImGui::Spacing();
         });

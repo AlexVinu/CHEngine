@@ -214,10 +214,10 @@ public:
 	SandboxApp(const CHEngine::ApplicationConfig& config)
 		: CHEngine::Application(config)
 	{
-		// Initialise InputSystem first — callers assume it's registered before layers start.
-		m_Input = std::make_unique<CHEngine::InputSystem>();
-		CHEngine::RegisterInputSystem(m_Input.get());
-		m_Input->LoadFromJson(CHEngine::AppPaths::ExecutableDir() / "config/keybindings.json");
+		// Загрузка биндов: каждый JSON в config/keybindings/ = отдельный контекст.
+		auto* is = CHEngine::Application::Get().InputSystem();
+		is->LoadFromDirectory(CHEngine::AppPaths::ExecutableDir() / "config/keybindings");
+		is->PushContext("Editor");
 
 		// Try to restore the last used project so the editor can start immediately.
 		const std::string lastProj = CHEngine::EngineConfig::LoadLastProject();
@@ -237,13 +237,9 @@ public:
 		// PushLayer(new ExampleLayer());
 	}
 
-	~SandboxApp()
-	{
-		CHEngine::RegisterInputSystem(nullptr);
-	}
+	~SandboxApp() = default;
 
 private:
-	std::unique_ptr<CHEngine::InputSystem>    m_Input;
 	Ref<std::vector<Ref<EditorWorldContext>>> m_MutualWorlds;
 	Ref<ProjectManager>                       m_ProjectManager;
 };

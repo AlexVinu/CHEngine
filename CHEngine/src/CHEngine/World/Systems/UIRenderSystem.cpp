@@ -72,8 +72,8 @@ void UIRenderSystem::DrawElement(UIRendererBackend* backend,
     const auto& rt = entity->GetComponent<UIRectTransformComponent>();
     float alpha = canvasAlpha * rt.Alpha;
 
-    auto entityColor = [&](glm::vec4 def) -> glm::vec4 {
-        return entity->HasComponent<ColorComponent>()
+	auto entityColor = [&](glm::vec4 def) -> glm::vec4 {
+		return entity->HasComponent<ColorComponent>()
             ? entity->GetComponent<ColorComponent>().Color
             : def;
     };
@@ -197,12 +197,12 @@ void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*
     std::unordered_map<UUID, std::vector<EntityHandle>, boost::hash<UUID>>
         elementsByCanvas;
 
-    scene->ForEach<UIRectTransformComponent>(
-        [&](EntityHandle h, const UUID&, UIRectTransformComponent& rt)
+    scene->ForEach<UIRectTransformComponent, ParentNodeComponent>(
+        [&](EntityHandle h, const UUID&, UIRectTransformComponent& rt, ParentNodeComponent& parent)
         {
-            auto it = canvasIndex.find(rt.CanvasRef);
+            auto it = canvasIndex.find(parent.Value);
             if (it == canvasIndex.end()) return;
-            elementsByCanvas[rt.CanvasRef].push_back(h);
+            elementsByCanvas[parent.Value].push_back(h);
         });
 
     // Step 3: separate overlay & world canvas lists, sort overlay by SortOrder.

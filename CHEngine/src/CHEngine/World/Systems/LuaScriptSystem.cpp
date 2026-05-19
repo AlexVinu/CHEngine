@@ -16,7 +16,8 @@
 #include "CHEngine/Scene/Scene.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/Components.h"
-#include "CHEngine/Input/Input.h"
+#include "CHEngine/Input/InputSystem.h"
+#include "CHEngine/Application.h"
 #include <Input/KeyCodes.h>
 #include "Log/Log.h"
 
@@ -837,17 +838,23 @@ private:
             "ForEach",       &ScriptWorld::ForEach
         );
 
-        // ── Input ─────────────────────────────────────────────────────────────
-        auto input = m_Lua.create_named_table("Input");
-        input["IsKeyDown"]            = [](int key) { return Input::IsKeyDown(key); };
-        input["IsKeyPressed"]         = [](int key) { return Input::IsKeyPressed(key); };
-        input["IsKeyReleased"]        = [](int key) { return Input::IsKeyReleased(key); };
-        input["IsMouseButtonDown"]    = [](int btn) { return Input::IsMouseButtonDown(btn); };
-        input["IsMouseButtonPressed"] = [](int btn) { return Input::IsMouseButtonPressed(btn); };
-        input["GetMouseX"]            = [] { return Input::GetMouseX(); };
-        input["GetMouseY"]            = [] { return Input::GetMouseY(); };
-        input["GetMouseDeltaX"]       = [] { return Input::GetMouseDeltaX(); };
-        input["GetMouseDeltaY"]       = [] { return Input::GetMouseDeltaY(); };
+        // ── Actions (InputSystem) ─────────────────────────────────────────────
+        if (auto* is = Application::Get().InputSystem()) {
+            auto actions = m_Lua.create_named_table("Actions");
+            actions["Triggered"]      = [is](const std::string& a) { return is->Triggered(a); };
+            actions["Down"]           = [is](const std::string& a) { return is->Down(a); };
+            actions["Released"]       = [is](const std::string& a) { return is->Released(a); };
+            actions["GetAxis"]        = [is](int a) { return is->GetAxis(static_cast<InputSystem::Axis>(a)); };
+            actions["PushContext"]    = [is](const std::string& c) { is->PushContext(c); };
+            actions["PopContext"]     = [is](const std::string& c) { is->PopContext(c); };
+            actions["IsActiveContext"]= [is](const std::string& c) { return is->IsActiveContext(c); };
+
+            auto ax = m_Lua.create_named_table("Axis");
+            ax["MouseDeltaX"] = (int)InputSystem::Axis::MouseDeltaX;
+            ax["MouseDeltaY"] = (int)InputSystem::Axis::MouseDeltaY;
+            ax["MouseWheel"]  = (int)InputSystem::Axis::MouseWheel;
+            actions["Axis"] = ax;
+        }
 
         // ── Key ──────────────────────────────────────────────────────────────
         auto K = m_Lua.create_named_table("Key");

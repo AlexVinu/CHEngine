@@ -3,7 +3,7 @@
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 #include "EditorPopupState.h"
-#include <CHEngine/Input/InputSystem.h>
+#include <CHEngine/Application.h>
 #include "TilingManager.h"
 #include "UIThemeRetroOS.h"
 
@@ -29,7 +29,7 @@ void Draw(SceneViewLayer& layer)
     // Open on Shift+W
     if (!ImGui::GetIO().WantTextInput)
     {
-        if (CHEngine::GetInputSystem().Triggered("Editor.Menu.AddWindow"))
+        if (CHEngine::Application::Get().InputSystem()->Triggered("Editor.Menu.AddWindow"))
         {
             if (EditorPopup::IsOpen(EditorPopup::ID::ShiftW))
                 EditorPopup::Close();          // toggle off
@@ -44,7 +44,7 @@ void Draw(SceneViewLayer& layer)
     if (!EditorPopup::IsOpen(EditorPopup::ID::ShiftW))
         return;
 
-    if (CHEngine::GetInputSystem().Triggered("Editor.Popup.Close"))
+    if (CHEngine::Application::Get().InputSystem()->Triggered("Editor.Popup.Close"))
     { EditorPopup::Close(); return; }
 
     ImGui::SetNextWindowPos(s_Pos, ImGuiCond_Always);

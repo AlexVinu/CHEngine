@@ -1,0 +1,8 @@
+{
+  "Example.Jump": [{ "key": "Space", "trigger": "Pressed" }],
+
+  "Move.Forward":  [{ "key": "W", "trigger": "Down" }],
+  "Move.Backward": [{ "key": "S", "trigger": "Down" }],
+  "Move.Left":     [{ "key": "A", "trigger": "Down" }],
+  "Move.Right":    [{ "key": "D", "trigger": "Down" }]
+}

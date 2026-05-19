@@ -487,11 +487,11 @@ namespace {
             auto* e = scene->TryGetEntity(selected);
             if (IsCanvas(e))
                 return scene->GetUUID(selected);
-            if (e && e->HasComponent<CHEngine::UIRectTransformComponent>())
+            if (e && e->HasComponent<CHEngine::ParentNodeComponent>())
             {
-                const auto& rt = e->GetComponent<CHEngine::UIRectTransformComponent>();
-                if (rt.CanvasRef.IsValid())
-                    return rt.CanvasRef;
+                const auto& rt = e->GetComponent<CHEngine::ParentNodeComponent>();
+                if (rt.Value.IsValid())
+                    return rt.Value;
             }
         }
 
@@ -529,8 +529,8 @@ namespace {
         auto* e = scene->TryGetEntity(eh);
         if (!e) return {};
 
+        e->AddComponent<CHEngine::ParentNodeComponent>(canvasUuid);
         CHEngine::UIRectTransformComponent rt = MakeDefaultRect(w, h);
-        rt.CanvasRef = canvasUuid;
         e->AddComponent<CHEngine::UIRectTransformComponent>(rt);
         return eh;
     }

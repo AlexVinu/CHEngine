@@ -19,7 +19,7 @@ namespace CHEngine {
     //   if (Input::IsKeyPressed(Key::F)) { /* F нажата ИМЕННО в этом кадре */ }
     //   if (Input::IsKeyReleased(Key::Q)){ /* Q отпущена в этом кадре */ }
     // ─────────────────────────────────────────────────────────────────────────
-    class CHENGINE_API Input
+    class Input
     {
     public:
         // Вызывается Application::Run() в начале каждого кадра.
@@ -43,6 +43,7 @@ namespace CHEngine {
         static float GetMouseY();
         static float GetMouseDeltaX();
         static float GetMouseDeltaY();
+        static float GetMouseWheel();
 
     private:
         static constexpr int KEY_COUNT = Key::Last + 1;
@@ -58,6 +59,7 @@ namespace CHEngine {
         static float s_MouseY;
         static float s_PrevMouseX;
         static float s_PrevMouseY;
+        static float s_MouseWheel;
     };
 
 } // namespace CHEngine

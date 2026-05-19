@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ActionBinding.h"
-#include "InputContext.h"
 
 #include <filesystem>
 #include <string>
@@ -12,7 +11,6 @@
 namespace CHEngine {
 
 struct InputAction {
-    InputContext               context;    // e.g. "Editor", "Game", "Vehicle"
     std::string                fullName;   // e.g. "Editor.Gizmo.Translate"
     std::vector<ActionBinding> bindings;
 };
@@ -20,14 +18,26 @@ struct InputAction {
 class ActionMap {
 public:
     void Clear();
-    bool LoadFromJson(const std::filesystem::path& path);
 
+    // Загрузить один файл под заданным контекстом.
+    // Ключи внутри JSON — короткие (без префикса контекста).
+    // fullName композируется как "<ctx>.<key>".
+    bool LoadFromJson(std::string_view context, const std::filesystem::path& path);
+
+    // Сканирует dir/*.json; stem имени файла = контекст.
+    bool LoadFromDirectory(const std::filesystem::path& dir);
+
+    // Поиск по композированному fullName ("Editor.Gizmo.Translate").
     const InputAction* Find(std::string_view fullName) const;
 
-    const std::unordered_map<std::string, InputAction>& All() const { return m_Actions; }
+    // Вернуть inner-map для контекста или nullptr, если контекст не загружен.
+    const std::unordered_map<std::string, InputAction>* All(std::string_view context) const;
+
+    // Список загруженных контекстов.
+    std::vector<std::string> Contexts() const;
 
 private:
-    std::unordered_map<std::string, InputAction> m_Actions;
+    std::unordered_map<std::string, std::unordered_map<std::string, InputAction>> m_Actions;
 };
 
 } // namespace CHEngine

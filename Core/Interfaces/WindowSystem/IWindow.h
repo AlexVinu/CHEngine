@@ -46,6 +46,8 @@ namespace CHEngine
 
         virtual void SetVSync(bool enabled) = 0;
 
+		virtual void SetMouse(bool) = 0;
+
         virtual void SetWindowContext(const WindowContext& context) = 0;
 
         virtual void* GetNativeWindow() = 0;
@@ -55,9 +57,11 @@ namespace CHEngine
 
         virtual RendererInitInfo GetRenderInitInfo(ERenderAPI render_api) const = 0;
         // ── Polling input (без OS-задержки, вызывается каждый кадр) ──────────
-        virtual bool IsKeyDown(int key) const = 0;
-        virtual bool IsMouseButtonDown(int button) const = 0;
-        virtual void GetMousePosition(float& x, float& y) const = 0;
+        virtual bool  IsKeyDown(int key) const = 0;
+        virtual bool  IsMouseButtonDown(int button) const = 0;
+        virtual void  GetMousePosition(float& x, float& y) const = 0;
+        virtual float GetScrollDelta() const  { return 0.0f; }
+        virtual void  ClearScrollDelta()      {}
 
         // ── Window geometry (позиция и размер для сохранения/восстановления) ─
         virtual void GetWindowPos(int& x, int& y) const { x = 0; y = 0; }

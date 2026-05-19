@@ -39,6 +39,8 @@ namespace CHEngine {
         virtual void SetEventCallback(const EventCallbackFn& callback) = 0;
         virtual void SetVSync(bool enabled) = 0;
         virtual bool IsVSync() const = 0;
+		virtual void SetMouse(bool) = 0;
+		virtual bool IsMouse() const = 0;
 
         IWindow* GetPlatformWindow() const { return m_PlatformWindow; }
 

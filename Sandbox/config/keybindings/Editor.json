@@ -1,0 +1,31 @@
+{
+  "Gizmo.Translate":     [{ "key": "T", "trigger": "Pressed" }],
+  "Gizmo.Rotate":        [{ "key": "R", "trigger": "Pressed" }],
+  "Gizmo.Scale":         [{ "key": "S", "trigger": "Pressed" }],
+
+  "Entity.Delete":       [{ "key": "Delete",    "trigger": "Pressed" },
+                          { "key": "Backspace", "trigger": "Pressed" }],
+
+  "History.Undo":        [{ "key": "Z", "mods": ["Ctrl"], "trigger": "Pressed" }],
+
+  "Play.Toggle":         [{ "key": "P",      "mods": ["Ctrl"], "trigger": "Pressed" }],
+  "Play.Stop":           [{ "key": "Escape", "trigger": "Pressed" }],
+
+  "Profiler.Toggle":     [{ "key": "F3", "trigger": "Pressed" }],
+
+  "Camera.Focus":        [{ "key": "F", "trigger": "Pressed" }],
+
+  "Menu.AddEntity":      [{ "key": "A", "mods": ["Shift"], "trigger": "Pressed" }],
+  "Menu.AddWindow":      [{ "key": "W", "mods": ["Shift"], "trigger": "Pressed" }],
+
+  "Script.Save":         [{ "key": "S", "mods": ["Ctrl"], "trigger": "Pressed" }],
+
+  "Popup.Close":         [{ "key": "Escape", "trigger": "Pressed" }],
+
+  "Camera.OrbitRmb":     [{ "mouse": "Right",  "trigger": "Drag", "drag_threshold": 1.0 }],
+  "Camera.OrbitAltLmb":  [{ "mouse": "Left",   "mods": ["Alt"],         "trigger": "Drag", "drag_threshold": 1.0 }],
+  "Camera.OrbitMmb":     [{ "mouse": "Middle", "trigger": "Drag", "drag_threshold": 0.0 }],
+  "Camera.PanAltShift":  [{ "mouse": "Left",   "mods": ["Alt","Shift"], "trigger": "Drag", "drag_threshold": 1.0 }],
+  "Camera.PanShiftMmb":  [{ "mouse": "Middle", "mods": ["Shift"],       "trigger": "Drag", "drag_threshold": 0.0 }],
+  "Camera.PanShiftRmb":  [{ "mouse": "Right",  "mods": ["Shift"],       "trigger": "Drag", "drag_threshold": 1.0 }]
+}
