@@ -128,8 +128,18 @@ namespace CHModules {
 
 	void WindowGLFW::SetMouse(bool active)
 	{
-        if (active) glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
-        else        glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+        if (active)
+        {
+            glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            if (glfwRawMouseMotionSupported())
+                glfwSetInputMode(m_Window, GLFW_RAW_MOUSE_MOTION, GLFW_FALSE);
+        }
+        else
+        {
+            glfwSetInputMode(m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            if (glfwRawMouseMotionSupported())
+                glfwSetInputMode(m_Window, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+        }
 	}
 
 	CHEngine::RendererInitInfo WindowGLFW::GetRenderInitInfo(CHEngine::ERenderAPI render_api) const

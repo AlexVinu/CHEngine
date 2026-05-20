@@ -12,6 +12,8 @@
 #include <boost/container_hash/hash.hpp>
 #include <cstdio>
 #include <filesystem>
+#include <functional>
+#include <map>
 #include <optional>
 
 namespace Sandbox {
@@ -123,30 +125,67 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
     // Кнопки добавления объектов убраны — используй Shift+A
     ImGui::Spacing();
 
-    std::optional<CHEngine::UUID> deleteID;
-    size_t objectCount = 0;
-    scene_ptr->ForEach<CHEngine::TagComponent>(
-        [&](CHEngine::EntityHandle handle, const CHEngine::UUID& objectID, CHEngine::TagComponent& tag)
-    {
-        ++objectCount;
-        bool isSelected = (handle == activeSession->SelectedEntity);
-        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_SpanAvailWidth
-                                 | ImGuiTreeNodeFlags_FramePadding;
-        if (isSelected) flags |= ImGuiTreeNodeFlags_Selected;
+    // Pass 1: collect all entities with display info
+    struct EntityInfo {
+        CHEngine::EntityHandle handle;
+        CHEngine::UUID         uuid;
+        std::string            name;
+        const char*            icon;
+    };
+    std::vector<EntityInfo>                       allEntities;
+    std::map<CHEngine::UUID, std::vector<size_t>> children;   // parentUUID → child indices
+    std::vector<size_t>                           roots;
 
+    scene_ptr->ForEach<CHEngine::TagComponent>(
+        [&](CHEngine::EntityHandle handle, const CHEngine::UUID& id, CHEngine::TagComponent& tag)
+    {
         const char* icon = "";
-        if (const auto* entity = scene_ptr->TryGetEntity(handle);
-            entity && entity->HasComponent<CHEngine::LightComponent>())
+        if (const auto* ent = scene_ptr->TryGetEntity(handle);
+            ent && ent->HasComponent<CHEngine::LightComponent>())
         {
-            const auto type = entity->GetComponent<CHEngine::LightComponent>().LightData.Type;
+            const auto type = ent->GetComponent<CHEngine::LightComponent>().LightData.Type;
             if      (type == CHEngine::LightType::Directional) icon = "[D] ";
             else if (type == CHEngine::LightType::Point)        icon = "[P] ";
             else if (type == CHEngine::LightType::Spot)         icon = "[S] ";
         }
+        allEntities.push_back({ handle, id, tag.Name, icon });
+    });
 
-        ImGui::PushID(static_cast<int>(boost::hash<CHEngine::UUID>{}(objectID)));
-        bool opened = ImGui::TreeNodeEx("##object", flags, "  %s%s", icon, tag.Name.c_str());
-        if (ImGui::IsItemClicked()) host.SetSelection(handle);
+    // Pass 2: build parent→children map; orphaned/missing parents → root
+    std::map<CHEngine::UUID, size_t> uuidToIndex;
+    for (size_t i = 0; i < allEntities.size(); ++i)
+        uuidToIndex[allEntities[i].uuid] = i;
+
+    for (size_t i = 0; i < allEntities.size(); ++i)
+    {
+        const auto* ent = scene_ptr->TryGetEntity(allEntities[i].handle);
+        CHEngine::UUID parentUUID;
+        if (ent && ent->HasComponent<CHEngine::ParentNodeComponent>())
+            parentUUID = ent->GetComponent<CHEngine::ParentNodeComponent>().Value;
+
+        if (parentUUID.IsValid() && uuidToIndex.count(parentUUID))
+            children[parentUUID].push_back(i);
+        else
+            roots.push_back(i);
+    }
+
+    std::optional<CHEngine::UUID> deleteID;
+
+    std::function<void(size_t)> renderNode = [&](size_t idx)
+    {
+        const EntityInfo& info = allEntities[idx];
+        bool isSelected  = (info.handle == activeSession->SelectedEntity);
+        bool hasChildren = children.count(info.uuid) > 0;
+
+        ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_SpanAvailWidth | ImGuiTreeNodeFlags_FramePadding;
+        flags |= hasChildren ? ImGuiTreeNodeFlags_OpenOnArrow : ImGuiTreeNodeFlags_Leaf;
+        if (isSelected) flags |= ImGuiTreeNodeFlags_Selected;
+
+        ImGui::PushID(static_cast<int>(boost::hash<CHEngine::UUID>{}(info.uuid)));
+        bool opened = ImGui::TreeNodeEx("##object", flags, "  %s%s", info.icon, info.name.c_str());
+
+        if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+            host.SetSelection(info.handle);
 
         if (ImGui::BeginPopupContextItem())
         {
@@ -156,34 +195,45 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
                     [&host] { host.FocusOnSelected(); }, [] {}, false));
             }
 
-            // Add UI submenu — только если entity является канвасом.
-            if (const auto* ent = scene_ptr->TryGetEntity(handle);
+            if (const auto* ent = scene_ptr->TryGetEntity(info.handle);
                 ent && (ent->HasComponent<CHEngine::UIOverlayCanvasComponent>() ||
-                        ent->HasComponent<CHEngine::UIWorldCanvasComponent>()))
+                        ent->HasComponent<CHEngine::UIWorldCanvasComponent>()   ||
+                        ent->HasComponent<CHEngine::UIPanelComponent>()))
             {
                 ImGui::Separator();
                 if (ImGui::BeginMenu("Add UI"))
                 {
-                    if (ImGui::MenuItem("Panel"))  { host.SetSelection(handle); host.AddUIPanel();  }
-                    if (ImGui::MenuItem("Text"))   { host.SetSelection(handle); host.AddUIText();   }
-                    if (ImGui::MenuItem("Button")) { host.SetSelection(handle); host.AddUIButton(); }
-                    if (ImGui::MenuItem("Image"))  { host.SetSelection(handle); host.AddUIImage();  }
-                    if (ImGui::MenuItem("Slider")) { host.SetSelection(handle); host.AddUISlider(); }
+                    const auto& uuid = ent->GetComponent<CHEngine::IDComponent>().Value;
+                    if (ImGui::MenuItem("Panel"))  { host.SetSelection(info.handle); host.AddUIPanel(uuid);  }
+                    if (ImGui::MenuItem("Text"))   { host.SetSelection(info.handle); host.AddUIText(uuid);   }
+                    if (ImGui::MenuItem("Button")) { host.SetSelection(info.handle); host.AddUIButton(uuid); }
+                    if (ImGui::MenuItem("Image"))  { host.SetSelection(info.handle); host.AddUIImage(uuid);  }
+                    if (ImGui::MenuItem("Slider")) { host.SetSelection(info.handle); host.AddUISlider(uuid); }
                     ImGui::EndMenu();
                 }
             }
 
             ImGui::Separator();
             ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.231f, 0.188f, 1.0f));
-            if (ImGui::MenuItem("Delete")) deleteID = objectID;
+            if (ImGui::MenuItem("Delete")) deleteID = info.uuid;
             ImGui::PopStyleColor();
             ImGui::EndPopup();
         }
-        if (opened) ImGui::TreePop();
-        ImGui::PopID();
-    });
 
-    if (objectCount == 0)
+        if (opened)
+        {
+            if (hasChildren)
+                for (size_t childIdx : children[info.uuid])
+                    renderNode(childIdx);
+            ImGui::TreePop();
+        }
+        ImGui::PopID();
+    };
+
+    for (size_t rootIdx : roots)
+        renderNode(rootIdx);
+
+    if (allEntities.empty())
     {
         ImGui::Spacing();
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.52f, 1.0f));

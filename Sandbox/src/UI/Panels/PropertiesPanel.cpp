@@ -8,7 +8,8 @@
 #include <CHEngine/Mesh/Material.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Light.h>
-#include <CHEngine/Scene/SceneCamera.h>
+#include <CHEngine/Camera/PerspectiveCamera.h>
+#include <CHEngine/Camera/OrthographicCamera.h>
 
 #include "UIThemeActive.h"
 
@@ -692,13 +693,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
         selectedEntity,
         "Camera",
         [&](CHEngine::CameraComponent& camComp) {
-            const CHEngine::SceneCamera& cam = camComp.Camera;
-
             const uint32_t vw = std::max(1u, static_cast<uint32_t>(activeSession->ViewportSize.x));
             const uint32_t vh = std::max(1u, static_cast<uint32_t>(activeSession->ViewportSize.y));
             auto syncViewport = [&] {
                 selectedEntity->PatchComponent<CHEngine::CameraComponent>([&](CHEngine::CameraComponent& camera_component) {
-                    camera_component.Camera.SetViewportSize(vw, vh);
+                    CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                 });
             };
 
@@ -707,7 +706,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             {
                 selectedEntity->PatchComponent<CHEngine::CameraComponent>([&](CHEngine::CameraComponent& camera_component) {
                     camera_component.Primary = primary;
-                    camera_component.Camera.SetViewportSize(vw, vh);
+                    CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                 });
                 syncViewport();
             }
@@ -720,23 +719,25 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             }
 
             const char* projNames[] = { "Perspective", "Orthographic" };
-            int projIdx = cam.GetProjectionType() == CHEngine::SceneCamera::ProjectionType::Perspective ? 0 : 1;
+            int projIdx = std::holds_alternative<CHEngine::PerspectiveCamera>(camComp.Camera) ? 0 : 1;
             ImGui::SetNextItemWidth(-1.0f);
             if (ImGui::Combo("##camProjCam", &projIdx, projNames, 2))
             {
-                const auto projectionType = projIdx == 0 ? CHEngine::SceneCamera::ProjectionType::Perspective
-                                                         : CHEngine::SceneCamera::ProjectionType::Orthographic;
                 selectedEntity->PatchComponent<CHEngine::CameraComponent>(
                     [&](CHEngine::CameraComponent& camera_component) {
-                        camera_component.Camera.SetProjectionType(projectionType);
-                        camera_component.Camera.SetViewportSize(vw, vh);
+                        if (projIdx == 0)
+                            camera_component.Camera = CHEngine::PerspectiveCamera{};
+                        else
+                            camera_component.Camera = CHEngine::OrthographicCamera{};
+                        CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                     });
                 syncViewport();
             }
 
-            if (cam.GetProjectionType() == CHEngine::SceneCamera::ProjectionType::Perspective)
+            if (std::holds_alternative<CHEngine::PerspectiveCamera>(camComp.Camera))
             {
-                float fovDeg = glm::degrees(cam.GetPerspectiveVerticalFOV());
+                const auto& cam = std::get<CHEngine::PerspectiveCamera>(camComp.Camera);
+                float fovDeg = glm::degrees(cam.GetVerticalFOV());
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("FOV (deg)");
                 ImGui::PopStyleColor();
@@ -746,14 +747,15 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 {
                     selectedEntity->PatchComponent<CHEngine::CameraComponent>(
                         [&](CHEngine::CameraComponent& camera_component) {
-                            camera_component.Camera.SetPerspectiveVerticalFOV(glm::radians(fovDeg));
-                            camera_component.Camera.SetViewportSize(vw, vh);
+                            std::get<CHEngine::PerspectiveCamera>(camera_component.Camera)
+                                .SetVerticalFOV(glm::radians(fovDeg));
+                            CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                         });
                     syncViewport();
                 }
 
-                float pn = cam.GetPerspectiveNearClip();
-                float pf = cam.GetPerspectiveFarClip();
+                float pn = cam.GetNearClip();
+                float pf = cam.GetFarClip();
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("Near");
                 ImGui::PopStyleColor();
@@ -763,8 +765,8 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 {
                     selectedEntity->PatchComponent<CHEngine::CameraComponent>(
                         [&](CHEngine::CameraComponent& camera_component) {
-                            camera_component.Camera.SetPerspectiveNearClip(pn);
-                            camera_component.Camera.SetViewportSize(vw, vh);
+                            std::get<CHEngine::PerspectiveCamera>(camera_component.Camera).SetNearClip(pn);
+                            CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                         });
                     syncViewport();
                 }
@@ -777,15 +779,16 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 {
                     selectedEntity->PatchComponent<CHEngine::CameraComponent>(
                         [&](CHEngine::CameraComponent& camera_component) {
-                            camera_component.Camera.SetPerspectiveFarClip(pf);
-                            camera_component.Camera.SetViewportSize(vw, vh);
+                            std::get<CHEngine::PerspectiveCamera>(camera_component.Camera).SetFarClip(pf);
+                            CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                         });
                     syncViewport();
                 }
             }
             else
             {
-                float orthoSize = cam.GetOrthographicSize();
+                const auto& cam = std::get<CHEngine::OrthographicCamera>(camComp.Camera);
+                float orthoSize = cam.GetSize();
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("Size");
                 ImGui::PopStyleColor();
@@ -795,14 +798,14 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 {
                     selectedEntity->PatchComponent<CHEngine::CameraComponent>(
                         [&](CHEngine::CameraComponent& camera_component) {
-                            camera_component.Camera.SetOrthographicSize(orthoSize);
-                            camera_component.Camera.SetViewportSize(vw, vh);
+                            std::get<CHEngine::OrthographicCamera>(camera_component.Camera).SetSize(orthoSize);
+                            CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                         });
                     syncViewport();
                 }
 
-                float on = cam.GetOrthographicNearClip();
-                float of = cam.GetOrthographicFarClip();
+                float on = cam.GetNearClip();
+                float of = cam.GetFarClip();
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("Near");
                 ImGui::PopStyleColor();
@@ -812,8 +815,8 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 {
                     selectedEntity->PatchComponent<CHEngine::CameraComponent>(
                         [&](CHEngine::CameraComponent& camera_component) {
-                            camera_component.Camera.SetOrthographicNearClip(on);
-                            camera_component.Camera.SetViewportSize(vw, vh);
+                            std::get<CHEngine::OrthographicCamera>(camera_component.Camera).SetNearClip(on);
+                            CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                         });
                     syncViewport();
                 }
@@ -826,8 +829,8 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 {
                     selectedEntity->PatchComponent<CHEngine::CameraComponent>(
                         [&](CHEngine::CameraComponent& camera_component) {
-                            camera_component.Camera.SetOrthographicFarClip(of);
-                            camera_component.Camera.SetViewportSize(vw, vh);
+                            std::get<CHEngine::OrthographicCamera>(camera_component.Camera).SetFarClip(of);
+                            CHEngine::CameraHelpers::SetViewportSize(camera_component.Camera, vw, vh);
                         });
                     syncViewport();
                 }

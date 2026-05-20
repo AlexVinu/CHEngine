@@ -118,7 +118,7 @@ endif()
 # Подключаемые библиотеки
 target_link_libraries(${PROJECT_NAME}
     PUBLIC
-        CHEngine_CORE imgui glm Lua::Lua
+        CHEngine_CORE imgui glm Lua::Lua magic_enum
 )
 
 # Линковка dl на Unix

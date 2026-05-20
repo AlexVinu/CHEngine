@@ -1,8 +1,11 @@
 #include "EditorCameraController.h"
 
+#include <imgui.h>
+
 #include <CHEngine/Camera/EditorCamera.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Entity.h>
+#include <CHEngine/Application.h>
 
 #include <algorithm>
 
@@ -61,7 +64,13 @@ void EditorCameraController::UpdateCameraInput(const InputSnapshot& input_snapsh
                                                Ref<CHEngine::Scene> editor_scene,
                                                CHEngine::EntityHandle selected_entity)
 {
-    if (!viewport_camera || !input_snapshot.IsViewportHovered)
+    if (!viewport_camera)
+        return;
+
+    // While camera is capturing (dragging), allow input even if cursor left the viewport.
+    // Without this, setting MousePos=-FLT_MAX to clear ImGui hover would kill IsViewportHovered
+    // and the early-return would prevent SetMouse(true) from ever firing.
+    if (!input_snapshot.IsViewportHovered && !m_IsCameraCapturing)
         return;
 
     if (input_snapshot.IsGizmoUsing)
@@ -85,26 +94,42 @@ void EditorCameraController::UpdateCameraInput(const InputSnapshot& input_snapsh
     const bool isOrbiting = input_snapshot.IsOrbitByRmbDrag
         || input_snapshot.IsOrbitByAltLmbDrag
         || input_snapshot.IsOrbitByMmbDrag;
-    if (isOrbiting)
-    {
-        viewport_camera->SetYaw(
-            viewport_camera->GetYaw() + glm::radians(input_snapshot.MouseDelta.x * k_OrbitSens));
-        viewport_camera->SetPitch(
-            viewport_camera->GetPitch() + glm::radians(input_snapshot.MouseDelta.y * k_OrbitSens));
-        ApplyOrbit(viewport_camera, camera_state);
-    }
-
     const bool isPanning = input_snapshot.IsPanByAltShiftLmbDrag
         || input_snapshot.IsPanByShiftMmbDrag
         || input_snapshot.IsPanByShiftRmbDrag;
-    if (isPanning)
+
+    if (isOrbiting || isPanning)
     {
-        const float pan_scale = camera_state.OrbitDist * k_PanScale;
-        const glm::vec3 right = viewport_camera->GetRightDirection();
-        const glm::vec3 up = viewport_camera->GetUpDirection();
-        camera_state.OrbitTarget -= right * input_snapshot.MouseDelta.x * pan_scale;
-        camera_state.OrbitTarget += up * input_snapshot.MouseDelta.y * pan_scale;
-        ApplyOrbit(viewport_camera, camera_state);
+        m_IsCameraCapturing = true;
+        CHEngine::Application::Get().InputSystem()->SetMouse(false);
+        ImGuiIO& io = ImGui::GetIO();
+        io.ConfigFlags |= ImGuiConfigFlags_NoMouse;
+        io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
+
+        if (isOrbiting)
+        {
+            viewport_camera->SetYaw(
+                viewport_camera->GetYaw() + glm::radians(input_snapshot.MouseDelta.x * k_OrbitSens));
+            viewport_camera->SetPitch(
+                viewport_camera->GetPitch() + glm::radians(input_snapshot.MouseDelta.y * k_OrbitSens));
+            ApplyOrbit(viewport_camera, camera_state);
+        }
+
+        if (isPanning)
+        {
+            const float pan_scale = camera_state.OrbitDist * k_PanScale;
+            const glm::vec3 right = viewport_camera->GetRightDirection();
+            const glm::vec3 up = viewport_camera->GetUpDirection();
+            camera_state.OrbitTarget -= right * input_snapshot.MouseDelta.x * pan_scale;
+            camera_state.OrbitTarget += up * input_snapshot.MouseDelta.y * pan_scale;
+            ApplyOrbit(viewport_camera, camera_state);
+        }
+    }
+    else
+    {
+        m_IsCameraCapturing = false;
+        CHEngine::Application::Get().InputSystem()->SetMouse(true);
+        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_NoMouse;
     }
 }
 

@@ -4,6 +4,7 @@
 #include "FileSystem/FileSystem.h"
 
 #include <nlohmann/json.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <cstddef>
 #include <memory>
@@ -692,40 +693,37 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             const float defaultAspectRatio = 16.0f / 9.0f;
             const float serializedAspectRatio = cameraJson.value("aspectRatio", defaultAspectRatio);
             const float safeAspectRatio = serializedAspectRatio > 0.001f ? serializedAspectRatio : defaultAspectRatio;
-            cameraComp->Camera.SetViewportSize(static_cast<uint32_t>(safeAspectRatio * 1000.0f), 1000u);
 
-            if (cameraJson.contains("projectionType") && cameraJson["projectionType"].is_number_integer()) {
-                const int projectionType = cameraJson["projectionType"].get<int>();
-                cameraComp->Camera.SetProjectionType(static_cast<SceneCamera::ProjectionType>(projectionType));
-
-                if (cameraJson.contains("perspective") && cameraJson["perspective"].is_object()) {
-                    const auto& perspective = cameraJson["perspective"];
-                    cameraComp->Camera.SetPerspectiveVerticalFOV(
-                        perspective.value("verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV()));
-                    cameraComp->Camera.SetPerspectiveNearClip(
-                        perspective.value("nearClip", cameraComp->Camera.GetPerspectiveNearClip()));
-                    cameraComp->Camera.SetPerspectiveFarClip(
-                        perspective.value("farClip", cameraComp->Camera.GetPerspectiveFarClip()));
-                }
-
+            // 0 = Perspective, 1 = Orthographic
+            const int projectionType = cameraJson.value("projectionType", 0);
+            if (projectionType == 1) {
+                OrthographicCamera ortho;
                 if (cameraJson.contains("orthographic") && cameraJson["orthographic"].is_object()) {
-                    const auto& orthographic = cameraJson["orthographic"];
-                    cameraComp->Camera.SetOrthographicSize(
-                        orthographic.value("size", cameraComp->Camera.GetOrthographicSize()));
-                    cameraComp->Camera.SetOrthographicNearClip(
-                        orthographic.value("nearClip", cameraComp->Camera.GetOrthographicNearClip()));
-                    cameraComp->Camera.SetOrthographicFarClip(
-                        orthographic.value("farClip", cameraComp->Camera.GetOrthographicFarClip()));
+                    const auto& o_json = cameraJson["orthographic"];
+                    ortho.SetOrthographic(
+                        o_json.value("size",     ortho.GetSize()),
+                        o_json.value("nearClip", ortho.GetNearClip()),
+                        o_json.value("farClip",  ortho.GetFarClip()));
                 }
+                ortho.SetViewportSize(static_cast<uint32_t>(safeAspectRatio * 1000.0f), 1000u);
+                cameraComp->Camera = std::move(ortho);
             } else {
-                // Legacy fallback (v2/v3): migrate old scalar camera fields into SceneCamera.
-                const float legacyFovDegrees = cameraJson.value("fov", 45.0f);
-                const float legacyNearClip = cameraJson.value("nearClip", 0.1f);
-                const float legacyFarClip = cameraJson.value("farClip", 1000.0f);
-                cameraComp->Camera.SetPerspective(
-                    glm::radians(legacyFovDegrees),
-                    legacyNearClip,
-                    legacyFarClip);
+                PerspectiveCamera persp;
+                if (cameraJson.contains("perspective") && cameraJson["perspective"].is_object()) {
+                    const auto& p_json = cameraJson["perspective"];
+                    persp.SetPerspective(
+                        p_json.value("verticalFOV", persp.GetVerticalFOV()),
+                        p_json.value("nearClip",    persp.GetNearClip()),
+                        p_json.value("farClip",     persp.GetFarClip()));
+                } else if (cameraJson.contains("fov")) {
+                    // Legacy fallback (v2/v3): old scalar fov-in-degrees.
+                    persp.SetPerspective(
+                        glm::radians(cameraJson.value("fov", 45.0f)),
+                        cameraJson.value("nearClip", 0.1f),
+                        cameraJson.value("farClip", 1000.0f));
+                }
+                persp.SetViewportSize(static_cast<uint32_t>(safeAspectRatio * 1000.0f), 1000u);
+                cameraComp->Camera = std::move(persp);
             }
         }
 
@@ -913,17 +911,24 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
         {
             const auto* cameraComp = &entity->GetComponent<CameraComponent>();
             json camera;
-            camera["projectionType"] = static_cast<int>(cameraComp->Camera.GetProjectionType());
-            camera["perspective"] = {
-                { "verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV() },
-                { "nearClip",    cameraComp->Camera.GetPerspectiveNearClip() },
-                { "farClip",     cameraComp->Camera.GetPerspectiveFarClip() }
-            };
-            camera["orthographic"] = {
-                { "size",     cameraComp->Camera.GetOrthographicSize() },
-                { "nearClip", cameraComp->Camera.GetOrthographicNearClip() },
-                { "farClip",  cameraComp->Camera.GetOrthographicFarClip() }
-            };
+            std::visit([&](const auto& c) {
+                using T = std::decay_t<decltype(c)>;
+                if constexpr (std::is_same_v<T, PerspectiveCamera>) {
+                    camera["projectionType"] = 0;
+                    camera["perspective"] = {
+                        { "verticalFOV", c.GetVerticalFOV() },
+                        { "nearClip",    c.GetNearClip() },
+                        { "farClip",     c.GetFarClip() }
+                    };
+                } else if constexpr (std::is_same_v<T, OrthographicCamera>) {
+                    camera["projectionType"] = 1;
+                    camera["orthographic"] = {
+                        { "size",     c.GetSize() },
+                        { "nearClip", c.GetNearClip() },
+                        { "farClip",  c.GetFarClip() }
+                    };
+                }
+            }, cameraComp->Camera);
             camera["aspectRatio"]      = 16.0f / 9.0f;
             camera["fixedAspectRatio"] = cameraComp->FixedAspectRatio;
             camera["primary"]          = cameraComp->Primary;
@@ -1061,17 +1066,24 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
         {
             const auto* cameraComp = &entity->GetComponent<CameraComponent>();
             json camera;
-            camera["projectionType"] = static_cast<int>(cameraComp->Camera.GetProjectionType());
-            camera["perspective"] = {
-                { "verticalFOV", cameraComp->Camera.GetPerspectiveVerticalFOV() },
-                { "nearClip",    cameraComp->Camera.GetPerspectiveNearClip() },
-                { "farClip",     cameraComp->Camera.GetPerspectiveFarClip() }
-            };
-            camera["orthographic"] = {
-                { "size",     cameraComp->Camera.GetOrthographicSize() },
-                { "nearClip", cameraComp->Camera.GetOrthographicNearClip() },
-                { "farClip",  cameraComp->Camera.GetOrthographicFarClip() }
-            };
+            std::visit([&](const auto& c) {
+                using T = std::decay_t<decltype(c)>;
+                if constexpr (std::is_same_v<T, PerspectiveCamera>) {
+                    camera["projectionType"] = 0;
+                    camera["perspective"] = {
+                        { "verticalFOV", c.GetVerticalFOV() },
+                        { "nearClip",    c.GetNearClip() },
+                        { "farClip",     c.GetFarClip() }
+                    };
+                } else if constexpr (std::is_same_v<T, OrthographicCamera>) {
+                    camera["projectionType"] = 1;
+                    camera["orthographic"] = {
+                        { "size",     c.GetSize() },
+                        { "nearClip", c.GetNearClip() },
+                        { "farClip",  c.GetFarClip() }
+                    };
+                }
+            }, cameraComp->Camera);
             camera["aspectRatio"]      = 16.0f / 9.0f;
             camera["fixedAspectRatio"] = cameraComp->FixedAspectRatio;
             camera["primary"]          = cameraComp->Primary;

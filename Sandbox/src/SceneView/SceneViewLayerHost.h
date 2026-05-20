@@ -64,7 +64,6 @@ public:
 
     void ApplyOrbit() ;
     void SetViewPreset(float yaw_degrees, float pitch_degrees) ;
-    void SetViewportFov(float fov_degrees) ;
     void FocusOnSelected() ;
     void ResetViewportCamera() ;
 
@@ -80,11 +79,13 @@ public:
     // attach to a canvas via UIRectTransformComponent::CanvasRef.
     void AddUIOverlayCanvas();
     void AddUIWorldCanvas();
-    void AddUIPanel();
-    void AddUIText();
-    void AddUIButton();
-    void AddUIImage();
-    void AddUISlider();    void SetSelection(CHEngine::EntityHandle handle);
+
+    void AddUIPanel(const CHEngine::UUID&);
+    void AddUIText(const CHEngine::UUID&);
+    void AddUIButton(const CHEngine::UUID&);
+    void AddUIImage(const CHEngine::UUID&);
+    void AddUISlider(const CHEngine::UUID&);
+    void SetSelection(CHEngine::EntityHandle handle);
     void DestroyEntityByUuid(const CHEngine::UUID& object_id);
 
     void OnRendererApiSelected(CHEngine::ERenderAPI api) ;

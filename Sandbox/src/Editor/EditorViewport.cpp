@@ -224,7 +224,7 @@ void DrawWorldLine(ImDrawList* dl,
 
 void DrawCameraFrustum(ImDrawList* dl,
                        const CHEngine::Transform& transform,
-                       const CHEngine::SceneCamera& cam,
+                       const CHEngine::CameraVariant& camVariant,
                        const glm::mat4& editorVP,
                        const ImVec2& vpPos, const ImVec2& vpSize,
                        bool isSelected)
@@ -245,12 +245,25 @@ void DrawCameraFrustum(ImDrawList* dl,
     glm::vec3 right2   = glm::vec3(rot * glm::vec4(1,  0,  0, 0));
     glm::vec3 up2      = glm::vec3(rot * glm::vec4(0,  1,  0, 0));
 
-    float fov    = cam.GetPerspectiveVerticalFOV();
-    float aspect = cam.GetProjectionType() ==
-                   CHEngine::SceneCamera::ProjectionType::Perspective
-                   ? 16.0f / 9.0f : 1.0f;
-    float nearD  = cam.GetPerspectiveNearClip();
-    float farD   = std::min(cam.GetPerspectiveFarClip(), 8.0f);
+    const float aspect = 16.0f / 9.0f;
+
+    float halfHNear = 0.0f, halfHFar = 0.0f, nearD = 0.0f, farD = 0.0f;
+    if (auto* p = std::get_if<CHEngine::PerspectiveCamera>(&camVariant))
+    {
+        const float fov = p->GetVerticalFOV();
+        nearD = p->GetNearClip();
+        farD  = std::min(p->GetFarClip(), 8.0f);
+        halfHNear = nearD * std::tan(fov * 0.5f);
+        halfHFar  = farD  * std::tan(fov * 0.5f);
+    }
+    else if (auto* o = std::get_if<CHEngine::OrthographicCamera>(&camVariant))
+    {
+        const float size = o->GetSize();
+        nearD = std::max(o->GetNearClip(), 0.01f);
+        farD  = std::min(o->GetFarClip(), 8.0f);
+        halfHNear = size * 0.5f;
+        halfHFar  = size * 0.5f;
+    }
 
     auto frustumCorners = [&](float d, float halfH) -> std::array<glm::vec3, 4>
     {
@@ -263,9 +276,6 @@ void DrawCameraFrustum(ImDrawList* dl,
             center - right2 * halfW + up2 * halfH
         }};
     };
-
-    float halfHNear = nearD * std::tan(fov * 0.5f);
-    float halfHFar  = farD  * std::tan(fov * 0.5f);
 
     auto nearCorners = frustumCorners(nearD, halfHNear);
     auto farCorners  = frustumCorners(farD,  halfHFar);

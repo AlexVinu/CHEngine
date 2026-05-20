@@ -62,6 +62,7 @@ public:
 
 private:
     float m_AspectRatio = 1280.0f / 720.0f;
+    bool  m_IsCameraCapturing = false;
 };
 
 } // namespace Sandbox

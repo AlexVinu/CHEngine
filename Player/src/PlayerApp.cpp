@@ -52,7 +52,7 @@ public:
             uint32_t w = win->GetWidth(), h = win->GetHeight();
             scene->ForEach<CHEngine::CameraComponent>(
                 [w, h](CHEngine::EntityHandle, const CHEngine::UUID&, CHEngine::CameraComponent& cam) {
-                    cam.Camera.SetViewportSize(w, h);
+                    CHEngine::CameraHelpers::SetViewportSize(cam.Camera, w, h);
                 });
         }
 

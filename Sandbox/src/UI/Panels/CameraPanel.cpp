@@ -43,7 +43,6 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
                     host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] {
                             host.SetViewPreset(-90.0f, -15.0f);
-                            host.SetViewportFov(45.0f);
                         }, [] {}, false));
                 }
 
@@ -94,11 +93,26 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
 
                 float yaw   = glm::degrees(viewport_camera->GetYaw());
                 float pitch = glm::degrees(viewport_camera->GetPitch());
-                float fov   = viewport_camera->GetFOV();
 
                 if (sliderRow("Yaw",   "##yaw",   &yaw,   -180.0f, 180.0f, "%.1f°")) { viewport_camera->SetYaw(glm::radians(yaw));     orb = true; }
                 if (sliderRow("Pitch", "##pitch", &pitch, -89.0f,   89.0f, "%.1f°")) { viewport_camera->SetPitch(glm::radians(pitch));  orb = true; }
-                if (sliderRow("FOV",   "##fov",   &fov,    10.0f,  120.0f, "%.1f°"))  viewport_camera->SetFOV(fov);
+
+                auto& cam = viewport_camera->GetCamera();
+
+				// If perspective
+				if (auto* p_cam = std::get_if<CHEngine::PerspectiveCamera>(&cam))
+				{
+					float fov = glm::degrees(p_cam->GetVerticalFOV());
+                    if (sliderRow("FOV", "##fov", &fov, 10.0f, 170.0f, "%.1f°"))
+                        p_cam->SetVerticalFOV(glm::radians(fov));
+				}
+
+                // If ortho
+                else if (auto* o_cam = std::get_if<CHEngine::OrthographicCamera>(&cam))
+                {
+                    float size = o_cam->GetSize();
+                    if (sliderRow("SIZE", "##size", &size, 10.0f, 120.0f, "%.1f°"))  o_cam->SetSize(size);
+                }
 
                 float orbitDist = cameraState.OrbitDist;
                 if (dragRow("Dist", "##dist", &orbitDist, 0.1f, 0.3f, 500.0f)) { cameraState.OrbitDist = orbitDist; orb = true; }
@@ -128,6 +142,20 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
                 if (UIActive::DestructiveButton("Reset Camera", ImVec2(-1.0f, 0.0f)))
                     host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                         [&host] { host.ResetViewportCamera(); }, [] {}, false));
+
+                UIActive::SectionHeader("PROJECTION");
+
+                bool isPerspective = std::holds_alternative<CHEngine::PerspectiveCamera>(viewport_camera->GetCamera());
+                float bw = (ImGui::GetContentRegionAvail().x - 4.0f) * 0.5f;
+                ImGui::BeginDisabled(isPerspective);
+                if (ImGui::Button("Perspective##proj", ImVec2(bw, 0)))
+                    viewport_camera->SetCameraType(CHEngine::ECameraType::PERSPECTIVE);
+                ImGui::EndDisabled();
+                ImGui::SameLine(0, 4);
+                ImGui::BeginDisabled(!isPerspective);
+                if (ImGui::Button("Orthographic##proj", ImVec2(bw, 0)))
+                    viewport_camera->SetCameraType(CHEngine::ECameraType::ORTHOGRAPHIC);
+                ImGui::EndDisabled();
             }
             ImGui::EndTabItem();
         }

@@ -42,15 +42,17 @@ namespace {
 
 using FontCache = std::unordered_map<std::string, FontAtlasHandle>;
 
+static const std::string kDefaultFont = "assets/fonts/Roboto-Medium.ttf";
+
 FontAtlasHandle GetFontFromCache(UIRendererBackend& backend,
                                  FontCache& cache,
                                  const std::string& path, float size)
 {
-    if (path.empty()) return FontAtlasHandle{};
-    std::string key = path + ":" + std::to_string(static_cast<int>(size));
+    const std::string& resolved = path.empty() ? kDefaultFont : path;
+    std::string key = resolved + ":" + std::to_string(static_cast<int>(size));
     auto it = cache.find(key);
     if (it != cache.end()) return it->second;
-    std::filesystem::path fsPath(path);
+    std::filesystem::path fsPath(resolved);
     if (!fsPath.is_absolute())
         fsPath = AppPaths::ExecutableDir() / fsPath;
     FontAtlasHandle h = backend.GetAtlasLoader().Load(fsPath, size);
@@ -193,16 +195,41 @@ void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*
 
     if (canvasIndex.empty()) return;
 
-    // Step 2: group elements by CanvasRef.
-    std::unordered_map<UUID, std::vector<EntityHandle>, boost::hash<UUID>>
-        elementsByCanvas;
+    // Step 2: group elements by canvas, resolving multi-level parent chains.
+    struct ElementEntry {
+        EntityHandle              handle;
+        std::vector<EntityHandle> path; // intermediate parents: canvas-direct-child → entity's direct parent
+    };
+    std::unordered_map<UUID, std::vector<ElementEntry>, boost::hash<UUID>>
+        elementsByParent;
+
+    std::unordered_map<UUID, EntityHandle, boost::hash<UUID>> rectEntityByUUID;
+    scene->ForEach<UIRectTransformComponent>(
+        [&](EntityHandle h, const UUID& uuid, UIRectTransformComponent&)
+        { rectEntityByUUID[uuid] = h; });
 
     scene->ForEach<UIRectTransformComponent, ParentNodeComponent>(
-        [&](EntityHandle h, const UUID&, UIRectTransformComponent& rt, ParentNodeComponent& parent)
+        [&](EntityHandle h, const UUID&, UIRectTransformComponent&, ParentNodeComponent& parentComp)
         {
-            auto it = canvasIndex.find(parent.Value);
-            if (it == canvasIndex.end()) return;
-            elementsByCanvas[parent.Value].push_back(h);
+            std::vector<EntityHandle> path;
+            UUID cur = parentComp.Value;
+
+            for (int i = 0; i < 32; ++i)
+            {
+                if (canvasIndex.count(cur))
+                {
+                    std::reverse(path.begin(), path.end());
+                    elementsByParent[cur].push_back({ h, std::move(path) });
+                    return;
+                }
+                auto rit = rectEntityByUUID.find(cur);
+                if (rit == rectEntityByUUID.end()) return;
+                EntityHandle ph = rit->second;
+                path.push_back(ph);
+                auto* pe = scene->TryGetEntity(ph);
+                if (!pe || !pe->HasComponent<ParentNodeComponent>()) return;
+                cur = pe->GetComponent<ParentNodeComponent>().Value;
+            }
         });
 
     // Step 3: separate overlay & world canvas lists, sort overlay by SortOrder.
@@ -217,17 +244,30 @@ void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*
         [&](const UUID& a, const UUID& b)
         { return canvasIndex[a].sortOrder < canvasIndex[b].sortOrder; });
 
-    auto SortElements = [&](std::vector<EntityHandle>& list)
+    auto SortElements = [&](std::vector<ElementEntry>& list)
     {
         std::sort(list.begin(), list.end(),
-            [&](EntityHandle a, EntityHandle b)
+            [&](const ElementEntry& a, const ElementEntry& b)
             {
-                auto* ea = scene->TryGetEntity(a);
-                auto* eb = scene->TryGetEntity(b);
+                if (a.path.size() != b.path.size())
+                    return a.path.size() < b.path.size();
+                auto* ea = scene->TryGetEntity(a.handle);
+                auto* eb = scene->TryGetEntity(b.handle);
                 int za = ea ? ea->GetComponent<UIRectTransformComponent>().ZOrder : 0;
                 int zb = eb ? eb->GetComponent<UIRectTransformComponent>().ZOrder : 0;
                 return za < zb;
             });
+    };
+
+    auto GetEffectiveSize = [&](Entity* e) -> glm::vec2
+    {
+        const float h = e->GetComponent<UIRectTransformComponent>().Size;
+        float w = h;
+        if      (e->HasComponent<UIPanelComponent>())   w = e->GetComponent<UIPanelComponent>().Width;
+        else if (e->HasComponent<UIButtonComponent>())  w = e->GetComponent<UIButtonComponent>().Width;
+        else if (e->HasComponent<UIImageComponent>())   w = e->GetComponent<UIImageComponent>().Width;
+        else if (e->HasComponent<UISliderComponent>())  w = e->GetComponent<UISliderComponent>().Width;
+        return { w, h };
     };
 
     // ── Overlay pass ──────────────────────────────────────────────────────────
@@ -262,22 +302,35 @@ void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*
 
             // Children: positions are in canvas-local pixels, but the overlay
             // submission uses screen ortho, so offset by (canvasX, canvasY).
-            auto eit = elementsByCanvas.find(uuid);
-            if (eit == elementsByCanvas.end()) continue;
+            auto eit = elementsByParent.find(uuid);
+            if (eit == elementsByParent.end()) continue;
             SortElements(eit->second);
 
             backend->SetClipRect(canvasX, canvasY, canvasW, canvasH);
-            for (EntityHandle eh : eit->second)
+            for (const ElementEntry& entry : eit->second)
             {
-                auto* e = scene->TryGetEntity(eh);
+                auto* e = scene->TryGetEntity(entry.handle);
                 if (!e) continue;
                 if (e->HasComponent<VisibilityComponent>() &&
                     !e->GetComponent<VisibilityComponent>().Visible)
                     continue;
-                const auto& rt = e->GetComponent<UIRectTransformComponent>();
-                UIRect r = ResolveRect(rt, canvasW, canvasH);
-                r.x += canvasX;
-                r.y += canvasY;
+
+                float pW = canvasW, pH = canvasH;
+                float offX = canvasX, offY = canvasY;
+                bool valid = true;
+                for (EntityHandle ph : entry.path)
+                {
+                    auto* pe = scene->TryGetEntity(ph);
+                    if (!pe) { valid = false; break; }
+                    UIRect pr = ResolveRect(pe->GetComponent<UIRectTransformComponent>(), pW, pH);
+                    offX += pr.x; offY += pr.y;
+                    auto sz = GetEffectiveSize(pe);
+                    pW = sz.x; pH = sz.y;
+                }
+                if (!valid) continue;
+
+                UIRect r = ResolveRect(e->GetComponent<UIRectTransformComponent>(), pW, pH);
+                r.x += offX; r.y += offY;
                 DrawElement(backend, e, r, c.Alpha);
             }
             backend->ClearClipRect();
@@ -329,19 +382,34 @@ void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*
             if (bg.a > 0.0f)
                 backend->DrawQuad(0.0f, 0.0f, sizePx.x, sizePx.y, bg);
 
-            auto eit = elementsByCanvas.find(uuid);
-            if (eit != elementsByCanvas.end())
+            auto eit = elementsByParent.find(uuid);
+            if (eit != elementsByParent.end())
             {
                 SortElements(eit->second);
-                for (EntityHandle eh : eit->second)
+                for (const ElementEntry& entry : eit->second)
                 {
-                    auto* e = scene->TryGetEntity(eh);
+                    auto* e = scene->TryGetEntity(entry.handle);
                     if (!e) continue;
                     if (e->HasComponent<VisibilityComponent>() &&
                         !e->GetComponent<VisibilityComponent>().Visible)
                         continue;
-                    const auto& rt = e->GetComponent<UIRectTransformComponent>();
-                    UIRect r = ResolveRect(rt, sizePx.x, sizePx.y);
+
+                    float pW = sizePx.x, pH = sizePx.y;
+                    float offX = 0.f, offY = 0.f;
+                    bool valid = true;
+                    for (EntityHandle ph : entry.path)
+                    {
+                        auto* pe = scene->TryGetEntity(ph);
+                        if (!pe) { valid = false; break; }
+                        UIRect pr = ResolveRect(pe->GetComponent<UIRectTransformComponent>(), pW, pH);
+                        offX += pr.x; offY += pr.y;
+                        auto sz = GetEffectiveSize(pe);
+                        pW = sz.x; pH = sz.y;
+                    }
+                    if (!valid) continue;
+
+                    UIRect r = ResolveRect(e->GetComponent<UIRectTransformComponent>(), pW, pH);
+                    r.x += offX; r.y += offY;
                     DrawElement(backend, e, r, c.Alpha);
                 }
             }

@@ -24,6 +24,7 @@
 #include <filesystem>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <magic_enum/magic_enum.hpp>
 #include <sstream>
 
 namespace {
@@ -209,11 +210,22 @@ void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
         { "position", { cameraPosition.x, cameraPosition.y, cameraPosition.z } },
         { "yaw", glm::degrees(viewport_camera->GetYaw()) },
         { "pitch", glm::degrees(viewport_camera->GetPitch()) },
-        { "fov", viewport_camera->GetFOV() },
         { "orbitTarget", { camera_state.OrbitTarget.x, camera_state.OrbitTarget.y, camera_state.OrbitTarget.z } },
         { "orbitDist", camera_state.OrbitDist },
-        { "followObject", camera_state.FollowObject }
+        { "followObject", camera_state.FollowObject },
+        { "type", magic_enum::enum_name(viewport_camera->GetType())}
     };
+    const auto& camera = viewport_camera->GetCamera();
+    if (auto p_cam = std::get_if<CHEngine::PerspectiveCamera>(&camera))
+    {
+        sceneJson["meta"]["editorCamera"].merge_patch(
+            { {"fov", p_cam->GetVerticalFOV() } });
+    }
+	else if (auto o_cam = std::get_if<CHEngine::OrthographicCamera>(&camera))
+	{
+		sceneJson["meta"]["editorCamera"].merge_patch(
+			{ {"size", o_cam->GetSize() } });
+	}
 
     if (CHEngine::FileSystem::WriteFileText(path, sceneJson.dump(4)))
     {
@@ -312,7 +324,20 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
                 viewport_camera->SetYaw(glm::radians(cameraMeta.value("yaw", glm::degrees(viewport_camera->GetYaw()))));
                 viewport_camera->SetPitch(
                     glm::radians(cameraMeta.value("pitch", glm::degrees(viewport_camera->GetPitch()))));
-                viewport_camera->SetFOV(cameraMeta.value("fov", viewport_camera->GetFOV()));
+
+				std::string cam_type_str = cameraMeta.value("type",
+					std::string(magic_enum::enum_name(viewport_camera->GetType())));
+                auto cam_type = magic_enum::enum_cast<CHEngine::ECameraType>(cam_type_str);
+                viewport_camera->SetCameraType(cam_type.value());
+                auto& cam = viewport_camera->GetCamera();
+                // Perspective
+                if(auto p_cam = std::get_if<CHEngine::PerspectiveCamera>(&cam))
+                    p_cam->SetVerticalFOV(cameraMeta.value("fov", p_cam->GetVerticalFOV()));
+
+                // Ortho
+				if (auto o_cam = std::get_if<CHEngine::OrthographicCamera>(&cam))
+                    o_cam->SetSize(cameraMeta.value("size", o_cam->GetSize()));
+
                 ctx->EditorCameraState.OrbitDist =
                     cameraMeta.value("orbitDist", ctx->EditorCameraState.OrbitDist);
                 ctx->EditorCameraState.FollowObject =
@@ -358,7 +383,16 @@ void SceneViewLayerIO::AutoSaveForRestart(SceneViewLayer& layer)
     oss << pos.x << " " << pos.y << " " << pos.z << "\n";
     oss << glm::degrees(viewport_camera->GetYaw()) << "\n";
     oss << glm::degrees(viewport_camera->GetPitch()) << "\n";
-    oss << viewport_camera->GetFOV() << "\n";
+    oss << magic_enum::enum_name(viewport_camera->GetType()) << "\n";
+    {
+        const auto& cam = viewport_camera->GetCamera();
+        if (const auto* p = std::get_if<CHEngine::PerspectiveCamera>(&cam))
+            oss << p->GetVerticalFOV() << "\n";
+        else if (const auto* o = std::get_if<CHEngine::OrthographicCamera>(&cam))
+            oss << o->GetSize() << "\n";
+        else
+            oss << 0.0f << "\n";
+    }
 
     const glm::vec3 orbitTarget = activeSession->EditorCameraState.OrbitTarget;
     oss << orbitTarget.x << " " << orbitTarget.y << " " << orbitTarget.z << "\n";
@@ -431,11 +465,26 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
         return;
     viewport_camera->SetPosition(pos);
 
-    float yaw, pitch, fov;
-    f >> yaw >> pitch >> fov;
+    float yaw, pitch;
+    f >> yaw >> pitch;
     viewport_camera->SetYaw(glm::radians(yaw));
     viewport_camera->SetPitch(glm::radians(pitch));
-    viewport_camera->SetFOV(fov);
+
+    std::string camTypeStr;
+    float camParam = 0.0f;
+    f >> camTypeStr >> camParam;
+    {
+        auto camType = magic_enum::enum_cast<CHEngine::ECameraType>(camTypeStr);
+        if (camType.has_value())
+        {
+            viewport_camera->SetCameraType(camType.value());
+            auto& cam = viewport_camera->GetCamera();
+            if (auto* p = std::get_if<CHEngine::PerspectiveCamera>(&cam))
+                p->SetVerticalFOV(camParam);
+            else if (auto* o = std::get_if<CHEngine::OrthographicCamera>(&cam))
+                o->SetSize(camParam);
+        }
+    }
 
     glm::vec3 orbitTarget{};
     f >> orbitTarget.x >> orbitTarget.y >> orbitTarget.z;

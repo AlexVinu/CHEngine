@@ -663,7 +663,7 @@ namespace CHEngine {
 
             const Transform& t    = cameraEntity->GetComponent<TransformComponent>().ObjectTransform;
             const glm::mat4  view = MathUtils::ViewMatrixFromTransform(t);
-            const glm::mat4  proj = ecs_camera->Camera.GetProjection();
+            const glm::mat4  proj = CHEngine::CameraHelpers::GetProjection(ecs_camera->Camera);
 
             view_proj     = proj * view;
             inv_view_proj = glm::inverse(view_proj);

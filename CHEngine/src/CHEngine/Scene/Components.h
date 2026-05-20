@@ -10,7 +10,8 @@
 #include "CHEngine/Mesh/Mesh.h"
 #include "Light.h"
 #include "Transform.h"
-#include "SceneCamera.h"
+#include "CHEngine/Camera/PerspectiveCamera.h"
+#include "CHEngine/Camera/OrthographicCamera.h"
 #include <Physics/PhysicsTypes.h>
 #include <Physics/IPhysicsBody.h>
 #include <Physics/IPhysicsShape.h>
@@ -103,7 +104,7 @@ namespace CHEngine {
 
     struct CameraComponent
     {
-        SceneCamera Camera;
+        CameraVariant Camera = PerspectiveCamera{};
         bool FixedAspectRatio = false;
         bool Primary = true;
     };

@@ -56,6 +56,8 @@ add_subdirectory(${CHE_VENDOR_DIR}/GLM)
 
 add_subdirectory(${CHE_VENDOR_DIR}/lua)
 
+add_subdirectory(${CHE_VENDOR_DIR}/magic_enum vendors/magic_enum)
+
 # ImGui vendor path — used by ImGuiOGL to compile GLFW/OpenGL3 backends
 set(IMGUI_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/Core/vendor/imgui-docking/imgui" CACHE PATH "" FORCE)
 
