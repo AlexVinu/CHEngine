@@ -13,9 +13,10 @@
 │                                                             │
 │  Application  →  LayerStack  →  World  →  SystemScheduler  │
 │       │                           │                         │
-│  RenderSubsystem           Scene (entt ECS)                 │
-│  PhysicsSubsystem          DeferredOps                      │
-│  UISubsystem               EventBus, Camera, Input          │
+│  RenderFacade              Scene (entt ECS)                 │
+│  PhysicsFacade             DeferredOps                      │
+│  UIFacade                  EventBus, WorldState             │
+│                            Camera, Input                    │
 └──────┬──────────────────────────────────────────────────────┘
        │  динамическая загрузка (ModuleManager)
 ┌──────▼──────────────────────────────────────────────────────┐
@@ -35,26 +36,25 @@
 `Core/` не зависит ни от чего внутри движка. Содержит:
 
 - **Интерфейсы** (`Core/Interfaces/`) — чистые абстракции для всех модулей:
-  - `IRenderFactory`, handle-типы (`ShaderHandle`, `TextureHandle`, `BufferHandle`, `PipelineHandle`)
+  - `IRenderFactory`, `IRenderer`, `IRenderApi`, `IShader`, `IVertexArray`, `ITexture`
   - `IWindowFactory`, `IWindow`
   - `IImGuiFactory`, `IImGuiLayer`
   - `IPhysicsFactory`, `IPhysicsWorld`, `IPhysicsBody`, `IPhysicsShape`
-  - `IRenderGraph`, `IFrameGraphBackend`, `PassDesc`, `DrawDesc`
-- **Утилиты** (`Core/src/`) — `Log`, `Handle<Tag>`, `HandlePool`, `Timestep`, `Scope`/`Ref`
-- **`EngineContext`** — RAII-синглтон инициализации процесса (логгинг + аллокатор)
+- **Утилиты** (`Core/src/`) — `Log`, `FileSystem`, `Handle`, `Timestep`, `Scope`/`Ref`
 
 ### 2. CHEngine — основная библиотека
 
-Shared-библиотека (.dylib/.dll). Реализует:
+Shared-библиотека (.dylib/.dll). Загружается при старте приложения. Реализует:
 
-- `Application` — главный класс, владеет всеми подсистемами через `Scope<T>`
-- `ModuleManager` — загрузка/выгрузка плагинов
+- `Application` — главный класс, управляет жизненным циклом
+- `ModuleManager` — загрузка/выгрузка/горячая перезагрузка плагинов
 - `World` + `Scene` + `SystemScheduler` — ECS-симуляция
-- `RenderSubsystem`, `PhysicsSubsystem`, `UISubsystem` — RAII-подсистемы
+- `RenderFacade`, `PhysicsFacade`, `UIFacade` — статические фасады
 - `ResourceManager` — централизованный менеджер ресурсов (шейдеры, текстуры, модели)
+- `MeshLoader` — синглтон, контент-адресуемый кэш GPU-буферов геометрии
 - `Input`, `Camera`, `Layer`, `LayerStack`
 - `Mesh`, `Material`, `MaterialInstance`
-- `EventSystem`, `EventBus`
+- `EventSystem`
 
 ### 3. Модули — платформенные реализации
 
@@ -65,43 +65,44 @@ extern "C" IModuleFactory* CreateFactory();
 extern "C" void DestroyFactory(IModuleFactory*);
 ```
 
+Движок загружает модуль, вызывает `CreateFactory()` и получает конкретный объект-фабрику.
+
 ## Ключевые паттерны
 
-### RAII-подсистемы (заменили статические Facade)
+### Facade
 
-`Application` владеет тремя RAII-подсистемами:
+`RenderFacade`, `PhysicsFacade`, `UIFacade` — статические классы без состояния.  
+Скрывают внутреннее устройство (фабрики, пулы ресурсов) от пользовательского кода.
 
 ```cpp
-// Доступ через Application::Get()
-RenderSubsystem&  render  = Application::Get().Render();
-PhysicsSubsystem* physics = Application::Get().Physics();  // nullptr если недоступна
-UISubsystem*      ui      = Application::Get().UI();
+// Пользователь просто вызывает:
+RenderFacade::Submit(shader, vao, transform);
 
-// Проверка наличия опциональных подсистем
-if (Application::Get().HasPhysics()) { ... }
-if (Application::Get().HasUI())      { ... }
+// Внутри фасад знает про RenderResourceManager, IRenderer, UBO и т.д.
 ```
-
-`RenderSubsystem` владеет `IRenderFactory*`, фрейм-графом и горячей перезагрузкой шейдеров.  
-`PhysicsSubsystem` владеет `IPhysicsFactory*` и создаёт/уничтожает физические миры.  
-`UISubsystem` владеет `IImGuiLayer*` и управляет `Begin()`/`End()`.
 
 ### Handle-based resource management
 
-Все GPU-ресурсы идентифицируются хэндлами — `Handle<Tag>` (index + generation, 8 байт).  
+Все GPU-ресурсы идентифицируются хэндлами — `Handle<Tag>` (index + generation, 8 байт).
 Это исключает висячие указатели и обеспечивает type-safety:
 
 ```cpp
-ShaderHandle  sh  = Application::Get().Render().CreateShaderFromFile("Mesh", "shaders/mesh.slang");
-TextureHandle tex = Application::Get().Render().CreateTextureFromFile("textures/albedo.png");
+ShaderHandle  shader  = ResourceManager::Instance().Load<ShaderHandle>("Mesh", "shaders/mesh.slang");
+TextureHandle texture = ResourceManager::Instance().Load<TextureHandle>("textures/albedo.png");
+ModelHandle   model   = ResourceManager::Instance().Load<ModelHandle>("assets/cube.obj", shader);
 ```
 
-`Handle<ShaderTag>` и `Handle<TextureTag>` — разные типы, компилятор не перепутает.  
+`Handle<ShaderTag>` и `Handle<TextureTag>` — разные типы, компилятор не перепутает.
 `Handle::IsValid()` проверяет `index != 0xFFFFFFFF`.
+
+Загрузка всех файловых ресурсов проходит через `ResourceManager` — он кэширует по пути
+и разделяет один GPU-ресурс между всеми пользователями. Прямые вызовы
+`RenderFacade::CreateShaderFromFile / CreateTextureFromFile` допустимы только внутри
+самих лоадеров.
 
 ### ResourceManager
 
-Синглтон `ResourceManager::Instance()` хранит лоадеры:
+Синглтон `ResourceManager::Instance()` хранит три лоадера:
 
 | Лоадер | Тип хэндла | Кэш-ключ |
 |--------|-----------|---------|
@@ -109,65 +110,53 @@ TextureHandle tex = Application::Get().Render().CreateTextureFromFile("textures/
 | `TextureLoader` | `TextureHandle` | путь к файлу текстуры |
 | `ModelLoader` | `ModelHandle` | путь к `.obj`/`.gltf`/`.glb` |
 
-### Декларативный фрейм-граф
-
-Рендеринг описывается декларативно через `PassDesc` (без callback'ов).  
-Backend сам разворачивает список пассов в нативные команды API.
-
-```cpp
-// Пример: RenderSystem строит пасс каждый кадр
-PassDesc pass;
-pass.Pipeline         = m_MeshPipeline;
-pass.ColorAttachments = { m_HDRTarget };
-pass.DepthAttachment  = m_DepthTarget;
-pass.Uniforms         = { {m_CameraUBO, 0}, {m_LightingUBO, 2} };
-pass.Draws            = BuildDrawList(scene);
-
-Application::Get().Render().GetFrameGraph().AddPass(std::move(pass));
-```
+`MeshLoader` — отдельный синглтон, не входит в массив лоадеров.
+Кэширует GPU-буферы (VBO/IBO) по хэшу содержимого. Refcount: буферы живут пока
+на них ссылается хотя бы один `Mesh` объект.
 
 ### Фазовая симуляция
 
-Системы (`ISystem`) делятся на фазы:
+Системы (`ISystem`) делятся на две фазы:
 
 | Фаза | Назначение | Примеры |
 |------|-----------|---------|
-| `Simulation` | Физика, скрипты, логика, lifetime | `PhysicsSystem`, `LuaScriptSystem`, `LifetimeSystem` |
-| `Presentation` | Рендеринг | `RenderSystem`, `UIRenderSystem` |
+| `Simulation` | Физика, логика, lifetime, скрипты | `PhysicsSystem`, `LifetimeSystem`, `LuaScriptSystem` |
+| `Presentation` | Рендеринг | `RenderSystem` |
 
-Внутри фазы системы сортируются по приоритету (`uint8_t`, 0 = первым).
+Фаза `Initialization` убрана. Внутри фазы системы сортируются по приоритету (`uint8_t`). Это гарантирует детерминированный порядок.
+
+`WorldState` определяет, какие фазы запускаются:
+- `Presenting` — только Presentation (Edit-режим)
+- `Simulating` — Simulation + Presentation (Play-режим)
+- `SimulatingWithoutPresenting` — только Simulation
 
 ### DeferredOps — отложенные операции
 
 Во время итерации по ECS нельзя создавать/удалять сущности — это испортит итераторы.  
-`DeferredOps` накапливает операции и применяет их после всех фаз:
+`DeferredOps` накапливает команды и применяет их после завершения всех фаз:
 
 ```cpp
-// Внутри системы:
-void Run(World& world, DeferredOps& ops, Timestep dt) override {
-    scene.ForEach<ProjectileComponent>([&](EntityHandle h, ..., ProjectileComponent& p) {
-        if (p.HitSomething)
-            ops.DestroyEntity(h);  // отложено до Flush()
-    });
-}
+// Внутри ISystem::update(World& world, DeferredOps& ops, Timestep dt):
+ops.DestroyEntity(entityHandle);      // Запомнить удаление
+ops.CreateEntity("Name");             // Запомнить создание
+ops.AddComponent<T>(handle, args...); // Отложить добавление компонента
+// ... после всех фаз DeferredOps автоматически применяется
 ```
 
-### EventBus (внутри World)
+### ModuleManager — горячая перезагрузка
 
-Типизированная шина событий для pub/sub между системами:
+На macOS/Linux: файл просто перезагружается через `dlopen`.  
+На Windows: файл копируется во временный путь (`path_temp.dll`), чтобы обойти блокировку файла, после чего загружается копия.
 
-```cpp
-world.GetEventBus().Publish<CollisionEvent>(SystemPhase::Simulation, entityA, entityB);
+Горячая перезагрузка работает **только для ImGui-модулей** (OGL/MTL/VK).  
+Renderer, Window, Physics не перезагружаются, так как держат OS-хэндлы.  
+Перезагрузка происходит по явному вызову (FileWatcher убран).
 
-ops.GetEventBus().ConsumePhase<CollisionEvent>(SystemPhase::Simulation, [](CollisionEvent& e) {
-    // обработка
-});
-```
-
-### ModuleManager — загрузка плагинов
-
-Горячая перезагрузка модулей в текущей версии **упрощена** — работает только для шейдеров.  
-Renderer, Window, Physics и ImGui модули не перезагружаются в рантайме.
+При перезагрузке:
+1. `OnBeforeReload()` — пользователь уничтожает объекты старого модуля
+2. Старый модуль выгружается
+3. Новый модуль загружается
+4. `OnAfterReload(newFactory)` — пользователь пересоздаёт объекты
 
 ## Последовательность запуска
 
@@ -175,53 +164,29 @@ Renderer, Window, Physics и ImGui модули не перезагружают�
 main() [EntryPoint.h]
   │
   ├─ Парсинг CLI (--renderer=...)
-  ├─ Загрузка engine.json (renderer_pending / renderer)
-  ├─ EngineContext (RAII-синглтон: логгинг + аллокатор)
+  ├─ Загрузка engine.json
   ├─ CreateApplication(config)   ← пользовательский код
   │
   └─ Application::Application()
        ├─ ModuleManager::Load(WindowGLFW)
-       ├─ ModuleManager::Load(RendererXXX)     ← RendererOGL / RendererMTL
+       ├─ ModuleManager::Load(RendererXXX)
        ├─ ModuleManager::Load(ImGuiXXX)
-       ├─ ModuleManager::Load(PhysicsPhysX)    [опционально, Windows only]
+       ├─ ModuleManager::Load(PhysicsPhysX)  [опционально]
        ├─ Window::Create(windowFactory, api)
-       ├─ m_Render   = Scope<RenderSubsystem>(factory, initInfo)
-       ├─ m_UI       = Scope<UISubsystem>(imguiFactory, layer)
-       └─ m_Physics  = Scope<PhysicsSubsystem>(physicsFactory)  [если доступна]
-```
+       ├─ RenderFacade::InitRenderer(initInfo)
+       ├─ UIFacade::Init(imguiFactory)
+       ├─ PhysicsFacade::Init(physicsFactory)
+       └─ Создать дефолтный World
 
-При API-переключении: `Application::RequestRestart()` → `execv` без `--renderer=` → новый процесс читает `renderer_pending` из `engine.json`.
-
-## Главный цикл
-
-```cpp
-Application::Run() {
-    while (m_Running) {
-        // Shader hot-reload — раз в 0.5с
-        if (shaderPollAcc >= 0.5f) {
-            m_Render->PollShaders();
-            shaderPollAcc = 0;
-        }
-
-        Input::BeginFrame(platformWindow);
-
-        m_Render->BeginFrame();
-        m_Render->BeginFrameGraph();     // graph->Reset()
-
-        for (Layer* layer : m_LayerStack)
-            layer->OnUpdate(dt);         // World::Update внутри (Simulation + Presentation)
-
-        m_Render->EndFrameGraph();       // Compile() + Execute(backend)
-
-        if (m_UI) {
-            m_UI->Begin();
-            for (Layer* layer : m_LayerStack)
-                layer->OnImGuiRender();
-            m_UI->End();
-        }
-
-        m_Render->EndFrame();
-        m_Window->OnUpdate();            // PollEvents + SwapBuffers
-    }
-}
+Application::Run()
+  loop:
+    ├─ Input::BeginFrame()
+    ├─ RenderFacade::BeginFrame() + Clear()
+    ├─ Layer::OnUpdate(dt)
+    ├─ World::update(dt)         ← Simulation + Presentation фазы
+    ├─ UIFacade::Begin()
+    ├─ Layer::OnImGuiRender()
+    ├─ UIFacade::End()
+    ├─ RenderFacade::EndFrame()
+    └─ Window::OnUpdate()
 ```

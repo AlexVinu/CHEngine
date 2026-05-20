@@ -79,14 +79,22 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMENT "Copying libglfw to Sandbox directory"
 )
 
-# На Unix: создаём симлинк libglfw.3.dylib -> libglfw.3.4.dylib
-# (install name dylib использует soname без patch-версии)
-if(UNIX)
+# Создаём симлинк для soname: платформенное расширение отличается
+if(APPLE)
+    # macOS: install name использует soname без patch-версии (libglfw.3.dylib)
     add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E create_symlink
             $<TARGET_FILE_NAME:glfw>
             "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/Sandbox/libglfw.3.dylib"
-        COMMENT "Creating libglfw.3.dylib symlink"
+        COMMENT "Creating libglfw.3.dylib symlink (macOS)"
+    )
+elseif(UNIX)
+    # Linux: soname — libglfw.so.3 (без patch-версии)
+    add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E create_symlink
+            $<TARGET_FILE_NAME:glfw>
+            "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/Sandbox/$<TARGET_SONAME_FILE_NAME:glfw>"
+        COMMENT "Creating libglfw soname symlink (Linux)"
     )
 endif()
 

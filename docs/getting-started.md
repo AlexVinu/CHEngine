@@ -3,7 +3,7 @@
 ## Требования
 
 - CMake 3.5+
-- C++17 компилятор (Clang, GCC, MSVC)
+- C++20 компилятор (Clang, GCC, MSVC)
 - macOS: Xcode Command Line Tools (для Metal), или просто clang
 - Windows: Visual Studio 2019+ или MinGW
 - Linux: GCC 9+ или Clang 10+
@@ -13,7 +13,15 @@
 ```bash
 git clone https://github.com/AlexVinu/CHEngine
 cd CHEngine
-cmake -B build -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON
+
+# macOS
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON -DCHE_BUILD_PHYSICS=ON
+cmake --build build --config Debug -j$(sysctl -n hw.logicalcpu)
+
+# Windows
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
+  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_PHYSICS=ON
 cmake --build build --config Debug
 ```
 
@@ -25,20 +33,21 @@ cmake --build build --config Debug
 | `CHE_BUILD_OPENGL` | ON | Собрать модуль OpenGL |
 | `CHE_BUILD_VULKAN` | OFF | Собрать модуль Vulkan |
 | `CHE_BUILD_METAL` | ON (macOS) | Собрать модуль Metal |
-| `CHE_BUILD_PHYSICS` | ON | Собрать модуль PhysX |
+| `CHE_BUILD_PHYSICS` | ON | Собрать модуль PhysX (все платформы; на macOS — через o3de-форк) |
 
 ### Выходные файлы
 
 ```
-bin/<Config>-<platform>-<arch>/
+bin/<Config>-<platform>-<arch>/Sandbox/
 ├── Sandbox              # Исполняемый файл
-└── lib/
-    ├── libCHEngine.dylib
-    ├── libRendererOGL.dylib
-    ├── libWindowGLFW.dylib
-    ├── libImGuiOGL.dylib
-    └── libPhysicsPhysX.dylib
+├── libCHEngine.dylib
+├── libRendererOGL.dylib
+├── libWindowGLFW.dylib
+├── libImGuiOGL.dylib
+└── libPhysicsPhysX.dylib   # если CHE_BUILD_PHYSICS=ON
 ```
+
+Все `.dylib` лежат рядом с исполняемым файлом (не в подпапке `lib/`).
 
 ## Выбор рендерера
 

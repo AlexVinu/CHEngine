@@ -43,6 +43,10 @@ elseif(APPLE)
 elseif(UNIX)
     set(OUTPUT_SYSTEM_PREFIX "-linux-x64")
     add_compile_definitions(CHE_PLATFORM_LINUX CHE_PLATFORM_UNIX)
+    # На Linux все .so лежат рядом с бинарником — $ORIGIN позволяет их найти без LD_LIBRARY_PATH
+    set(CMAKE_BUILD_RPATH "$ORIGIN")
+    set(CMAKE_INSTALL_RPATH "$ORIGIN")
+    set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 endif()
 
 # Режимы сборки

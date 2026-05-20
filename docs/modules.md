@@ -2,12 +2,13 @@
 
 ## Концепция
 
-Все платформенные реализации (OpenGL, Metal, Vulkan, PhysX, GLFW, ImGui) — отдельные shared-библиотеки.  
+Все платформенные реализации (OpenGL, Vulkan, Metal, PhysX, GLFW, ImGui) — отдельные shared-библиотеки.  
 `ModuleManager` загружает их в рантайме через `dlopen`/`LoadLibrary`.
 
 Это даёт:
-- **Выбор рендерера** в рантайме (`--renderer=opengl` / `--renderer=metal`)
-- **Опциональные модули** (физика может отсутствовать или не собираться)
+- **Горячую перезагрузку** без перезапуска приложения
+- **Выбор рендерера** в рантайме (`--renderer=opengl`)
+- **Опциональные модули** (физика может отсутствовать)
 - **Изоляцию** — замена рендерера не трогает остальной код
 
 ## Интерфейс модуля
@@ -19,7 +20,7 @@ extern "C" CHE_API IModuleFactory* CreateFactory();
 extern "C" CHE_API void DestroyFactory(IModuleFactory* factory);
 ```
 
-`IModuleFactory::GetType()` возвращает `ModuleType` — движок определяет по нему тип модуля.
+`IModuleFactory` — базовый класс. Конкретные фабрики:
 
 | Интерфейс | Модули |
 |-----------|--------|
@@ -28,88 +29,121 @@ extern "C" CHE_API void DestroyFactory(IModuleFactory* factory);
 | `IImGuiFactory` | ImGuiOGL, ImGuiVK, ImGuiMTL |
 | `IPhysicsFactory` | PhysicsPhysX |
 
+## ModuleManager API
+
+```cpp
+// Загрузить модуль
+ModuleHandle handle = ModuleManager::LoadModule("lib/libRendererOGL.dylib");
+
+// Получить фабрику
+auto* factory = ModuleManager::GetFactory<IRenderFactory>(handle);
+
+// Подписаться на горячую перезагрузку
+ModuleManager::Watch(ModuleType::ImGui, {
+    .OnBeforeReload = []() {
+        // Уничтожить ImGui-слой и все объекты старого модуля
+        UIFacade::Shutdown();
+    },
+    .OnAfterReload = [](IModuleFactory* newFactory) {
+        // Пересоздать через новую фабрику
+        UIFacade::Init(static_cast<IImGuiFactory*>(newFactory));
+    }
+});
+
+// Выгрузить модуль
+ModuleManager::UnloadModule(handle);
+```
+
 ## Горячая перезагрузка
 
-### Модули
+Горячая перезагрузка работает **только для ImGui-модулей** (ImGuiOGL, ImGuiMTL, ImGuiVK).  
+FileWatcher убран — перезагрузка происходит по явному вызову, а не автоматически по таймеру.
 
-Горячая перезагрузка модулей в текущей версии **не реализована** (FileWatcher убран из `ModuleManager`).  
-Смена рендерера требует перезапуска приложения (`Application::RequestRestart()`).
+### Последовательность перезагрузки
+
+```
+1. Явный вызов перезагрузки ImGui-модуля
+2. Вызов OnBeforeReload() — пользователь уничтожает старые объекты
+3. dlclose(старый модуль)
+4. [Windows] удалить старую теневую копию
+5. [Windows] скопировать новый файл → libImGuiOGL_temp.dll
+6. dlopen(новый файл / теневая копия)
+7. Вызов OnAfterReload(newFactory) — пользователь пересоздаёт объекты
+8. При ошибке: откат к резервной копии _prev.dll
+```
+
+### Windows: теневые копии
+
+На Windows загруженную DLL нельзя перезаписать — она заблокирована.  
+Движок работает с теневой копией `path_temp.dll`, что позволяет пересобирать оригинал в любой момент.
+
+### Что перезагружается
 
 | Модуль | Горячая перезагрузка |
 |--------|---------------------|
 | RendererOGL/Metal/Vulkan | Нет — держит GL/Metal контекст |
 | WindowGLFW | Нет — держит окно ОС |
-| ImGuiOGL/MTL/VK | Нет (упрощено) |
+| ImGuiOGL/MTL/VK | **Да** — полная перезагрузка |
 | PhysicsPhysX | Нет — требует пересоздания мира |
 
 ### Шейдеры (отдельный механизм)
 
-Шейдеры перезагружаются через `RenderSubsystem::PollShaders()` (внутри `FileWatcher`):
+Шейдеры имеют собственный механизм горячей перезагрузки через `RenderResourceManager`:
 
-- Опрос каждые **0.5 секунды** (вызывается из `Application::Run()`)
-- При изменении `.slang` файла — перекомпиляция шейдера через `SlangBackend`
-- Зависимые `PipelineHandle` перестраиваются автоматически (PSO invalidation chain)
-- При ошибке компиляции — дамп GLSL в `glsl_dump_fail.glsl` рядом с бинарником
-
-```cpp
-// Принудительная перезагрузка конкретного шейдера:
-Application::Get().Render().ReloadShader(shaderHandle);
-```
-
-## Выбор рендерера и engine.json
-
-Приоритет: `--renderer=` CLI → `engine.json` (`renderer_pending`) → `renderer` → OpenGL по умолчанию.
-
-`engine.json`:
-```json
-{
-  "renderer": "opengl",
-  "renderer_pending": "metal"
-}
-```
-
-- `renderer` — зафиксированный рендерер (записывается после успешного старта)
-- `renderer_pending` — ожидающая смена (записывается при выборе в UI, применяется при рестарте)
-
-При краше после смены рендерера — откат к `renderer`.
+- Опрос каждые **0.5 секунды**
+- При изменении файла — перекомпиляция шейдера
+- Работает независимо от перезагрузки модулей
 
 ## Создание собственного модуля
 
+Минимальный пример модуля рендерера:
+
 ```cpp
 // MyRenderer/src/MyRenderer.cpp
+
 #include <Core/Interfaces/Render/IRenderFactory.h>
+#include <Core/Interfaces/Render/IRenderer.h>
+
+class MyRenderer : public IRenderer {
+public:
+    void BeginScene(const SceneData& data) override { /* ... */ }
+    void EndScene() override { /* ... */ }
+    void Submit(IShader*, IVertexArray*, const glm::mat4&) override { /* ... */ }
+    void BeginFrame() override { /* ... */ }
+    void EndFrame() override { /* ... */ }
+    void Clear() override { /* ... */ }
+};
 
 class MyRenderFactory : public IRenderFactory {
 public:
-    ModuleType GetType() const override { return ModuleType::Render; }
-    ERenderAPI GetRenderApi() const override { return ERenderAPI::OPENGL; }
-
-    void Init(const RendererInitInfo& info) override { /* init API */ }
-    void Shutdown() override { /* cleanup */ }
-    bool CheckIsWorking() const override { return true; }
-
-    BufferHandle   CreateBuffer(size_t sz, BufferUsage, MemoryType, ...) override { ... }
-    ShaderHandle   CreateShader(...) override { ... }
-    TextureHandle  CreateTexture(...) override { ... }
-    PipelineHandle CreatePipeline(const PipelineDesc&) override { ... }
-
-    std::unique_ptr<IFrameGraphBackend> CreateFrameGraphBackend() override { ... }
-    // ...
+    IRenderer* CreateRenderer() override { return new MyRenderer(); }
+    ERenderAPI GetAPI() const override { return ERenderAPI::OPENGL; }
+    // ... CreateShader, CreateVertexArray, CreateTexture, CreateFramebuffer
 };
 
-extern "C" CHE_API IModuleFactory* CreateFactory() { return new MyRenderFactory(); }
-extern "C" CHE_API void DestroyFactory(IModuleFactory* f) { delete f; }
+extern "C" CHE_API IModuleFactory* CreateFactory() {
+    return new MyRenderFactory();
+}
+
+extern "C" CHE_API void DestroyFactory(IModuleFactory* f) {
+    delete f;
+}
 ```
 
 CMakeLists.txt для модуля:
 
 ```cmake
-add_library(MyRenderer SHARED src/MyRenderer.cpp)
+add_library(MyRenderer SHARED
+    src/MyRenderer.cpp
+)
+
 target_link_libraries(MyRenderer PRIVATE CHEngine_CORE)
 target_compile_definitions(MyRenderer PRIVATE CHE_BUILD_MODULE_DLL)
+
+# Вывод рядом с основным приложением
 set_target_properties(MyRenderer PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${BIN_DIR}"
-    LIBRARY_OUTPUT_DIRECTORY "${BIN_DIR}"
+    LIBRARY_OUTPUT_DIRECTORY "${BIN_DIR}/lib"
 )
 ```
 
@@ -123,3 +157,9 @@ enum class ModuleType {
     Physics,  // IPhysicsFactory
 };
 ```
+
+## Render module resolver
+
+Платформенный mapping API -> имена модулей даёт `RenderModuleResolver`.
+В startup-пути финальная валидация рендера делается по факту загрузки модулей
+и вызова `IRenderFactory::CheckIsWorking()`, а не через глобальный capability-store.

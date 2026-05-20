@@ -5,162 +5,81 @@
 Рендеринг организован в трёх слоях:
 
 ```
-RenderSubsystem (RAII-объект, принадлежит Application)
+RenderFacade (статический API для пользователя)
      │
-BasicFrameGraphFrontend (IRenderGraph: AddPass → Compile → Execute)
+RenderResourceManager (пулы ресурсов, шейдеры, UBO)
      │
-IFrameGraphBackend (FrameGraphBackendOGL / FrameGraphBackendMTL)
+IRenderer / IRenderApi (интерфейсы из Core)
      │
 Конкретный модуль: RendererOGL / RendererMetal / RendererVulkan
 ```
 
-## RenderSubsystem — основной API
+## RenderFacade — основной API
 
-Доступ через `Application::Get().Render()`. Является RAII-владельцем `IRenderFactory*`.
+Все вызовы рендеринга проходят через статический класс `RenderFacade`.
 
 ### Управление кадром
 
 ```cpp
-auto& render = Application::Get().Render();
-
-render.BeginFrame();
-render.BeginFrameGraph();    // graph->Reset()
-
-// ... OnUpdate слоёв (RenderSystem добавляет PassDesc'ы в граф) ...
-
-render.EndFrameGraph();      // Compile() + Execute(backend) → нативные команды
-render.EndFrame();
+RenderFacade::BeginFrame();
+RenderFacade::Clear();          // Очистить буфер цвета и глубины
+// ... рендеринг ...
+RenderFacade::EndFrame();       // Финализировать кадр
 ```
+
+### Сцена и камера
+
+```cpp
+// Установить камеру для текущего кадра (заполняет UBO)
+RenderFacade::SetSceneCamera(viewMatrix, projMatrix, cameraPosition);
+
+RenderFacade::BeginScene();
+// ... Submit() вызовы ...
+RenderFacade::EndScene();
+```
+
+### Отправка геометрии
+
+```cpp
+// Стандартный сабмит
+RenderFacade::Submit(shaderHandle, vaoHandle, modelMatrix);
+
+// С кастомным шейдером (переопределяет шейдер материала)
+RenderFacade::Submit(customShader, vaoHandle, modelMatrix);
+```
+
+## Управление ресурсами
+
+Все ресурсы загружаются через `ResourceManager`. Подробнее — в [resource-management.md](resource-management.md).
 
 ### Шейдеры
 
-```cpp
-// Загрузить из файла (регистрируется в hot-reload)
-ShaderHandle sh = render.CreateShaderFromFile("Mesh", "shaders/mesh.slang");
-
-// Загрузить из строки
-ShaderHandle sh = render.CreateShader(slangSourceCode, "vertMain", "fragMain");
-
-render.DestroyShader(sh);
-```
-
-### Текстуры
+Шейдеры написаны исключительно на [Slang](https://shader-slang.org/) — единый источник компилируется в GLSL 4.1 (OpenGL), MSL (Metal) или SPIR-V (Vulkan) через `SlangBackend`.  
+Отдельных `.vert`/`.frag`/`.metal` файлов нет — только `.slang`.  
+Все файлы находятся в `Sandbox/shaders/`.
 
 ```cpp
-TextureHandle tex = render.CreateTextureFromFile("textures/albedo.png");
-TextureHandle tex = render.CreateTexture(pixels, width, height, channels);
-render.DestroyTexture(tex);
+// Загрузить шейдер (кэшируется по пути)
+ShaderHandle shader = ResourceManager::Instance().Load<ShaderHandle>(
+    "Mesh", "shaders/mesh.slang");
+
+// Выгрузить
+ResourceManager::Instance().Unload(shader);
 ```
 
-### Viewport
-
-```cpp
-render.SetViewportSize(1280, 720);
-render.SetViewportOutputTexture(hdrTexHandle);  // что показывать в ImGui::Image
-uint64_t nativeId = render.GetViewportColorTexID();
-```
-
-### Шейдеры по умолчанию
-
-```cpp
-render.SetDefaultMeshShader(shHandle);
-ShaderHandle sh = render.GetDefaultMeshShader();
-```
-
-### Горячая перезагрузка шейдеров
-
-```cpp
-// Вызывается из Application::Run() раз в 0.5с:
-render.PollShaders();   // FileWatcher → ReloadShader → PSO invalidation
-
-// Принудительно:
-render.ReloadShader(shHandle);
-```
-
-### Доступ к фабрике
-
-```cpp
-IRenderFactory* factory = render.GetRenderFactory();
-
-// Создать GPU-буфер напрямую:
-BufferHandle vb = factory->CreateBuffer(size, BufferUsage::Vertex, MemoryType::CpuToGpu, data, "VB");
-factory->UpdateBuffer(vb, newData, offset);
-factory->Delete(vb);
-```
-
-## Декларативный фрейм-граф
-
-Вместо immediate-mode (`Submit/Clear`) движок использует декларативный граф. `RenderSystem` строит `PassDesc` и добавляет в граф каждый кадр. Backend исполняет граф после `EndFrameGraph()`.
-
-### PassDesc — описание одного рендер-пасса
-
-```cpp
-PassDesc pass;
-pass.Name             = "MainColor";
-pass.Pipeline         = m_MeshPipeline;                  // PipelineHandle
-pass.ColorAttachments = { m_HDRTarget };                 // TextureHandle[]
-pass.DepthAttachment  = m_DepthTarget;
-pass.ColorLoadOp      = ELoadOp::Clear;
-pass.ClearColor       = { 0.18f, 0.18f, 0.20f, 1.0f };
-pass.ViewportWidth    = render.GetViewportWidth();
-pass.ViewportHeight   = render.GetViewportHeight();
-
-// Per-pass UBO: camera + lighting (слоты 0 и 2)
-pass.Uniforms = {
-    { m_CameraUBO,   /*slot*/ 0, 0, 0 },
-    { m_LightingUBO, /*slot*/ 2, 0, 0 },
-};
-
-// Per-draw: меш + per-object UBO
-pass.Draws = BuildDrawList(scene);   // vector<DrawDesc>
-
-// Зависимости (для топосорта)
-pass.Writes = { m_HDRTarget };
-
-Application::Get().Render().GetFrameGraph().AddPass(std::move(pass));
-```
-
-### DrawDesc — одна draw-команда
-
-```cpp
-DrawDesc draw;
-draw.VertexBuffer  = mesh.GetVertexBuffer();
-draw.IndexBuffer   = mesh.GetIndexBuffer();
-draw.IdxFormat     = IndexFormat::Uint32;
-draw.IndexCount    = mesh.GetIndexCount();
-draw.InstanceCount = 1;
-
-// Per-draw UBO (object transform, ring buffer offset)
-draw.Uniforms = { { m_ObjectUBO, /*slot*/ 1, byteOffset, alignedSize } };
-
-pass.Draws.push_back(std::move(draw));
-```
-
-### PipelineHandle
-
-```cpp
-PipelineDesc pd;
-pd.Shader       = defaultShader;
-pd.VertexLayout = GetStandardMeshLayout();   // pos3+normal3+uv2+color3, stride 44
-pd.Depth.Test   = true;
-pd.Depth.Write  = true;
-pd.Raster.Cull  = CullMode::Back;
-
-PipelineHandle pipeline = factory->CreatePipeline(pd);
-```
-
-При `ReloadShader` зависимые Pipeline'ы перестраиваются автоматически — handle остаётся валидным.
-
-## Шейдеры (Slang)
-
-Все шейдеры написаны на [Slang](https://shader-slang.org/) и компилируются в GLSL / MSL / SPIR-V через `SlangBackend`.  
-Файлы: `Sandbox/shaders/*.slang`.
-
+**Структура Slang-шейдера:**
 ```slang
-import common;  // CameraUBO, ObjectUBO, LightingUBO, MaterialUBO
+import common;  // CameraUBO, ObjectUBO, MaterialUBO, LightingUBO
 
-ConstantBuffer<CameraUBO> camera;    // slot 0
-ConstantBuffer<ObjectUBO> object;    // slot 1
+ConstantBuffer<CameraUBO> camera;
+ConstantBuffer<ObjectUBO> object;
+
+struct VSIn {
+    [[vk::location(0)]] float3 Position  : POSITION;
+    [[vk::location(1)]] float3 Normal    : NORMAL;
+    [[vk::location(2)]] float2 TexCoords : TEXCOORD0;
+    [[vk::location(3)]] float3 Color     : COLOR;
+};
 
 [shader("vertex")]
 VSOut vertMain(VSIn input) { ... }
@@ -169,9 +88,33 @@ VSOut vertMain(VSIn input) { ... }
 float4 fragMain(VSOut input) : SV_Target { ... }
 ```
 
-Общие UBO-структуры определены в `Sandbox/shaders/common.slang` и `Core/Interfaces/Render/UniformBlocks.h`.
+**Горячая перезагрузка шейдеров**: движок опрашивает файлы каждые 0.5 секунды.
+При изменении `.slang` файла шейдер автоматически перекомпилируется.
 
-### Стандартный лейаут вершин (stride = 44 байта)
+### Текстуры
+
+```cpp
+// Из файла (кэшируется по пути)
+TextureHandle tex = ResourceManager::Instance().Load<TextureHandle>("textures/diffuse.png");
+ResourceManager::Instance().Unload(tex);
+
+// Из сырых пикселей (минуя кэш — например при загрузке OBJ/GLTF)
+TextureHandle tex = RenderFacade::CreateTexture(pixels, width, height, channels);
+RenderFacade::DestroyTexture(tex);
+```
+
+### GPU-буферы меша
+
+Меши не создаются вручную — они строятся через `Mesh::Build()`.
+`MeshLoader` кэширует идентичную геометрию и считает ссылки:
+
+```cpp
+Mesh mesh;
+mesh.Build(vertices, indices); // Загружает в GPU через MeshLoader::GetOrCreate
+// Деструктор Mesh автоматически вызывает MeshLoader::Release
+```
+
+Стандартный лейаут вершин (11 float на вершину, stride = 44 байта):
 
 | Атрибут | Offset | Формат |
 |---------|--------|--------|
@@ -182,54 +125,103 @@ float4 fragMain(VSOut input) : SV_Target { ... }
 
 ## Материалы
 
-```cpp
-// Material привязывает шейдер + UniformBinding
-auto mat = MakeRef<Material>(shaderHandle);
+`Material` привязывает шейдер к набору uniform-переменных и текстур.
 
-// MaterialInstance — конкретные значения (UBOMaterial)
-auto inst = MakeRef<MaterialInstance>(mat);
-inst->SetColor({1, 0.5f, 0, 1});
+```cpp
+Material mat(shaderHandle);
+mat.SetVec4("u_Color",     {1.0f, 0.5f, 0.0f, 1.0f});
+mat.SetFloat("u_Metallic", 0.8f);
+mat.SetTexture("u_Albedo", albedoTexture);
+
+// Применить перед сабмитом
+mat.Bind();
+RenderFacade::Submit(mat.GetShader(), vao, transform);
+mat.Unbind();
+```
+
+## UBO (Uniform Buffer Object)
+
+Движок автоматически заполняет UBO с данными камеры:
+
+```glsl
+// В шейдере (привязывается автоматически к точке 0):
+layout(std140, binding = 0) uniform Camera {
+    mat4 u_ViewProjection;
+    vec3 u_CameraPosition;
+};
+```
+
+Пользователю не нужно вручную передавать матрицу вида/проекции — она устанавливается через `RenderFacade::SetSceneCamera()` один раз за кадр.
+
+## RenderSystem — встроенная система рендеринга
+
+`RenderSystem` (фаза Presentation) автоматически рендерит все сущности с `MeshComponent`:
+
+```
+ForEach<MeshComponent, TransformComponent, VisibilityComponent>:
+  if Visible:
+    for Mesh in MeshComponent.Meshes:
+      RenderFacade::Submit(mesh.shader, mesh.vao, transform.GetMatrix())
+```
+
+Чтобы отключить объект:
+
+```cpp
+entity.GetComponent<VisibilityComponent>().Visible = false;
 ```
 
 ## Загрузка моделей
 
-```cpp
-ShaderHandle meshShader = Application::Get().Render().GetDefaultMeshShader();
-auto& rm = Application::Get().Resources();
+Модели загружаются через `ResourceManager`. `ModelLoader` не вызывается напрямую.
 
+```cpp
+auto& rm = ResourceManager::Instance();
+ShaderHandle meshShader = RenderFacade::GetDefaultMeshShader();
+
+// Загрузить OBJ или GLTF/GLB (формат определяется по расширению)
 ModelHandle handle = rm.Load<ModelHandle>("assets/models/scene.obj", meshShader);
 
 const LoadedModel* model = rm.GetModel(handle);
-if (model) {
+if (model && !model->meshes.empty())
+{
+    // Копирование — GPU-буферы разделяются через MeshLoader (refcount)
     entity.GetComponent<MeshComponent>().Meshes = model->meshes;
 }
 ```
 
-Поддерживаемые форматы: `.obj`, `.gltf`, `.glb`.
+Поддерживаемые форматы: `.obj`, `.gltf`, `.glb`.  
+Поддерживаются: меши, материалы (PBR/диффуз/specular), текстуры, UV-развёртка.
+
+> Повторная загрузка того же пути возвращает кэшированный `ModelHandle` без I/O.
 
 ## Выбор рендерера
 
 | Рендерер | Платформа | Примечание |
 |----------|-----------|-----------|
-| OpenGL 4.1 | Windows, macOS, Linux | Универсальный |
-| Metal 3.2 | macOS | Нативный Apple, предпочтительнее на Mac |
-| Vulkan | Windows, Linux | Не собирается по умолчанию |
+| OpenGL 4.1 | Windows, macOS, Linux | Универсальный, рекомендуется для разработки |
+| Metal | macOS, iOS | Нативный Apple, лучшая производительность на Mac |
+| Vulkan | Windows, Linux | Максимальный контроль, требует настройки |
 
+Рендерер выбирается при старте:
 ```bash
-./Sandbox --renderer=opengl
-./Sandbox --renderer=metal
+./App --renderer=opengl
+./App --renderer=metal
+./App --renderer=vulkan
 ```
 
-Или через `engine.json` (`renderer_pending`).
+или сохраняется в `engine.json`.
 
-## RenderSystem flow
+## Отладка рендеринга
 
-`RenderSystem` (Presentation, prio 10) выполняет за кадр:
+Базовая проверка через ImGui:
 
-1. `ResolveCamera` — находит Primary `CameraComponent` или `World::m_Camera`, заполняет `UBOCamera`
-2. `CollectLighting` — собирает `LightComponent` сущностей в `UBOLighting`
-3. `EnsureGPUResources` — лениво создаёт/пересоздаёт при resize: `m_HDRTarget`, `m_DepthTarget`, `m_MeshPipeline`, `m_CameraUBO`, `m_LightingUBO`
-4. `EnsureObjectUBO` — растит ring buffer при нужде
-5. Заливает Camera/Lighting UBO через `factory->UpdateBuffer`
-6. Собирает `vector<DrawDesc>` из ECS (`MeshComponent` + `TransformComponent` + `VisibilityComponent`)
-7. Строит `PassDesc MainColorPass` и добавляет в `GetFrameGraph()`
+```cpp
+void OnImGuiRender() override {
+    ImGui::Begin("Renderer Info");
+    ImGui::Text("API: %s", RenderFacade::GetAPIName());
+    // Превью фреймбуфера
+    ImGui::Image((ImTextureID)fb->GetColorAttachment(0)->GetRendererID(),
+                 ImVec2(320, 180));
+    ImGui::End();
+}
+```

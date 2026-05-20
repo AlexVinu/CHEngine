@@ -1,21 +1,24 @@
 # CHЁngine
 <img width="2000" height="400" alt="84956" src="https://github.com/user-attachments/assets/ececca6f-cde5-4221-bba6-d378dbd6d750" />
 
-Кроссплатформенный игровой движок на **C++20** с модульной архитектурой, ECS, физикой и горячей перезагрузкой шейдеров и плагинов.
+Кроссплатформенный игровой движок на **C++20** с модульной архитектурой, ECS, шейдерами на Slang и горячей перезагрузкой шейдеров.
 
 ---
 
 ## Возможности
 
-- 🎨 **Мульти-рендеринг** — OpenGL 4.1, Metal (Apple Silicon / Intel Mac), Vulkan; выбор в рантайме
-- 🧩 **Модульная архитектура** — рендерер, окно, UI и физика — отдельные `.dylib`/`.dll`, загружаются динамически
-- 🔁 **Горячая перезагрузка** — шейдеры и ImGui-модуль обновляются без перезапуска
-- 🌍 **ECS** — Entity Component System на базе [entt](https://github.com/skypjack/entt) с поддержкой фазовой симуляции
-- ⚙️ **World / SystemScheduler** — детерминированные фазы Initialization → Simulation → Presentation
-- 💥 **Физика** — NVIDIA PhysX + Blast (опционально)
-- 📦 **Загрузка моделей** — OBJ и GLTF/GLB из коробки
-- 🖥️ **ImGui** — встроенный UI-оверлей, независимо обновляемый модуль
-- 🪵 **Логирование** — spdlog с уровнями Debug / Release / Dist
+- **Мульти-рендеринг** — OpenGL 4.1, Metal (Apple Silicon / Intel Mac), Vulkan; переключение API в рантайме без перезапуска
+- **Модульная архитектура** — рендерер, окно, UI и физика — отдельные `.dylib`/`.dll`, загружаются динамически через `ModuleManager`
+- **Shaders на [Slang](https://shader-slang.org/)** — единый `.slang` исходник компилируется в GLSL, MSL или SPIR-V; горячая перезагрузка каждые 0.5 с
+- **ECS** — Entity Component System на базе [entt](https://github.com/skypjack/entt); `DeferredOps` для безопасных операций во время итерации
+- **World / SystemScheduler** — фазы `Simulation` и `Presentation`; `WorldState` управляет активными фазами (Edit / Play / Background)
+- **EventBus** — типизированная шина событий между системами, привязанная к фазе
+- **Lua-скрипты** — `ScriptComponent` + `LuaScriptSystem`; скрипты можно добавлять и редактировать прямо из редактора
+- **AI-ассистент** — встроенный чат-агент для генерации Lua-скриптов и управления сценой
+- **2D UI система** — `UICanvasComponent` / `UIRectTransform` для Screen Space и World Space UI поверх 3D-сцены
+- **Физика** — NVIDIA PhysX + Blast (опционально; на macOS через o3de-форк с поддержкой ARM64/Intel)
+- **Загрузка моделей** — OBJ и GLTF/GLB; кэш через `ResourceManager`
+- **Редактор (Sandbox)** — orbit-камера, ImGuizmo гизмо, иерархия сцены, Play/Edit режимы, undo, экспорт проекта
 
 ---
 
@@ -24,7 +27,7 @@
 | Платформа | Компилятор | Рендереры | Статус |
 |-----------|-----------|-----------|--------|
 | macOS (Apple Silicon / Intel) | Clang | Metal, OpenGL | ✅ |
-| Windows | MSVC 2022 | OpenGL, Vulkan, DirectX11/12 | ✅ |
+| Windows | MSVC 2022 | OpenGL, Vulkan | ✅ |
 | Linux | GCC / Clang | OpenGL, Vulkan | ✅ |
 
 ---
@@ -33,39 +36,23 @@
 
 ```
 CHEngine/
-├── Core/                        # Разделяемые интерфейсы и утилиты
-│   ├── src/                     # Log, FileSystem, Memory, Handle, Timestep
-│   └── Interfaces/              # IRenderFactory, IWindowFactory, IPhysicsFactory, IImGuiFactory
-│
-├── CHEngine/                    # Основная shared-библиотека (.dylib / .dll)
+├── Core/           — интерфейсы и утилиты (IRenderFactory, IWindowFactory, Handle, Log…)
+├── CHEngine/       — основная shared-библиотека (.dylib / .dll)
 │   └── src/CHEngine/
-│       ├── Application.*        # Главный класс, главный цикл
-│       ├── ModuleManager.*      # Загрузка / горячая перезагрузка плагинов
-│       ├── Scene/               # Scene, Entity, Components (ECS)
-│       ├── World/               # World, SystemScheduler, CommandBuffer, ISystem
-│       ├── Render/              # RenderFacade, RenderResourceManager
-│       ├── Physics/             # PhysicsFacade
-│       ├── Mesh/                # Mesh, Material, ModelLoader (OBJ / GLTF)
-│       ├── Camera/              # Camera
-│       ├── Input/               # Input (polling)
-│       ├── UI/                  # UIFacade
-│       ├── Layer/               # Layer, LayerStack
-│       └── Events/              # Event, EventDispatcher, KeyEvent, MouseEvent…
-│
-├── Modules/                     # Динамически загружаемые плагины
-│   ├── Rendering/
-│   │   ├── RendererOGL/         # OpenGL 4.1
-│   │   ├── RendererMetal/       # Metal (macOS / iOS)
-│   │   └── RendererVulkan/      # Vulkan
-│   ├── Window/WindowGLFW/       # GLFW окно
-│   ├── UI/
-│   │   ├── ImGuiOGL/
-│   │   ├── ImGuiMTL/
-│   │   └── ImGuiVK/
-│   └── Physics/PhysicsPhysX/   # NVIDIA PhysX + Blast
-│
-├── Sandbox/                     # Демонстрационное приложение
-├── docs/                        # Подробная документация
+│       ├── Application.*    — главный класс и цикл
+│       ├── ModuleManager.*  — загрузка плагинов
+│       ├── Scene/           — Scene, Entity, Components (ECS)
+│       ├── World/           — World, SystemScheduler, DeferredOps, EventBus
+│       ├── Render/          — RenderFacade, RenderResourceManager
+│       ├── Physics/         — PhysicsFacade
+│       └── …
+├── Modules/        — динамически загружаемые плагины
+│   ├── Rendering/  — RendererOGL, RendererMetal, RendererVulkan
+│   ├── Window/     — WindowGLFW
+│   ├── UI/         — ImGuiOGL, ImGuiMTL, ImGuiVK
+│   └── Physics/    — PhysicsPhysX
+├── Sandbox/        — редактор / демо-приложение
+├── docs/           — подробная документация
 └── CMakeLists.txt
 ```
 
@@ -77,14 +64,17 @@ CHEngine/
 |------------|-----------|
 | [entt](https://github.com/skypjack/entt) | ECS |
 | [glm](https://github.com/g-truc/glm) | Математика (vec3, mat4, quat) |
+| [Slang](https://shader-slang.org/) | Компилятор шейдеров |
 | [GLFW](https://www.glfw.org/) | Окно, контекст, ввод |
 | [GLAD](https://glad.dav1d.de/) | Загрузчик OpenGL |
 | [spdlog](https://github.com/gabime/spdlog) | Логирование |
 | [Dear ImGui](https://github.com/ocornut/imgui) | Редакторский UI |
+| [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo) | Гизмо (трансформации в viewport) |
 | [tinygltf](https://github.com/syoyo/tinygltf) | GLTF / GLB модели |
 | [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader) | OBJ модели |
 | [PhysX + Blast](https://github.com/NVIDIA-Omniverse/PhysX) | Физический движок (опц.) |
 | [boost](https://www.boost.org/) | UUID |
+| [sol2](https://github.com/ThePhD/sol2) + LuaJIT | Lua-скрипты |
 
 Все зависимости — **vendored**, ничего устанавливать вручную не нужно.
 
@@ -95,64 +85,49 @@ CHEngine/
 ### Требования
 
 - CMake **3.5+**
-- C++**20** компилятор: Clang 12+, GCC 10+, MSVC 2022
+- C++**20** компилятор: Clang 12+, MSVC 2022
 
-### Быстрый старт
+### macOS
 
 ```bash
 git clone https://github.com/AlexVinu/CHEngine
 cd CHEngine
 
-cmake -B build \
-  -DCHE_BUILD_SANDBOX=ON \
-  -DCHE_BUILD_OPENGL=ON \
-  -DCHE_BUILD_METAL=ON     # только macOS
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
+  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON -DCHE_BUILD_PHYSICS=ON
 
-cmake --build build --config Debug -j$(nproc)
+cmake --build build --config Debug -j$(sysctl -n hw.logicalcpu)
 ```
-
-### CMake-опции
-
-| Опция | По умолчанию | Описание |
-|-------|-------------|---------|
-| `CHE_BUILD_SANDBOX` | `ON` | Собрать демо-приложение |
-| `CHE_BUILD_OPENGL` | `ON` | Модуль OpenGL |
-| `CHE_BUILD_VULKAN` | `OFF` | Модуль Vulkan |
-| `CHE_BUILD_METAL` | `ON` (macOS) | Модуль Metal |
-| `CHE_BUILD_PHYSICS` | `ON` | Модуль PhysX (если доступен) |
 
 ### Windows (MSVC)
 
 ```bat
-cmake -B build -G "Visual Studio 17 2022" -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug ^
+  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_PHYSICS=ON
+
 cmake --build build --config Debug
 ```
 
-### macOS (Clang)
+### CMake-опции
 
-```bash
-cmake -B build -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON
-cmake --build build --config Debug -j$(sysctl -n hw.logicalcpu)
-```
-
-### Linux (GCC / Clang)
-
-```bash
-cmake -B build -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON
-cmake --build build --config Debug -j$(nproc)
-```
+| Опция | Описание |
+|-------|---------|
+| `CHE_BUILD_SANDBOX` | Редактор / демо-приложение |
+| `CHE_BUILD_OPENGL` | Модуль OpenGL |
+| `CHE_BUILD_VULKAN` | Модуль Vulkan |
+| `CHE_BUILD_METAL` | Модуль Metal (только macOS) |
+| `CHE_BUILD_PHYSICS` | Модуль PhysX (Windows, macOS, Linux) |
 
 ---
 
 ## Запуск
 
-После сборки бинарник и все `.dylib`/`.dll` находятся рядом:
+Бинарник и все `.dylib`/`.dll` собираются в одну папку:
 
 ```
 bin/Debug-macos-x64/Sandbox/
-├── Sandbox                  ← исполняемый файл
+├── Sandbox
 ├── CHEngine.dylib
-├── CHEngine_CORE.dylib
 ├── libRendererMTL.dylib
 ├── libRendererOGL.dylib
 ├── libWindowGLFW.dylib
@@ -162,22 +137,13 @@ bin/Debug-macos-x64/Sandbox/
 ```
 
 ```bash
-# macOS / Linux
-./bin/Debug-macos-x64/Sandbox/Sandbox
-
-# Windows
-.\bin\Debug-windows-x64\Sandbox\Sandbox.exe
+cd bin/Debug-macos-x64/Sandbox
+./Sandbox                    # читает engine.json
+./Sandbox --renderer=metal   # принудительно Metal (рекомендуется на Mac)
+./Sandbox --renderer=opengl
 ```
 
-### Выбор рендерера
-
-```bash
-./Sandbox --renderer=metal    # Metal  (macOS)
-./Sandbox --renderer=opengl   # OpenGL (все платформы)
-./Sandbox --renderer=vulkan   # Vulkan
-```
-
-Выбор сохраняется в `engine.json` рядом с исполняемым файлом — при следующем запуске аргумент можно не указывать.
+Выбор рендерера сохраняется в `engine.json` — при следующем запуске аргумент можно не указывать.
 
 ---
 
@@ -189,24 +155,20 @@ bin/Debug-macos-x64/Sandbox/
 class GameLayer : public CHEngine::Layer {
 public:
     void OnAttach() override {
-        // Загрузка ресурсов, создание сцены
         auto& scene = CHEngine::Application::Get().GetWorld().GetScene();
-        auto entity = scene.CreateEntity("Cube");
+        auto& rm    = CHEngine::ResourceManager::Instance();
 
-        auto meshes = CHEngine::ModelLoader::Load("assets/cube.obj");
-        entity.GetComponent<CHEngine::MeshComponent>().Meshes = meshes;
+        auto shader = rm.Load<CHEngine::ShaderHandle>("Mesh", "shaders/mesh.slang");
+        auto model  = rm.Load<CHEngine::ModelHandle>("assets/cube.obj", shader);
+
+        auto entity = scene.CreateEntity("Cube");
+        entity.GetComponent<CHEngine::MeshComponent>().Meshes = rm.GetModel(model)->meshes;
         entity.GetComponent<CHEngine::TransformComponent>().Position = {0, 0, -3};
     }
 
     void OnUpdate(CHEngine::Timestep dt) override {
         if (CHEngine::Input::IsKeyPressed(CHEngine::Key::Escape))
             CHEngine::Application::Get().Close();
-    }
-
-    void OnImGuiRender() override {
-        ImGui::Begin("Stats");
-        ImGui::Text("dt: %.2f ms", dt * 1000.f);
-        ImGui::End();
     }
 };
 
@@ -217,7 +179,6 @@ public:
     }
 };
 
-// Точка входа — определяется пользователем
 CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& cfg) {
     return new MyApp(cfg);
 }
@@ -227,19 +188,15 @@ CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationCo
 
 ## Документация
 
-Полная документация по всем подсистемам находится в папке [`docs/`](docs/):
-
 | Раздел | Описание |
 |--------|---------|
 | [Архитектура](docs/architecture.md) | Схема системы, паттерны, последовательность запуска |
 | [Быстрый старт](docs/getting-started.md) | Сборка, первый проект |
-| [ECS / Scene / World](docs/ecs.md) | Сущности, компоненты, системы, CommandBuffer |
-| [Рендеринг](docs/rendering.md) | RenderFacade, шейдеры, текстуры, UBO |
-| [Физика](docs/physics.md) | PhysX-интеграция, RigidBody, режимы синхронизации |
+| [ECS / Scene / World](docs/ecs.md) | Сущности, компоненты, системы, DeferredOps, EventBus |
+| [Рендеринг](docs/rendering.md) | RenderFacade, Slang-шейдеры, текстуры, UBO |
+| [Физика](docs/physics.md) | PhysX-интеграция, RigidBody |
 | [Модули](docs/modules.md) | Горячая перезагрузка, создание своего модуля |
 | [Ввод и события](docs/input-events.md) | Input polling, EventDispatcher, Layer |
-
-Или читай на [GitHub Wiki](https://github.com/AlexVinu/CHEngine/wiki).
 
 ---
 

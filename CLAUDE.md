@@ -17,7 +17,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ### Прочие обязательные практики
 - Не коммитить и не пушить без явного разрешения пользователя
 - Коммиты только на русском языке (человеческий стиль, не AI-слог)
-- Соавтор коммитов: `Doshcanran <Doshcanran@users.noreply.github.com>`
 
 ## Build commands
 
@@ -26,9 +25,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug \
   -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_PHYSICS=ON
 
-# Configure (macOS — OpenGL + Metal, Physics не собирается на macOS)
+# Configure (macOS — OpenGL + Metal + Physics через o3de-форк)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON -DCHE_BUILD_PHYSICS=OFF
+  -DCHE_BUILD_SANDBOX=ON -DCHE_BUILD_OPENGL=ON -DCHE_BUILD_METAL=ON -DCHE_BUILD_PHYSICS=ON
 
 # Build everything
 cmake --build build --config Debug -j$(sysctl -n hw.logicalcpu)
@@ -49,7 +48,7 @@ cd bin/Debug-macos-x64/Sandbox
 Бинарники: `bin/Debug-macos-x64/<target>/`. Все `.dylib` лежат рядом с исполняемым.
 
 CMake опции: `CHE_BUILD_SANDBOX`, `CHE_BUILD_OPENGL`, `CHE_BUILD_METAL`, `CHE_BUILD_VULKAN`, `CHE_BUILD_PHYSICS`.
-**PhysX на macOS не собирается** — всегда используй `-DCHE_BUILD_PHYSICS=OFF`.
+**PhysX на macOS** собирается через o3de-форк (`CHE_VENDOR_DIR/PhysX/o3de_physx`), поддерживает ARM64 и Intel.
 
 При изменении `.slang` шейдеров нужно либо пересобрать Sandbox (тогда они скопируются автоматически через POST_BUILD), либо вручную:
 ```bash
@@ -311,8 +310,9 @@ float wheel = InputActions::GetAxis(InputActions::Axis::MouseWheel);
 
 ## Известные ограничения / To Fix
 
-- **PhysX на macOS**: не собирается, всегда `-DCHE_BUILD_PHYSICS=OFF`. При запуске выдаёт "LoadModule FAILED libPhysicsPhysX.dylib" — это **норма**, движок продолжает работу.
+- **PhysX на macOS**: собирается через o3de-форк, поддерживает Apple Silicon и Intel. CMake автоматически выбирает `TARGET_BUILD_PLATFORM=mac`.
 - **PhysX на Windows**: собирается с `-DCHE_BUILD_PHYSICS=ON`. CMake автоматически выбирает `TARGET_BUILD_PLATFORM=windows`.
+- **PhysX на Linux**: собирается с оригинальным NVIDIA SDK, `TARGET_BUILD_PLATFORM=linux`.
 - **OpenGL on macOS**: ограничен версией 4.1. Рабочий, но Metal предпочтительнее.
 - **Slang на Windows**: загружается через `file(DOWNLOAD)` + `file(ARCHIVE_EXTRACT)` (не FetchContent) — это нужно, чтобы избежать конфликта между VS-bundled cmake 3.31 и system cmake 4.x при регенерации ZERO_CHECK.
 - **Slang компиляция медленная**: первый запуск грузит шейдеры ~1-2с каждый. Это нормально.
