@@ -5,8 +5,6 @@
 #include "BodyPhysX.h"
 #include "ShapePhysX.h"
 
-#include <extensions/PxExtensionsAPI.h>
-
 #include <algorithm>
 
 namespace
@@ -76,29 +74,9 @@ namespace CHModules
         }
     }
 
-    PhysicsWorldPhysX::PhysicsWorldPhysX(const CHEngine::PhysicsWorldDesc& worldDesc)
+    PhysicsWorldPhysX::PhysicsWorldPhysX(physx::PxPhysics& physics, const CHEngine::PhysicsWorldDesc& worldDesc)
+        : m_Physics(physics)
     {
-        m_Foundation = PxCreateFoundation(PX_PHYSICS_VERSION, m_Allocator, m_ErrorCallback);
-        if (!m_Foundation)
-        {
-            CHE_CORE_ERROR("PhysicsWorldPhysX: failed to create PhysX foundation");
-            return;
-        }
-
-        physx::PxTolerancesScale scale;
-        m_Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *m_Foundation, scale, false, nullptr);
-        if (!m_Physics)
-        {
-            CHE_CORE_ERROR("PhysicsWorldPhysX: failed to create PhysX");
-            return;
-        }
-
-        if (!PxInitExtensions(*m_Physics, nullptr))
-        {
-            CHE_CORE_ERROR("PhysicsWorldPhysX: PxInitExtensions failed");
-            return;
-        }
-
         m_Dispatcher = physx::PxDefaultCpuDispatcherCreate(std::max(1u, worldDesc.SolverThreads));
         if (!m_Dispatcher)
         {
@@ -106,7 +84,7 @@ namespace CHModules
             return;
         }
 
-        physx::PxSceneDesc sceneDesc(scale);
+        physx::PxSceneDesc sceneDesc(m_Physics.getTolerancesScale());
         sceneDesc.gravity = ToPxVec3(worldDesc.Gravity);
         sceneDesc.cpuDispatcher = m_Dispatcher;
         sceneDesc.filterShader = physx::PxDefaultSimulationFilterShader;
@@ -114,7 +92,7 @@ namespace CHModules
         m_ContactCallback = std::make_unique<ContactCallbackPhysX>(this);
         sceneDesc.simulationEventCallback = m_ContactCallback.get();
 
-        m_Scene = m_Physics->createScene(sceneDesc);
+        m_Scene = m_Physics.createScene(sceneDesc);
         if (!m_Scene)
         {
             CHE_CORE_ERROR("PhysicsWorldPhysX: failed to create scene");
@@ -136,17 +114,6 @@ namespace CHModules
             m_Dispatcher->release();
             m_Dispatcher = nullptr;
         }
-        if (m_Physics)
-        {
-            PxCloseExtensions();
-            m_Physics->release();
-            m_Physics = nullptr;
-        }
-        if (m_Foundation)
-        {
-            m_Foundation->release();
-            m_Foundation = nullptr;
-        }
     }
 
     void PhysicsWorldPhysX::SetGravity(const glm::vec3& gravity)
@@ -166,7 +133,7 @@ namespace CHModules
     CHEngine::IPhysicsBody* PhysicsWorldPhysX::CreateRigidBody(const CHEngine::PhysicsRigidBodyDesc& bodyDesc,
                                                                 const CHEngine::IPhysicsShape* shape)
     {
-        if (!m_Physics || !m_Scene || !shape) return nullptr;
+        if (!m_Scene || !shape) return nullptr;
 
         const auto* shapePhysX = dynamic_cast<const ShapePhysX*>(shape);
         if (!shapePhysX)
@@ -191,7 +158,7 @@ namespace CHModules
                 return nullptr;
         }
 
-        physx::PxMaterial* material = m_Physics->createMaterial(
+        physx::PxMaterial* material = m_Physics.createMaterial(
             bodyDesc.StaticFriction, bodyDesc.DynamicFriction, bodyDesc.Restitution);
         if (!material) return nullptr;
 
@@ -200,7 +167,7 @@ namespace CHModules
 
         if (bodyDesc.Type == CHEngine::PhysicsBodyType::Static)
         {
-            auto* staticActor = m_Physics->createRigidStatic(pxTransform);
+            auto* staticActor = m_Physics.createRigidStatic(pxTransform);
             if (!staticActor)
             {
                 material->release();
@@ -210,7 +177,7 @@ namespace CHModules
         }
         else
         {
-            auto* dynamicActor = m_Physics->createRigidDynamic(pxTransform);
+            auto* dynamicActor = m_Physics.createRigidDynamic(pxTransform);
             if (!dynamicActor)
             {
                 material->release();
@@ -226,7 +193,7 @@ namespace CHModules
             actor = dynamicActor;
         }
 
-        physx::PxShape* pxShape = m_Physics->createShape(geometryHolder.any(), *material, true);
+        physx::PxShape* pxShape = m_Physics.createShape(geometryHolder.any(), *material, true);
         material->release();
         if (!pxShape)
         {
@@ -376,7 +343,7 @@ namespace CHModules
 
     bool PhysicsWorldPhysX::IsValid() const
     {
-        return m_Foundation && m_Physics && m_Dispatcher && m_Scene;
+        return m_Dispatcher && m_Scene;
     }
 
     BodyPhysX* PhysicsWorldPhysX::FindBodyByActor(const physx::PxRigidActor* actor) const

@@ -16,16 +16,18 @@
 
 namespace CHEngine
 {
-    World::World()
+    World::World(WorldsList* list)
         : m_Scene(nullptr)
-        , m_Camera(nullptr)
+        , m_Camera(nullptr),
+        m_Worlds(list)
     {
         RegisterDefaultSystems();
     }
 
-    World::World(Ref<Scene> scene)
-        : m_Scene(scene)
-        , m_Camera(nullptr)
+    World::World(Ref<Scene> scene, WorldsList* list)
+		: m_Scene(scene)
+		, m_Camera(nullptr)
+		, m_Worlds(list)
     {
         RegisterDefaultSystems();
     }

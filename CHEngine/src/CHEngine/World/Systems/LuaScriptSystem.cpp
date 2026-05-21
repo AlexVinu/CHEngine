@@ -107,6 +107,12 @@ struct ScriptEntity
             deferred->DestroyEntity(handle);
     }
 
+    void TransferTo(const std::string& worldName) const
+    {
+        if (deferred && handle.IsValid())
+            deferred->TransferEntity(handle, worldName);
+    }
+
     // ── HasX ─────────────────────────────────────────────────────────────────
     template<typename T>
     bool HasT() const
@@ -364,6 +370,22 @@ struct ScriptWorld
     {
         if (deferred && e.handle.IsValid())
             deferred->DestroyEntity(e.handle);
+    }
+
+    std::string GetName() const { return world ? world->GetWorldName() : ""; }
+
+    // Override the automatic world-state logic after a camera transfer.
+    void SetState(const std::string& stateStr) const
+    {
+        if (!world) return;
+        if (stateStr == "Simulating")
+            world->SetState(WorldState::Simulating);
+        else if (stateStr == "SimulatingWithoutPresenting")
+            world->SetState(WorldState::SimulatingWithoutPresenting);
+        else if (stateStr == "Presenting")
+            world->SetState(WorldState::Presenting);
+        else
+            CHE_CORE_WARN("[Lua] ScriptWorld:SetState — unknown state '{}'", stateStr);
     }
 
     void ForEach(sol::function fn, sol::this_state s) const
@@ -782,6 +804,7 @@ private:
             "GetUUID",        &ScriptEntity::GetUUID,
             "IsValid",        &ScriptEntity::IsValid,
             "Destroy",        &ScriptEntity::Destroy,
+            "TransferTo",     &ScriptEntity::TransferTo,
 
             "HasTransform",   &ScriptEntity::HasTransform,
             "HasColor",       &ScriptEntity::HasColor,
@@ -831,6 +854,8 @@ private:
 
         // ── World ─────────────────────────────────────────────────────────────
         m_Lua.new_usertype<ScriptWorld>("World",
+            "GetName",       &ScriptWorld::GetName,
+            "SetState",      &ScriptWorld::SetState,
             "FindByName",    &ScriptWorld::FindByName,
             "FindByUUID",    &ScriptWorld::FindByUUID,
             "SpawnEntity",   &ScriptWorld::SpawnEntity,
@@ -856,9 +881,9 @@ private:
             actions["Axis"] = ax;
         }
 
-        // ── Key ──────────────────────────────────────────────────────────────
+        // ── Key (CHEngine Key::* codes) ───────────────────────────────────────
         auto K = m_Lua.create_named_table("Key");
-        K["Space"]    = (int)Key::Space;
+        K["Space"]     = (int)Key::Space;
         K["A"]=(int)Key::A; K["B"]=(int)Key::B; K["C"]=(int)Key::C; K["D"]=(int)Key::D;
         K["E"]=(int)Key::E; K["F"]=(int)Key::F; K["G"]=(int)Key::G; K["H"]=(int)Key::H;
         K["I"]=(int)Key::I; K["J"]=(int)Key::J; K["K"]=(int)Key::K; K["L"]=(int)Key::L;
@@ -866,14 +891,22 @@ private:
         K["Q"]=(int)Key::Q; K["R"]=(int)Key::R; K["S"]=(int)Key::S; K["T"]=(int)Key::T;
         K["U"]=(int)Key::U; K["V"]=(int)Key::V; K["W"]=(int)Key::W; K["X"]=(int)Key::X;
         K["Y"]=(int)Key::Y; K["Z"]=(int)Key::Z;
-        K["Escape"] = (int)Key::Escape;     K["Enter"]     = (int)Key::Enter;
-        K["Tab"]    = (int)Key::Tab;        K["Backspace"] = (int)Key::Backspace;
-        K["Left"]   = (int)Key::Left;       K["Right"]     = (int)Key::Right;
-        K["Up"]     = (int)Key::Up;         K["Down"]      = (int)Key::Down;
+        K["Escape"]    = (int)Key::Escape;      K["Enter"]     = (int)Key::Enter;
+        K["Tab"]       = (int)Key::Tab;         K["Backspace"] = (int)Key::Backspace;
+        K["Left"]      = (int)Key::Left;        K["Right"]     = (int)Key::Right;
+        K["Up"]        = (int)Key::Up;          K["Down"]      = (int)Key::Down;
         K["LeftShift"] = (int)Key::LeftShift;
         K["LeftCtrl"]  = (int)Key::LeftControl;
-        K["F1"]=(int)Key::F1;  K["F2"]=(int)Key::F2;  K["F3"]=(int)Key::F3;
-        K["F4"]=(int)Key::F4;  K["F5"]=(int)Key::F5;  K["F12"]=(int)Key::F12;
+        K["F1"]=(int)Key::F1; K["F2"]=(int)Key::F2; K["F3"]=(int)Key::F3;
+        K["F4"]=(int)Key::F4; K["F5"]=(int)Key::F5; K["F12"]=(int)Key::F12;
+
+        // ── Input (raw key polling via InputSystem, no action bindings) ───────
+        if (auto* is = Application::Get().InputSystem()) {
+            auto inp = m_Lua.create_named_table("Input");
+            inp["IsKeyDown"]     = [is](int key) { return is->IsKeyDown(key);     };
+            inp["IsKeyPressed"]  = [is](int key) { return is->IsKeyPressed(key);  };
+            inp["IsKeyReleased"] = [is](int key) { return is->IsKeyReleased(key); };
+        }
 
         // ── Log ──────────────────────────────────────────────────────────────
         auto log = m_Lua.create_named_table("Log");

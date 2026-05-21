@@ -46,7 +46,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
     if (!m_IconsLoaded)
         LoadIcons();
     UIActive::BeginToolbar(pos, size);
-    Ref<EditorWorldContext> activeSession = host.GetActiveSceneSession();
+    EditorWorldContext* activeSession = host.GetActiveSceneSession();
 
     const float winH = ImGui::GetWindowHeight();
     const float startY = ImGui::GetCursorPosY();
@@ -78,7 +78,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         if (input_system->Triggered("Editor.Entity.Delete")
             && activeSession->GetSessionState() == SceneSession::State::Edit)
         {
-            Ref<EditorWorldContext> s = host.GetActiveSceneSession();
+            EditorWorldContext* s = host.GetActiveSceneSession();
             if (s->EditorScene && s->EditorScene->IsEntityHandleValid(s->SelectedEntity))
             {
                 const CHEngine::UUID id = s->EditorScene->GetUUID(s->SelectedEntity);
@@ -95,7 +95,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         {
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] {
-                    Ref<EditorWorldContext> s = host.GetActiveSceneSession();
+                    EditorWorldContext* s = host.GetActiveSceneSession();
                     if (s->GetSessionState() == SceneSession::State::Edit)        host.EnterPlayMode();
                     else if (s->GetSessionState() == SceneSession::State::Play)   host.EnterPauseMode();
                     else if (s->GetSessionState() == SceneSession::State::Pause)  host.ResumeFromPause();
@@ -121,17 +121,17 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         ImGui::SameLine(0, 4);
         vcenter(ImGui::GetTextLineHeight());
         {
-            const auto sessions = host.GetSceneSessions();
+            const auto& sessions = host.GetSceneSessions();
             const size_t idx = host.GetActiveSessionIndex();
-            const std::string name = (sessions && idx < sessions->size()) ? (*sessions)[idx]->DisplayName() : "?";
+            const std::string name = idx < sessions.size() ? sessions[idx]->GetWorldName() : "?";
             ImGui::Text("%s  %u/%u", name.c_str(),
                         static_cast<uint32_t>(idx + 1),
-                        static_cast<uint32_t>(sessions ? sessions->size() : 0));
+                        static_cast<uint32_t>(sessions.size()));
         }
 
         ImGui::SameLine(0, 4);
         vcenter(ImGui::GetFrameHeight());
-        ImGui::BeginDisabled(host.GetActiveSessionIndex() + 1 >= (host.GetSceneSessions() ? host.GetSceneSessions()->size() : 0));
+        ImGui::BeginDisabled(host.GetActiveSessionIndex() + 1 >= host.GetSceneSessions().size());
         if (ImGui::ArrowButton("##next", ImGuiDir_Right))
             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                 [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() + 1); }, [] {}, false));
@@ -139,7 +139,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
 
         ImGui::SameLine(0, 6);
         vcenter(ImGui::GetFrameHeight());
-        ImGui::BeginDisabled(!host.GetSceneSessions() || host.GetSceneSessions()->size() <= 1);
+        ImGui::BeginDisabled(host.GetSceneSessions().size() <= 1);
         if (ImGui::Button("x##close"))
             host.CloseSceneSession(host.GetActiveSessionIndex());
         ImGui::EndDisabled();

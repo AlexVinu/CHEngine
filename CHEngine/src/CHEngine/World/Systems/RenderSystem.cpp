@@ -690,13 +690,19 @@ namespace CHEngine {
             {
                 if (!selected)
                 {
-                    selected      = &camera;
+                    selected       = &camera;
                     selectedHandle = handle;
                 }
 
-                if (camera.Primary)
+                // IsActive (player behind camera) beats Primary.
+                if (camera.IsActive)
                 {
-                    selected      = &camera;
+                    selected       = &camera;
+                    selectedHandle = handle;
+                }
+                else if (!selected->IsActive && camera.Primary)
+                {
+                    selected       = &camera;
                     selectedHandle = handle;
                 }
             });

@@ -14,7 +14,7 @@ namespace CHModules
     class PhysicsWorldPhysX : public CHEngine::IPhysicsWorld
     {
     public:
-        explicit PhysicsWorldPhysX(const CHEngine::PhysicsWorldDesc& worldDesc);
+        PhysicsWorldPhysX(physx::PxPhysics& physics, const CHEngine::PhysicsWorldDesc& worldDesc);
         ~PhysicsWorldPhysX() override;
 
         void SetGravity(const glm::vec3& gravity) override;
@@ -61,10 +61,7 @@ namespace CHModules
 
         BodyPhysX* FindBodyByActor(const physx::PxRigidActor* actor) const;
 
-        physx::PxDefaultAllocator m_Allocator;
-        physx::PxDefaultErrorCallback m_ErrorCallback;
-        physx::PxFoundation* m_Foundation = nullptr;
-        physx::PxPhysics* m_Physics = nullptr;
+        physx::PxPhysics& m_Physics;
         physx::PxDefaultCpuDispatcher* m_Dispatcher = nullptr;
         physx::PxScene* m_Scene = nullptr;
 

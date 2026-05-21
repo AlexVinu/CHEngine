@@ -13,68 +13,6 @@ namespace CHEngine {
 		{
 			return boost::uuids::random_generator()();
 		}
-
-		void CopyMeshComponent(const MeshComponent& source_component, MeshComponent& destination_component)
-		{
-			destination_component.SourcePath = source_component.SourcePath;
-			destination_component.Meshes = source_component.Meshes;
-		}
-
-		void CopyRigidBody3DComponent(const RigidBody3DComponent& source_component, RigidBody3DComponent& destination_component)
-		{
-			destination_component.BodyDesc = source_component.BodyDesc;
-			destination_component.ShapeDesc = source_component.ShapeDesc;
-			destination_component.SyncMode = source_component.SyncMode;
-			destination_component.Body = nullptr;
-			destination_component.Shape = nullptr;
-		}
-
-		template<typename ComponentType>
-		void CopySingleComponentType(entt::registry& destination_registry,
-		                         const entt::registry& source_registry,
-		                         const entt::entity destination_entity,
-		                         const entt::entity source_entity)
-		{
-			if (!source_registry.all_of<ComponentType>(source_entity))
-			{
-				destination_registry.remove<ComponentType>(destination_entity);
-				return;
-			}
-
-			if (!destination_registry.all_of<ComponentType>(destination_entity))
-				destination_registry.emplace<ComponentType>(destination_entity);
-
-			if constexpr (std::is_same_v<ComponentType, MeshComponent>)
-			{
-				CopyMeshComponent(source_registry.get<MeshComponent>(source_entity),
-				                  destination_registry.get<MeshComponent>(destination_entity));
-			}
-			else if constexpr (std::is_same_v<ComponentType, RigidBody3DComponent>)
-			{
-				CopyRigidBody3DComponent(source_registry.get<RigidBody3DComponent>(source_entity),
-				                         destination_registry.get<RigidBody3DComponent>(destination_entity));
-			}
-			else
-			{
-				destination_registry.get<ComponentType>(destination_entity)
-					= source_registry.get<ComponentType>(source_entity);
-			}
-		}
-
-		template<typename... Components>
-		void CopyComponents(ComponentGroup<Components...>,
-		                    entt::registry& destination_registry,
-		                    const entt::registry& source_registry,
-		                    const entt::entity destination_entity,
-		                    const entt::entity source_entity)
-		{
-			(CopySingleComponentType<Components>(
-				 destination_registry,
-				 source_registry,
-				 destination_entity,
-				 source_entity),
-			 ...);
-		}
 	} // namespace
 
 	Scene::Scene()
@@ -157,27 +95,51 @@ namespace CHEngine {
 
 	void Scene::CloneFrom(const Scene& source)
 	{
-		auto& sourceRegistry = source.m_SceneRegistry->Registry;
-		auto& destinationRegistry = m_SceneRegistry->Registry;
+		using namespace entt::literals;
 
-		auto sourceView = sourceRegistry.view<IDComponent, TagComponent>();
-		for (entt::entity sourceEntt : sourceView)
+		auto& srcReg = source.m_SceneRegistry->Registry;
+		auto& dstReg = m_SceneRegistry->Registry;
+
+		// 1. Create all entities preserving UUIDs and names.
+		auto srcView = srcReg.view<IDComponent, TagComponent>();
+		for (entt::entity srcEntt : srcView)
 		{
-			const auto& sourceId = sourceRegistry.get<IDComponent>(sourceEntt);
-			const auto& sourceTag = sourceRegistry.get<TagComponent>(sourceEntt);
-			CreateEntity(sourceTag.Name, sourceId.Value);
+			const auto& id  = srcReg.get<IDComponent>(srcEntt);
+			const auto& tag = srcReg.get<TagComponent>(srcEntt);
+			CreateEntity(tag.Name, id.Value);
 		}
 
-		for (entt::entity sourceEntt : sourceView)
+		// 2. Copy all registered components via entt::meta clone_to.
+		for (entt::entity srcEntt : srcView)
 		{
-			const auto& sourceId = sourceRegistry.get<IDComponent>(sourceEntt).Value;
-			const EntityHandle destinationHandle = TryGetEntityHandleByUUID(sourceId);
-			CHE_CORE_ASSERT(destinationHandle.IsValid(), "Scene copy failed: destination entity not found");
+			const UUID uuid = srcReg.get<IDComponent>(srcEntt).Value;
+			const EntityHandle dstHandle = TryGetEntityHandleByUUID(uuid);
+			CHE_CORE_ASSERT(dstHandle.IsValid(), "Scene copy failed: destination entity not found");
 
-			const entt::entity destinationEntt = TryGetEnttEntity(destinationHandle);
-			CHE_CORE_ASSERT(destinationEntt != entt::null, "Scene copy failed: destination entt is null");
+			const entt::entity dstEntt = TryGetEnttEntity(dstHandle);
+			CHE_CORE_ASSERT(dstEntt != entt::null, "Scene copy failed: destination entt is null");
 
-			CopyComponents(CopyableSceneComponents{}, destinationRegistry, sourceRegistry, destinationEntt, sourceEntt);
+			for (auto&& [typeId, storage] : srcReg.storage())
+			{
+				if (!storage.contains(srcEntt)) continue;
+
+				const auto& typeInfo = storage.type();
+				// IDComponent / TagComponent are already set by CreateEntity.
+				if (typeInfo == entt::type_id<IDComponent>() ||
+				    typeInfo == entt::type_id<TagComponent>())
+					continue;
+
+				auto metaType = entt::resolve(typeInfo);
+				if (!metaType) continue;
+				auto cloneFn = metaType.func("clone_to"_hs);
+				if (!cloneFn) continue;
+				// src is logically const here; CloneTo only reads from it.
+				cloneFn.invoke({},
+				    entt::forward_as_meta(dstReg),
+				    entt::forward_as_meta(dstEntt),
+				    entt::forward_as_meta(const_cast<entt::registry&>(srcReg)),
+				    entt::forward_as_meta(srcEntt));
+			}
 		}
 
 		WorldScripts = source.WorldScripts;

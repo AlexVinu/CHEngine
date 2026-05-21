@@ -45,7 +45,7 @@ void Draw(SceneViewLayer& layer)
 {
     EnsureIcons();
 
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     if (ctx->GetSessionState() != SceneSession::State::Edit)
         return;
 

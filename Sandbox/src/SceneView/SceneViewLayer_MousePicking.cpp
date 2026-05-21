@@ -70,7 +70,7 @@ bool RayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
 
 void TryPick(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> ctxRef = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctxRef = SceneViewLayerAccess::ActiveWorldCtx(layer);
     EditorWorldContext& ctx = *ctxRef;
     if (ctx.GetSessionState() != SceneSession::State::Edit)
         return;

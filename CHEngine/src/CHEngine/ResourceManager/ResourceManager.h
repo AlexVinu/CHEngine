@@ -6,8 +6,12 @@
 #include "ModelLoader.h"
 #include "MeshLoader.h"
 
+#include "CHEngine/Mesh/Mesh.h"
+
+#include <array>
 #include <filesystem>
 #include <string>
+#include <string_view>
 
 namespace CHEngine {
 
@@ -50,6 +54,11 @@ namespace CHEngine {
 		}
 
 		const LoadedModel* GetModel(ModelHandle h) const { return GetModelLoader()->Get(h); }
+
+		// Returns an invalid Mesh for unknown URIs.
+		Mesh LoadPrimitiveMesh(std::string_view uri);
+
+		static bool IsPrimitiveUri(std::string_view uri) { return uri.starts_with(":primitive:"); }
 
 	private:
 		static constexpr size_t LOADERS_COUNT = static_cast<size_t>(ELoaderResourceType::SIZE);

@@ -6,6 +6,7 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/uuid/nil_generator.hpp>
 #include <boost/container_hash/hash.hpp>
+#include <format>
 #include <spdlog/fmt/fmt.h>
 #include "CHEngine/Mesh/Mesh.h"
 #include "Light.h"
@@ -51,6 +52,17 @@ namespace CHEngine {
 	inline std::size_t hash_value(const UUID& u) {
 		return boost::hash<boost::uuids::uuid>()(static_cast<boost::uuids::uuid>(u));
 	}
+
+} // namespace CHEngine
+
+template<>
+struct std::formatter<CHEngine::UUID> : std::formatter<std::string> {
+	auto format(const CHEngine::UUID& uuid, std::format_context& ctx) const {
+		return std::formatter<std::string>::format(static_cast<std::string>(uuid), ctx);
+	}
+};
+
+namespace CHEngine {
 
     class IPhysicsBody;
     class IPhysicsShape;
@@ -107,6 +119,7 @@ namespace CHEngine {
         CameraVariant Camera = PerspectiveCamera{};
         bool FixedAspectRatio = false;
         bool Primary = true;
+        bool IsActive = false;
     };
 
     // Physics

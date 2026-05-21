@@ -3,6 +3,7 @@
 #include <cstring>
 #include <cstdlib>
 #include "EngineConfig.h"
+#include "EngineContext.h"
 
 #if defined(CHE_PLATFORM_APPLE)
 #include <unistd.h>
@@ -125,10 +126,8 @@ static void ParseStartupArgs(int argc, char** argv, CHEngine::ApplicationConfig&
 int main(int argc, char** argv)
 {
     // EngineContext is a Meyers-singleton: the first CHE_CORE_* call below
-    // triggers GetEngineContext() which constructs the singleton and runs
-    // EngineContext::EngineContext() — that initialises spdlog and the default
-    // allocator.  Explicit Log::init() / MemorySystem::Initialize() are no
-    // longer needed here.
+    // trigger GetEngineContext() which constructs the singleton and runs
+    CHEngine::GetEngineContext();
     CHE_CORE_INFO("Init CHEngine");
     CHE_CORE_CRITICAL("WELCOME TO HELL!");
 

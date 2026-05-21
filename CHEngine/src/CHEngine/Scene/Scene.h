@@ -59,6 +59,10 @@ public:
 	const Entity* TryGetEntity(const EntityHandle entityHandle) const;
 	bool IsEntityHandleValid(const EntityHandle entityHandle) const;
 
+    // Internal access for cross-world entity transfer (DeferredOps).
+    entt::registry& GetRegistryRef() { return m_SceneRegistry->Registry; }
+    const entt::registry& GetRegistryRef() const { return m_SceneRegistry->Registry; }
+
 private:
 	friend Entity;
 	void InitializeRegistry();

@@ -10,7 +10,6 @@
 #include <memory>
 #include <unordered_set>
 #include <CHEngine/Mesh/Material.h>
-#include <CHEngine/Mesh/PrimitiveMeshFactory.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Application.h>
 
@@ -568,24 +567,26 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
         bool hasImportedMeshes = false;
 
         if (!meshPath.empty()) {
-            if (meshPath == ":primitive:cube")
+            if (ResourceManager::IsPrimitiveUri(meshPath))
             {
-                Mesh cubeMesh = PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
-                cubeMesh.Mat = MaterialInstance::FromBase(
-                    std::make_shared<Material>(CHEngine::Application::Get().Render().GetDefaultMeshShader()));
-                importedMeshes.push_back(std::move(cubeMesh));
-                hasImportedMeshes = true;
-            }
-            else if (meshPath == ":primitive:sphere")
-            {
-                ShaderHandle sphereShader = CHEngine::Application::Get().Render().GetDefaultSphereImpostorShader();
-                if (!sphereShader.IsValid())
-                    sphereShader = CHEngine::Application::Get().Render().GetDefaultMeshShader();
-                Mesh sphereMesh = PrimitiveMeshFactory::CreateSphereImpostor({ 0.6f, 0.7f, 0.9f });
-                sphereMesh.Mat = MaterialInstance::FromBase(
-                    std::make_shared<Material>(sphereShader));
-                importedMeshes.push_back(std::move(sphereMesh));
-                hasImportedMeshes = true;
+                Mesh primMesh = Application::Get().Resources().LoadPrimitiveMesh(meshPath);
+                if (primMesh.IsValid())
+                {
+                    ShaderHandle sh;
+                    if (meshPath == ":primitive:sphere")
+                    {
+                        sh = Application::Get().Render().GetDefaultSphereImpostorShader();
+                        if (!sh.IsValid())
+                            sh = Application::Get().Render().GetDefaultMeshShader();
+                    }
+                    else
+                    {
+                        sh = Application::Get().Render().GetDefaultMeshShader();
+                    }
+                    primMesh.Mat = MaterialInstance::FromBase(std::make_shared<Material>(sh));
+                    importedMeshes.push_back(std::move(primMesh));
+                    hasImportedMeshes = true;
+                }
             }
             else
             {

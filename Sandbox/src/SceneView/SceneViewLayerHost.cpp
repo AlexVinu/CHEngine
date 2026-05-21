@@ -12,7 +12,6 @@
 #include <CHEngine/Application.h>
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/Mesh/Material.h>
-#include <CHEngine/Mesh/PrimitiveMeshFactory.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Camera/PerspectiveCamera.h>
@@ -35,9 +34,9 @@ SceneViewLayerHost::SceneViewLayerHost(SceneViewLayer& layer)
 {
 }
 
-Ref<EditorWorldContext> SceneViewLayerHost::GetActiveSceneSession()
+EditorWorldContext* SceneViewLayerHost::GetActiveSceneSession()
 {
-    return SceneViewLayerAccess::ActiveRef(m_Layer);
+    return SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
 }
 
 Ref<ProjectManager> SceneViewLayerHost::GetProjectManager()
@@ -47,7 +46,7 @@ Ref<ProjectManager> SceneViewLayerHost::GetProjectManager()
 
 Sandbox::CommandStack& SceneViewLayerHost::GetCommandStack()
 {
-    return SceneViewLayerAccess::ActiveRef(m_Layer)->CommandStack;
+    return SceneViewLayerAccess::ActiveWorldCtx(m_Layer)->CommandStack;
 }
 
 Sandbox::EditorCameraController& SceneViewLayerHost::GetEditorCameraController()
@@ -62,27 +61,22 @@ Sandbox::EditorViewport& SceneViewLayerHost::GetEditorViewport()
 
 ImGuizmo::OPERATION& SceneViewLayerHost::GetGizmoOperation()
 {
-    return SceneViewLayerAccess::ActiveRef(m_Layer)->GizmoOperation;
+    return SceneViewLayerAccess::ActiveWorldCtx(m_Layer)->GizmoOperation;
 }
 
 ImGuizmo::MODE& SceneViewLayerHost::GetGizmoMode()
 {
-    return SceneViewLayerAccess::ActiveRef(m_Layer)->GizmoMode;
+    return SceneViewLayerAccess::ActiveWorldCtx(m_Layer)->GizmoMode;
 }
 
 bool& SceneViewLayerHost::GetLocalMode()
 {
-    return SceneViewLayerAccess::ActiveRef(m_Layer)->LocalMode;
+    return SceneViewLayerAccess::ActiveWorldCtx(m_Layer)->LocalMode;
 }
 
 bool& SceneViewLayerHost::GetShowProfiler()
 {
-    return SceneViewLayerAccess::ActiveRef(m_Layer)->ShowProfiler;
-}
-
-Ref<std::vector<Ref<EditorWorldContext>>> SceneViewLayerHost::GetSceneSessions()
-{
-    return SceneViewLayerAccess::Sessions(m_Layer);
+    return SceneViewLayerAccess::ActiveWorldCtx(m_Layer)->ShowProfiler;
 }
 
 size_t SceneViewLayerHost::GetActiveSessionIndex() const
@@ -95,33 +89,46 @@ void SceneViewLayerHost::SetActiveSessionIndex(size_t session_index)
     SceneViewLayerAccess::SetActiveIndex(m_Layer, session_index);
 }
 
+std::vector<EditorWorldContext*> SceneViewLayerHost::GetSceneSessions() const
+{
+    auto* wl = SceneViewLayerAccess::WorldsList(m_Layer);
+    std::vector<EditorWorldContext*> result;
+    result.reserve(wl->Size());
+    wl->ForEach([&](CHEngine::World& w) {
+        result.push_back(static_cast<EditorWorldContext*>(&w));
+    });
+    return result;
+}
+
 void SceneViewLayerHost::AddSceneSession()
 {
-    auto session = MakeRef<EditorWorldContext>();
+    auto world_list = SceneViewLayerAccess::WorldsList(m_Layer);
+    auto ctx = new EditorWorldContext(world_list);
+    world_list->PushBack(ctx);
+
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(m_Layer);
-    const Ref<EditorWorldContext> active = SceneViewLayerAccess::ActiveRef(m_Layer);
+    const auto active = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     if (viewport.GetViewportSize().x > 1.0f && viewport.GetViewportSize().y > 1.0f)
-        session->ViewportSize = { viewport.GetViewportSize().x, viewport.GetViewportSize().y };
+        ctx->ViewportSize = { viewport.GetViewportSize().x, viewport.GetViewportSize().y };
     else
-        session->ViewportSize = active->ViewportSize;
-    session->ViewportCamera->SetViewportSize(session->ViewportSize.x, session->ViewportSize.y);
-    session->EditorCameraState = active->EditorCameraState;
+        ctx->ViewportSize = active->ViewportSize;
+    ctx->ViewportCamera->SetViewportSize(ctx->ViewportSize.x, ctx->ViewportSize.y);
+    ctx->EditorCameraState = active->EditorCameraState;
     SceneViewLayerAccess::CameraController(m_Layer).ApplyOrbit(
-        session->ViewportCamera.get(), session->EditorCameraState);
-    SceneViewLayerAccess::Sessions(m_Layer)->push_back(session);
-    SceneViewLayerAccess::SetActiveIndex(m_Layer, SceneViewLayerAccess::Sessions(m_Layer)->size() - 1);
+        ctx->ViewportCamera.get(), ctx->EditorCameraState);
+    SceneViewLayerAccess::SetActiveIndex(m_Layer, world_list->Size() - 1);
 }
 
 void SceneViewLayerHost::CloseSceneSession(size_t session_index)
 {
-    auto sessions = SceneViewLayerAccess::Sessions(m_Layer);
-    if (sessions->size() <= 1)
+    auto world_list = SceneViewLayerAccess::WorldsList(m_Layer);
+    if (world_list->Size() <= 1)
         return; // Always keep at least one session open.
-    if (session_index >= sessions->size())
+    if (session_index >= world_list->Size())
         return;
 
     size_t active = SceneViewLayerAccess::ActiveIndex(m_Layer);
-    sessions->erase(sessions->begin() + static_cast<std::ptrdiff_t>(session_index));
+    world_list->Erase(session_index);
 
     if (active == session_index)
     {
@@ -159,10 +166,11 @@ void SceneViewLayerHost::OpenSceneFile(const std::string& relOrAbsPath)
     }
 
     // If a session already shows this scene, just focus it.
-    auto sessions = SceneViewLayerAccess::Sessions(m_Layer);
-    for (size_t i = 0; i < sessions->size(); ++i)
+    auto world_list = SceneViewLayerAccess::WorldsList(m_Layer);
+    for (size_t i = 0; i < world_list->Size(); ++i)
     {
-        if ((*sessions)[i]->SceneRelPath == rel)
+        auto session = static_cast<EditorWorldContext*>(world_list->GetForIndex(i));
+        if (session->SceneRelPath == rel)
         {
             SceneViewLayerAccess::SetActiveIndex(m_Layer, i);
             return;
@@ -170,7 +178,7 @@ void SceneViewLayerHost::OpenSceneFile(const std::string& relOrAbsPath)
     }
 
     // If the active session is empty/untitled, reuse it; otherwise open a new tab.
-    auto cur = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto cur = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     if (!cur->SceneRelPath.empty())
         AddSceneSession();
 
@@ -202,15 +210,16 @@ void SceneViewLayerHost::DeleteSceneFile(const std::string& rel)
         return;
 
     // Close any tabs bound to it (but keep at least one session alive).
-    auto sessions = SceneViewLayerAccess::Sessions(m_Layer);
-    for (size_t i = sessions->size(); i-- > 0;)
+    auto* wl = SceneViewLayerAccess::WorldsList(m_Layer);
+    for (size_t i = wl->Size(); i-- > 0;)
     {
-        if ((*sessions)[i]->SceneRelPath == rel)
+        auto* s = static_cast<EditorWorldContext*>(wl->GetForIndex(i));
+        if (s->SceneRelPath == rel)
         {
-            if (sessions->size() > 1)
+            if (wl->Size() > 1)
                 CloseSceneSession(i);
             else
-                (*sessions)[i]->SceneRelPath.clear();
+                s->SceneRelPath.clear();
         }
     }
 }
@@ -226,12 +235,12 @@ void SceneViewLayerHost::RenameSceneFile(const std::string& oldRel, const std::s
         return;
 
     // Update any open tabs.
-    auto sessions = SceneViewLayerAccess::Sessions(m_Layer);
-    for (auto s : *sessions)
-    {
-        if (s->SceneRelPath == oldRel)
-            s->SceneRelPath = newRel;
-    }
+    auto* wl = SceneViewLayerAccess::WorldsList(m_Layer);
+    wl->ForEach([&](CHEngine::World& w) {
+        auto& s = static_cast<EditorWorldContext&>(w);
+        if (s.SceneRelPath == oldRel)
+            s.SceneRelPath = newRel;
+    });
 }
 
 void SceneViewLayerHost::SetStartupSceneFile(const std::string& rel)
@@ -244,13 +253,13 @@ void SceneViewLayerHost::SetStartupSceneFile(const std::string& rel)
     proj->Save();
 
     // Move the matching open session (if any) to index 0. Otherwise just record the pref.
-    auto sessions = SceneViewLayerAccess::Sessions(m_Layer);
-    for (size_t i = 0; i < sessions->size(); ++i)
+    auto* wl = SceneViewLayerAccess::WorldsList(m_Layer);
+    for (size_t i = 0; i < wl->Size(); ++i)
     {
-        if ((*sessions)[i]->SceneRelPath == rel && i != 0)
+        auto* s = static_cast<EditorWorldContext*>(wl->GetForIndex(i));
+        if (s->SceneRelPath == rel && i != 0)
         {
-            std::swap((*sessions)[0], (*sessions)[i]);
-            // Keep active pointing at the same logical session.
+            wl->Swap(0, i);
             const size_t active = SceneViewLayerAccess::ActiveIndex(m_Layer);
             if (active == 0)
                 SceneViewLayerAccess::SetActiveIndex(m_Layer, i);
@@ -263,12 +272,12 @@ void SceneViewLayerHost::SetStartupSceneFile(const std::string& rel)
 
 CHEngine::Transform& SceneViewLayerHost::GetTransformBeforeDrag()
 {
-    return SceneViewLayerAccess::ActiveRef(m_Layer)->TransformBeforeDrag;
+    return SceneViewLayerAccess::ActiveWorldCtx(m_Layer)->TransformBeforeDrag;
 }
 
 void SceneViewLayerHost::RequestUndo()
 {
-    auto ctx = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto ctx = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     if (ctx->CommandStack.CanUndo())
         ctx->CommandStack.Undo();
 }
@@ -281,7 +290,7 @@ void SceneViewLayerHost::OpenSceneDialog()
 
 void SceneViewLayerHost::ResetViewportCamera()
 {
-    auto ctx = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto ctx = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     CHEngine::EditorCamera* viewportCamera = ctx->ViewportCamera.get();
     Sandbox::EditorCameraState& camera_state = ctx->EditorCameraState;
     camera_state.OrbitTarget = { 0.0f, 0.0f, 0.0f };
@@ -293,7 +302,7 @@ void SceneViewLayerHost::ResetViewportCamera()
 
 void SceneViewLayerHost::AddDirectionalLight()
 {
-    auto activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -313,7 +322,7 @@ void SceneViewLayerHost::AddDirectionalLight()
 
 void SceneViewLayerHost::AddPointLight()
 {
-    auto activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -333,7 +342,7 @@ void SceneViewLayerHost::AddPointLight()
 
 void SceneViewLayerHost::AddSpotLight()
 {
-    auto activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -354,7 +363,7 @@ void SceneViewLayerHost::AddSpotLight()
 
 void SceneViewLayerHost::AddCubePrimitive()
 {
-    auto activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -368,7 +377,7 @@ void SceneViewLayerHost::AddCubePrimitive()
     entity->AddComponent<CHEngine::TransformComponent>();
     entity->AddComponent<CHEngine::MeshComponent>();
 
-    CHEngine::Mesh cube_mesh = CHEngine::PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
+    CHEngine::Mesh cube_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:cube");
     cube_mesh.Mat = CHEngine::MaterialInstance::FromBase(
         std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
     entity->PatchComponent<CHEngine::MeshComponent>(
@@ -383,7 +392,7 @@ void SceneViewLayerHost::AddCubePrimitive()
 
 void SceneViewLayerHost::AddSpherePrimitive()
 {
-    auto activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -399,7 +408,7 @@ void SceneViewLayerHost::AddSpherePrimitive()
 
     // Sphere impostor: 2 triangles + ray-sphere intersection in shader.
     // World radius is encoded as the entity's transform scale (scale == radius).
-    CHEngine::Mesh sphere_mesh = CHEngine::PrimitiveMeshFactory::CreateSphereImpostor({ 0.6f, 0.7f, 0.9f });
+    CHEngine::Mesh sphere_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:sphere");
     sphere_mesh.Mat = CHEngine::MaterialInstance::FromBase(
         std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereImpostorShader()));
     entity->PatchComponent<CHEngine::MeshComponent>(
@@ -414,7 +423,7 @@ void SceneViewLayerHost::AddSpherePrimitive()
 
 void SceneViewLayerHost::AddCameraEntity()
 {
-    auto activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -432,7 +441,7 @@ void SceneViewLayerHost::AddCameraEntity()
 
 void SceneViewLayerHost::AddEmptyEntity()
 {
-    auto activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -445,12 +454,12 @@ void SceneViewLayerHost::AddEmptyEntity()
 
 void SceneViewLayerHost::SetSelection(CHEngine::EntityHandle handle)
 {
-    SceneViewLayerAccess::ActiveRef(m_Layer)->SelectedEntity = handle;
+    SceneViewLayerAccess::ActiveWorldCtx(m_Layer)->SelectedEntity = handle;
 }
 
 void SceneViewLayerHost::AddUIOverlayCanvas()
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
     auto h = scene->CreateEntity("UI Overlay Canvas", boost::uuids::random_generator()());
@@ -463,7 +472,7 @@ void SceneViewLayerHost::AddUIOverlayCanvas()
 
 void SceneViewLayerHost::AddUIWorldCanvas()
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
     auto h = scene->CreateEntity("UI World Canvas", boost::uuids::random_generator()());
@@ -477,7 +486,7 @@ void SceneViewLayerHost::AddUIWorldCanvas()
 
 void SceneViewLayerHost::AddUIPanel(const CHEngine::UUID& uuid)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
 	auto h = scene->CreateEntity("UI Panel", boost::uuids::random_generator()());
@@ -492,7 +501,7 @@ void SceneViewLayerHost::AddUIPanel(const CHEngine::UUID& uuid)
 
 void SceneViewLayerHost::AddUIText(const CHEngine::UUID& uuid)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
 	auto h = scene->CreateEntity("UI Text", boost::uuids::random_generator()());
@@ -507,7 +516,7 @@ void SceneViewLayerHost::AddUIText(const CHEngine::UUID& uuid)
 
 void SceneViewLayerHost::AddUIButton(const CHEngine::UUID& uuid)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
 	auto h = scene->CreateEntity("UI Button", boost::uuids::random_generator()());
@@ -522,7 +531,7 @@ void SceneViewLayerHost::AddUIButton(const CHEngine::UUID& uuid)
 
 void SceneViewLayerHost::AddUIImage(const CHEngine::UUID& uuid)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
 	auto h = scene->CreateEntity("UI Image", boost::uuids::random_generator()());
@@ -537,7 +546,7 @@ void SceneViewLayerHost::AddUIImage(const CHEngine::UUID& uuid)
 
 void SceneViewLayerHost::AddUISlider(const CHEngine::UUID& uuid)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
 	auto h = scene->CreateEntity("UI Slider", boost::uuids::random_generator()());
@@ -552,7 +561,7 @@ void SceneViewLayerHost::AddUISlider(const CHEngine::UUID& uuid)
 
 void SceneViewLayerHost::DestroyEntityByUuid(const CHEngine::UUID& object_id)
 {
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
@@ -643,7 +652,7 @@ void SceneViewLayerHost::CreateAndAttachScript(CHEngine::EntityHandle handle, co
     // NOTE: absolute paths are not portable across machines. To fix portability,
     // LuaScriptSystem should resolve paths relative to the project root.
     // TODO: store relative path, resolve to absolute in LuaScriptSystem using project root.
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene = session->EditorScene;
     if (!scene) return;
     auto* entity = scene->TryGetEntity(handle);
@@ -676,7 +685,7 @@ void SceneViewLayerHost::ApplyLayoutPreset(const std::string& presetName)
 void SceneViewLayerHost::SelectEntityByName(const std::string& name)
 {
     if (name.empty()) return;
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene = session->EditorScene;
     if (!scene) return;
 
@@ -711,7 +720,7 @@ static std::vector<CHEngine::EntityHandle> FindHandlesByName(CHEngine::Scene* sc
 
 void SceneViewLayerHost::SetSelectedEntityPosition(float x, float y, float z)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
     auto* entity = scene->TryGetEntity(session->SelectedEntity);
@@ -761,7 +770,7 @@ void SceneViewLayerHost::CreateAndAttachScriptWithContent(const std::string& ent
     }
 
     // Attach to the entity by name (not SelectedEntity — avoids attaching to wrong entity)
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
 
@@ -825,7 +834,7 @@ void SceneViewLayerHost::CreateAndAttachWorldScript()
     }
 
     // Добавить путь в Scene::WorldScripts активной сцены редактора.
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
     scene->WorldScripts.push_back(CHEngine::ScriptEntry{ scriptPath.string(), true });
@@ -866,7 +875,7 @@ void SceneViewLayerHost::CreateAndAttachWorldScriptWithContent(const std::string
         tiling.InsertPanel(Sandbox::PanelID::ScriptEditor, nearPanel, Sandbox::DropEdge::Right);
     }
 
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
     scene->WorldScripts.push_back(CHEngine::ScriptEntry{ scriptPath.string(), true });
@@ -874,7 +883,7 @@ void SceneViewLayerHost::CreateAndAttachWorldScriptWithContent(const std::string
 
 void SceneViewLayerHost::SetSelectedEntityRotation(float x, float y, float z)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
     auto* e = scene->TryGetEntity(session->SelectedEntity);
@@ -885,7 +894,7 @@ void SceneViewLayerHost::SetSelectedEntityRotation(float x, float y, float z)
 
 void SceneViewLayerHost::SetSelectedEntityScale(float x, float y, float z)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
     auto* e = scene->TryGetEntity(session->SelectedEntity);
@@ -896,7 +905,7 @@ void SceneViewLayerHost::SetSelectedEntityScale(float x, float y, float z)
 
 void SceneViewLayerHost::RenameSelectedEntity(const std::string& newName)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene || newName.empty()) return;
     auto* e = scene->TryGetEntity(session->SelectedEntity);
@@ -914,7 +923,7 @@ void SceneViewLayerHost::FocusOnEntityByName(const std::string& name)
 void SceneViewLayerHost::SetEntityPositionByName(const std::string& name,
                                                   float x, float y, float z)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto* scene0 = session->EditorScene.get();
     for (auto h : FindHandlesByName(scene0, name))
         if (auto* e = scene0->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
@@ -925,7 +934,7 @@ void SceneViewLayerHost::SetEntityPositionByName(const std::string& name,
 void SceneViewLayerHost::SetEntityRotationByName(const std::string& name,
                                                   float x, float y, float z)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto* scene1 = session->EditorScene.get();
     for (auto h : FindHandlesByName(scene1, name))
         if (auto* e = scene1->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
@@ -936,7 +945,7 @@ void SceneViewLayerHost::SetEntityRotationByName(const std::string& name,
 void SceneViewLayerHost::SetEntityScaleByName(const std::string& name,
                                                float x, float y, float z)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto* scene2 = session->EditorScene.get();
     for (auto h : FindHandlesByName(scene2, name))
         if (auto* e = scene2->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
@@ -947,7 +956,7 @@ void SceneViewLayerHost::SetEntityScaleByName(const std::string& name,
 void SceneViewLayerHost::SetEntityColorByName(const std::string& name,
                                                float r, float g, float b, float a)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     // Two-phase: collect first, then AddComponent (safe outside ForEach)
     auto* scene3 = session->EditorScene.get();
     for (auto h : FindHandlesByName(scene3, name)) {
@@ -964,7 +973,7 @@ void SceneViewLayerHost::SetEntityColorByName(const std::string& name,
 
 void SceneViewLayerHost::SetEntityVisibleByName(const std::string& name, bool visible)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto* scene4 = session->EditorScene.get();
     for (auto h : FindHandlesByName(scene4, name)) {
         auto* e = scene4->TryGetEntity(h);
@@ -981,7 +990,7 @@ void SceneViewLayerHost::RenameEntityByName(const std::string& oldName,
                                              const std::string& newName)
 {
     if (newName.empty()) return;
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto* scene5 = session->EditorScene.get();
     for (auto h : FindHandlesByName(scene5, oldName))
         if (auto* e = scene5->TryGetEntity(h); e && e->HasComponent<CHEngine::TagComponent>())
@@ -991,7 +1000,7 @@ void SceneViewLayerHost::RenameEntityByName(const std::string& oldName,
 
 void SceneViewLayerHost::DeleteEntityByName(const std::string& name)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene || name.empty()) return;
 
@@ -1009,7 +1018,7 @@ void SceneViewLayerHost::SetEntityLightByName(const std::string& name,
                                                const std::string& lightType,
                                                float r, float g, float b, float intensity)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     CHEngine::LightType ltype = CHEngine::LightType::Directional;
     if (lightType == "point") ltype = CHEngine::LightType::Point;
     if (lightType == "spot")  ltype = CHEngine::LightType::Spot;
@@ -1032,7 +1041,7 @@ void SceneViewLayerHost::SetEntityLightByName(const std::string& name,
 
 void SceneViewLayerHost::SetViewportFovValue(float fov_degrees)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     if (!session)
         return;
     auto* cam = session->ViewportCamera.get();
@@ -1046,7 +1055,7 @@ void SceneViewLayerHost::SetViewportFovValue(float fov_degrees)
 void SceneViewLayerHost::CreateAndAttachScriptToEntityByName(const std::string& entityName)
 {
     // Find entity by name
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene = session->EditorScene;
     if (!scene) return;
 
@@ -1064,7 +1073,7 @@ void SceneViewLayerHost::CreateAndAttachScriptToEntityByName(const std::string& 
 
 void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene = session->EditorScene;
     if (!scene) return;
 
@@ -1092,7 +1101,7 @@ void SceneViewLayerHost::OpenExportPanel()
 
 std::string SceneViewLayerHost::GetSceneContextString()
 {
-    auto session = SceneViewLayerAccess::ActiveRef(m_Layer);
+    auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
 
     std::ostringstream ss;
@@ -1162,7 +1171,7 @@ std::string SceneViewLayerHost::GetSceneContextString()
 
 void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)
 {
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     CHEngine::Scene* scene = activeSession->EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession->SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))
@@ -1195,7 +1204,7 @@ void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_ind
 
 void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_index)
 {
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     CHEngine::Scene* scene = activeSession->EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession->SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))
@@ -1227,7 +1236,7 @@ void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_ind
 
 void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_index, const std::string& filepath)
 {
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     CHEngine::Scene* scene = activeSession->EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession->SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))
@@ -1260,7 +1269,7 @@ void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_in
 
 void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_index)
 {
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(m_Layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     CHEngine::Scene* scene = activeSession->EditorScene.get();
     const CHEngine::EntityHandle selectedHandle = activeSession->SelectedEntity;
     if (!scene || !scene->IsEntityHandleValid(selectedHandle))

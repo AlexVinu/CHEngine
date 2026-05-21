@@ -30,7 +30,7 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
         // ── Camera tab ────────────────────────────────────────────────────────
         if (ImGui::BeginTabItem("Camera"))
         {
-            Ref<EditorWorldContext> activeSession = host.GetActiveSceneSession();
+            EditorWorldContext* activeSession = host.GetActiveSceneSession();
             auto* viewport_camera = activeSession->ViewportCamera.get();
             if (viewport_camera)
             {

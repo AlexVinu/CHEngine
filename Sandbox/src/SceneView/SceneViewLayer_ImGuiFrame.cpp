@@ -38,8 +38,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const float H = disp.y;
     const auto& L = UIActive::g_Layout;
 
-    Ref<EditorWorldContext> activeRef = SceneViewLayerAccess::ActiveRef(layer);
-    EditorWorldContext* activeCtx = activeRef.get();
+    EditorWorldContext* activeCtx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     const bool reset = activeCtx->ResetLayout;
     activeCtx->ResetLayout = false;
     if (reset)
@@ -49,8 +48,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
     const ImVec2 tbPos  = { 0.0f, 0.0f };
     const ImVec2 tbSize = { W, L.toolbarH };
     SceneViewLayerAccess::Toolbar(layer).Draw(host, tbPos, tbSize);
-    activeRef = SceneViewLayerAccess::ActiveRef(layer);
-    activeCtx = activeRef.get();
+    activeCtx = SceneViewLayerAccess::ActiveWorldCtx(layer);
 
     // ── Tiling work area (below toolbar) ──────────────────────────────────────
     const ImVec2 workPos  = { 0.0f, L.toolbarH };
@@ -101,8 +99,7 @@ void RunSceneViewImGuiFrame(SceneViewLayer& layer)
         Sandbox::TileRect r = tiling.GetRect(PID::Inspector);
         if (r.valid)
             SceneViewLayerAccess::CameraPanel(layer).Draw(host, r.pos, r.size, reset);
-        activeRef = SceneViewLayerAccess::ActiveRef(layer);
-        activeCtx = activeRef.get();
+        activeCtx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     });
 
     // Properties

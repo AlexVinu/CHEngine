@@ -25,7 +25,7 @@ public:
     /// Registers editor-only render passes (grid) into the frame graph.
     /// Must be called AFTER RenderSystem has registered MainColor + Tonemap passes
     /// so the grid pass writes to the LDR viewport-output target.
-    void RegisterEditorPasses(Ref<SceneSession> scene_session);
+    void RegisterEditorPasses(SceneSession* scene_session);
 
     /// ImGui viewport window: FBO image, gizmo, play/pause border. Updates hover, position, size, FBO resize.
     void DrawImGui(GizmoSystem& gizmo,
@@ -42,7 +42,7 @@ public:
     CHEngine::ShaderHandle GetPBRShader()            const { return m_PBRShader; }
 
 	// Starts scene rendering into the viewport framebuffer (bind + clear + camera setup).
-	void BeginSceneRender(Ref<SceneSession> scene_session);
+	void BeginSceneRender(SceneSession* scene_session);
     /// Call after scene rendering is complete (symmetric with BeginSceneRender).
     void EndSceneRender();
 

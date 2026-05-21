@@ -4,6 +4,7 @@
 
 #include <CheStl/MemoryTypes.h>
 #include <CHEngine/World/World.h>
+#include <CHEngine/World/WorldsList.h>
 #include <cstddef>
 #include <vector>
 
@@ -33,8 +34,8 @@ class ExportPanel;
 /// Friend accessors for internal compilation units (host, IO, play mode, etc.).
 struct SceneViewLayerAccess
 {
-    static Ref<EditorWorldContext> ActiveRef(SceneViewLayer& layer);
-    static Ref<std::vector<Ref<EditorWorldContext>>>  Sessions(SceneViewLayer& layer);
+    static EditorWorldContext* ActiveWorldCtx(SceneViewLayer& layer);
+    static CHEngine::WorldsList* WorldsList(SceneViewLayer& layer);
     static Ref<ProjectManager>  ProjectManagerRef (SceneViewLayer& layer);
     static size_t ActiveIndex(const SceneViewLayer& layer);
     static void SetActiveIndex(SceneViewLayer& layer, size_t index);

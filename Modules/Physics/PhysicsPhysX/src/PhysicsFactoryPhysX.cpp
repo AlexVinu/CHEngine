@@ -5,11 +5,50 @@
 #include "PhysicsWorldPhysX.h"
 #include "ShapePhysX.h"
 
+#include <extensions/PxExtensionsAPI.h>
+
 namespace CHModules
 {
+    PhysicsFactoryPhysX::PhysicsFactoryPhysX()
+    {
+        m_Foundation = PxCreateFoundation(PX_PHYSICS_VERSION, m_Allocator, m_ErrorCallback);
+        if (!m_Foundation)
+        {
+            CHE_CORE_ERROR("PhysicsFactoryPhysX: failed to create PxFoundation");
+            return;
+        }
+
+        physx::PxTolerancesScale scale;
+        m_Physics = PxCreatePhysics(PX_PHYSICS_VERSION, *m_Foundation, scale, false, nullptr);
+        if (!m_Physics)
+        {
+            CHE_CORE_ERROR("PhysicsFactoryPhysX: failed to create PxPhysics");
+            return;
+        }
+
+        if (!PxInitExtensions(*m_Physics, nullptr))
+            CHE_CORE_ERROR("PhysicsFactoryPhysX: PxInitExtensions failed");
+    }
+
+    PhysicsFactoryPhysX::~PhysicsFactoryPhysX()
+    {
+        if (m_Physics)
+        {
+            PxCloseExtensions();
+            m_Physics->release();
+            m_Physics = nullptr;
+        }
+        if (m_Foundation)
+        {
+            m_Foundation->release();
+            m_Foundation = nullptr;
+        }
+    }
+
     CHEngine::IPhysicsWorld* PhysicsFactoryPhysX::CreateWorld(const CHEngine::PhysicsWorldDesc& worldDesc)
     {
-        auto* world = CreateImpl<PhysicsWorldPhysX>(worldDesc);
+        if (!m_Physics) return nullptr;
+        auto* world = CreateImpl<PhysicsWorldPhysX>(*m_Physics, worldDesc);
         if (!world->IsValid())
         {
             DestroyImpl(world);
@@ -52,9 +91,7 @@ namespace CHModules
 
     bool PhysicsFactoryPhysX::CheckIsWorking()
     {
-        CHEngine::PhysicsWorldDesc desc{};
-        PhysicsWorldPhysX testWorld(desc);
-        return testWorld.IsValid();
+        return m_Foundation != nullptr && m_Physics != nullptr;
     }
 
     CHEngine::ModuleType PhysicsFactoryPhysX::GetType() const

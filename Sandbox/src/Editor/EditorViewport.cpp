@@ -55,7 +55,7 @@ void EditorViewport::End()
 {
 }
 
-void EditorViewport::BeginSceneRender(Ref<SceneSession> scene_session)
+void EditorViewport::BeginSceneRender(SceneSession* scene_session)
 {
     CHE_PROFILE_FUNCTION();
     if (!scene_session)
@@ -121,7 +121,7 @@ void EditorViewport::BeginSceneRender(Ref<SceneSession> scene_session)
     }
 }
 
-void EditorViewport::RegisterEditorPasses(Ref<SceneSession> scene_session)
+void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
 {
     // Guards checked by caller (BeginSceneRender callback)
 

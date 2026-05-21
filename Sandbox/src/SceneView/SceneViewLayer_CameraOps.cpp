@@ -17,13 +17,13 @@ namespace SceneViewLayerCameraOps {
 
 void ApplyOrbit(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     SceneViewLayerAccess::CameraController(layer).ApplyOrbit(ctx->ViewportCamera.get(), ctx->EditorCameraState);
 }
 
 void SetViewPreset(SceneViewLayer& layer, float yaw_degrees, float pitch_degrees)
 {
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     SceneViewLayerAccess::CameraController(layer).SetViewPreset(
         yaw_degrees, pitch_degrees, ctx->ViewportCamera.get(), ctx->EditorCameraState);
 }
@@ -32,7 +32,7 @@ void FocusOnSelected(SceneViewLayer& layer)
 {
     constexpr float k_DefaultFocusRadius = 0.5f;
 
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     auto active_scene = ctx->EditorScene;
     CHEngine::Entity* entity = active_scene ? active_scene->TryGetEntity(ctx->SelectedEntity) : nullptr;
     if (!entity
@@ -79,7 +79,7 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
     inputSnapshot.IsPanByShiftMmbDrag    = input_system->Down("Editor.Camera.PanShiftMmb");
     inputSnapshot.IsPanByShiftRmbDrag    = input_system->Down("Editor.Camera.PanShiftRmb");
 
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     SceneViewLayerAccess::CameraController(layer).UpdateCameraInput(
         inputSnapshot, ctx->ViewportCamera.get(), ctx->EditorCameraState, ctx->EditorScene, ctx->SelectedEntity);
 
@@ -92,7 +92,7 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
 
 void PrepareEditorCameraFrame(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     // In Play the world uses scene cameras only; editor orbit camera must not move or consume input.
     if (ctx->GetSessionState() == SceneSession::State::Play)
         return;
@@ -106,7 +106,7 @@ namespace SceneViewLayerRender {
 
 void DrawOrbitIndicator(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     if (ctx->GetSessionState() == SceneSession::State::Play || ctx->GetSessionState() == SceneSession::State::Pause)
         return;
 

@@ -39,9 +39,14 @@ private:
     static bool ShouldWriteToPhysics(RigidBodySyncMode syncMode, PhysicsBodyType bodyType);
     static bool ShouldReadFromPhysics(RigidBodySyncMode syncMode, PhysicsBodyType bodyType);
 
+    static void OnTransferOut(World& world, EntityHandle handle, TransferContext& ctx);
+    static void OnTransferIn(World& world, EntityHandle handle, const TransferContext& ctx);
+
     // Tokens for deferred ops
 	DeferredOps::HookHandle m_RigidBodyAddedHookHandle;
 	DeferredOps::HookHandle m_RigidBodyRemovedHookHandle;
+    DeferredOps::HookHandle m_RigidBodyTransferOutHookHandle;
+    DeferredOps::HookHandle m_RigidBodyTransferInHookHandle;
 };
 
 } // namespace CHEngine

@@ -38,6 +38,11 @@ public:
     bool  Down     (std::string_view action) const;
     bool  Released (std::string_view action) const;
 
+    // Raw key polling — bypasses action bindings, uses Key::* codes.
+    bool  IsKeyDown    (int key) const;
+    bool  IsKeyPressed (int key) const;
+    bool  IsKeyReleased(int key) const;
+
     bool  IsModifierDown(uint8_t mods) const;
 
     enum class Axis { MouseDeltaX, MouseDeltaY, MouseWheel };

@@ -50,7 +50,7 @@ void UvEditorPanel::Draw(SceneViewLayerHost& host)
         return;
     }
 
-    Ref<EditorWorldContext> sessionRef = host.GetActiveSceneSession();
+    EditorWorldContext* sessionRef = host.GetActiveSceneSession();
     EditorWorldContext& session = *sessionRef;
     auto scene = session.EditorScene;
 

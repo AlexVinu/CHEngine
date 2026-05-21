@@ -56,7 +56,7 @@ public:
                 });
         }
 
-        m_World = MakeRef<CHEngine::World>(scene);
+        m_World = MakeRef<CHEngine::World>(scene, nullptr);
         m_World->SetState(CHEngine::WorldState::Simulating);
         CHE_CORE_INFO("[Player] World created, Simulating");
     }

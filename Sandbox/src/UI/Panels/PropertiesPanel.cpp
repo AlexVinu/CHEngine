@@ -133,7 +133,7 @@ void DisplayAddComponentEntry(const char* menuLabel, CHEngine::Entity* entity, [
 void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Properties", pos, size, 0, reset_layout);
-    Ref<SceneSession> activeSession = host.GetActiveSceneSession();
+    SceneSession* activeSession = host.GetActiveSceneSession();
 
     auto scene_ptr = activeSession->EditorScene;
     if (!scene_ptr)

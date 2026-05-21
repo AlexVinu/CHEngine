@@ -1,5 +1,6 @@
 #include "TextureOGL.h"
 
+#include <cassert>
 #include <glad/glad.h>
 
 // Extension format constants not exposed by base GLAD core profile loader.

@@ -25,7 +25,7 @@ static const ImGuiWindowFlags kFlags =
 void Draw(SceneViewLayer& layer)
 {
     Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(layer);
-    Ref<EditorWorldContext> ctxRef = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctxRef = SceneViewLayerAccess::ActiveWorldCtx(layer);
     EditorWorldContext& ctx = *ctxRef;
 
     // Open on Shift+A (viewport hovered, edit mode)

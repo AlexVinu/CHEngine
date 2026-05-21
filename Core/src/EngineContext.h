@@ -20,10 +20,7 @@ namespace CHEngine
 
         // Public data — legacy callers (Log, MemorySystem) access these directly.
         IAllocator* Allocator = nullptr;
-
-        Ref<spdlog::logger> CoreLogger;
-        Ref<spdlog::logger> ModuleLogger;
-        Ref<spdlog::logger> ClientLogger;
+        Scope<Logger> logger = MakeScope<Logger>();
     };
 
     CHE_CORE_API EngineContext& GetEngineContext();

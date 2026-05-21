@@ -6,8 +6,8 @@
 #include <algorithm>
 #include <filesystem>
 
-EditorWorldContext::EditorWorldContext()
-    : SceneSession()
+EditorWorldContext::EditorWorldContext(CHEngine::WorldsList* list)
+    : SceneSession(list)
 {
 	UpdateState(std::nullopt, std::nullopt);
 }
@@ -19,7 +19,7 @@ void EditorWorldContext::UpdateState(std::optional<SceneSession::State> new_stat
 	m_SessionState = new_state.value_or(m_SessionState);
 
 	// Ensure scene is set when becoming active
-	if (m_IsActive && !RuntimeWorld->GetSceneRef())
+	if (m_IsActive && !GetSceneRef())
 	{
 		ActivateEditorScene();
 	}
@@ -29,28 +29,28 @@ void EditorWorldContext::UpdateState(std::optional<SceneSession::State> new_stat
 	case SceneSession::State::Edit:
 		if (!m_IsActive)
 		{
-			RuntimeWorld->SetState(CHEngine::WorldState::NONE);
+			SetState(CHEngine::WorldState::NONE);
 			return;
 		}
-		RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
-		RuntimeWorld->SetActiveCamera(ViewportCamera.get());
+		SetState(CHEngine::WorldState::Presenting);
+		SetActiveCamera(ViewportCamera.get());
 		break;
 
 	case SceneSession::State::Play:
 		if (m_IsActive)
 		{
-			RuntimeWorld->SetState(CHEngine::WorldState::Simulating);
-			RuntimeWorld->SetActiveCamera(nullptr);
+			SetState(CHEngine::WorldState::Simulating);
+			SetActiveCamera(nullptr);
 		}
 		else
-			RuntimeWorld->SetState(CHEngine::WorldState::SimulatingWithoutPresenting);
+			SetState(CHEngine::WorldState::SimulatingWithoutPresenting);
 
 		break;
 
 	case SceneSession::State::Pause:
 		if (!m_IsActive) return;
-		RuntimeWorld->SetState(CHEngine::WorldState::Presenting);
-		RuntimeWorld->SetActiveCamera(nullptr);
+		SetState(CHEngine::WorldState::Presenting);
+		SetActiveCamera(nullptr);
 		break;
 	}
 }
@@ -59,27 +59,16 @@ void EditorWorldContext::ActivateActiveScene()
 {
     CHE_ASSERT(ActiveScene, "THERE ARE NO ACTIVE SCENE");
     CHE_ASSERT(EditorScene, "THERE ARE NO EDITOR SCENE");
-    CHE_ASSERT(RuntimeWorld, "THERE ARE NO RuntimeWorld");
 
     *ActiveScene = *EditorScene;
-    RuntimeWorld->SetScene(ActiveScene);
+    SetScene(ActiveScene);
 }
 
 void EditorWorldContext::ActivateEditorScene()
 {
     CHE_ASSERT(ActiveScene, "THERE ARE NO ACTIVE SCENE");
     CHE_ASSERT(EditorScene, "THERE ARE NO EDITOR SCENE");
-    CHE_ASSERT(RuntimeWorld, "THERE ARE NO RuntimeWorld");
 
     *ActiveScene = *EditorScene;
-    RuntimeWorld->SetScene(EditorScene);
-}
-
-std::string EditorWorldContext::DisplayName() const
-{
-    if (SceneRelPath.empty())
-        return "Untitled";
-    std::string name = std::filesystem::path(SceneRelPath).stem().string();
-    std::replace(name.begin(), name.end(), '_', ' ');
-    return name;
+    SetScene(EditorScene);
 }

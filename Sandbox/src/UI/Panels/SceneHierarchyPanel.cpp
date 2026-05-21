@@ -44,7 +44,7 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
 {
     EnsureLogo();
 
-    Ref<SceneSession> activeSession = host.GetActiveSceneSession();
+    SceneSession* activeSession = host.GetActiveSceneSession();
     auto scene_ptr = activeSession->EditorScene;
     if (!scene_ptr)
     {

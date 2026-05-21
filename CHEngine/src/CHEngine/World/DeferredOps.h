@@ -3,9 +3,12 @@
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/Scene.h"
 
+#include <entt/entt.hpp>
+#include <any>
 #include <functional>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <typeindex>
 #include <tuple>
 #include <unordered_map>
@@ -58,6 +61,31 @@ namespace CHEngine
         std::function<void(Ref<Scene>)> Callback;
     };
 
+    struct TransferEntityCommand
+    {
+        EntityHandle Source;
+        std::string  DstWorldName;
+    };
+
+    // Side-channel for passing runtime state between OnTransferOut and OnTransferIn hooks.
+    // Keyed by arbitrary type — each system stores its own data (e.g. PhysicsBodyVelocity).
+    class CHENGINE_API TransferContext {
+    public:
+        template<typename T>
+        void Set(T value) { m_Data[typeid(T)] = std::move(value); }
+
+        template<typename T>
+        const T* TryGet() const
+        {
+            const auto it = m_Data.find(typeid(T));
+            if (it == m_Data.end()) return nullptr;
+            return std::any_cast<T>(&it->second);
+        }
+
+    private:
+        std::unordered_map<std::type_index, std::any> m_Data;
+    };
+
     // Provides deferred structural operations for a scene
     // NOTES: I think there is no sense to delete deferred entity or its components (it literally does not exist)
     class CHENGINE_API DeferredOps {
@@ -72,6 +100,8 @@ namespace CHEngine
 
         using ComponentAddedFn = void(*)(World& world, EntityHandle handle);
         using ComponentRemovedFn = void(*)(World& world, EntityHandle handle);
+        using ComponentTransferOutFn = void(*)(World& src, EntityHandle handle, TransferContext& ctx);
+        using ComponentTransferInFn  = void(*)(World& dst, EntityHandle handle, const TransferContext& ctx);
         using FnOnScene = std::function<void(Ref<Scene>)>;
 
         // Entity/ DeferredEntity operations 
@@ -114,7 +144,25 @@ namespace CHEngine
             return SubscribeOnComponentRemoved(typeid(T), fn);
         }
 
+        template<typename T>
+        HookHandle SubscribeOnComponentTransferOut(ComponentTransferOutFn fn)
+        {
+            return SubscribeOnComponentTransferOut(typeid(T), entt::type_hash<T>::value(), fn);
+        }
+
+        template<typename T>
+        HookHandle SubscribeOnComponentTransferIn(ComponentTransferInFn fn)
+        {
+            return SubscribeOnComponentTransferIn(typeid(T), entt::type_hash<T>::value(), fn);
+        }
+
         bool Unsubscribe(HookHandle token);
+
+        // Queues a cross-world entity transfer (including its ParentNodeComponent subtree).
+        // Safe to call from inside ForEach — actual work happens during Flush.
+        // Requires both this World and dstWorldName World to be in WorldState::Simulating or
+        // SimulatingWithoutPresenting; otherwise the request is logged and dropped.
+        void TransferEntity(EntityHandle entity, std::string_view dstWorldName);
 
         // Manual work with deferred operations
         // You must make checks if you deal with entity
@@ -129,9 +177,12 @@ namespace CHEngine
         struct ComponentHookBinding
         {
             std::type_index ComponentType = typeid(void);
+            uint32_t        EnttTypeId    = 0; // entt::type_hash<T>::value(), used for transfer hooks
             uint64_t DedupKey = 0;
             ComponentAddedFn AddedFn = nullptr;
             ComponentRemovedFn RemovedFn = nullptr;
+            ComponentTransferOutFn TransferOutFn = nullptr;
+            ComponentTransferInFn  TransferInFn  = nullptr;
         };
 
         template<typename T, typename... Args>
@@ -188,9 +239,19 @@ namespace CHEngine
 
         HookHandle SubscribeOnComponentAdded(std::type_index component_type, ComponentAddedFn fn);
         HookHandle SubscribeOnComponentRemoved(std::type_index component_type, ComponentRemovedFn fn);
+        HookHandle SubscribeOnComponentTransferOut(std::type_index component_type, uint32_t entt_type_id, ComponentTransferOutFn fn);
+        HookHandle SubscribeOnComponentTransferIn (std::type_index component_type, uint32_t entt_type_id, ComponentTransferInFn  fn);
 
         void DispatchOnComponentAdded(std::type_index component_type, World& world, EntityHandle entity_handle);
         void DispatchOnComponentRemoved(std::type_index component_type, World& world, EntityHandle entity_handle);
+        // entt_type_id comes from storage.type().hash() during meta iteration.
+        void FireTransferOutHooks(uint32_t entt_type_id, World& src, EntityHandle handle, TransferContext& ctx);
+        void FireTransferInHooks (uint32_t entt_type_id, World& dst, EntityHandle handle, const TransferContext& ctx);
+
+        void FlushTransfers(World& world, Ref<Scene> scene);
+        void TransferSubtree(World& srcWorld, Ref<Scene> srcScene,
+                             World& dstWorld, Ref<Scene> dstScene,
+                             EntityHandle rootHandle);
 
         static uint64_t HandleToKey(EntityHandle entity_handle);
 
@@ -201,11 +262,12 @@ namespace CHEngine
         HookPoolType m_HookPool;
         std::unordered_map<uint64_t, HookHandle> m_HookHandleByKey;
 
-		std::vector<CreateEntityCommand> m_CreateCommands;
-		std::vector<DestroyEntityCommand> m_DestroyCommands;
+		std::vector<CreateEntityCommand>    m_CreateCommands;
+		std::vector<DestroyEntityCommand>   m_DestroyCommands;
 		std::vector<AddComponentCommand>    m_AddComponentCommands;
 		std::vector<RemoveComponentCommand> m_RemoveComponentCommands;
-		std::vector<CustomCommand> m_CustomCommands;
+		std::vector<CustomCommand>          m_CustomCommands;
+        std::vector<TransferEntityCommand>  m_TransferCommands;
 
         DeferredEntityHandle m_NextDeferredEntity = 1;
     };

@@ -126,7 +126,7 @@ void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string&
     if (absPath.empty())
         return;
 
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    auto ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     ctx->CommandStack.Clear();
     ctx->SelectedEntity = {};
 
@@ -150,6 +150,10 @@ void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string&
     }
     else
         ctx->SceneRelPath = absPath;
+
+    // Keep the Worlds index in sync with the scene name (stem only, no path/extension).
+    if (!ctx->SceneRelPath.empty())
+        ctx->SetWorldName(std::filesystem::path(ctx->SceneRelPath).stem().string());
 
     CHE_CORE_INFO("SceneViewLayerIO::LoadSceneSilent: loaded '{}'", absPath);
 }
@@ -175,7 +179,7 @@ std::filesystem::path GenerateUntitledScenePath(const std::filesystem::path& sce
 
 void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
 
     // No-dialog save: write to <project>/Scenes/<name>.chscene.
     // Session's SceneRelPath is the source of truth for the destination.
@@ -251,7 +255,7 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
     if (filePath.empty())
         return;
 
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     ctx->CommandStack.Clear();
     ctx->SelectedEntity = {};
 
@@ -367,7 +371,7 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
 void SceneViewLayerIO::AutoSaveForRestart(SceneViewLayer& layer)
 {
     CHEngine::SceneSerializer serializer{};
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
     CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
     auto scene_ref = activeSession->EditorScene;
     auto* viewport_camera = activeSession->ViewportCamera.get();
@@ -428,7 +432,7 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 {
     if (std::filesystem::exists(k_SessionFile))
     {
-        Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
+        auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
 
         CHEngine::SceneSerializer serializer{};
         {
@@ -459,7 +463,7 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 
     glm::vec3 pos{};
     f >> pos.x >> pos.y >> pos.z;
-    Ref<EditorWorldContext> activeSession2 = SceneViewLayerAccess::ActiveRef(layer);
+    auto activeSession2 = SceneViewLayerAccess::ActiveWorldCtx(layer);
     auto* viewport_camera = activeSession2->ViewportCamera.get();
     if (!viewport_camera)
         return;
@@ -640,7 +644,7 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     }
 
     const CHEngine::UUID objectID = boost::uuids::random_generator()();
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
     CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)

@@ -1,5 +1,6 @@
 #include "ResourceManager.h"
 
+#include "CHEngine/Mesh/PrimitiveMeshFactory.h"
 #include "CHEngine/Utils/AppPaths.h"
 #include "Log/Log.h"
 
@@ -26,5 +27,14 @@ namespace CHEngine
 			if (loader)
 				loader->Shutdown();
 		}
+	}
+
+	Mesh ResourceManager::LoadPrimitiveMesh(std::string_view uri)
+	{
+		if (uri == ":primitive:cube")
+			return PrimitiveMeshFactory::CreateCube(1.0f, { 0.8f, 0.8f, 0.8f });
+		if (uri == ":primitive:sphere")
+			return PrimitiveMeshFactory::CreateSphereImpostor({ 0.6f, 0.7f, 0.9f });
+		return Mesh{};
 	}
 }

@@ -6,6 +6,7 @@
 #include "DeferredOps.h"
 #include "EventBus.h"
 #include "SystemScheduler.h"
+#include "WorldsList.h"
 #include "Physics/IPhysicsWorld.h"
 #include "CHEngine/Scene/Components.h"
 
@@ -29,10 +30,10 @@ namespace CHEngine
     // It is just provides connection between Scene, Systems, Events and PhysicalWorld(if exists)
     class CHENGINE_API World {
     public:
-        World();
-        explicit World(Ref<Scene> scene);
+        World(WorldsList* list);
+        explicit World(Ref<Scene> scene, WorldsList* list);
 
-        ~World();
+        virtual ~World();
 
         void SetScene(Ref<Scene> scene);
         bool HasScene() const { return m_Scene != nullptr; }
@@ -60,13 +61,19 @@ namespace CHEngine
         Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() { return m_PhysicsWorld; }
         const Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() const { return m_PhysicsWorld; }
 
-        // Getters 
+        // Getters
         SystemScheduler& GetScheduler() { return m_Scheduler; }
         const SystemScheduler& GetScheduler() const { return m_Scheduler; }
         DeferredOps& GetDeferredOps() { return m_DeferredOps; }
         const DeferredOps& GetDeferredOps() const { return m_DeferredOps; }
         EventBus& GetEvents() { return m_EventBus; }
         const EventBus& GetEvents() const { return m_EventBus; }
+
+        WorldsList* GetWorlds() const { return m_Worlds; }
+        const std::string& GetWorldName() const { return m_Name; }
+        // Update the name by which this World is looked up in Worlds::TryGet.
+        // Call after scene load to bind the World to the scene's file path.
+        void SetWorldName(std::string name) { m_Name = std::move(name); }
 
     private:
         void RegisterDefaultSystems();
@@ -85,5 +92,8 @@ namespace CHEngine
         // ---------------
         WorldState m_State = WorldState::NONE;
         WorldState m_PendingState = WorldState::NONE;
+
+        WorldsList* m_Worlds = nullptr;
+        std::string m_Name = "Untitled";
     };
 }

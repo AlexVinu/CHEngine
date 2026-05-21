@@ -10,6 +10,7 @@
 #include <CHEngine/Utils/AppPaths.h>
 
 #include <CHEngine/Input/InputSystem.h>
+#include <CHEngine/Scene/ComponentMeta.h>
 
 #include <Render/UniformBlocks.h>
 
@@ -25,6 +26,8 @@ public:
 	SandboxApp(const CHEngine::ApplicationConfig& config)
 		: CHEngine::Application(config)
 	{
+		CHEngine::Meta::RegisterAllComponents();
+
 		// Загрузка биндов: каждый JSON в config/keybindings/ = отдельный контекст.
 		auto* is = CHEngine::Application::Get().InputSystem();
 		is->LoadFromDirectory(CHEngine::AppPaths::ExecutableDir() / "config/keybindings");
@@ -39,11 +42,10 @@ public:
 		CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>("Flat", CHEngine::AppPaths::ExecutableDir() / "shaders/flat.slang");
 		CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>("Neon", CHEngine::AppPaths::ExecutableDir() / "shaders/neon.slang");
 
-		m_MutualWorlds = MakeRef<std::vector<Ref<EditorWorldContext>>>();
-		m_MutualWorlds->reserve(16);
 		// Scene editor (default)
-		PushLayer(new SceneViewLayer(m_MutualWorlds, m_ProjectManager));
-		PushLayer(new GameLayer(m_MutualWorlds));
+		auto* sceneLayer = new SceneViewLayer(m_ProjectManager);
+		PushLayer(sceneLayer);
+		PushLayer(new GameLayer(sceneLayer->GetWorldsList()));
 		// Old cube demo (uncomment to use instead):
 		// PushLayer(new ExampleLayer());
 	}
@@ -51,8 +53,7 @@ public:
 	~SandboxApp() = default;
 
 private:
-	Ref<std::vector<Ref<EditorWorldContext>>> m_MutualWorlds;
-	Ref<ProjectManager>                       m_ProjectManager;
+	Ref<ProjectManager> m_ProjectManager;
 };
 
 CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config)

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CHEngine/Layer/Layer.h>
+#include <CHEngine/World/WorldsList.h>
 #include <CheStl/MemoryTypes.h>
 
 #include "ContentBrowserPanel.h"
@@ -29,17 +30,20 @@ struct SceneViewLayerAccess;
 class SceneViewLayer : public CHEngine::Layer
 {
 public:
-    SceneViewLayer(Ref<std::vector<Ref<EditorWorldContext>>>, Ref<ProjectManager>);
+    explicit SceneViewLayer(Ref<ProjectManager>);
     void OnUpdate(CHEngine::Timestep dt) override;
     void OnImGuiRender() override;
     void OnEvent(CHEngine::Event& e) override;
 
     void OnProjectOpened();
+    CHEngine::WorldsList& GetWorldsList() { return *m_Worlds; }
 
 private:
     friend struct SceneViewLayerAccess;
+    // NOTE: for editor firstly make ptr to EditorWorldContext
+    // After push it to world list
+    Scope<CHEngine::WorldsList> m_Worlds = MakeScope<CHEngine::WorldsList>();
 
-    Ref<std::vector<Ref<EditorWorldContext>>> m_EditorWorldContexts;
     Ref<ProjectManager> m_ProjectManager;
     size_t m_ActiveIndex = 0;
 

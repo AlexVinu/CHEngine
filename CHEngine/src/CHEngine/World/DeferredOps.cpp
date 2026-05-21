@@ -1,15 +1,22 @@
 #include "chepch.h"
 #include "DeferredOps.h"
+#include "World.h"
+#include "WorldsList.h"
+
+#include <entt/entt.hpp>
 
 #include <cstdint>
 #include <unordered_set>
+#include <vector>
 
 namespace CHEngine
 {
     namespace
     {
-        constexpr uint64_t kHookEventAdded = 0xA11Du;
-        constexpr uint64_t kHookEventRemoved = 0xB22Eu;
+        constexpr uint64_t kHookEventAdded       = 0xA11Du;
+        constexpr uint64_t kHookEventRemoved      = 0xB22Eu;
+        constexpr uint64_t kHookEventTransferOut  = 0xC33Fu;
+        constexpr uint64_t kHookEventTransferIn   = 0xD440u;
 
         constexpr uint64_t MAGIC_NUMBER = 0x9e3779b97f4a7c15ULL;
 
@@ -107,6 +114,275 @@ namespace CHEngine
 		return handle;
     }
 
+    DeferredOps::HookHandle DeferredOps::SubscribeOnComponentTransferOut(std::type_index component_type, uint32_t entt_type_id, ComponentTransferOutFn fn)
+    {
+        if (!fn)
+            return HookHandle::Invalid();
+
+        const uint64_t function_key = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(fn));
+        const uint64_t dedup_key = MixHookKey(component_type.hash_code(), kHookEventTransferOut, function_key);
+        const auto existing_it = m_HookHandleByKey.find(dedup_key);
+        if (existing_it != m_HookHandleByKey.end())
+            return existing_it->second;
+
+        auto* binding = new ComponentHookBinding{};
+        auto handle = m_HookPool.Add(binding);
+        binding->ComponentType = component_type;
+        binding->EnttTypeId    = entt_type_id;
+        binding->DedupKey      = dedup_key;
+        binding->TransferOutFn = fn;
+        m_HookHandleByKey.emplace(dedup_key, handle);
+        return handle;
+    }
+
+    DeferredOps::HookHandle DeferredOps::SubscribeOnComponentTransferIn(std::type_index component_type, uint32_t entt_type_id, ComponentTransferInFn fn)
+    {
+        if (!fn)
+            return HookHandle::Invalid();
+
+        const uint64_t function_key = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(fn));
+        const uint64_t dedup_key = MixHookKey(component_type.hash_code(), kHookEventTransferIn, function_key);
+        const auto existing_it = m_HookHandleByKey.find(dedup_key);
+        if (existing_it != m_HookHandleByKey.end())
+            return existing_it->second;
+
+        auto* binding = new ComponentHookBinding{};
+        auto handle = m_HookPool.Add(binding);
+        binding->ComponentType = component_type;
+        binding->EnttTypeId    = entt_type_id;
+        binding->DedupKey      = dedup_key;
+        binding->TransferInFn  = fn;
+        m_HookHandleByKey.emplace(dedup_key, handle);
+        return handle;
+    }
+
+    void DeferredOps::TransferEntity(EntityHandle entity, std::string_view dstWorldName)
+    {
+        TransferEntityCommand cmd{};
+        cmd.Source      = entity;
+        cmd.DstWorldName = std::string(dstWorldName);
+        m_TransferCommands.emplace_back(std::move(cmd));
+    }
+
+    void DeferredOps::FireTransferOutHooks(uint32_t entt_type_id, World& src, EntityHandle handle, TransferContext& ctx)
+    {
+        m_HookPool.ForEachOccupied([&](ComponentHookBinding* ptr) {
+            if (ptr->EnttTypeId == entt_type_id && ptr->TransferOutFn)
+                ptr->TransferOutFn(src, handle, ctx);
+        });
+    }
+
+    void DeferredOps::FireTransferInHooks(uint32_t entt_type_id, World& dst, EntityHandle handle, const TransferContext& ctx)
+    {
+        m_HookPool.ForEachOccupied([&](ComponentHookBinding* ptr) {
+            if (ptr->EnttTypeId == entt_type_id && ptr->TransferInFn)
+                ptr->TransferInFn(dst, handle, ctx);
+        });
+    }
+
+    void DeferredOps::TransferSubtree(World& srcWorld, Ref<Scene> srcScene,
+                                       World& dstWorld, Ref<Scene> dstScene,
+                                       EntityHandle rootHandle)
+    {
+        using namespace entt::literals;
+
+        bool transferredActiveCamera = false;
+
+        // BFS: collect subtree (root first, then children).
+        std::vector<EntityHandle> subtree;
+        std::vector<EntityHandle> frontier = { rootHandle };
+
+        while (!frontier.empty())
+        {
+            std::vector<EntityHandle> next;
+            for (EntityHandle h : frontier)
+            {
+                subtree.push_back(h);
+                const UUID parentUUID = srcScene->GetUUID(h);
+                // Find all entities whose ParentNodeComponent.Value == parentUUID.
+                srcScene->ForEach<ParentNodeComponent>([&](EntityHandle ch, UUID, ParentNodeComponent& pnc) {
+                    if (pnc.Value == parentUUID)
+                        next.push_back(ch);
+                });
+            }
+            frontier = std::move(next);
+        }
+
+        // Transfer each entity: parents first (subtree ordering is already correct).
+        for (EntityHandle srcHandle : subtree)
+        {
+            const UUID uuid     = srcScene->GetUUID(srcHandle);
+            const Entity* srcEnt = srcScene->TryGetEntity(srcHandle);
+            if (!srcEnt) continue;
+
+            const std::string name = srcEnt->HasComponent<TagComponent>()
+                ? srcEnt->GetComponent<TagComponent>().Name
+                : "Object";
+
+            entt::registry& srcReg = srcScene->GetRegistryRef();
+            entt::entity srcE = static_cast<entt::entity>(srcHandle.index); // handled via entt mapping below
+
+            // Resolve entt entity via Scene internals (use UUID lookup on dst side).
+            // For src: we need the raw entt entity. Use registry.storage iteration from handle.
+            // Approach: get entt entity by looking up via Scene's handle pool.
+            // We don't have direct entt::entity from EntityHandle, so iterate through
+            // IDComponent to find the matching entity.
+            entt::entity srcEntt = entt::null;
+            {
+                auto view = srcReg.view<IDComponent>();
+                for (auto e : view)
+                    if (static_cast<boost::uuids::uuid>(view.get<IDComponent>(e).Value) ==
+                        static_cast<boost::uuids::uuid>(uuid))
+                    { srcEntt = e; break; }
+            }
+            if (srcEntt == entt::null) continue;
+
+            // Create the entity in dst with the same UUID.
+            EntityHandle dstHandle = dstScene->CreateEntity(name, uuid);
+            entt::registry& dstReg = dstScene->GetRegistryRef();
+
+            entt::entity dstEntt = entt::null;
+            {
+                auto view = dstReg.view<IDComponent>();
+                for (auto e : view)
+                    if (static_cast<boost::uuids::uuid>(view.get<IDComponent>(e).Value) ==
+                        static_cast<boost::uuids::uuid>(uuid))
+                    { dstEntt = e; break; }
+            }
+            if (dstEntt == entt::null) continue;
+
+            TransferContext ctx;
+
+            // Collect which entt type ids were actually transferred.
+            std::vector<uint32_t> transferredTypeIds;
+
+            // Pass 1: FireTransferOut + Clone all components into dst.
+            // TransferIn is deferred until all components are present in dst.
+            for (auto&& [typeId, storage] : srcReg.storage())
+            {
+                if (!storage.contains(srcEntt)) continue;
+
+                // Skip IDComponent and TagComponent — CreateEntity already set these.
+                const auto& typeInfo = storage.type();
+                if (typeInfo == entt::type_id<IDComponent>() ||
+                    typeInfo == entt::type_id<TagComponent>())
+                    continue;
+
+                // Track whether an active camera is leaving the src world.
+                if (typeInfo == entt::type_id<CameraComponent>())
+                {
+                    const auto& cam = srcReg.get<CameraComponent>(srcEntt);
+                    if (cam.IsActive)
+                        transferredActiveCamera = true;
+                }
+
+                const uint32_t enttTypeId = static_cast<uint32_t>(typeInfo.hash());
+
+                // 1. Fire TransferOut hooks on src.
+                FireTransferOutHooks(enttTypeId, srcWorld, srcHandle, ctx);
+
+                // 2. Clone component into dst via entt::meta "clone_to" function.
+                auto metaType = entt::resolve(typeInfo);
+                if (metaType)
+                {
+                    auto cloneFn = metaType.func("clone_to"_hs);
+                    if (cloneFn)
+                        cloneFn.invoke({},
+                            entt::forward_as_meta(dstReg),
+                            entt::forward_as_meta(dstEntt),
+                            entt::forward_as_meta(srcReg),
+                            entt::forward_as_meta(srcEntt));
+                }
+
+                transferredTypeIds.push_back(enttTypeId);
+            }
+
+            // Pass 2: Fire TransferIn hooks — all components are now present in dst.
+            for (uint32_t enttTypeId : transferredTypeIds)
+                dstWorld.GetDeferredOps().FireTransferInHooks(enttTypeId, dstWorld, dstHandle, ctx);
+
+            // Destroy the entity in src immediately (we're outside any ForEach here).
+            srcScene->DestroyEntity(srcHandle);
+        }
+
+        // If the subtree carried the active camera, adjust world states.
+        // SetState() only sets m_PendingState — applied safely at next World::Update().
+        if (transferredActiveCamera)
+        {
+            srcWorld.SetState(WorldState::SimulatingWithoutPresenting);
+            if (dstWorld.GetState() == WorldState::SimulatingWithoutPresenting)
+                dstWorld.SetState(WorldState::Simulating);
+        }
+    }
+
+    void DeferredOps::FlushTransfers(World& world, Ref<Scene> scene)
+    {
+        if (m_TransferCommands.empty()) return;
+
+        WorldsList* worlds = world.GetWorlds();
+        if (!worlds)
+        {
+            CHE_CORE_WARN("DeferredOps::FlushTransfers: World '{}' is not registered in a Worlds index — transfers ignored.",
+                          world.GetWorldName());
+            m_TransferCommands.clear();
+            return;
+        }
+
+        const WorldState srcState = world.GetState();
+        const bool srcOk = srcState == WorldState::Simulating || srcState == WorldState::SimulatingWithoutPresenting;
+
+        for (const TransferEntityCommand& cmd : m_TransferCommands)
+        {
+            if (!srcOk)
+            {
+                CHE_CORE_ERROR("DeferredOps::FlushTransfers: src World '{}' is not Simulating — transfer dropped.",
+                               world.GetWorldName());
+                continue;
+            }
+
+            World* dst = worlds->TryGet(cmd.DstWorldName);
+            if (!dst)
+            {
+                CHE_CORE_ERROR("DeferredOps::FlushTransfers: dst World '{}' not found — transfer dropped.",
+                               cmd.DstWorldName);
+                continue;
+            }
+
+            if (dst == &world)
+            {
+                CHE_CORE_WARN("DeferredOps::FlushTransfers: src and dst are the same World '{}' — skipped.",
+                              world.GetWorldName());
+                continue;
+            }
+
+            const WorldState dstState = dst->GetState();
+            if (dstState != WorldState::Simulating && dstState != WorldState::SimulatingWithoutPresenting)
+            {
+                CHE_CORE_ERROR("DeferredOps::FlushTransfers: dst World '{}' is not Simulating — transfer dropped.",
+                               cmd.DstWorldName);
+                continue;
+            }
+
+            Ref<Scene> dstScene = dst->GetSceneRef();
+            if (!dstScene)
+            {
+                CHE_CORE_ERROR("DeferredOps::FlushTransfers: dst World '{}' has no scene — transfer dropped.",
+                               cmd.DstWorldName);
+                continue;
+            }
+
+            if (!scene->IsEntityHandleValid(cmd.Source))
+            {
+                CHE_CORE_ERROR("DeferredOps::FlushTransfers: entity handle is invalid — transfer dropped.");
+                continue;
+            }
+
+            TransferSubtree(world, scene, *dst, dstScene, cmd.Source);
+        }
+
+        m_TransferCommands.clear();
+    }
+
 	bool DeferredOps::Unsubscribe(HookHandle handle)
     {
         const auto* binding = m_HookPool.Get(handle);
@@ -199,6 +475,9 @@ namespace CHEngine
 				custom_command.Callback(scene);
 		}
 
+		// 6: Cross-world entity transfers (happens last so all scene state is stable).
+		FlushTransfers(world, scene);
+
 		Clear();
 	}
 
@@ -209,6 +488,7 @@ namespace CHEngine
 		m_AddComponentCommands.clear();
 		m_RemoveComponentCommands.clear();
 		m_CustomCommands.clear();
+		m_TransferCommands.clear();
 		m_NextDeferredEntity = 1;
 	}
 }

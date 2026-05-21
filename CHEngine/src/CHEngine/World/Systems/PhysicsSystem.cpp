@@ -62,8 +62,10 @@ void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
 void PhysicsSystem::OnBegin(World& world, DeferredOps& deferred_ops)
 {
     RebuildPhysicsRuntime(world);
-    m_RigidBodyAddedHookHandle = deferred_ops.SubscribeOnComponentAdded<RigidBody3DComponent>(&PhysicsSystem::CreateRigidBody);
-    m_RigidBodyRemovedHookHandle = deferred_ops.SubscribeOnComponentRemoved<RigidBody3DComponent>(&PhysicsSystem::DestroyRigidBody);
+    m_RigidBodyAddedHookHandle       = deferred_ops.SubscribeOnComponentAdded<RigidBody3DComponent>(&PhysicsSystem::CreateRigidBody);
+    m_RigidBodyRemovedHookHandle     = deferred_ops.SubscribeOnComponentRemoved<RigidBody3DComponent>(&PhysicsSystem::DestroyRigidBody);
+    m_RigidBodyTransferOutHookHandle = deferred_ops.SubscribeOnComponentTransferOut<RigidBody3DComponent>(&PhysicsSystem::OnTransferOut);
+    m_RigidBodyTransferInHookHandle  = deferred_ops.SubscribeOnComponentTransferIn<RigidBody3DComponent>(&PhysicsSystem::OnTransferIn);
 }
 
 void PhysicsSystem::OnEnd(World& world, DeferredOps& deferred_ops)
@@ -74,9 +76,13 @@ void PhysicsSystem::OnEnd(World& world, DeferredOps& deferred_ops)
     }
 
     if (m_RigidBodyRemovedHookHandle.IsValid())
-    {
         deferred_ops.Unsubscribe(m_RigidBodyRemovedHookHandle);
-    }
+
+    if (m_RigidBodyTransferOutHookHandle.IsValid())
+        deferred_ops.Unsubscribe(m_RigidBodyTransferOutHookHandle);
+
+    if (m_RigidBodyTransferInHookHandle.IsValid())
+        deferred_ops.Unsubscribe(m_RigidBodyTransferInHookHandle);
 
     ClearPhysicsRuntime(world);
 }
@@ -206,4 +212,58 @@ void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
         Application::Get().Physics()->Delete(rigidBody.Shape);
     rigidBody.Shape = nullptr;
 }
+void PhysicsSystem::OnTransferOut(World& world, EntityHandle handle, TransferContext& ctx)
+{
+    auto scene = world.GetSceneRef();
+    if (!scene) return;
+
+    auto* entity = scene->TryGetEntity(handle);
+    if (!entity || !entity->HasComponent<RigidBody3DComponent>()) return;
+
+    auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
+
+    if (rigidBody.Body)
+    {
+        ctx.Set<glm::vec3>(rigidBody.Body->GetLinearVelocity());
+        world.GetPhysicsRuntimeWorld()->DestroyRigidBody(rigidBody.Body);
+        rigidBody.Body = nullptr;
+    }
+
+    if (Application::Get().HasPhysics() && rigidBody.Shape)
+    {
+        Application::Get().Physics()->Delete(rigidBody.Shape);
+        rigidBody.Shape = nullptr;
+    }
+}
+
+void PhysicsSystem::OnTransferIn(World& world, EntityHandle handle, const TransferContext& ctx)
+{
+    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().get();
+    if (!runtimeWorld) return;
+
+    auto scene = world.GetSceneRef();
+    if (!scene) return;
+
+    auto* entity = scene->TryGetEntity(handle);
+    if (!entity || !entity->HasComponent<RigidBody3DComponent>()) return;
+
+    auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
+    auto& transform = entity->GetComponent<TransformComponent>().ObjectTransform;
+
+    PhysicsTransform physicsTransform{};
+    physicsTransform.Position = transform.Position;
+    physicsTransform.Rotation = glm::quat(glm::radians(transform.Rotation));
+
+    auto* shape = Application::Get().Physics()->CreateShape(rigidBody.ShapeDesc);
+    rigidBody.Shape = shape;
+    rigidBody.Body = runtimeWorld->CreateRigidBody(rigidBody.BodyDesc, shape);
+
+    if (rigidBody.Body)
+    {
+        rigidBody.Body->SetTransform(physicsTransform);
+        if (const glm::vec3* vel = ctx.TryGet<glm::vec3>())
+            rigidBody.Body->SetLinearVelocity(*vel);
+    }
+}
+
 } // namespace CHEngine

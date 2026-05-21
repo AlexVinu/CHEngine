@@ -1,17 +1,17 @@
 #include "GameLayer.h"
 
-GameLayer::GameLayer(Ref<std::vector<Ref<EditorWorldContext>>> worlds)
-	:m_MutualWorlds(worlds)
-{
+#include <CHEngine/World/World.h>
 
+GameLayer::GameLayer(CHEngine::WorldsList& worlds)
+	: m_Worlds(worlds)
+{
 }
 
 void GameLayer::OnUpdate(CHEngine::Timestep dt)
 {
-	for (const auto& world : *m_MutualWorlds)
-	{
-		world->RuntimeWorld->Update(dt);
-	}
+	m_Worlds.ForEach([dt](CHEngine::World& world) {
+		world.Update(dt);
+	});
 }
 
 void GameLayer::OnImGuiRender()

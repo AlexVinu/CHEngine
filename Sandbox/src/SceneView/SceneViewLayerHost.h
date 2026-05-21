@@ -8,6 +8,7 @@
 
 #include <string>
 #include <vector>
+#include <cstddef>
 
 class SceneViewLayer;
 class ProjectManager;
@@ -23,7 +24,7 @@ class SceneViewLayerHost
 public:
     explicit SceneViewLayerHost(SceneViewLayer& layer);
 
-    Ref<EditorWorldContext> GetActiveSceneSession() ;
+    EditorWorldContext* GetActiveSceneSession() ;
     Ref<ProjectManager> GetProjectManager() ;
     Sandbox::CommandStack& GetCommandStack() ;
     Sandbox::EditorCameraController& GetEditorCameraController() ;
@@ -34,9 +35,9 @@ public:
     bool& GetLocalMode();
     bool& GetShowProfiler();
 
-    Ref<std::vector<Ref<EditorWorldContext>>> GetSceneSessions() ;
     size_t GetActiveSessionIndex() const ;
     void SetActiveSessionIndex(size_t session_index) ;
+    std::vector<EditorWorldContext*> GetSceneSessions() const ;
     void AddSceneSession() ;
     void CloseSceneSession(size_t session_index) ;
     void OpenSceneFile(const std::string& relOrAbsPath) ;

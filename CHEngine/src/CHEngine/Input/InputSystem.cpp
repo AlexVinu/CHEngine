@@ -169,6 +169,10 @@ bool  InputSystem::Triggered(std::string_view a) const { return MapGet(m_Trigger
 bool  InputSystem::Down     (std::string_view a) const { return MapGet(m_Down,      a); }
 bool  InputSystem::Released (std::string_view a) const { return MapGet(m_Released,  a); }
 
+bool  InputSystem::IsKeyDown    (int key) const { return Input::IsKeyDown(key);     }
+bool  InputSystem::IsKeyPressed (int key) const { return Input::IsKeyPressed(key);  }
+bool  InputSystem::IsKeyReleased(int key) const { return Input::IsKeyReleased(key); }
+
 bool  InputSystem::IsModifierDown(uint8_t mods) const { return (m_CurrentMods & mods) == mods; }
 
 float InputSystem::GetAxis(Axis axis) const

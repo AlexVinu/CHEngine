@@ -44,6 +44,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<CONFIG:Debug>:CHE_DEBUG>
     $<$<CONFIG:Release>:CHE_RELEASE>
     $<$<CONFIG:Dist>:CHE_DIST>
+    $<$<PLATFORM_ID:Windows>:NOMINMAX>
 )
 
 set_target_properties(${PROJECT_NAME} PROPERTIES

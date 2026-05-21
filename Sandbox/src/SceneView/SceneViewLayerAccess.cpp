@@ -4,14 +4,9 @@
 #include "TilingManager.h"
 #include "UvEditorPanel.h"
 
-Ref<EditorWorldContext> SceneViewLayerAccess::ActiveRef(SceneViewLayer& layer)
+EditorWorldContext* SceneViewLayerAccess::ActiveWorldCtx(SceneViewLayer& layer)
 {
-    return (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex];
-}
-
-Ref<std::vector<Ref<EditorWorldContext>>> SceneViewLayerAccess::Sessions(SceneViewLayer& layer)
-{
-    return layer.m_EditorWorldContexts;
+    return static_cast<EditorWorldContext*>(layer.m_Worlds->GetForIndex(layer.m_ActiveIndex));
 }
 
 Ref<ProjectManager> SceneViewLayerAccess::ProjectManagerRef(SceneViewLayer& layer)
@@ -26,14 +21,14 @@ size_t SceneViewLayerAccess::ActiveIndex(const SceneViewLayer& layer)
 
 void SceneViewLayerAccess::SetActiveIndex(SceneViewLayer& layer, size_t index)
 {
-    CHE_ASSERT(index < layer.m_EditorWorldContexts->size(), "Invalid session index");
+    CHE_ASSERT(index < layer.m_Worlds->Size(), "Invalid session index");
 
     // Deactivate old active only when its index is still valid (it may have been erased).
-    if (layer.m_ActiveIndex < layer.m_EditorWorldContexts->size())
-        (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex]->UpdateState(std::nullopt, false);
+    if (layer.m_ActiveIndex < layer.m_Worlds->Size())
+        ActiveWorldCtx(layer)->UpdateState(std::nullopt, false);
 
     layer.m_ActiveIndex = index;
-    (*layer.m_EditorWorldContexts)[layer.m_ActiveIndex]->UpdateState(std::nullopt, true);
+    ActiveWorldCtx(layer)->UpdateState(std::nullopt, true);
 }
 
 Sandbox::EditorCameraController& SceneViewLayerAccess::CameraController(SceneViewLayer& layer)
@@ -109,4 +104,9 @@ Sandbox::GlobalAiOverlay& SceneViewLayerAccess::GlobalAi(SceneViewLayer& layer)
 Sandbox::ExportPanel& SceneViewLayerAccess::Export(SceneViewLayer& layer)
 {
     return layer.m_ExportPanel;
+}
+
+CHEngine::WorldsList* SceneViewLayerAccess::WorldsList(SceneViewLayer& layer)
+{
+    return layer.m_Worlds.get();
 }

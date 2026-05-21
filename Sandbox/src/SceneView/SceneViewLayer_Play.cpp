@@ -10,7 +10,7 @@
 
 void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     if (ctx->GetSessionState() != SceneSession::State::Edit)
         return;
 
@@ -19,7 +19,6 @@ void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
     // One world = one scene. Play just runs a copy of the current tab's scene.
     ctx->ActivateActiveScene();
     ctx->UpdateState(SceneSession::State::Play);
-    ctx->RuntimeWorld->SetActiveCamera(nullptr);
 
     if (!CHEngine::Application::Get().InputSystem()->IsActiveContext("Game"))
         CHEngine::Application::Get().InputSystem()->PushContext("Game");
@@ -27,7 +26,7 @@ void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
 
 void SceneViewLayerPlay::EnterPauseMode(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
     if (activeSession->GetSessionState() != SceneSession::State::Play)
         return;
 
@@ -36,7 +35,7 @@ void SceneViewLayerPlay::EnterPauseMode(SceneViewLayer& layer)
 
 void SceneViewLayerPlay::ResumeFromPause(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> activeSession = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
     if (activeSession->GetSessionState() != SceneSession::State::Pause)
         return;
 
@@ -45,14 +44,13 @@ void SceneViewLayerPlay::ResumeFromPause(SceneViewLayer& layer)
 
 void SceneViewLayerPlay::StopPlayMode(SceneViewLayer& layer)
 {
-    Ref<EditorWorldContext> ctx = SceneViewLayerAccess::ActiveRef(layer);
+    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
     if (ctx->GetSessionState() == SceneSession::State::Edit)
         return;
 
     ctx->ActivateEditorScene();
     ctx->SelectedEntity = {};
     ctx->UpdateState(SceneSession::State::Edit);
-    ctx->RuntimeWorld->SetActiveCamera(ctx->ViewportCamera.get());
 
     CHEngine::Application::Get().InputSystem()->PopContext("Game");
 }

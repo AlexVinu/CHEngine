@@ -11,7 +11,7 @@
 #include <optional>
 
 // Basic structure to store the scene session data
-struct SceneSession
+struct SceneSession : public CHEngine::World
 {
     enum class State
     {
@@ -20,16 +20,19 @@ struct SceneSession
         Pause
     };
 
-    SceneSession()
+    SceneSession(CHEngine::WorldsList* list)
+        : CHEngine::World(list)
     {
         EditorScene = CreateRef<CHEngine::Scene>();
         ActiveScene = CreateRef<CHEngine::Scene>();
-        RuntimeWorld = CreateRef<CHEngine::World>(EditorScene);
         ViewportCamera = MakeScope<CHEngine::EditorCamera>();
         ViewportCamera->SetViewportSize(ViewportSize.x, ViewportSize.y);
         ViewportCamera->SetYaw(glm::radians(-45.0f));
         ViewportCamera->SetPitch(glm::radians(25.0f));
+        SetScene(EditorScene);
     }
+
+    virtual ~SceneSession() = default;
 
     Ref<CHEngine::Scene> EditorScene;
 
@@ -38,7 +41,6 @@ struct SceneSession
     glm::vec2 ViewportSize{ 1280.0f, 720.0f };
 
     Ref<CHEngine::Scene> ActiveScene;
-    Ref<CHEngine::World> RuntimeWorld;
 
     State GetSessionState() const { return m_SessionState; }
 protected:
