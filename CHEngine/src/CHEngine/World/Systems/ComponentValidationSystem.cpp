@@ -6,8 +6,6 @@
 
 #include "CHEngine/World/WorldEvents.h"
 
-#include <boost/uuid/uuid_io.hpp>
-
 namespace CHEngine {
 
 

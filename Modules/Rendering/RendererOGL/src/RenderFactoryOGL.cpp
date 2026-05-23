@@ -25,8 +25,6 @@ namespace CHModules {
 
     void RenderFactoryOGL::Delete(CHEngine::BufferHandle handle)
     {
-        if (auto* ptr = Buffers.Get(handle))
-            delete ptr;
         Buffers.Remove(handle);
     }
 
@@ -46,8 +44,6 @@ namespace CHModules {
 
     void RenderFactoryOGL::Delete(CHEngine::ShaderHandle handle)
     {
-        if (auto* ptr = Shaders.Get(handle))
-            delete ptr;
         Shaders.Remove(handle);
     }
 
@@ -77,8 +73,6 @@ namespace CHModules {
 
     void RenderFactoryOGL::Delete(CHEngine::TextureHandle handle)
     {
-        if (auto* ptr = Textures.Get(handle))
-            delete ptr;
         Textures.Remove(handle);
     }
 
@@ -166,7 +160,6 @@ namespace CHModules {
                         m_ShaderToPipelines.erase(it);
                 }
             }
-            delete pip;
         }
         Pipelines.Remove(handle);
     }

@@ -3,6 +3,7 @@
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
 
+#include <CHEngine/Application.h>
 #include <CHEngine/Camera/EditorCamera.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Entity.h>
@@ -33,10 +34,13 @@ struct AABB
 
 AABB ComputeWorldAABB(const CHEngine::MeshComponent& meshComp, const glm::mat4& model)
 {
+    CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
     AABB aabb;
-    for (const auto& mesh : meshComp.Meshes)
+    for (const auto& meshRef : meshComp.Meshes)
     {
-        for (const auto& v : mesh.GetVertices())
+        const auto* rec = meshLoader->GetGpuRecord(meshRef.Handle());
+        if (!rec) continue;
+        for (const auto& v : rec->vertices)
         {
             glm::vec4 worldPos = model * glm::vec4(v.Position, 1.0f);
             aabb.Expand(glm::vec3(worldPos));

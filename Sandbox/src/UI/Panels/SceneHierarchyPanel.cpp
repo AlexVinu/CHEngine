@@ -9,7 +9,6 @@
 
 #include "UIThemeActive.h"
 
-#include <boost/container_hash/hash.hpp>
 #include <cstdio>
 #include <filesystem>
 #include <functional>
@@ -181,7 +180,7 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
         flags |= hasChildren ? ImGuiTreeNodeFlags_OpenOnArrow : ImGuiTreeNodeFlags_Leaf;
         if (isSelected) flags |= ImGuiTreeNodeFlags_Selected;
 
-        ImGui::PushID(static_cast<int>(boost::hash<CHEngine::UUID>{}(info.uuid)));
+        ImGui::PushID(static_cast<int>(std::hash<CHEngine::UUID>{}(info.uuid)));
         bool opened = ImGui::TreeNodeEx("##object", flags, "  %s%s", info.icon, info.name.c_str());
 
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())

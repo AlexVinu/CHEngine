@@ -9,8 +9,6 @@
 #include "CHEngine/World/World.h"
 #include "CHEngine/World/Systems/LuaScriptSystem.h"
 
-#include <boost/functional/hash.hpp>
-
 #include <algorithm>
 #include <unordered_map>
 #include <vector>
@@ -75,7 +73,7 @@ void UIInputSystem::Run(World& world, DeferredOps& deferred, Timestep /*dt*/)
     };
 
     std::vector<CanvasInfo> overlayCanvases;
-    std::unordered_map<UUID, size_t, boost::hash<UUID>> canvasByUUID;
+    std::unordered_map<UUID, size_t, std::hash<UUID>> canvasByUUID;
 
     scene->ForEach<UIOverlayCanvasComponent>(
         [&](EntityHandle h, const UUID& uuid, UIOverlayCanvasComponent& c)
@@ -97,7 +95,7 @@ void UIInputSystem::Run(World& world, DeferredOps& deferred, Timestep /*dt*/)
         });
 
     // ── Сбор элементов по канвасу ────────────────────────────────────────────
-    std::unordered_map<UUID, std::vector<EntityHandle>, boost::hash<UUID>>
+    std::unordered_map<UUID, std::vector<EntityHandle>, std::hash<UUID>>
         elementsByCanvas;
 
     scene->ForEach<UIRectTransformComponent, ParentNodeComponent>(
@@ -186,7 +184,7 @@ void UIInputSystem::Run(World& world, DeferredOps& deferred, Timestep /*dt*/)
             if (!PointInRect(mx, my, canvas.screenRect)) continue;
 
             // Найти UUID по индексу
-            UUID canvasUuid = boost::uuids::nil_uuid();
+            UUID canvasUuid{};
             for (auto& kv : canvasByUUID)
                 if (kv.second == ci) { canvasUuid = kv.first; break; }
 

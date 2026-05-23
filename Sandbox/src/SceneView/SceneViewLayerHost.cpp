@@ -21,7 +21,6 @@
 
 #include "UIThemeActive.h"
 
-#include <boost/uuid/random_generator.hpp>
 #include <filesystem>
 #include <sstream>
 #include <iomanip>
@@ -306,7 +305,7 @@ void SceneViewLayerHost::AddDirectionalLight()
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
-    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::UUID object_id = CHEngine::UUID::Generate();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Directional Light", object_id);
     if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
@@ -326,7 +325,7 @@ void SceneViewLayerHost::AddPointLight()
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
-    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::UUID object_id = CHEngine::UUID::Generate();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Point Light", object_id);
     if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
@@ -346,7 +345,7 @@ void SceneViewLayerHost::AddSpotLight()
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
-    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::UUID object_id = CHEngine::UUID::Generate();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Spot Light", object_id);
     if (auto* entity = scene_ref->TryGetEntity(handle); entity)
     {
@@ -368,7 +367,7 @@ void SceneViewLayerHost::AddCubePrimitive()
     if (!scene_ref)
         return;
 
-    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::UUID object_id = CHEngine::UUID::Generate();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Cube", object_id);
     auto* entity = scene_ref->TryGetEntity(handle);
     if (!entity)
@@ -377,9 +376,10 @@ void SceneViewLayerHost::AddCubePrimitive()
     entity->AddComponent<CHEngine::TransformComponent>();
     entity->AddComponent<CHEngine::MeshComponent>();
 
-    CHEngine::Mesh cube_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:cube");
-    cube_mesh.Mat = CHEngine::MaterialInstance::FromBase(
-        std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
+    CHEngine::MeshRef cube_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:cube");
+    CHEngine::Application::Get().Resources().GetMeshLoader()->SetMaterial(cube_mesh.Handle(),
+        CHEngine::MaterialInstance::FromBase(
+            std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
     entity->PatchComponent<CHEngine::MeshComponent>(
         [cube_mesh = std::move(cube_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
             mesh_component.Meshes.clear();
@@ -397,7 +397,7 @@ void SceneViewLayerHost::AddSpherePrimitive()
     if (!scene_ref)
         return;
 
-    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::UUID object_id = CHEngine::UUID::Generate();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Sphere", object_id);
     auto* entity = scene_ref->TryGetEntity(handle);
     if (!entity)
@@ -408,9 +408,10 @@ void SceneViewLayerHost::AddSpherePrimitive()
 
     // Sphere impostor: 2 triangles + ray-sphere intersection in shader.
     // World radius is encoded as the entity's transform scale (scale == radius).
-    CHEngine::Mesh sphere_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:sphere");
-    sphere_mesh.Mat = CHEngine::MaterialInstance::FromBase(
-        std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereImpostorShader()));
+    CHEngine::MeshRef sphere_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:sphere");
+    CHEngine::Application::Get().Resources().GetMeshLoader()->SetMaterial(sphere_mesh.Handle(),
+        CHEngine::MaterialInstance::FromBase(
+            std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereImpostorShader())));
     entity->PatchComponent<CHEngine::MeshComponent>(
         [sphere_mesh = std::move(sphere_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
             mesh_component.Meshes.clear();
@@ -428,7 +429,7 @@ void SceneViewLayerHost::AddCameraEntity()
     if (!scene_ref)
         return;
 
-    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::UUID object_id = CHEngine::UUID::Generate();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("Camera", object_id);
     auto* entity = scene_ref->TryGetEntity(handle);
     if (!entity)
@@ -445,7 +446,7 @@ void SceneViewLayerHost::AddEmptyEntity()
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
         return;
-    const CHEngine::UUID object_id = boost::uuids::random_generator()();
+    const CHEngine::UUID object_id = CHEngine::UUID::Generate();
     const CHEngine::EntityHandle handle = scene_ref->CreateEntity("New Object", object_id);
     if (auto* entity = scene_ref->TryGetEntity(handle); entity)
         entity->AddComponent<CHEngine::TransformComponent>();
@@ -462,7 +463,7 @@ void SceneViewLayerHost::AddUIOverlayCanvas()
     auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI Overlay Canvas", boost::uuids::random_generator()());
+    auto h = scene->CreateEntity("UI Overlay Canvas", CHEngine::UUID::Generate());
     auto* e = scene->TryGetEntity(h);
     if (!e) return;
     e->AddComponent<CHEngine::UIOverlayCanvasComponent>();
@@ -475,7 +476,7 @@ void SceneViewLayerHost::AddUIWorldCanvas()
     auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-    auto h = scene->CreateEntity("UI World Canvas", boost::uuids::random_generator()());
+    auto h = scene->CreateEntity("UI World Canvas", CHEngine::UUID::Generate());
     auto* e = scene->TryGetEntity(h);
     if (!e) return;
     e->AddComponent<CHEngine::TransformComponent>();
@@ -489,7 +490,7 @@ void SceneViewLayerHost::AddUIPanel(const CHEngine::UUID& uuid)
     auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-	auto h = scene->CreateEntity("UI Panel", boost::uuids::random_generator()());
+	auto h = scene->CreateEntity("UI Panel", CHEngine::UUID::Generate());
 	auto* e = scene->TryGetEntity(h);
 	if (!e) return;
 	e->AddComponent<CHEngine::UIPanelComponent>();
@@ -504,7 +505,7 @@ void SceneViewLayerHost::AddUIText(const CHEngine::UUID& uuid)
     auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-	auto h = scene->CreateEntity("UI Text", boost::uuids::random_generator()());
+	auto h = scene->CreateEntity("UI Text", CHEngine::UUID::Generate());
 	auto* e = scene->TryGetEntity(h);
 	if (!e) return;
 	e->AddComponent<CHEngine::UITextComponent>();
@@ -519,7 +520,7 @@ void SceneViewLayerHost::AddUIButton(const CHEngine::UUID& uuid)
     auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-	auto h = scene->CreateEntity("UI Button", boost::uuids::random_generator()());
+	auto h = scene->CreateEntity("UI Button", CHEngine::UUID::Generate());
 	auto* e = scene->TryGetEntity(h);
 	if (!e) return;
 	e->AddComponent<CHEngine::UIButtonComponent>();
@@ -534,7 +535,7 @@ void SceneViewLayerHost::AddUIImage(const CHEngine::UUID& uuid)
     auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-	auto h = scene->CreateEntity("UI Image", boost::uuids::random_generator()());
+	auto h = scene->CreateEntity("UI Image", CHEngine::UUID::Generate());
 	auto* e = scene->TryGetEntity(h);
 	if (!e) return;
 	e->AddComponent<CHEngine::UIImageComponent>();
@@ -549,7 +550,7 @@ void SceneViewLayerHost::AddUISlider(const CHEngine::UUID& uuid)
     auto session = SceneViewLayerAccess::ActiveWorldCtx(m_Layer);
     auto scene   = session->EditorScene;
     if (!scene) return;
-	auto h = scene->CreateEntity("UI Slider", boost::uuids::random_generator()());
+	auto h = scene->CreateEntity("UI Slider", CHEngine::UUID::Generate());
 	auto* e = scene->TryGetEntity(h);
 	if (!e) return;
 	e->AddComponent<CHEngine::UISliderComponent>();
@@ -1184,10 +1185,11 @@ void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_ind
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
         auto& subMesh = mesh_component.Meshes[submesh_index];
-        if (!subMesh.Mat)
-            subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
-                SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
-        auto mat_ref = subMesh.Mat;
+        CHEngine::MeshLoader* ml = CHEngine::Application::Get().Resources().GetMeshLoader();
+        if (!subMesh->GetMatInstance())
+            ml->SetMaterial(subMesh.Handle(), CHEngine::MaterialInstance::FromBase(
+                std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
+        auto mat_ref = subMesh->GetMatInstance();
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (d0.IsValid())
@@ -1217,9 +1219,9 @@ void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_ind
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
         auto& subMesh = mesh_component.Meshes[submesh_index];
-        if (!subMesh.Mat)
+        if (!subMesh.IsValid() || !subMesh->GetMatInstance())
             return;
-        auto mat_ref = subMesh.Mat;
+        auto mat_ref = subMesh->GetMatInstance();
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (d0.IsValid())
@@ -1249,10 +1251,11 @@ void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_in
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
         auto& subMesh = mesh_component.Meshes[submesh_index];
-        if (!subMesh.Mat)
-            subMesh.Mat = CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
-                SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader()));
-        auto mat_ref = subMesh.Mat;
+        CHEngine::MeshLoader* ml = CHEngine::Application::Get().Resources().GetMeshLoader();
+        if (!subMesh->GetMatInstance())
+            ml->SetMaterial(subMesh.Handle(), CHEngine::MaterialInstance::FromBase(
+                std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
+        auto mat_ref = subMesh->GetMatInstance();
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (s0.IsValid())
@@ -1282,9 +1285,9 @@ void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_in
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
         auto& subMesh = mesh_component.Meshes[submesh_index];
-        if (!subMesh.Mat)
+        if (!subMesh.IsValid() || !subMesh->GetMatInstance())
             return;
-        auto mat_ref = subMesh.Mat;
+        auto mat_ref = subMesh->GetMatInstance();
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (s0.IsValid())

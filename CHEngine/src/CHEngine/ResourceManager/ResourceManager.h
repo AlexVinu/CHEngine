@@ -6,7 +6,7 @@
 #include "ModelLoader.h"
 #include "MeshLoader.h"
 
-#include "CHEngine/Mesh/Mesh.h"
+#include "CHEngine/Mesh/MeshRef.h"
 
 #include <array>
 #include <filesystem>
@@ -16,7 +16,7 @@
 namespace CHEngine {
 
 	// Centralized resource loading with caching and memory control.
-	// Uses fullpaths 
+	// Uses fullpaths
 	class CHENGINE_API ResourceManager
 	{
 	public:
@@ -55,10 +55,16 @@ namespace CHEngine {
 
 		const LoadedModel* GetModel(ModelHandle h) const { return GetModelLoader()->Get(h); }
 
-		// Returns an invalid Mesh for unknown URIs.
-		Mesh LoadPrimitiveMesh(std::string_view uri);
+		// Returns an invalid MeshRef for unknown URIs.
+		MeshRef LoadPrimitiveMesh(std::string_view uri);
 
 		static bool IsPrimitiveUri(std::string_view uri) { return uri.starts_with(":primitive:"); }
+
+		MeshLoader* GetMeshLoader() const
+		{
+			return static_cast<MeshLoader*>(
+			    m_ResourceLoaders[static_cast<size_t>(ELoaderResourceType::Mesh)].get());
+		}
 
 	private:
 		static constexpr size_t LOADERS_COUNT = static_cast<size_t>(ELoaderResourceType::SIZE);
@@ -66,8 +72,7 @@ namespace CHEngine {
 
 		ShaderLoader*  GetShaderLoader()  const { return static_cast<ShaderLoader*> (m_ResourceLoaders[static_cast<size_t>(ELoaderResourceType::Shader)].get()); }
 		TextureLoader* GetTextureLoader() const { return static_cast<TextureLoader*>(m_ResourceLoaders[static_cast<size_t>(ELoaderResourceType::Texture)].get()); }
-		ModelLoader*   GetModelLoader()   const { return static_cast<ModelLoader*>  (m_ResourceLoaders[static_cast<size_t>(ELoaderResourceType::Mesh)].get()); }
-		MeshLoader*    GetMeshLoader()    { return &MeshLoader::Instance(); }
+		ModelLoader*   GetModelLoader()   const { return static_cast<ModelLoader*>  (m_ResourceLoaders[static_cast<size_t>(ELoaderResourceType::Model)].get()); }
 	};
 
 }

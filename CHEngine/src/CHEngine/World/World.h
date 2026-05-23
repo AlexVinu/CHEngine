@@ -12,7 +12,6 @@
 
 #include <string>
 #include <unordered_map>
-#include <boost/container_hash/hash.hpp>
 
 namespace CHEngine
 {

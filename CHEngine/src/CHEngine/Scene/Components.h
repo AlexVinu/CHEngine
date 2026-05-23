@@ -2,13 +2,8 @@
 #include <string>
 #include <tuple>
 #include <vector>
-#include <boost/uuid/uuid.hpp>
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/nil_generator.hpp>
-#include <boost/container_hash/hash.hpp>
-#include <format>
-#include <spdlog/fmt/fmt.h>
-#include "CHEngine/Mesh/Mesh.h"
+#include "UUID.h"
+#include "CHEngine/Mesh/MeshRef.h"
 #include "Light.h"
 #include "Transform.h"
 #include "CHEngine/Camera/PerspectiveCamera.h"
@@ -18,50 +13,8 @@
 #include <Physics/IPhysicsShape.h>
 #include <glm/glm.hpp>
 
-// Only components
-// TODO: Make check if components can be serialized
-namespace CHEngine {
 
-	struct UUID {
-		UUID() : value(boost::uuids::nil_uuid()) {}
-		UUID(const boost::uuids::uuid& u) : value(u) {}
-
-		operator boost::uuids::uuid() const { return value; }
-		operator boost::uuids::uuid() { return value; }
-		UUID& operator=(const UUID& u) {
-			value = u.value;
-			return *this;
-		}
-        
-        operator std::string() const { return boost::uuids::to_string(value); }
-
-		bool operator==(const UUID& other) const { return value == other.value; }
-		bool operator!=(const UUID& other) const { return value != other.value; }
-		bool operator<(const UUID& other) const { return value < other.value; }
-
-		bool IsValid() const { return value != boost::uuids::nil_uuid(); }
-    private:
-        boost::uuids::uuid value;
-	};
-
-	inline std::ostream& operator<<(std::ostream& os, const UUID& u) {
-        os << static_cast<std::string>(u);
-		return os;
-	}
-
-	inline std::size_t hash_value(const UUID& u) {
-		return boost::hash<boost::uuids::uuid>()(static_cast<boost::uuids::uuid>(u));
-	}
-
-} // namespace CHEngine
-
-template<>
-struct std::formatter<CHEngine::UUID> : std::formatter<std::string> {
-	auto format(const CHEngine::UUID& uuid, std::format_context& ctx) const {
-		return std::formatter<std::string>::format(static_cast<std::string>(uuid), ctx);
-	}
-};
-
+// NOTE: Components must be POD structures
 namespace CHEngine {
 
     class IPhysicsBody;
@@ -69,7 +22,7 @@ namespace CHEngine {
 
     struct IDComponent
     {
-        UUID Value = boost::uuids::nil_uuid();
+        UUID Value{};
         IDComponent() = default;
         explicit IDComponent(const UUID& uuid)
             : Value(uuid)
@@ -83,7 +36,7 @@ namespace CHEngine {
 
     struct ParentNodeComponent
     {
-        UUID Value = boost::uuids::nil_uuid();
+        UUID Value{};
     };
 
     // Render
@@ -92,14 +45,8 @@ namespace CHEngine {
     };
 
     struct MeshComponent {
-        std::vector<Mesh> Meshes;
-        std::string       SourcePath;  // original file path for serialization
-
-        MeshComponent() = default;
-        MeshComponent(const MeshComponent&) = default;
-        MeshComponent& operator=(const MeshComponent&) = default;
-        MeshComponent(MeshComponent&&) = default;
-        MeshComponent& operator=(MeshComponent&&) = default;
+        std::vector<MeshRef> Meshes;
+        std::string          SourcePath;  // original file path for serialization
     };
 
     struct ColorComponent {
@@ -276,10 +223,3 @@ namespace CHEngine {
         UIButtonComponent,
         UISliderComponent>;
 }
-
-template <>
-struct fmt::formatter<CHEngine::UUID> : fmt::formatter<std::string> {
-    auto format(const CHEngine::UUID& u, fmt::format_context& ctx) const {
-        return fmt::formatter<std::string>::format(static_cast<std::string>(u), ctx);
-    }
-};

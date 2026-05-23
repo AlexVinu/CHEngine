@@ -14,10 +14,6 @@
 #include <CHEngine/Utils/FileDialog.h>
 #include <FileSystem/FileSystem.h>
 
-#include <boost/uuid/nil_generator.hpp>
-#include <boost/uuid/random_generator.hpp>
-#include <boost/uuid/uuid_io.hpp>
-
 #include <algorithm>
 #include <cctype>
 #include <cstddef>
@@ -32,49 +28,6 @@ namespace {
 constexpr const char* k_SessionFile = ".che_session.chscene";
 constexpr const char* k_SessionStateFile = ".che_session_state";
 
-int HexToNibble(char c)
-{
-    if (c >= '0' && c <= '9')
-        return c - '0';
-    if (c >= 'a' && c <= 'f')
-        return 10 + (c - 'a');
-    if (c >= 'A' && c <= 'F')
-        return 10 + (c - 'A');
-    return -1;
-}
-
-bool TryParseUUIDString(const std::string& input, CHEngine::UUID& outUUID)
-{
-    std::string s = input;
-    if (s.size() == 38 && s.front() == '{' && s.back() == '}')
-        s = s.substr(1, s.size() - 2);
-
-    std::string hex;
-    hex.reserve(32);
-    for (char c : s)
-    {
-        if (c == '-')
-            continue;
-        hex.push_back(c);
-    }
-
-    if (hex.size() != 32)
-        return false;
-
-    CHEngine::UUID parsed;
-    for (size_t i = 0; i < 16; ++i)
-    {
-        const int hi = HexToNibble(hex[i * 2]);
-        const int lo = HexToNibble(hex[i * 2 + 1]);
-        if (hi < 0 || lo < 0)
-            return false;
-        *(((boost::uuids::uuid)parsed).begin() + static_cast<std::ptrdiff_t>(i)) = static_cast<uint8_t>((hi << 4) | lo);
-    }
-
-    outUUID = parsed;
-    return true;
-}
-
 void LogSceneRenderReadiness(CHEngine::Scene* scene)
 {
     if (!scene)
@@ -88,16 +41,19 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
             size_t validVaoCount = 0;
             size_t validShaderCount = 0;
 
-            for (CHEngine::Mesh& mesh : meshComponent.Meshes)
+            CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
+            for (CHEngine::MeshRef& meshRef : meshComponent.Meshes)
             {
-                if (mesh.GetVertexBuffer().IsValid() && mesh.GetIndexBuffer().IsValid())
+                if (!meshRef.IsValid()) continue;
+                if (meshRef->GetVertexBuffer().IsValid() && meshRef->GetIndexBuffer().IsValid())
                     ++validVaoCount;
 
-                if (!mesh.Mat)
-                    mesh.Mat = CHEngine::MaterialInstance::FromBase(
-                        std::make_shared<CHEngine::Material>(CHEngine::Application::Get().Render().GetDefaultMeshShader()));
+                if (!meshRef->GetMatInstance())
+                    meshLoader->SetMaterial(meshRef.Handle(),
+                        CHEngine::MaterialInstance::FromBase(std::make_shared<CHEngine::Material>(
+                            CHEngine::Application::Get().Render().GetDefaultMeshShader())));
 
-                const CHEngine::ShaderHandle shaderHandle = mesh.Mat->GetMaterial()->GetShaderHandle();
+                const CHEngine::ShaderHandle shaderHandle = meshRef->GetMatInstance()->GetMaterial()->GetShaderHandle();
                 if (shaderHandle.IsValid())
                     ++validShaderCount;
             }
@@ -108,7 +64,7 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
             CHE_CORE_WARN(
                 "SceneViewLayer: post-load entity='{}' uuid={} visible={} meshes={} validShaders={} validVaos={} renderSubmitReady={}",
                 tag.Name,
-                boost::uuids::to_string(uuid),
+                uuid.ToString(),
                 visibility.Visible,
                 meshComponent.Meshes.size(),
                 validShaderCount,
@@ -404,9 +360,9 @@ void SceneViewLayerIO::AutoSaveForRestart(SceneViewLayer& layer)
     oss << (activeSession->EditorCameraState.FollowObject ? 1 : 0) << "\n";
 
     if (activeSession->EditorScene && scene_ref->IsEntityHandleValid(activeSession->SelectedEntity))
-        oss << boost::uuids::to_string(scene_ref->GetUUID(activeSession->SelectedEntity)) << "\n";
+        oss << scene_ref->GetUUID(activeSession->SelectedEntity).ToString() << "\n";
     else
-        oss << boost::uuids::to_string(boost::uuids::nil_uuid()) << "\n";
+        oss << CHEngine::UUID::Nil().ToString() << "\n";
 
     {
         auto* win = CHEngine::Application::Get().GetWindow();
@@ -503,8 +459,8 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
     std::string selectedUUIDStr;
     f >> selectedUUIDStr;
     {
-        CHEngine::UUID selectedUUID = boost::uuids::nil_uuid();
-        if (TryParseUUIDString(selectedUUIDStr, selectedUUID) && activeSession2->EditorScene)
+        CHEngine::UUID selectedUUID = CHEngine::UUID::FromString(selectedUUIDStr);
+        if (selectedUUID.IsValid() && activeSession2->EditorScene)
             activeSession2->SelectedEntity = activeSession2->EditorScene->TryGetEntityHandleByUUID(selectedUUID);
         else
             activeSession2->SelectedEntity = {};
@@ -616,17 +572,21 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
         return;
     }
 
-    // Copy meshes — Mesh copy-ctor AddRefs the shared GPU buffers in MeshLoader.
-    std::vector<CHEngine::Mesh> meshes = result->meshes;
+    // MeshRef copy — AddRefs the shared GpuRecord in MeshLoader.
+    std::vector<CHEngine::MeshRef> meshes = result->meshes;
 
+    CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
     glm::vec3 centroid(0.0f);
     size_t totalVerts = 0;
-    for (auto& mesh : meshes)
+    for (auto& meshRef : meshes)
     {
-        for (const auto& v : mesh.GetVertices())
+        if (const auto* rec = meshLoader->GetGpuRecord(meshRef.Handle()))
         {
-            centroid += v.Position;
-            ++totalVerts;
+            for (const auto& v : rec->vertices)
+            {
+                centroid += v.Position;
+                ++totalVerts;
+            }
         }
     }
     if (totalVerts > 0)
@@ -634,16 +594,19 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
 
     if (totalVerts > 0 && glm::length(centroid) > 1e-5f)
     {
-        for (auto& mesh : meshes)
+        for (auto& meshRef : meshes)
         {
-            auto verts = mesh.GetVertices();
+            const auto* rec = meshLoader->GetGpuRecord(meshRef.Handle());
+            if (!rec) continue;
+            auto verts = rec->vertices;
             for (auto& v : verts)
                 v.Position -= centroid;
-            mesh.Build(verts, mesh.GetIndices());
+            auto mat = meshRef->GetMatInstance();
+            meshRef = CHEngine::MeshRef{ meshLoader->GetOrCreate(verts, rec->indices, mat) };
         }
     }
 
-    const CHEngine::UUID objectID = boost::uuids::random_generator()();
+    const CHEngine::UUID objectID = CHEngine::UUID::Generate();
     EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
     CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
     auto scene_ref = activeSession->EditorScene;
@@ -656,7 +619,7 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     entity->AddComponent<CHEngine::TransformComponent>();
     entity->AddComponent<CHEngine::MeshComponent>();
     entity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
-        mesh_component.Meshes = std::move(meshes);
+        mesh_component.Meshes = std::move(meshes); // MeshRef move, no AddRef/Release
         mesh_component.SourcePath = sourceForScene;
     });
     entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {

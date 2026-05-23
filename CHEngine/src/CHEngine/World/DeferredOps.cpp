@@ -231,8 +231,7 @@ namespace CHEngine
             {
                 auto view = srcReg.view<IDComponent>();
                 for (auto e : view)
-                    if (static_cast<boost::uuids::uuid>(view.get<IDComponent>(e).Value) ==
-                        static_cast<boost::uuids::uuid>(uuid))
+                    if (view.get<IDComponent>(e).Value == uuid)
                     { srcEntt = e; break; }
             }
             if (srcEntt == entt::null) continue;
@@ -245,8 +244,7 @@ namespace CHEngine
             {
                 auto view = dstReg.view<IDComponent>();
                 for (auto e : view)
-                    if (static_cast<boost::uuids::uuid>(view.get<IDComponent>(e).Value) ==
-                        static_cast<boost::uuids::uuid>(uuid))
+                    if (view.get<IDComponent>(e).Value == uuid)
                     { dstEntt = e; break; }
             }
             if (dstEntt == entt::null) continue;

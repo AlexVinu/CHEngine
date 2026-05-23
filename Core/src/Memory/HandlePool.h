@@ -166,7 +166,7 @@ namespace CHEngine {
 
 		std::vector<Slot>     m_Slots;
 		std::vector<uint32_t> m_FreeList;
-		DeleterFn             m_Deleter;
+		DeleterFn             m_Deleter = [](T* p) { delete p; };
 		uint32_t              m_Count = 0;
 	};
 

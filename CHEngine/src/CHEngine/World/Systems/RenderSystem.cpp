@@ -4,7 +4,7 @@
 #include "CHEngine/Utils/AppPaths.h"
 
 #include "CHEngine/Mesh/Material.h"
-#include "CHEngine/Mesh/Mesh.h"
+#include "CHEngine/Mesh/MeshRef.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/World/World.h"
@@ -589,24 +589,30 @@ namespace CHEngine {
                 objectUBO.Color[3] = color.a;
                 objectUBO.Selected = 0.0f;
 
-                for (Mesh& mesh : meshComp.Meshes)
+                MeshLoader* meshLoader = Application::Get().Resources().GetMeshLoader();
+                for (MeshRef& meshRef : meshComp.Meshes)
                 {
-                    if (!mesh.Mat)
+                    if (!meshRef.IsValid()) continue;
+
+                    if (!meshRef->GetMatInstance())
                     {
-                        mesh.Mat = MaterialInstance::FromBase(
-                            std::make_shared<Material>(
-                                Application::Get().Render().GetDefaultMeshShader()));
+                        meshLoader->SetMaterial(meshRef.Handle(),
+                            MaterialInstance::FromBase(std::make_shared<Material>(
+                                Application::Get().Render().GetDefaultMeshShader())));
                     }
 
-                    const ShaderHandle shaderHandle = mesh.Mat->GetMaterial()->GetShaderHandle();
+                    const Mesh* mesh = meshRef.operator->();
+                    if (!mesh) continue;
+
+                    const ShaderHandle shaderHandle = mesh->GetMatInstance()->GetMaterial()->GetShaderHandle();
                     ++meshCount;
-                    const BufferHandle vb = mesh.GetVertexBuffer();
-                    const BufferHandle ib = mesh.GetIndexBuffer();
+                    const BufferHandle vb = mesh->GetVertexBuffer();
+                    const BufferHandle ib = mesh->GetIndexBuffer();
                     if (!vb.IsValid() || !ib.IsValid())
                     {
                         ++skippedNoBuffer;
                         CHE_CORE_WARN("BuildDrawList: mesh skipped — vb.valid={} ib.valid={} indexCount={}",
-                                      vb.IsValid(), ib.IsValid(), mesh.GetIndexCount());
+                                      vb.IsValid(), ib.IsValid(), mesh->GetIndexCount());
                         continue;
                     }
 
@@ -614,11 +620,11 @@ namespace CHEngine {
                     item.shader       = shaderHandle;
                     item.vertexBuffer = vb;
                     item.indexBuffer  = ib;
-                    item.indexFormat  = mesh.GetIndexFormat();
-                    item.indexCount   = mesh.GetIndexCount();
+                    item.indexFormat  = mesh->GetIndexFormat();
+                    item.indexCount   = mesh->GetIndexCount();
                     item.modelMatrix  = model;
                     item.object       = objectUBO;
-                    item.material     = mesh.Mat;
+                    item.material     = mesh->GetMatInstance();
                     item.entity       = handle;
 
                     m_DrawList.push_back(std::move(item));

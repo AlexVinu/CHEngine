@@ -8,7 +8,6 @@
 #include <unordered_map>
 #include <utility>
 #include <tuple>
-#include <boost/container_hash/hash.hpp>
 #include "Components.h"
 #include "Memory/HandlePool.h"
 
@@ -74,7 +73,7 @@ private:
 
 	struct SceneRegistry {
 		entt::registry Registry;
-		std::unordered_map<UUID, EntityHandle, boost::hash<UUID>> EntityHandlersStore;
+		std::unordered_map<UUID, EntityHandle> EntityHandlersStore;
 		std::unordered_map<entt::entity, EntityHandle> EnttToHandleStore;
 		HandlePool<Entity, EntityTag> EntityPool;
 	};

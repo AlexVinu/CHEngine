@@ -96,7 +96,7 @@ namespace CHEngine {
 		for (size_t mi = 0; mi < model.materials.size(); ++mi)
 			gltfMats.push_back(CreateGltfMaterialInstance(model, static_cast<int>(mi), meshShader));
 
-		auto defaultMat = MaterialInstance::FromBase(std::make_shared<Material>(meshShader));
+		auto defaultMat = MaterialInstance::FromBase(MakeRef<Material>(meshShader));
 
 		for (const auto& gltfMesh : model.meshes)
 		{
@@ -212,14 +212,13 @@ namespace CHEngine {
 
 				if (!vertices.empty() && !indices.empty())
 				{
-					Mesh mesh;
-					mesh.Build(vertices, indices);
 					const int matIdx = primitive.material;
-					if (matIdx >= 0 && matIdx < static_cast<int>(gltfMats.size()))
-						mesh.Mat = gltfMats[static_cast<size_t>(matIdx)];
-					else
-						mesh.Mat = defaultMat;
-					result.meshes.push_back(std::move(mesh));
+					Ref<MaterialInstance> mat = (matIdx >= 0 && matIdx < static_cast<int>(gltfMats.size()))
+					    ? gltfMats[static_cast<size_t>(matIdx)]
+					    : defaultMat;
+
+					MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
+					result.meshes.push_back(MeshRef{ loader->GetOrCreate(vertices, indices, std::move(mat)) });
 				}
 			}
 		}

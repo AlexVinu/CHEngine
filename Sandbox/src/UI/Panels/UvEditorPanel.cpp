@@ -1,7 +1,7 @@
 #include "UvEditorPanel.h"
 #include "EditorWorldContext.h"
 
-#include "CHEngine/Mesh/Mesh.h"
+#include "CHEngine/Mesh/MeshRef.h"
 #include "CHEngine/Scene/Components.h"
 #include "CHEngine/Scene/Entity.h"
 #include "CHEngine/Scene/Scene.h"
@@ -80,17 +80,20 @@ void UvEditorPanel::Draw(SceneViewLayerHost& host)
     CHEngine::MeshComponent& meshComp = entity->GetComponent<CHEngine::MeshComponent>();
     if (meshComp.Meshes.empty())             { showHint("Mesh has no geometry");       ImGui::End(); return; }
 
-    CHEngine::Mesh& mesh = meshComp.Meshes[0];
-    const auto& vertices = mesh.GetVertices();
-    const auto& indices  = mesh.GetIndices();
-    if (vertices.empty() || indices.empty()) { showHint("Mesh has no geometry");       ImGui::End(); return; }
+    CHEngine::MeshRef& meshRef = meshComp.Meshes[0];
+    CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
+    const CHEngine::MeshGpuRecord* gpuRec = meshLoader->GetGpuRecord(meshRef.Handle());
+    if (!gpuRec || gpuRec->vertices.empty() || gpuRec->indices.empty())
+                                             { showHint("Mesh has no geometry");       ImGui::End(); return; }
+    const auto& vertices = gpuRec->vertices;
+    const auto& indices  = gpuRec->indices;
 
     // --- Get diffuse texture for background ---
     CHEngine::TextureHandle diffuseTex;
-    if (mesh.Mat)
+    if (meshRef.IsValid() && meshRef->GetMatInstance())
     {
         CHEngine::TextureHandle spec;
-        mesh.Mat->ResolveTextures(diffuseTex, spec);
+        meshRef->GetMatInstance()->ResolveTextures(diffuseTex, spec);
     }
 
     const float canvasW = ImGui::GetContentRegionAvail().x;
@@ -226,7 +229,7 @@ void UvEditorPanel::Draw(SceneViewLayerHost& host)
                     newUVs[vi].x = std::clamp(newUVs[vi].x + du, 0.0f, 1.0f);
                     newUVs[vi].y = std::clamp(newUVs[vi].y + dv, 0.0f, 1.0f);
                 }
-                mesh.UpdateUVs(newUVs);
+                meshLoader->UpdateVertexUVs(meshRef.Handle(), newUVs);
                 m_UVGroupsDirty = true;
             }
         }

@@ -21,10 +21,6 @@
 #include <Input/KeyCodes.h>
 #include "Log/Log.h"
 
-#include <boost/uuid/uuid_io.hpp>
-#include <boost/uuid/uuid_generators.hpp>
-#include <boost/uuid/string_generator.hpp>
-
 #include <filesystem>
 #include <unordered_map>
 #include <string>
@@ -98,7 +94,7 @@ struct ScriptEntity
     {
         auto* scene = GetScene();
         if (!scene) return {};
-        return boost::uuids::to_string(scene->GetUUID(handle));
+        return scene->GetUUID(handle).ToString();
     }
 
     void Destroy() const
@@ -349,9 +345,8 @@ struct ScriptWorld
         auto* scene = world ? world->GetSceneRef().get() : nullptr;
         if (!scene) return sol::lua_nil;
 
-        UUID uuid;
-        try { uuid = boost::uuids::string_generator{}(uuidStr); }
-        catch (...) { return sol::lua_nil; }
+        UUID uuid = UUID::FromString(uuidStr);
+        if (!uuid.IsValid()) return sol::lua_nil;
 
         EntityHandle h = scene->TryGetEntityHandleByUUID(uuid);
         if (!h.IsValid()) return sol::lua_nil;
@@ -361,9 +356,9 @@ struct ScriptWorld
     std::string SpawnEntity(const std::string& name) const
     {
         if (!deferred) return {};
-        UUID uuid = boost::uuids::random_generator{}();
+        UUID uuid = UUID::Generate();
         deferred->CreateEntityWithUUID(name, uuid);
-        return boost::uuids::to_string(uuid);
+        return uuid.ToString();
     }
 
     void DestroyEntity(const ScriptEntity& e) const

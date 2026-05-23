@@ -192,10 +192,9 @@ namespace CHEngine {
 				if (!shape.mesh.material_ids.empty())
 					matIdx = shape.mesh.material_ids[0];
 
-				Mesh mesh;
-				mesh.Build(vertices, indices);
-				mesh.Mat = getOrCreateObjMaterial(matIdx);
-				result->meshes.push_back(std::move(mesh));
+				Ref<MaterialInstance> mat = getOrCreateObjMaterial(matIdx);
+				MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
+				result->meshes.push_back(MeshRef{ loader->GetOrCreate(vertices, indices, std::move(mat)) });
 			}
 		}
 

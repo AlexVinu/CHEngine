@@ -43,10 +43,13 @@ void FocusOnSelected(SceneViewLayer& layer)
     const auto& transform = entity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
     const auto& meshes = entity->GetComponent<CHEngine::MeshComponent>().Meshes;
 
+    CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
     float max_radius = k_DefaultFocusRadius;
-    for (const auto& mesh : meshes)
+    for (const auto& meshRef : meshes)
     {
-        for (const auto& vertex : mesh.GetVertices())
+        const auto* rec = meshLoader->GetGpuRecord(meshRef.Handle());
+        if (!rec) continue;
+        for (const auto& vertex : rec->vertices)
         {
             const float distance = glm::length(vertex.Position);
             if (distance > max_radius)

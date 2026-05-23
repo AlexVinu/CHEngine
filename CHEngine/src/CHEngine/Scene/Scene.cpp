@@ -4,14 +4,12 @@
 #include "Components.h"
 
 #include <entt/entt.hpp>
-#include <boost/uuid/random_generator.hpp>
-
 namespace CHEngine {
 
 	namespace {
 		UUID GenerateEntityUUID()
 		{
-			return boost::uuids::random_generator()();
+			return UUID::Generate();
 		}
 	} // namespace
 
@@ -202,12 +200,12 @@ namespace CHEngine {
 	{
 		auto* entity = m_SceneRegistry->EntityPool.Get(entityHandle);
 		if (!entity)
-			return boost::uuids::nil_uuid();
+			return UUID::Nil();
 
 		const entt::entity handle = entity->GetEnttHandle();
 		const auto& Registry = m_SceneRegistry->Registry;
 		if (!Registry.all_of<IDComponent>(handle))
-			return boost::uuids::nil_uuid();
+			return UUID::Nil();
 		return Registry.get<IDComponent>(handle).Value;
 	}
 

@@ -4,8 +4,6 @@
 #include "CHEngine/Scene/Scene.h"
 #include "CHEngine/World/World.h"
 #include "CHEngine/Camera/EditorCamera.h"
-#include <boost/uuid/nil_generator.hpp>
-
 #include <functional>
 
 #include <optional>

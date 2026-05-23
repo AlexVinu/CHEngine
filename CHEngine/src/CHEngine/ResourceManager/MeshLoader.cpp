@@ -14,25 +14,41 @@ namespace CHEngine
 	namespace
 	{
 		constexpr uint64_t SEED = 0xCBF29CE484222325ULL;
-		constexpr uint64_t MUL = 0x100000001B3ULL;
+		constexpr uint64_t MUL  = 0xc6a4a7935bd1e995ULL;
 
-		uint64_t HashBytes(const void* data, size_t size, uint64_t seed = SEED)
+		inline uint64_t Hash64Bits(uint64_t val, uint64_t seed) noexcept
 		{
-			const uint8_t* p = static_cast<const uint8_t*>(data);
-			uint64_t h = seed;
-			for (size_t i = 0; i < size; ++i)
+			return (seed ^= val) * MUL;
+		}
+
+		uint64_t HashBytes(const void* data, size_t bytes, uint64_t seed) noexcept
+		{
+			const uint8_t* ptr = reinterpret_cast<const uint8_t*>(data);
+			while (bytes >= 8)
 			{
-				h ^= static_cast<uint64_t>(p[i]);
-				h *= MUL;
+				uint64_t val;
+				std::memcpy(&val, ptr, 8);
+				seed = Hash64Bits(val, seed);
+				ptr   += 8;
+				bytes -= 8;
 			}
-			return h;
+			if (bytes > 0)
+			{
+				uint64_t val = 0;
+				std::memcpy(&val, ptr, bytes);
+				seed = Hash64Bits(val, seed);
+			}
+			return seed;
 		}
 
 		uint64_t ComputeContentHash(const std::vector<Vertex>& vertices,
 		                            const std::vector<uint32_t>& indices)
 		{
-			uint64_t h = HashBytes(vertices.data(), vertices.size() * sizeof(Vertex));
-			h = HashBytes(indices.data(), indices.size() * sizeof(uint32_t), h);
+			uint64_t h = SEED;
+			if (!vertices.empty())
+				h = HashBytes(vertices.data(), vertices.size() * sizeof(Vertex), h);
+			if (!indices.empty())
+				h = HashBytes(indices.data(), indices.size() * sizeof(uint32_t), h);
 			h ^= (static_cast<uint64_t>(vertices.size()) << 32) ^ indices.size();
 			return h;
 		}
@@ -41,158 +57,198 @@ namespace CHEngine
 		                  const std::vector<Vertex>& vertices,
 		                  const std::vector<uint32_t>& indices)
 		{
+			static_assert(sizeof(Vertex) == 44, "Vertex padding detected! memcmp is unsafe.");
 			if (r.vertices.size() != vertices.size() || r.indices.size() != indices.size())
 				return false;
-			if (std::memcmp(r.vertices.data(), vertices.data(), vertices.size() * sizeof(Vertex)) != 0)
+			if (!vertices.empty() &&
+			    std::memcmp(r.vertices.data(), vertices.data(), vertices.size() * sizeof(Vertex)) != 0)
 				return false;
-			if (std::memcmp(r.indices.data(), indices.data(), indices.size() * sizeof(uint32_t)) != 0)
+			if (!indices.empty() &&
+			    std::memcmp(r.indices.data(), indices.data(), indices.size() * sizeof(uint32_t)) != 0)
 				return false;
 			return true;
 		}
 	}
 
-	MeshLoader& MeshLoader::Instance()
-	{
-		static MeshLoader s_Instance;
-		return s_Instance;
-	}
-
 	MeshHandle MeshLoader::GetOrCreate(const std::vector<Vertex>& vertices,
-	                                   const std::vector<uint32_t>& indices)
+	                                   const std::vector<uint32_t>& indices,
+	                                   Ref<MaterialInstance> mat)
 	{
 		if (vertices.empty() || indices.empty())
 			return {};
 
 		const uint64_t hash = ComputeContentHash(vertices, indices);
 
+		// Search existing records for a content match.
+		MeshGpuRecordHandle recordHandle;
 		auto it = m_HashBuckets.find(hash);
 		if (it != m_HashBuckets.end())
 		{
-			for (MeshHandle h : it->second)
+			for (MeshGpuRecordHandle rh : it->second)
 			{
-				MeshGpuRecord* r = m_Records.Get(h);
+				MeshGpuRecord* r = m_Records.Get(rh);
 				if (r && ContentEqual(*r, vertices, indices))
 				{
-					++r->refcount;
-					return h;
+					CHE_CORE_INFO("MeshLoader: GpuRecord reused (hash={:x})", hash);
+					recordHandle = rh;
+					break;
 				}
 			}
 		}
 
-		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
-		if (!f) { CHE_CORE_ERROR("MeshLoader::GetOrCreate — no render factory"); return {}; }
-
-		std::vector<float> flat;
-		flat.reserve(vertices.size() * 11);
-		for (const auto& v : vertices)
+		if (!recordHandle.IsValid())
 		{
-			flat.push_back(v.Position.x); flat.push_back(v.Position.y); flat.push_back(v.Position.z);
-			flat.push_back(v.Normal.x);   flat.push_back(v.Normal.y);   flat.push_back(v.Normal.z);
-			flat.push_back(v.TexCoords.x); flat.push_back(v.TexCoords.y);
-			flat.push_back(v.Color.x);    flat.push_back(v.Color.y);    flat.push_back(v.Color.z);
+			// Create new GPU buffers and record.
+			IRenderFactory* f = Application::Get().Render().GetRenderFactory();
+			if (!f) { CHE_CORE_ERROR("MeshLoader::GetOrCreate — no render factory"); return {}; }
+
+			const uint64_t vbSize = vertices.size() * sizeof(Vertex);
+			BufferHandle vb = f->CreateBuffer(vbSize, BufferUsage::Vertex, MemoryType::GpuOnly,
+			    std::span<const std::byte>{ reinterpret_cast<const std::byte*>(vertices.data()), vbSize },
+			    String("mesh_vb"));
+
+			const uint64_t ibSize = indices.size() * sizeof(uint32_t);
+			BufferHandle ib = f->CreateBuffer(ibSize, BufferUsage::Index, MemoryType::GpuOnly,
+			    std::span<const std::byte>{ reinterpret_cast<const std::byte*>(indices.data()), ibSize },
+			    String("mesh_ib"));
+
+			auto* rec        = new MeshGpuRecord{};
+			rec->vb          = vb;
+			rec->ib          = ib;
+			rec->indexCount  = static_cast<uint32_t>(indices.size());
+			rec->contentHash = hash;
+			rec->refcount    = 0;
+			rec->vertices    = vertices;
+			rec->indices     = indices;
+
+			recordHandle = m_Records.Add(rec);
+			m_HashBuckets[hash].push_back(recordHandle);
 		}
 
-		const uint64_t vbSize = flat.size() * sizeof(float);
-		std::span<const std::byte> vbBytes{ reinterpret_cast<const std::byte*>(flat.data()), vbSize };
-        BufferHandle vb = f->CreateBuffer(vbSize, BufferUsage::Vertex, MemoryType::CpuToGpu,
-                                          vbBytes, String("mesh_vb"));
+		MeshGpuRecord* rec = m_Records.Get(recordHandle);
+		++rec->refcount;
 
-		const uint64_t ibSize = indices.size() * sizeof(uint32_t);
-		std::span<const std::byte> ibBytes{ reinterpret_cast<const std::byte*>(indices.data()), ibSize };
-		BufferHandle ib = f->CreateBuffer(ibSize, BufferUsage::Index, MemoryType::GpuOnly,
-		                                  ibBytes, String("mesh_ib"));
-
-		auto* rec = new MeshGpuRecord{};
-		rec->vb          = vb;
-		rec->ib          = ib;
-		rec->indexCount  = static_cast<uint32_t>(indices.size());
-		rec->contentHash = hash;
-		rec->refcount    = 1;
-		rec->vertices    = vertices;
-		rec->indices     = indices;
-
-		MeshHandle handle = m_Records.Add(rec);
-		m_HashBuckets[hash].push_back(handle);
-		return handle;
+		auto* mesh = new Mesh(recordHandle, rec->vb, rec->ib, rec->indexCount, std::move(mat));
+		return m_Meshes.Add(mesh);
 	}
 
-	void MeshLoader::AddRef(MeshHandle h)
+	MeshHandle MeshLoader::AddRef(MeshHandle h)
 	{
-		if (!h.IsValid()) return;
-		if (MeshGpuRecord* r = m_Records.Get(h))
-			++r->refcount;
+		const Mesh* src = m_Meshes.Get(h);
+		if (!src) return {};
+
+		MeshGpuRecord* rec = m_Records.Get(src->m_RecordHandle);
+		if (!rec) return {};
+
+		++rec->refcount;
+		auto* mesh = new Mesh(src->m_RecordHandle, src->m_VertexHandle,
+		                      src->m_IndexHandle, src->m_IndexCount, src->m_Mat);
+		return m_Meshes.Add(mesh);
 	}
 
 	void MeshLoader::Release(MeshHandle h)
 	{
-		if (!h.IsValid()) return;
-		MeshGpuRecord* r = m_Records.Get(h);
-		if (!r) return;
-		if (--r->refcount > 0) return;
+		Mesh* mesh = m_Meshes.Get(h);
+		if (!mesh) return;
 
-		// Remove from bucket; erase bucket if empty.
-		auto it = m_HashBuckets.find(r->contentHash);
-		if (it != m_HashBuckets.end())
-		{
-			auto& bucket = it->second;
-			bucket.erase(std::remove(bucket.begin(), bucket.end(), h), bucket.end());
-			if (bucket.empty())
-				m_HashBuckets.erase(it);
-		}
+		const MeshGpuRecordHandle recordHandle = mesh->m_RecordHandle;
+		m_Meshes.Remove(h); // deletes the Mesh object
 
-		DeleteRecord(r);
-		m_Records.Remove(h);
+		MeshGpuRecord* rec = m_Records.Get(recordHandle);
+		if (!rec) return;
+
+		if (--rec->refcount == 0)
+			DestroyRecord(recordHandle, rec);
 	}
 
-	const MeshGpuRecord* MeshLoader::Get(MeshHandle h) const
+	Mesh* MeshLoader::Get(MeshHandle h)
 	{
-		return m_Records.Get(h);
+		return m_Meshes.Get(h);
+	}
+
+	const Mesh* MeshLoader::Get(MeshHandle h) const
+	{
+		return m_Meshes.Get(h);
+	}
+
+	const MeshGpuRecord* MeshLoader::GetGpuRecord(MeshHandle h) const
+	{
+		const Mesh* mesh = m_Meshes.Get(h);
+		if (!mesh) return nullptr;
+		return m_Records.Get(mesh->m_RecordHandle);
+	}
+
+	void MeshLoader::SetMaterial(MeshHandle h, Ref<MaterialInstance> mat)
+	{
+		Mesh* mesh = m_Meshes.Get(h);
+		if (mesh)
+			mesh->m_Mat = std::move(mat);
 	}
 
 	void MeshLoader::UpdateVertexUVs(MeshHandle h, std::span<const glm::vec2> uvs)
 	{
-		MeshGpuRecord* r = m_Records.Get(h);
-		if (!r) return;
-		if (uvs.size() != r->vertices.size())
+		Mesh* mesh = m_Meshes.Get(h);
+		if (!mesh) return;
+
+		MeshGpuRecord* rec = m_Records.Get(mesh->m_RecordHandle);
+		if (!rec) return;
+
+		if (uvs.size() != rec->vertices.size())
 		{
-			CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — UV count {} != vertex count {}", uvs.size(), r->vertices.size());
+			CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — UV count {} != vertex count {}",
+			               uvs.size(), rec->vertices.size());
 			return;
 		}
 
-		// Update CPU copy
 		for (size_t i = 0; i < uvs.size(); ++i)
-			r->vertices[i].TexCoords = uvs[i];
-
-		// Partial GPU update: UV starts at byte offset 24 (6 floats) within each vertex,
-		// stride is 44 bytes (11 floats). Currently uploads full buffer; future: pack UVs.
-		constexpr uint64_t kVertexStride = sizeof(Vertex);
+			rec->vertices[i].TexCoords = uvs[i];
 
 		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 		if (!f) { CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — no render factory"); return; }
 
-		// Upload all UV data individually — not optimal but correct.
-		// TODO: use glBufferSubData with stride on GL 4.3+ using glBindVertexBuffer,
-		//       or pack all UVs into a contiguous span for a single call.
-		std::span<const std::byte> allData(reinterpret_cast<const std::byte*>(r->vertices.data()), r->vertices.size() * kVertexStride);
-		f->UpdateBuffer(r->vb, allData, 0);
+		std::span<const std::byte> allData{
+		    reinterpret_cast<const std::byte*>(rec->vertices.data()),
+		    rec->vertices.size() * sizeof(Vertex)
+		};
+		f->UpdateBuffer(rec->vb, allData, 0);
 	}
 
-	void MeshLoader::DeleteRecord(MeshGpuRecord* r)
+	void MeshLoader::DestroyRecord(MeshGpuRecordHandle rh, MeshGpuRecord* r)
 	{
-		if (!r) return;
+		// Remove from hash bucket.
+		auto it = m_HashBuckets.find(r->contentHash);
+		if (it != m_HashBuckets.end())
+		{
+			auto& bucket = it->second;
+			bucket.erase(std::remove(bucket.begin(), bucket.end(), rh), bucket.end());
+			if (bucket.empty())
+				m_HashBuckets.erase(it);
+		}
+
 		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 		if (f)
 		{
 			if (r->vb.IsValid()) f->Delete(r->vb);
 			if (r->ib.IsValid()) f->Delete(r->ib);
 		}
-		r->vb = {};
-		r->ib = {};
+
+		m_Records.Remove(rh); // HandlePool deleter calls delete r
 	}
 
 	void MeshLoader::Shutdown()
 	{
-		m_Records.ForEachOccupied([this](MeshGpuRecord* r) { DeleteRecord(r); });
+		// Release all meshes first (suppresses per-record destruction — records cleaned below).
+		// We clear meshes without triggering Release() to avoid double-free;
+		// just zero refcounts and wipe pool.
+		m_Meshes.Clear();
+
+		// Destroy GPU buffers for each surviving record.
+		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
+		m_Records.ForEachOccupied([&](MeshGpuRecord* r) {
+			if (!f) return;
+			if (r->vb.IsValid()) f->Delete(r->vb);
+			if (r->ib.IsValid()) f->Delete(r->ib);
+		});
 		m_Records.Clear();
 		m_HashBuckets.clear();
 	}

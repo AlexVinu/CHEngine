@@ -3,6 +3,7 @@
 #include <imgui.h>
 
 #include <CHEngine/Camera/EditorCamera.h>
+#include <CHEngine/Camera/OrthographicCamera.h>
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Entity.h>
 #include <CHEngine/Application.h>
@@ -82,13 +83,23 @@ void EditorCameraController::UpdateCameraInput(const InputSnapshot& input_snapsh
         {
             viewport_camera->SetPitch(
                 viewport_camera->GetPitch() + glm::radians(input_snapshot.MouseWheel * k_ScrollDeg));
+            ApplyOrbit(viewport_camera, camera_state);
+        }
+        else if (viewport_camera->GetType() == CHEngine::ECameraType::ORTHOGRAPHIC)
+        {
+            // В ортографической проекции расстояние камеры не влияет на размер объектов,
+            // поэтому zoom = изменение размера проекции, а не OrbitDist.
+            // Перемещение камеры ломало бы освещение (CameraPos сдвигается → viewDir для specular меняется).
+            auto& ortho = std::get<CHEngine::OrthographicCamera>(viewport_camera->GetCamera());
+            const float factor = 1.0f - input_snapshot.MouseWheel * k_ZoomFactor;
+            ortho.SetSize(glm::clamp(ortho.GetSize() * factor, 0.1f, 500.0f));
         }
         else
         {
             const float factor = 1.0f - input_snapshot.MouseWheel * k_ZoomFactor;
             camera_state.OrbitDist = glm::clamp(camera_state.OrbitDist * factor, k_OrbitMinDist, k_OrbitMaxDist);
+            ApplyOrbit(viewport_camera, camera_state);
         }
-        ApplyOrbit(viewport_camera, camera_state);
     }
 
     const bool isOrbiting = input_snapshot.IsOrbitByRmbDrag
@@ -117,7 +128,12 @@ void EditorCameraController::UpdateCameraInput(const InputSnapshot& input_snapsh
 
         if (isPanning)
         {
-            const float pan_scale = camera_state.OrbitDist * k_PanScale;
+            float pan_scale = camera_state.OrbitDist * k_PanScale;
+            if (viewport_camera->GetType() == CHEngine::ECameraType::ORTHOGRAPHIC)
+            {
+                const auto& ortho = std::get<CHEngine::OrthographicCamera>(viewport_camera->GetCamera());
+                pan_scale = ortho.GetSize() * k_PanScale;
+            }
             const glm::vec3 right = viewport_camera->GetRightDirection();
             const glm::vec3 up = viewport_camera->GetUpDirection();
             camera_state.OrbitTarget -= right * input_snapshot.MouseDelta.x * pan_scale;

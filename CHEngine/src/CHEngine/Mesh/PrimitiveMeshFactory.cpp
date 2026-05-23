@@ -1,6 +1,8 @@
 #include "chepch.h"
 #include "PrimitiveMeshFactory.h"
 
+#include "CHEngine/Application.h"
+
 #include <array>
 #include <vector>
 #ifndef M_PI
@@ -9,19 +11,19 @@
 
 namespace CHEngine {
 
-Mesh PrimitiveMeshFactory::CreateCube(float size, const glm::vec3& color)
+MeshRef PrimitiveMeshFactory::CreateCube(float size, const glm::vec3& color)
 {
     const float half_size = size * 0.5f;
 
     const std::array<glm::vec3, 8> corners = {
         glm::vec3{ -half_size, -half_size, -half_size },
-        glm::vec3{ half_size, -half_size, -half_size },
-        glm::vec3{ half_size, half_size, -half_size },
-        glm::vec3{ -half_size, half_size, -half_size },
-        glm::vec3{ -half_size, -half_size, half_size },
-        glm::vec3{ half_size, -half_size, half_size },
-        glm::vec3{ half_size, half_size, half_size },
-        glm::vec3{ -half_size, half_size, half_size }
+        glm::vec3{  half_size, -half_size, -half_size },
+        glm::vec3{  half_size,  half_size, -half_size },
+        glm::vec3{ -half_size,  half_size, -half_size },
+        glm::vec3{ -half_size, -half_size,  half_size },
+        glm::vec3{  half_size, -half_size,  half_size },
+        glm::vec3{  half_size,  half_size,  half_size },
+        glm::vec3{ -half_size,  half_size,  half_size }
     };
 
     struct FaceData
@@ -39,8 +41,7 @@ Mesh PrimitiveMeshFactory::CreateCube(float size, const glm::vec3& color)
         FaceData{ { 0, 1, 5, 4 }, { 0.0f, -1.0f, 0.0f } }   // -Y
     };
 
-    // Cross UV layout: 1 top, 3 middle, 1 below, 1 bottom — like Blender
-    //   Face order: 0=+Z, 1=-Z, 2=-X, 3=+X, 4=+Y, 5=-Y
+    // Cross UV layout: 1 top, 3 middle, 1 below, 1 bottom
     const int faceCol[6] = { 1, 1, 0, 2, 1, 1 };
     const int faceRow[6] = { 1, 2, 1, 1, 0, 3 };
     constexpr float cell = 0.25f;
@@ -85,12 +86,11 @@ Mesh PrimitiveMeshFactory::CreateCube(float size, const glm::vec3& color)
         indices.push_back(base_index + 3);
     }
 
-    Mesh mesh;
-    mesh.Build(vertices, indices);
-    return mesh;
+    MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
+    return MeshRef{ loader->GetOrCreate(vertices, indices) };
 }
 
-Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_t slices, const glm::vec3& color)
+MeshRef PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_t slices, const glm::vec3& color)
 {
     segments = std::max(segments, 3u);
     slices   = std::max(slices, 3u);
@@ -103,12 +103,11 @@ Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_
     vertices.reserve(vertCount);
     indices.reserve(idxCount);
 
-    // Top pole
     vertices.push_back({ {0.0f, radius, 0.0f}, {0.0f, 1.0f, 0.0f}, {0.5f, 0.0f}, color });
 
     for (uint32_t j = 1; j < slices; ++j)
     {
-            float theta = static_cast<float>(M_PI) * static_cast<float>(j) / static_cast<float>(slices);
+        float theta = static_cast<float>(M_PI) * static_cast<float>(j) / static_cast<float>(slices);
 
         for (uint32_t i = 0; i < segments; ++i)
         {
@@ -128,13 +127,11 @@ Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_
         }
     }
 
-    // Bottom pole
     vertices.push_back({ {0.0f, -radius, 0.0f}, {0.0f, -1.0f, 0.0f}, {0.5f, 1.0f}, color });
 
     const uint32_t poleTop = 0;
     const uint32_t poleBot = 1 + (slices - 1) * segments;
 
-    // Top ring (triangles from top pole to first ring)
     for (uint32_t i = 0; i < segments; ++i)
     {
         uint32_t a = 1 + i;
@@ -144,7 +141,6 @@ Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_
         indices.push_back(b);
     }
 
-    // Middle rings (quad strips)
     for (uint32_t j = 0; j < slices - 2; ++j)
     {
         for (uint32_t i = 0; i < segments; ++i)
@@ -163,7 +159,6 @@ Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_
         }
     }
 
-    // Bottom ring (triangles from bottom pole to last ring)
     for (uint32_t i = 0; i < segments; ++i)
     {
         uint32_t a = poleBot - segments + i;
@@ -173,32 +168,22 @@ Mesh PrimitiveMeshFactory::CreateSphere(float radius, uint32_t segments, uint32_
         indices.push_back(b);
     }
 
-    Mesh mesh;
-    mesh.Build(vertices, indices);
-    return mesh;
+    MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
+    return MeshRef{ loader->GetOrCreate(vertices, indices) };
 }
 
-Mesh PrimitiveMeshFactory::CreateSphereImpostor(const glm::vec3& color)
+MeshRef PrimitiveMeshFactory::CreateSphereImpostor(const glm::vec3& color)
 {
-    // A camera-facing billboard quad. Vertex positions are billboard offsets
-    // in [-1,1] space; the vertex shader scales them by the entity's world radius
-    // (encoded as transform scale) and orients them toward the camera.
-    // The fragment shader does analytic ray-sphere intersection.
     const std::vector<Vertex> vertices = {
         { {-1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f}, color },
         { { 1.0f, -1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 0.0f}, color },
         { { 1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {1.0f, 1.0f}, color },
         { {-1.0f,  1.0f, 0.0f}, {0.0f, 0.0f, 1.0f}, {0.0f, 1.0f}, color },
     };
-    // Winding is reversed (0,2,1 / 0,3,2) because the vertex shader builds the
-    // billboard with cross(worldUp, viewDir), which yields a left-facing camRight vector.
-    // The resulting quad is CW in clip space; reversing the indices makes it CCW so
-    // CullMode::Back does not discard the triangles.
     const std::vector<uint32_t> indices = { 0, 2, 1,  0, 3, 2 };
 
-    Mesh mesh;
-    mesh.Build(vertices, indices);
-    return mesh;
+    MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
+    return MeshRef{ loader->GetOrCreate(vertices, indices) };
 }
 
 } // namespace CHEngine

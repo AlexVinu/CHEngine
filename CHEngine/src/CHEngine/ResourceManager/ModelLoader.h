@@ -14,7 +14,7 @@ namespace CHEngine
 	class CHENGINE_API ModelLoader : public IResourceLoader
 	{
 	public:
-		ELoaderResourceType GetResourceType() const override { return ELoaderResourceType::Mesh; };
+		ELoaderResourceType GetResourceType() const override { return ELoaderResourceType::Model; };
 		const std::string GetName() const override { return "ModelLoader"; };
 
 		bool Initialize() override { return true; }
@@ -33,7 +33,7 @@ namespace CHEngine
 		ModelHandle LoadOBJ(const std::filesystem::path& filepath, ShaderHandle meshShader);
 		ModelHandle LoadGLTF(const std::filesystem::path& filepath, ShaderHandle meshShader);
 
-		HandlePool<LoadedModel, ModelHandleTag> m_Models{ [](LoadedModel* p) { delete p; } };
+		HandlePool<LoadedModel, ModelHandleTag> m_Models;
 		ResourceBimap<std::filesystem::path, ModelHandle> m_HandlesBimap;
 	};
 }

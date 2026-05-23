@@ -5,7 +5,6 @@
 
 #include <nlohmann/json.hpp>
 #include <magic_enum/magic_enum.hpp>
-#include <boost/uuid/uuid_io.hpp>
 #include <cstddef>
 #include <memory>
 #include <unordered_set>
@@ -25,46 +24,6 @@ namespace CHEngine {
 
 namespace {
 constexpr int kSceneFormatVersion = 3;
-
-int HexToNibble(char c)
-{
-    if (c >= '0' && c <= '9') return c - '0';
-    if (c >= 'a' && c <= 'f') return 10 + (c - 'a');
-    if (c >= 'A' && c <= 'F') return 10 + (c - 'A');
-    return -1;
-}
-
-bool TryParseUUIDString(const std::string& input, UUID& outUUID)
-{
-    std::string s = input;
-    if (s.size() == 38 && s.front() == '{' && s.back() == '}')
-        s = s.substr(1, s.size() - 2);
-
-    std::string hex;
-    hex.reserve(32);
-    for (char c : s)
-    {
-        if (c == '-')
-            continue;
-        hex.push_back(c);
-    }
-
-    if (hex.size() != 32)
-        return false;
-
-    boost::uuids::uuid raw = boost::uuids::nil_uuid();
-    for (size_t i = 0; i < 16; ++i)
-    {
-        const int hi = HexToNibble(hex[i * 2]);
-        const int lo = HexToNibble(hex[i * 2 + 1]);
-        if (hi < 0 || lo < 0)
-            return false;
-        *(raw.begin() + static_cast<std::ptrdiff_t>(i)) = static_cast<uint8_t>((hi << 4) | lo);
-    }
-
-    outUUID = UUID(raw);
-    return true;
-}
 
 // ─── UI component helpers ─────────────────────────────────────────────────────
 
@@ -233,7 +192,7 @@ static void DeserializeUIComponents(Entity* entity, const json& ui)
     {
         const auto& pj = ui["parentNode"];
         ParentNodeComponent p;
-        TryParseUUIDString(pj["value"].get<std::string>(), p.Value);
+        p.Value = UUID::FromString(pj["value"].get<std::string>());
 		if (entity->HasComponent<ParentNodeComponent>())
 			entity->GetComponent<ParentNodeComponent>() = p;
 		else
@@ -355,11 +314,11 @@ void DestroyUniqueMeshTextures(MeshComponent& meshComp)
     std::unordered_set<Material*> baseDiffuseDestroyed;
     std::unordered_set<Material*> baseSpecDestroyed;
 
-    for (auto& mesh : meshComp.Meshes)
+    for (auto& meshRef : meshComp.Meshes)
     {
-        if (!mesh.Mat)
+        if (!meshRef.IsValid() || !meshRef->GetMatInstance())
             continue;
-        MaterialInstance* p = mesh.Mat.get();
+        MaterialInstance* p = meshRef->GetMatInstance().get();
         if (!seenInst.insert(p).second)
             continue;
         DestroyTexturesForInstance(p, baseDiffuseDestroyed, baseSpecDestroyed);
@@ -556,20 +515,21 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             continue;
         }
 
-        UUID entityUUID = boost::uuids::nil_uuid();
-        if (!TryParseUUIDString(o["uuid"].get<std::string>(), entityUUID)) {
+        UUID entityUUID = UUID::FromString(o["uuid"].get<std::string>());
+        if (!entityUUID.IsValid()) {
             CHE_CORE_WARN("SceneSerializer: skipping object '{}' with invalid uuid", name);
             continue;
         }
 
         EntityHandle handle{};
-        std::vector<Mesh> importedMeshes;
+        std::vector<MeshRef> importedMeshes;
         bool hasImportedMeshes = false;
 
         if (!meshPath.empty()) {
+            MeshLoader* meshLoader = Application::Get().Resources().GetMeshLoader();
             if (ResourceManager::IsPrimitiveUri(meshPath))
             {
-                Mesh primMesh = Application::Get().Resources().LoadPrimitiveMesh(meshPath);
+                MeshRef primMesh = Application::Get().Resources().LoadPrimitiveMesh(meshPath);
                 if (primMesh.IsValid())
                 {
                     ShaderHandle sh;
@@ -583,7 +543,8 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                     {
                         sh = Application::Get().Render().GetDefaultMeshShader();
                     }
-                    primMesh.Mat = MaterialInstance::FromBase(std::make_shared<Material>(sh));
+                    meshLoader->SetMaterial(primMesh.Handle(),
+                        MaterialInstance::FromBase(std::make_shared<Material>(sh)));
                     importedMeshes.push_back(std::move(primMesh));
                     hasImportedMeshes = true;
                 }
@@ -595,23 +556,28 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                 const LoadedModel* result = modelHandle.IsValid()
                     ? Application::Get().Resources().GetModel(modelHandle) : nullptr;
                 if (result && !result->meshes.empty()) {
-                    importedMeshes = result->meshes; // copy — Mesh copy-ctor AddRefs GPU records
+                    importedMeshes = result->meshes; // MeshRef copy — AddRefs shared GpuRecord
 
                     glm::vec3 centroid(0.0f);
                     size_t totalVerts = 0;
                     for (auto& mesh : importedMeshes) {
-                        for (const auto& v : mesh.GetVertices()) {
-                            centroid += v.Position;
-                            ++totalVerts;
+                        if (const auto* rec = meshLoader->GetGpuRecord(mesh.Handle())) {
+                            for (const auto& v : rec->vertices) {
+                                centroid += v.Position;
+                                ++totalVerts;
+                            }
                         }
                     }
                     if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
 
                     if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
                         for (auto& mesh : importedMeshes) {
-                            auto verts = mesh.GetVertices();
+                            const auto* rec = meshLoader->GetGpuRecord(mesh.Handle());
+                            if (!rec) continue;
+                            auto verts = rec->vertices;
                             for (auto& v : verts) v.Position -= centroid;
-                            mesh.Build(verts, mesh.GetIndices());
+                            Ref<MaterialInstance> mat = mesh->GetMatInstance();
+                            mesh = MeshRef{ meshLoader->GetOrCreate(verts, rec->indices, mat) };
                         }
                     }
 
@@ -625,7 +591,7 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                     CHE_CORE_WARN(
                         "SceneSerializer: model load failed for entity='{}' uuid={} meshPath='{}' normalized='{}'",
                         name,
-                        boost::uuids::to_string(entityUUID),
+                        entityUUID.ToString(),
                         meshPath,
                         normalizedPath);
                 }
@@ -730,12 +696,15 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
 
         if (obj->HasComponent<MeshComponent>())
         {
+            MeshLoader* meshLoader = Application::Get().Resources().GetMeshLoader();
             auto* meshCompForMat = &obj->GetComponent<MeshComponent>();
-            for (auto& meshItem : meshCompForMat->Meshes)
+            for (auto& meshRef : meshCompForMat->Meshes)
             {
-                if (!meshItem.Mat)
-                    meshItem.Mat = MaterialInstance::FromBase(
-                        std::make_shared<Material>(CHEngine::Application::Get().Render().GetDefaultMeshShader()));
+                if (!meshRef.IsValid()) continue;
+                if (!meshRef->GetMatInstance())
+                    meshLoader->SetMaterial(meshRef.Handle(),
+                        MaterialInstance::FromBase(std::make_shared<Material>(
+                            CHEngine::Application::Get().Render().GetDefaultMeshShader())));
             }
 
             if (o.contains("materials") && o["materials"].is_array())
@@ -743,18 +712,20 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                 const auto& arr = o["materials"];
                 for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
                 {
-                    if (arr[mi].is_object())
-                        ApplyMaterialFromJson(arr[mi], *meshCompForMat->Meshes[mi].Mat);
+                    auto& meshRef = meshCompForMat->Meshes[mi];
+                    if (arr[mi].is_object() && meshRef.IsValid())
+                        ApplyMaterialFromJson(arr[mi], *meshRef->GetMatInstance());
                 }
             }
             else if (o.contains("material") && o["material"].is_object())
             {
                 auto& meshes = meshCompForMat->Meshes;
-                if (!meshes.empty())
+                if (!meshes.empty() && meshes[0].IsValid())
                 {
-                    ApplyMaterialFromJson(o["material"], *meshes[0].Mat);
+                    ApplyMaterialFromJson(o["material"], *meshes[0]->GetMatInstance());
+                    Ref<MaterialInstance> sharedMat = meshes[0]->GetMatInstance();
                     for (size_t i = 1; i < meshes.size(); ++i)
-                        meshes[i].Mat = meshes[0].Mat;
+                        meshLoader->SetMaterial(meshes[i].Handle(), sharedMat);
                 }
             }
         }
@@ -833,7 +804,7 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
         Entity* entity = scene->TryGetEntity(handle);
 
         json o;
-        o["uuid"] = boost::uuids::to_string(uuid);
+        o["uuid"] = uuid.ToString();
         if (entity->HasComponent<TagComponent>())
         {
             auto component = entity->GetComponent<TagComponent>();
@@ -862,20 +833,20 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
             o["meshPath"] = meshComp.SourcePath;
 
             json materials = json::array();
-            for (const auto& meshItem : meshComp.Meshes)
+            for (const auto& meshRef : meshComp.Meshes)
             {
-                // Do NOT mutate meshItem.Mat during serialization (would modify scene data).
                 json matObj;
-                if (meshItem.Mat) {
-                    matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
-                    matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
-                    matObj["shininess"]     = meshItem.Mat->Shininess;
-                    matObj["specularScale"] = meshItem.Mat->SpecularScale;
-                    matObj["roughness"]     = meshItem.Mat->Roughness;
-                    matObj["metallic"]      = meshItem.Mat->Metallic;
-                    matObj["ao"]            = meshItem.Mat->AO;
-                    matObj["usePBR"]        = meshItem.Mat->GetMaterial()
-                                              ? (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0
+                Ref<MaterialInstance> mat = meshRef.IsValid() ? meshRef->GetMatInstance() : nullptr;
+                if (mat) {
+                    matObj["diffusePath"]   = mat->EffectiveDiffuseMapPath();
+                    matObj["specularPath"]  = mat->EffectiveSpecularMapPath();
+                    matObj["shininess"]     = mat->Shininess;
+                    matObj["specularScale"] = mat->SpecularScale;
+                    matObj["roughness"]     = mat->Roughness;
+                    matObj["metallic"]      = mat->Metallic;
+                    matObj["ao"]            = mat->AO;
+                    matObj["usePBR"]        = mat->GetMaterial()
+                                              ? (mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0
                                               : false;
                 } else {
                     matObj["diffusePath"] = ""; matObj["specularPath"] = "";
@@ -988,7 +959,7 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
         Entity* entity = scene->TryGetEntity(handle);
 
         json o;
-        o["uuid"] = boost::uuids::to_string(uuid);
+        o["uuid"] = uuid.ToString();
         if (entity->HasComponent<TagComponent>())
         {
             auto component = entity->GetComponent<TagComponent>();
@@ -1017,20 +988,20 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
             o["meshPath"] = meshComp.SourcePath;
 
             json materials = json::array();
-            for (const auto& meshItem : meshComp.Meshes)
+            for (const auto& meshRef : meshComp.Meshes)
             {
-                // Do NOT mutate meshItem.Mat during serialization (would modify scene data).
                 json matObj;
-                if (meshItem.Mat) {
-                    matObj["diffusePath"]   = meshItem.Mat->EffectiveDiffuseMapPath();
-                    matObj["specularPath"]  = meshItem.Mat->EffectiveSpecularMapPath();
-                    matObj["shininess"]     = meshItem.Mat->Shininess;
-                    matObj["specularScale"] = meshItem.Mat->SpecularScale;
-                    matObj["roughness"]     = meshItem.Mat->Roughness;
-                    matObj["metallic"]      = meshItem.Mat->Metallic;
-                    matObj["ao"]            = meshItem.Mat->AO;
-                    matObj["usePBR"]        = meshItem.Mat->GetMaterial()
-                                              ? (meshItem.Mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0
+                Ref<MaterialInstance> mat = meshRef.IsValid() ? meshRef->GetMatInstance() : nullptr;
+                if (mat) {
+                    matObj["diffusePath"]   = mat->EffectiveDiffuseMapPath();
+                    matObj["specularPath"]  = mat->EffectiveSpecularMapPath();
+                    matObj["shininess"]     = mat->Shininess;
+                    matObj["specularScale"] = mat->SpecularScale;
+                    matObj["roughness"]     = mat->Roughness;
+                    matObj["metallic"]      = mat->Metallic;
+                    matObj["ao"]            = mat->AO;
+                    matObj["usePBR"]        = mat->GetMaterial()
+                                              ? (mat->GetMaterial()->MaterialFlags & kPBR_EnablePBR) != 0
                                               : false;
                 } else {
                     matObj["diffusePath"] = ""; matObj["specularPath"] = "";
