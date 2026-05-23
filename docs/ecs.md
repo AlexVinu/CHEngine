@@ -83,10 +83,14 @@ struct TransformComponent {
 
 ```cpp
 struct MeshComponent {
-    std::vector<Mesh> Meshes;        // GPU-буферы (VertexArray + материал)
-    std::string SourcePath;          // Путь к файлу-источнику (для отображения в UI)
+    MeshRef     Mesh;        // единый меш с субмешами (VB/IB разделяется через MeshLoader)
+    std::string SourcePath;  // путь к файлу-источнику (для отображения в UI)
 };
 ```
+
+`MeshRef` — умный указатель, управляющий временем жизни через `MeshLoader` (refcount).
+Один `Mesh` содержит вектор материалов (по одному на субмеш); доступ через `Mesh->GetMaterial(submeshIndex)`.
+Доступ к буферам и диапазонам субмешей — через `MeshLoader::GetGpuRecord(Mesh.Handle())`.
 
 ### CameraComponent
 

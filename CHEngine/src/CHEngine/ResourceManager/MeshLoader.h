@@ -17,21 +17,20 @@ namespace CHEngine
 	using MeshHandle = Handle<MeshHandleTag>;
 
 	// Shared GPU data for a unique (vertices, indices) pair.
-	// Referenced by multiple Mesh objects; freed when refcount reaches zero.
+	// Single VB + single IB host the whole model; submeshes describe draw ranges.
 	struct MeshGpuRecord
 	{
-		BufferHandle          vb{};
-		BufferHandle          ib{};
-		uint32_t              indexCount  = 0;
-		uint64_t              contentHash = 0;
-		uint32_t              refcount    = 0;
-		std::vector<Vertex>   vertices;
-		std::vector<uint32_t> indices;
+		BufferHandle           vb{};
+		BufferHandle           ib{};
+		std::vector<SubMesh>   subMeshes;
+		uint64_t               contentHash = 0;
+		uint32_t               refcount    = 0;
+		std::vector<Vertex>    vertices;
+		std::vector<uint32_t>  indices;
 	};
 
 	// Content-addressed cache of GPU mesh buffers.
 	// Identical (vertices, indices) pairs share one MeshGpuRecord.
-	// Not a singleton — single instance owned by ResourceManager.
 	class CHENGINE_API MeshLoader : public IResourceLoader
 	{
 	public:
@@ -41,12 +40,20 @@ namespace CHEngine
 		bool Initialize() override { return true; }
 		void Shutdown()   override;
 
-		// Returns a new MeshHandle backed by a (possibly shared) GpuRecord.
+		// Full form: caller provides explicit submesh ranges and matching materials.
+		// materials.size() must equal subMeshes.size().
+		MeshHandle GetOrCreate(const std::vector<Vertex>& vertices,
+		                       const std::vector<uint32_t>& indices,
+		                       const std::vector<SubMesh>& subMeshes,
+		                       std::vector<Ref<MaterialInstance>> materials);
+
+		// Simple form: single submesh covering all indices, single material.
 		MeshHandle GetOrCreate(const std::vector<Vertex>& vertices,
 		                       const std::vector<uint32_t>& indices,
 		                       Ref<MaterialInstance> mat = nullptr);
 
-		// Creates a new MeshHandle sharing the same GpuRecord (for component copy).
+		// Creates a new MeshHandle sharing the same GpuRecord, with an independent
+		// copy of the source's per-submesh materials.
 		MeshHandle AddRef(MeshHandle h);
 
 		// Releases the Mesh; destroys the GpuRecord + GPU buffers when refcount hits zero.
@@ -55,14 +62,15 @@ namespace CHEngine
 		Mesh*       Get(MeshHandle h);
 		const Mesh* Get(MeshHandle h) const;
 
-		// Returns the underlying GpuRecord for vertex/index CPU-side access.
+		// Returns the underlying GpuRecord for vertex/index/submesh CPU-side access.
 		const MeshGpuRecord* GetGpuRecord(MeshHandle h) const;
 
-		// Replaces material on this Mesh only (GpuRecord stays shared).
-		void SetMaterial(MeshHandle h, Ref<MaterialInstance> mat);
+		// Replaces material for a single submesh on this Mesh only.
+		void SetMaterial(MeshHandle h, uint32_t submeshIndex, Ref<MaterialInstance> mat);
 
-		// Updates UV data in the shared GpuRecord (visible to all Mesh sharing it).
-		void UpdateVertexUVs(MeshHandle h, std::span<const glm::vec2> uvs);
+		// Updates UVs for vertices used by the given submesh. uvs.size() must equal
+		// the count of unique vertices referenced by that submesh's index range.
+		void UpdateVertexUVs(MeshHandle h, uint32_t submeshIndex, std::span<const glm::vec2> uvs);
 
 		size_t GetMemoryUsage()  const override { return 0; }
 		void   SetMemoryBudget(size_t) override {}

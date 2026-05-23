@@ -3,6 +3,7 @@
 #include <Core.h>
 #include <glm/glm.hpp>
 #include <cstdint>
+#include <vector>
 
 #include "CHEngine/Mesh/Vertex.h"
 #include "Render/Core/RenderTypes.h"
@@ -17,38 +18,39 @@ namespace CHEngine {
 	struct MeshGpuRecordTag {};
 	using MeshGpuRecordHandle = Handle<MeshGpuRecordTag>;
 
-	// Lightweight mesh object stored in MeshLoader's pool.
-	// Holds cached buffer handles, index count, and a material instance.
+	struct SubMesh {
+		uint32_t indexCount  = 0;
+		uint32_t startIndex  = 0;
+		int32_t  baseVertex  = 0;
+	};
+
+	// Logical mesh: shares geometry via MeshGpuRecord, owns its own per-submesh materials.
 	// Never copy/move directly — use MeshRef or MeshHandle.
 	class CHENGINE_API Mesh
 	{
 	public:
 		Mesh() = default;
-		Mesh(MeshGpuRecordHandle rec,
-		     BufferHandle vb, BufferHandle ib, uint32_t indexCount,
-		     Ref<MaterialInstance> mat)
+		Mesh(MeshGpuRecordHandle rec, std::vector<Ref<MaterialInstance>> materials)
 			: m_RecordHandle(rec)
-			, m_VertexHandle(vb)
-			, m_IndexHandle(ib)
-			, m_IndexCount(indexCount)
-			, m_Mat(std::move(mat))
+			, m_Materials(std::move(materials))
 		{}
 
-		BufferHandle          GetVertexBuffer()  const { return m_VertexHandle; }
-		BufferHandle          GetIndexBuffer()   const { return m_IndexHandle; }
-		IndexFormat           GetIndexFormat()   const { return IndexFormat::UInt32; }
-		uint32_t              GetIndexCount()    const { return m_IndexCount; }
-		bool                  IsValid()          const { return m_IndexCount > 0; }
-		Ref<MaterialInstance> GetMatInstance()   const { return m_Mat; }
 		MeshGpuRecordHandle   GetRecordHandle()  const { return m_RecordHandle; }
+		IndexFormat           GetIndexFormat()   const { return IndexFormat::UInt32; }
+
+		const std::vector<Ref<MaterialInstance>>& GetMaterials() const { return m_Materials; }
+		Ref<MaterialInstance> GetMaterial(uint32_t submeshIndex) const {
+			return submeshIndex < m_Materials.size() ? m_Materials[submeshIndex] : nullptr;
+		}
+		uint32_t GetSubMeshCount() const { return static_cast<uint32_t>(m_Materials.size()); }
+
+		// Buffers / submeshes are accessed via MeshLoader::GetGpuRecord(handle).
+		bool IsValid() const { return !m_Materials.empty(); }
 
 	private:
 		friend class MeshLoader;
-		MeshGpuRecordHandle   m_RecordHandle;
-		BufferHandle          m_VertexHandle;
-		BufferHandle          m_IndexHandle;
-		uint32_t              m_IndexCount = 0;
-		Ref<MaterialInstance> m_Mat;
+		MeshGpuRecordHandle                  m_RecordHandle;
+		std::vector<Ref<MaterialInstance>>   m_Materials;
 	};
 
 }

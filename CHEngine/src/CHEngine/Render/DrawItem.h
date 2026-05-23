@@ -25,6 +25,8 @@ namespace CHEngine {
         BufferHandle          indexBuffer;   // mesh IBO
         IndexFormat           indexFormat = IndexFormat::UInt32;
         uint32_t              indexCount  = 0;
+        uint32_t              firstIndex  = 0;
+        int32_t               baseVertex  = 0;
         glm::mat4             modelMatrix; // pre-computed model transform
         UBOObject             object;      // Transform, NormalMatrix, Color, Selected
         Ref<MaterialInstance> material;    // kept alive for ApplyMaterial()

@@ -133,6 +133,73 @@ ShaderHandle sh = RenderFacade::CreateShaderFromFile("name", "shaders/mesh.slang
 
 `Handle::IsValid()` — проверяет `index != 0xFFFFFFFF`.
 
+### Mesh / Submesh архитектура
+
+**Модель данных:** один `MeshGpuRecord` хранит единый VB + IB для всей модели. Отдельные части описываются массивом `SubMesh`:
+
+```cpp
+struct SubMesh {
+    uint32_t indexCount  = 0;
+    uint32_t startIndex  = 0;  // смещение в IB (не в байтах, в индексах)
+    int32_t  baseVertex  = 0;  // прибавляется к каждому индексу при отрисовке
+};
+```
+
+`Mesh` — логический объект поверх `MeshGpuRecord`: хранит хэндл записи + вектор материалов (по одному на субмеш). Буферы и диапазоны лежат в `MeshGpuRecord`, материалы — в `Mesh`.
+
+**`MeshComponent`** (ECS) содержит **один** `MeshRef Mesh` (не вектор):
+```cpp
+struct MeshComponent {
+    MeshRef     Mesh;
+    std::string SourcePath;
+};
+```
+
+**`LoadedModel`** тоже хранит один `MeshRef mesh`:
+```cpp
+struct LoadedModel {
+    MeshRef     mesh;
+    std::string name;
+    bool        success = false;
+    std::string error;
+};
+```
+
+**GLTF / OBJ загрузчики** объединяют все примитивы/шейпы в один VB+IB; каждый материальный бакет становится отдельным `SubMesh`.
+
+**API `MeshLoader`:**
+
+```cpp
+// Полная форма: явные диапазоны субмешей (materials.size() == subMeshes.size())
+MeshHandle GetOrCreate(vertices, indices, subMeshes, materials);
+
+// Краткая форма: один субмеш на весь IB, один материал
+MeshHandle GetOrCreate(vertices, indices, mat = nullptr);
+
+// Замена материала конкретного субмеша (не трогает GpuRecord)
+SetMaterial(MeshHandle h, uint32_t submeshIndex, Ref<MaterialInstance> mat);
+
+// Обновление UV субмеша: uvs.size() == кол-во уникальных вершин этого субмеша
+UpdateVertexUVs(MeshHandle h, uint32_t submeshIndex, std::span<const glm::vec2> uvs);
+
+// Доступ к буферам, субмешам, CPU-копии вершин
+const MeshGpuRecord* GetGpuRecord(MeshHandle h) const;
+```
+
+**`DrawItem`** (передаётся в `RenderSystem`) содержит `firstIndex` и `baseVertex` — заполняются из `SubMesh` при обходе субмешей.
+
+**RenderSystem** итерирует субмеши так:
+```cpp
+const MeshGpuRecord* rec = meshLoader->GetGpuRecord(meshComp.Mesh.Handle());
+for (uint32_t s = 0; s < mesh->GetSubMeshCount(); ++s) {
+    const SubMesh& sm = rec->subMeshes[s];
+    item.indexCount  = sm.indexCount;
+    item.firstIndex  = sm.startIndex;
+    item.baseVertex  = sm.baseVertex;
+    item.material    = mesh->GetMaterial(s);
+}
+```
+
 ---
 
 ## Шейдерная система (Slang)

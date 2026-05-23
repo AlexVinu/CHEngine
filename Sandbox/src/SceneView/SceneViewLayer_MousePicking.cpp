@@ -36,14 +36,15 @@ AABB ComputeWorldAABB(const CHEngine::MeshComponent& meshComp, const glm::mat4& 
 {
     CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
     AABB aabb;
-    for (const auto& meshRef : meshComp.Meshes)
+    if (meshComp.Mesh.IsValid())
     {
-        const auto* rec = meshLoader->GetGpuRecord(meshRef.Handle());
-        if (!rec) continue;
-        for (const auto& v : rec->vertices)
+        if (const auto* rec = meshLoader->GetGpuRecord(meshComp.Mesh.Handle()))
         {
-            glm::vec4 worldPos = model * glm::vec4(v.Position, 1.0f);
-            aabb.Expand(glm::vec3(worldPos));
+            for (const auto& v : rec->vertices)
+            {
+                glm::vec4 worldPos = model * glm::vec4(v.Position, 1.0f);
+                aabb.Expand(glm::vec3(worldPos));
+            }
         }
     }
     return aabb;
@@ -132,7 +133,7 @@ void TryPick(SceneViewLayer& layer)
         {
             if (!visibilityComp.Visible)
                 return;
-            if (meshComp.Meshes.empty())
+            if (!meshComp.Mesh.IsValid())
                 return;
 
             const CHEngine::Transform& t = transformComp.ObjectTransform;

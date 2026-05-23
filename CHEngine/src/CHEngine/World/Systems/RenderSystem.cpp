@@ -355,8 +355,8 @@ namespace CHEngine {
                 draw.IndexBuffer   = item.indexBuffer;
                 draw.IdxFormat     = item.indexFormat;
                 draw.IndexCount    = item.indexCount;
-                draw.FirstIndex    = 0;
-                draw.BaseVertex    = 0;
+                draw.FirstIndex    = item.firstIndex;
+                draw.BaseVertex    = item.baseVertex;
                 draw.InstanceCount = 1;
 
                 draw.Uniforms.push_back({ m_ObjectUBORing,
@@ -590,41 +590,52 @@ namespace CHEngine {
                 objectUBO.Selected = 0.0f;
 
                 MeshLoader* meshLoader = Application::Get().Resources().GetMeshLoader();
-                for (MeshRef& meshRef : meshComp.Meshes)
-                {
-                    if (!meshRef.IsValid()) continue;
+                if (!meshComp.Mesh.IsValid()) return;
 
-                    if (!meshRef->GetMatInstance())
+                const Mesh* mesh = meshComp.Mesh.operator->();
+                if (!mesh) return;
+
+                const MeshGpuRecord* rec = meshLoader->GetGpuRecord(meshComp.Mesh.Handle());
+                if (!rec) return;
+
+                const BufferHandle vb = rec->vb;
+                const BufferHandle ib = rec->ib;
+                if (!vb.IsValid() || !ib.IsValid())
+                {
+                    ++skippedNoBuffer;
+                    CHE_CORE_WARN("BuildDrawList: mesh skipped — vb.valid={} ib.valid={}",
+                                  vb.IsValid(), ib.IsValid());
+                    return;
+                }
+
+                const uint32_t subCount = mesh->GetSubMeshCount();
+                for (uint32_t s = 0; s < subCount; ++s)
+                {
+                    Ref<MaterialInstance> mat = mesh->GetMaterial(s);
+                    if (!mat)
                     {
-                        meshLoader->SetMaterial(meshRef.Handle(),
+                        meshLoader->SetMaterial(meshComp.Mesh.Handle(), s,
                             MaterialInstance::FromBase(std::make_shared<Material>(
                                 Application::Get().Render().GetDefaultMeshShader())));
+                        mat = mesh->GetMaterial(s);
+                        if (!mat) continue;
                     }
 
-                    const Mesh* mesh = meshRef.operator->();
-                    if (!mesh) continue;
-
-                    const ShaderHandle shaderHandle = mesh->GetMatInstance()->GetMaterial()->GetShaderHandle();
+                    const SubMesh& sm = rec->subMeshes[s];
+                    const ShaderHandle shaderHandle = mat->GetMaterial()->GetShaderHandle();
                     ++meshCount;
-                    const BufferHandle vb = mesh->GetVertexBuffer();
-                    const BufferHandle ib = mesh->GetIndexBuffer();
-                    if (!vb.IsValid() || !ib.IsValid())
-                    {
-                        ++skippedNoBuffer;
-                        CHE_CORE_WARN("BuildDrawList: mesh skipped — vb.valid={} ib.valid={} indexCount={}",
-                                      vb.IsValid(), ib.IsValid(), mesh->GetIndexCount());
-                        continue;
-                    }
 
                     DrawItem item;
                     item.shader       = shaderHandle;
                     item.vertexBuffer = vb;
                     item.indexBuffer  = ib;
                     item.indexFormat  = mesh->GetIndexFormat();
-                    item.indexCount   = mesh->GetIndexCount();
+                    item.indexCount   = sm.indexCount;
+                    item.firstIndex   = sm.startIndex;
+                    item.baseVertex   = sm.baseVertex;
                     item.modelMatrix  = model;
                     item.object       = objectUBO;
-                    item.material     = mesh->GetMatInstance();
+                    item.material     = mat;
                     item.entity       = handle;
 
                     m_DrawList.push_back(std::move(item));

@@ -10,6 +10,7 @@
 #include <CHEngine/Application.h>
 
 #include <imgui_internal.h>
+#include <algorithm>
 
 
 
@@ -78,22 +79,25 @@ void UvEditorPanel::Draw(SceneViewLayerHost& host)
                                              { showHint("Selected object has no mesh");ImGui::End(); return; }
 
     CHEngine::MeshComponent& meshComp = entity->GetComponent<CHEngine::MeshComponent>();
-    if (meshComp.Meshes.empty())             { showHint("Mesh has no geometry");       ImGui::End(); return; }
+    if (!meshComp.Mesh.IsValid())            { showHint("Mesh has no geometry");       ImGui::End(); return; }
 
-    CHEngine::MeshRef& meshRef = meshComp.Meshes[0];
+    CHEngine::MeshRef& meshRef = meshComp.Mesh;
     CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
     const CHEngine::MeshGpuRecord* gpuRec = meshLoader->GetGpuRecord(meshRef.Handle());
-    if (!gpuRec || gpuRec->vertices.empty() || gpuRec->indices.empty())
+    if (!gpuRec || gpuRec->vertices.empty() || gpuRec->indices.empty() || gpuRec->subMeshes.empty())
                                              { showHint("Mesh has no geometry");       ImGui::End(); return; }
+    // UV editor operates on the first submesh only for now.
+    const uint32_t kEditedSubmesh = 0u;
     const auto& vertices = gpuRec->vertices;
     const auto& indices  = gpuRec->indices;
 
     // --- Get diffuse texture for background ---
     CHEngine::TextureHandle diffuseTex;
-    if (meshRef.IsValid() && meshRef->GetMatInstance())
+    auto editedMat = meshRef.IsValid() ? meshRef->GetMaterial(kEditedSubmesh) : nullptr;
+    if (editedMat)
     {
         CHEngine::TextureHandle spec;
-        meshRef->GetMatInstance()->ResolveTextures(diffuseTex, spec);
+        editedMat->ResolveTextures(diffuseTex, spec);
     }
 
     const float canvasW = ImGui::GetContentRegionAvail().x;
@@ -220,16 +224,35 @@ void UvEditorPanel::Draw(SceneViewLayerHost& host)
 
             if (du != 0.0f || dv != 0.0f)
             {
-                std::vector<glm::vec2> newUVs(vertices.size());
+                std::vector<glm::vec2> editedUVs(vertices.size());
                 for (size_t vi = 0; vi < vertices.size(); ++vi)
-                    newUVs[vi] = vertices[vi].TexCoords;
+                    editedUVs[vi] = vertices[vi].TexCoords;
 
                 for (int vi : uvGroups[m_DraggedGroup])
                 {
-                    newUVs[vi].x = std::clamp(newUVs[vi].x + du, 0.0f, 1.0f);
-                    newUVs[vi].y = std::clamp(newUVs[vi].y + dv, 0.0f, 1.0f);
+                    editedUVs[vi].x = std::clamp(editedUVs[vi].x + du, 0.0f, 1.0f);
+                    editedUVs[vi].y = std::clamp(editedUVs[vi].y + dv, 0.0f, 1.0f);
                 }
-                meshLoader->UpdateVertexUVs(meshRef.Handle(), newUVs);
+
+                // Pack UVs for the submesh's unique vertices in sorted order (matches MeshLoader contract).
+                const CHEngine::SubMesh& sm = gpuRec->subMeshes[kEditedSubmesh];
+                std::vector<uint32_t> unique;
+                unique.reserve(sm.indexCount);
+                const uint32_t endIdx = sm.startIndex + sm.indexCount;
+                for (uint32_t ii = sm.startIndex; ii < endIdx && ii < indices.size(); ++ii)
+                {
+                    const int64_t vidx = static_cast<int64_t>(indices[ii]) + sm.baseVertex;
+                    if (vidx >= 0 && static_cast<size_t>(vidx) < vertices.size())
+                        unique.push_back(static_cast<uint32_t>(vidx));
+                }
+                std::sort(unique.begin(), unique.end());
+                unique.erase(std::unique(unique.begin(), unique.end()), unique.end());
+
+                std::vector<glm::vec2> submeshUVs;
+                submeshUVs.reserve(unique.size());
+                for (uint32_t vi : unique) submeshUVs.push_back(editedUVs[vi]);
+
+                meshLoader->UpdateVertexUVs(meshRef.Handle(), kEditedSubmesh, submeshUVs);
                 m_UVGroupsDirty = true;
             }
         }

@@ -314,11 +314,13 @@ void DestroyUniqueMeshTextures(MeshComponent& meshComp)
     std::unordered_set<Material*> baseDiffuseDestroyed;
     std::unordered_set<Material*> baseSpecDestroyed;
 
-    for (auto& meshRef : meshComp.Meshes)
+    if (!meshComp.Mesh.IsValid()) return;
+    const Mesh* m = meshComp.Mesh.operator->();
+    if (!m) return;
+    for (const auto& matRef : m->GetMaterials())
     {
-        if (!meshRef.IsValid() || !meshRef->GetMatInstance())
-            continue;
-        MaterialInstance* p = meshRef->GetMatInstance().get();
+        if (!matRef) continue;
+        MaterialInstance* p = matRef.get();
         if (!seenInst.insert(p).second)
             continue;
         DestroyTexturesForInstance(p, baseDiffuseDestroyed, baseSpecDestroyed);
@@ -522,8 +524,8 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
         }
 
         EntityHandle handle{};
-        std::vector<MeshRef> importedMeshes;
-        bool hasImportedMeshes = false;
+        MeshRef importedMesh;
+        bool hasImportedMesh = false;
 
         if (!meshPath.empty()) {
             MeshLoader* meshLoader = Application::Get().Resources().GetMeshLoader();
@@ -543,10 +545,12 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                     {
                         sh = Application::Get().Render().GetDefaultMeshShader();
                     }
-                    meshLoader->SetMaterial(primMesh.Handle(),
-                        MaterialInstance::FromBase(std::make_shared<Material>(sh)));
-                    importedMeshes.push_back(std::move(primMesh));
-                    hasImportedMeshes = true;
+                    const uint32_t subCount = primMesh->GetSubMeshCount();
+                    for (uint32_t i = 0; i < subCount; ++i)
+                        meshLoader->SetMaterial(primMesh.Handle(), i,
+                            MaterialInstance::FromBase(std::make_shared<Material>(sh)));
+                    importedMesh = std::move(primMesh);
+                    hasImportedMesh = true;
                 }
             }
             else
@@ -555,33 +559,35 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
                     std::filesystem::path(meshPath), CHEngine::Application::Get().Render().GetDefaultMeshShader());
                 const LoadedModel* result = modelHandle.IsValid()
                     ? Application::Get().Resources().GetModel(modelHandle) : nullptr;
-                if (result && !result->meshes.empty()) {
-                    importedMeshes = result->meshes; // MeshRef copy — AddRefs shared GpuRecord
+                if (result && result->mesh.IsValid()) {
+                    importedMesh = result->mesh; // MeshRef copy — AddRefs shared GpuRecord
 
                     glm::vec3 centroid(0.0f);
                     size_t totalVerts = 0;
-                    for (auto& mesh : importedMeshes) {
-                        if (const auto* rec = meshLoader->GetGpuRecord(mesh.Handle())) {
-                            for (const auto& v : rec->vertices) {
-                                centroid += v.Position;
-                                ++totalVerts;
-                            }
+                    if (const auto* rec = meshLoader->GetGpuRecord(importedMesh.Handle())) {
+                        for (const auto& v : rec->vertices) {
+                            centroid += v.Position;
+                            ++totalVerts;
                         }
                     }
                     if (totalVerts > 0) centroid /= static_cast<float>(totalVerts);
 
                     if (totalVerts > 0 && glm::length(centroid) > 1e-5f) {
-                        for (auto& mesh : importedMeshes) {
-                            const auto* rec = meshLoader->GetGpuRecord(mesh.Handle());
-                            if (!rec) continue;
+                        const auto* rec = meshLoader->GetGpuRecord(importedMesh.Handle());
+                        if (rec) {
                             auto verts = rec->vertices;
                             for (auto& v : verts) v.Position -= centroid;
-                            Ref<MaterialInstance> mat = mesh->GetMatInstance();
-                            mesh = MeshRef{ meshLoader->GetOrCreate(verts, rec->indices, mat) };
+                            // Re-create record with shifted geometry; preserve submesh layout + materials.
+                            auto subs = rec->subMeshes;
+                            auto indicesCopy = rec->indices;
+                            std::vector<Ref<MaterialInstance>> mats = importedMesh->GetMaterials();
+                            importedMesh = MeshRef{
+                                meshLoader->GetOrCreate(verts, indicesCopy, subs, std::move(mats))
+                            };
                         }
                     }
 
-                    hasImportedMeshes = true;
+                    hasImportedMesh = true;
                 } else {
                     std::string normalizedPath = meshPath;
                     std::filesystem::path fsPath(meshPath);
@@ -609,8 +615,8 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
             obj = scene->TryGetEntity(handle); // re-resolve after potential storage realloc
             if (!obj) continue;
             auto& meshComp = obj->GetComponent<MeshComponent>();
-            if (hasImportedMeshes)
-                meshComp.Meshes = std::move(importedMeshes);
+            if (hasImportedMesh)
+                meshComp.Mesh = std::move(importedMesh);
             meshComp.SourcePath = meshPath;
         }
 
@@ -698,34 +704,39 @@ bool DeserializeSceneData(Ref<Scene> scene, const json& data)
         {
             MeshLoader* meshLoader = Application::Get().Resources().GetMeshLoader();
             auto* meshCompForMat = &obj->GetComponent<MeshComponent>();
-            for (auto& meshRef : meshCompForMat->Meshes)
+            if (meshCompForMat->Mesh.IsValid())
             {
-                if (!meshRef.IsValid()) continue;
-                if (!meshRef->GetMatInstance())
-                    meshLoader->SetMaterial(meshRef.Handle(),
-                        MaterialInstance::FromBase(std::make_shared<Material>(
-                            CHEngine::Application::Get().Render().GetDefaultMeshShader())));
-            }
-
-            if (o.contains("materials") && o["materials"].is_array())
-            {
-                const auto& arr = o["materials"];
-                for (size_t mi = 0; mi < arr.size() && mi < meshCompForMat->Meshes.size(); ++mi)
+                const Mesh* m = meshCompForMat->Mesh.operator->();
+                const uint32_t subCount = m ? m->GetSubMeshCount() : 0;
+                for (uint32_t i = 0; i < subCount; ++i)
                 {
-                    auto& meshRef = meshCompForMat->Meshes[mi];
-                    if (arr[mi].is_object() && meshRef.IsValid())
-                        ApplyMaterialFromJson(arr[mi], *meshRef->GetMatInstance());
+                    if (!m->GetMaterial(i))
+                        meshLoader->SetMaterial(meshCompForMat->Mesh.Handle(), i,
+                            MaterialInstance::FromBase(std::make_shared<Material>(
+                                CHEngine::Application::Get().Render().GetDefaultMeshShader())));
                 }
-            }
-            else if (o.contains("material") && o["material"].is_object())
-            {
-                auto& meshes = meshCompForMat->Meshes;
-                if (!meshes.empty() && meshes[0].IsValid())
+
+                if (o.contains("materials") && o["materials"].is_array())
                 {
-                    ApplyMaterialFromJson(o["material"], *meshes[0]->GetMatInstance());
-                    Ref<MaterialInstance> sharedMat = meshes[0]->GetMatInstance();
-                    for (size_t i = 1; i < meshes.size(); ++i)
-                        meshLoader->SetMaterial(meshes[i].Handle(), sharedMat);
+                    const auto& arr = o["materials"];
+                    for (size_t mi = 0; mi < arr.size() && mi < subCount; ++mi)
+                    {
+                        if (arr[mi].is_object())
+                        {
+                            auto mat = m->GetMaterial(static_cast<uint32_t>(mi));
+                            if (mat) ApplyMaterialFromJson(arr[mi], *mat);
+                        }
+                    }
+                }
+                else if (o.contains("material") && o["material"].is_object() && subCount > 0)
+                {
+                    auto mat0 = m->GetMaterial(0);
+                    if (mat0)
+                    {
+                        ApplyMaterialFromJson(o["material"], *mat0);
+                        for (uint32_t i = 1; i < subCount; ++i)
+                            meshLoader->SetMaterial(meshCompForMat->Mesh.Handle(), i, mat0);
+                    }
                 }
             }
         }
@@ -833,10 +844,12 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
             o["meshPath"] = meshComp.SourcePath;
 
             json materials = json::array();
-            for (const auto& meshRef : meshComp.Meshes)
+            const Mesh* mWrite = meshComp.Mesh.IsValid() ? meshComp.Mesh.operator->() : nullptr;
+            const uint32_t subCountWrite = mWrite ? mWrite->GetSubMeshCount() : 0;
+            for (uint32_t mi = 0; mi < subCountWrite; ++mi)
             {
                 json matObj;
-                Ref<MaterialInstance> mat = meshRef.IsValid() ? meshRef->GetMatInstance() : nullptr;
+                Ref<MaterialInstance> mat = mWrite->GetMaterial(mi);
                 if (mat) {
                     matObj["diffusePath"]   = mat->EffectiveDiffuseMapPath();
                     matObj["specularPath"]  = mat->EffectiveSpecularMapPath();
@@ -988,10 +1001,12 @@ nlohmann::json SceneSerializer::SerializeToJson(Ref<Scene> scene)
             o["meshPath"] = meshComp.SourcePath;
 
             json materials = json::array();
-            for (const auto& meshRef : meshComp.Meshes)
+            const Mesh* mWrite = meshComp.Mesh.IsValid() ? meshComp.Mesh.operator->() : nullptr;
+            const uint32_t subCountWrite = mWrite ? mWrite->GetSubMeshCount() : 0;
+            for (uint32_t mi = 0; mi < subCountWrite; ++mi)
             {
                 json matObj;
-                Ref<MaterialInstance> mat = meshRef.IsValid() ? meshRef->GetMatInstance() : nullptr;
+                Ref<MaterialInstance> mat = mWrite->GetMaterial(mi);
                 if (mat) {
                     matObj["diffusePath"]   = mat->EffectiveDiffuseMapPath();
                     matObj["specularPath"]  = mat->EffectiveSpecularMapPath();

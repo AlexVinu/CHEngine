@@ -49,94 +49,103 @@ namespace CHEngine {
 		std::unordered_map<int, Ref<MaterialInstance>> objMatByIdx;
 
 		auto getOrCreateObjMaterial = [&](int matIdx) -> Ref<MaterialInstance> {
-			if (matIdx < 0 || matIdx >= static_cast<int>(materials.size()))
-				return MaterialInstance::FromBase(std::make_shared<Material>(meshShader));
 			auto it = objMatByIdx.find(matIdx);
 			if (it != objMatByIdx.end())
 				return it->second;
 
-			auto base = std::make_shared<Material>(meshShader);
-			const std::string& texName = materials[static_cast<size_t>(matIdx)].diffuse_texname;
-			if (!texName.empty())
+			Ref<MaterialInstance> inst;
+			if (matIdx < 0 || matIdx >= static_cast<int>(materials.size()))
 			{
-				std::string texPath = baseDir + texName;
-				TextureHandle texHandle = Application::Get().Resources().Load<TextureHandle>(std::filesystem::path(texPath));
-				if (texHandle.IsValid())
-				{
-					base->DiffuseMapPath = texPath;
-					base->DiffuseMap = texHandle;
-				}
-				else
-				{
-					CHE_CORE_WARN("OBJ: failed to load texture '{0}'", texPath.c_str());
-				}
+				inst = MaterialInstance::FromBase(std::make_shared<Material>(meshShader));
 			}
-			auto inst = MaterialInstance::FromBase(base);
+			else
+			{
+				auto base = std::make_shared<Material>(meshShader);
+				const std::string& texName = materials[static_cast<size_t>(matIdx)].diffuse_texname;
+				if (!texName.empty())
+				{
+					std::string texPath = baseDir + texName;
+					TextureHandle texHandle = Application::Get().Resources().Load<TextureHandle>(std::filesystem::path(texPath));
+					if (texHandle.IsValid())
+					{
+						base->DiffuseMapPath = texPath;
+						base->DiffuseMap = texHandle;
+					}
+					else
+					{
+						CHE_CORE_WARN("OBJ: failed to load texture '{0}'", texPath.c_str());
+					}
+				}
+				inst = MaterialInstance::FromBase(base);
+			}
 			objMatByIdx[matIdx] = inst;
 			return inst;
 		};
 
+		// One global vertex pool deduplicated across all shapes/materials.
+		std::vector<Vertex> vertices;
+		// One global index pool. Per-material draw ranges go into subMeshes.
+		// We bucket indices by material into temporary buffers, then concatenate.
+		std::unordered_map<int, std::vector<uint32_t>> indicesByMat;
+
+		struct VertexHash {
+			size_t operator()(const std::tuple<int, int, int>& key) const {
+				auto h1 = std::hash<int>{}(std::get<0>(key));
+				auto h2 = std::hash<int>{}(std::get<1>(key));
+				auto h3 = std::hash<int>{}(std::get<2>(key));
+				return h1 ^ (h2 << 1) ^ (h3 << 2);
+			}
+		};
+		std::unordered_map<std::tuple<int, int, int>, uint32_t, VertexHash> uniqueVertices;
+
+		auto getVertexIndex = [&](const tinyobj::shape_t& shape, size_t faceOffset, int vertInFace,
+		                          bool hasNormals, const glm::vec3& faceNormal) -> uint32_t
+		{
+			const auto& idx = shape.mesh.indices[faceOffset + vertInFace];
+			auto key = std::make_tuple(idx.vertex_index, idx.normal_index, idx.texcoord_index);
+
+			auto it = uniqueVertices.find(key);
+			if (it != uniqueVertices.end())
+				return it->second;
+
+			Vertex vert{};
+			vert.Position = {
+				attrib.vertices[3 * idx.vertex_index],
+				attrib.vertices[3 * idx.vertex_index + 1],
+				attrib.vertices[3 * idx.vertex_index + 2]
+			};
+
+			if (hasNormals && idx.normal_index >= 0)
+			{
+				vert.Normal = {
+					attrib.normals[3 * idx.normal_index],
+					attrib.normals[3 * idx.normal_index + 1],
+					attrib.normals[3 * idx.normal_index + 2]
+				};
+			}
+			else
+			{
+				vert.Normal = faceNormal;
+			}
+
+			if (idx.texcoord_index >= 0)
+			{
+				vert.TexCoords = {
+					attrib.texcoords[2 * idx.texcoord_index],
+					attrib.texcoords[2 * idx.texcoord_index + 1]
+				};
+			}
+
+			vert.Color = { 1.0f, 1.0f, 1.0f };
+
+			uint32_t newIdx = static_cast<uint32_t>(vertices.size());
+			uniqueVertices[key] = newIdx;
+			vertices.push_back(vert);
+			return newIdx;
+		};
+
 		for (const auto& shape : shapes)
 		{
-			std::vector<Vertex> vertices;
-			std::vector<uint32_t> indices;
-
-			struct VertexHash {
-				size_t operator()(const std::tuple<int, int, int>& key) const {
-					auto h1 = std::hash<int>{}(std::get<0>(key));
-					auto h2 = std::hash<int>{}(std::get<1>(key));
-					auto h3 = std::hash<int>{}(std::get<2>(key));
-					return h1 ^ (h2 << 1) ^ (h3 << 2);
-				}
-			};
-			std::unordered_map<std::tuple<int, int, int>, uint32_t, VertexHash> uniqueVertices;
-
-			auto getVertexIndex = [&](size_t faceOffset, int vertInFace,
-			                          bool hasNormals, const glm::vec3& faceNormal) -> uint32_t
-			{
-				const auto& idx = shape.mesh.indices[faceOffset + vertInFace];
-				auto key = std::make_tuple(idx.vertex_index, idx.normal_index, idx.texcoord_index);
-
-				auto it = uniqueVertices.find(key);
-				if (it != uniqueVertices.end())
-					return it->second;
-
-				Vertex vert{};
-				vert.Position = {
-					attrib.vertices[3 * idx.vertex_index],
-					attrib.vertices[3 * idx.vertex_index + 1],
-					attrib.vertices[3 * idx.vertex_index + 2]
-				};
-
-				if (hasNormals && idx.normal_index >= 0)
-				{
-					vert.Normal = {
-						attrib.normals[3 * idx.normal_index],
-						attrib.normals[3 * idx.normal_index + 1],
-						attrib.normals[3 * idx.normal_index + 2]
-					};
-				}
-				else
-				{
-					vert.Normal = faceNormal;
-				}
-
-				if (idx.texcoord_index >= 0)
-				{
-					vert.TexCoords = {
-						attrib.texcoords[2 * idx.texcoord_index],
-						attrib.texcoords[2 * idx.texcoord_index + 1]
-					};
-				}
-
-				vert.Color = { 1.0f, 1.0f, 1.0f };
-
-				uint32_t newIdx = static_cast<uint32_t>(vertices.size());
-				uniqueVertices[key] = newIdx;
-				vertices.push_back(vert);
-				return newIdx;
-			};
-
 			size_t indexOffset = 0;
 			for (size_t f = 0; f < shape.mesh.num_face_vertices.size(); f++)
 			{
@@ -173,39 +182,60 @@ namespace CHEngine {
 					}
 				}
 
-				uint32_t idx0 = getVertexIndex(indexOffset, 0, hasNormals, faceNormal);
+				const int matIdx = (f < shape.mesh.material_ids.size())
+					? shape.mesh.material_ids[f]
+					: -1;
+				auto& bucket = indicesByMat[matIdx];
+
+				uint32_t i0 = getVertexIndex(shape, indexOffset, 0, hasNormals, faceNormal);
 				for (int v = 1; v < fv - 1; v++)
 				{
-					uint32_t idx1 = getVertexIndex(indexOffset, v,     hasNormals, faceNormal);
-					uint32_t idx2 = getVertexIndex(indexOffset, v + 1, hasNormals, faceNormal);
-					indices.push_back(idx0);
-					indices.push_back(idx1);
-					indices.push_back(idx2);
+					uint32_t i1 = getVertexIndex(shape, indexOffset, v,     hasNormals, faceNormal);
+					uint32_t i2 = getVertexIndex(shape, indexOffset, v + 1, hasNormals, faceNormal);
+					bucket.push_back(i0);
+					bucket.push_back(i1);
+					bucket.push_back(i2);
 				}
 
 				indexOffset += fv;
 			}
-
-			if (!vertices.empty())
-			{
-				int matIdx = -1;
-				if (!shape.mesh.material_ids.empty())
-					matIdx = shape.mesh.material_ids[0];
-
-				Ref<MaterialInstance> mat = getOrCreateObjMaterial(matIdx);
-				MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
-				result->meshes.push_back(MeshRef{ loader->GetOrCreate(vertices, indices, std::move(mat)) });
-			}
 		}
 
-		if (result->meshes.empty())
+		if (vertices.empty() || indicesByMat.empty())
 		{
 			CHE_CORE_WARN("No geometry found in OBJ file: {}", filepath.string());
 			delete result;
 			return {};
 		}
 
-		CHE_CORE_INFO("Loaded OBJ '{}': {} mesh(es)", result->name.c_str(), result->meshes.size());
+		// Concatenate per-material buckets into one IB; build submeshes + materials in parallel.
+		std::vector<uint32_t> indices;
+		std::vector<SubMesh>  subMeshes;
+		std::vector<Ref<MaterialInstance>> matsOut;
+		for (auto& kv : indicesByMat)
+		{
+			if (kv.second.empty()) continue;
+			SubMesh sm{};
+			sm.startIndex = static_cast<uint32_t>(indices.size());
+			sm.indexCount = static_cast<uint32_t>(kv.second.size());
+			sm.baseVertex = 0;
+			indices.insert(indices.end(), kv.second.begin(), kv.second.end());
+			subMeshes.push_back(sm);
+			matsOut.push_back(getOrCreateObjMaterial(kv.first));
+		}
+
+		MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
+		result->mesh = MeshRef{ loader->GetOrCreate(vertices, indices, subMeshes, std::move(matsOut)) };
+
+		if (!result->mesh.IsValid())
+		{
+			CHE_CORE_WARN("OBJ load produced invalid mesh: {}", filepath.string());
+			delete result;
+			return {};
+		}
+
+		CHE_CORE_INFO("Loaded OBJ '{}': {} submesh(es), {} vertices",
+		              result->name.c_str(), subMeshes.size(), vertices.size());
 		return m_Models.Add(result);
 	}
 

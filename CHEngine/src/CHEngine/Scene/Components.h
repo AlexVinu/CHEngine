@@ -45,8 +45,8 @@ namespace CHEngine {
     };
 
     struct MeshComponent {
-        std::vector<MeshRef> Meshes;
-        std::string          SourcePath;  // original file path for serialization
+        MeshRef     Mesh;
+        std::string SourcePath;  // original file path for serialization
     };
 
     struct ColorComponent {

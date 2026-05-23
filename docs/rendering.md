@@ -105,13 +105,21 @@ RenderFacade::DestroyTexture(tex);
 
 ### GPU-буферы меша
 
-Меши не создаются вручную — они строятся через `Mesh::Build()`.
-`MeshLoader` кэширует идентичную геометрию и считает ссылки:
+Меши создаются через `MeshLoader::GetOrCreate` — напрямую или через загрузчики моделей.
+`MeshLoader` кэширует идентичную геометрию и считает ссылки.
 
 ```cpp
-Mesh mesh;
-mesh.Build(vertices, indices); // Загружает в GPU через MeshLoader::GetOrCreate
-// Деструктор Mesh автоматически вызывает MeshLoader::Release
+MeshLoader* ml = Application::Get().Resources().GetMeshLoader();
+
+// Краткая форма: один субмеш, один материал
+MeshHandle h = ml->GetOrCreate(vertices, indices, mat);
+
+// Полная форма: несколько субмешей с явными диапазонами
+// materials.size() должен совпадать с subMeshes.size()
+MeshHandle h = ml->GetOrCreate(vertices, indices, subMeshes, materials);
+
+// MeshRef автоматически AddRef/Release при копировании/уничтожении
+MeshRef ref{ h };
 ```
 
 Стандартный лейаут вершин (11 float на вершину, stride = 44 байта):
@@ -159,9 +167,16 @@ layout(std140, binding = 0) uniform Camera {
 
 ```
 ForEach<MeshComponent, TransformComponent, VisibilityComponent>:
-  if Visible:
-    for Mesh in MeshComponent.Meshes:
-      RenderFacade::Submit(mesh.shader, mesh.vao, transform.GetMatrix())
+  if Visible && Mesh.IsValid():
+    rec = MeshLoader::GetGpuRecord(Mesh.Handle())
+    for s in 0..Mesh->GetSubMeshCount():
+      item.vertexBuffer = rec->vb
+      item.indexBuffer  = rec->ib
+      item.indexCount   = rec->subMeshes[s].indexCount
+      item.firstIndex   = rec->subMeshes[s].startIndex
+      item.baseVertex   = rec->subMeshes[s].baseVertex
+      item.material     = Mesh->GetMaterial(s)
+      DrawList.push(item)
 ```
 
 Чтобы отключить объект:
@@ -182,12 +197,15 @@ ShaderHandle meshShader = RenderFacade::GetDefaultMeshShader();
 ModelHandle handle = rm.Load<ModelHandle>("assets/models/scene.obj", meshShader);
 
 const LoadedModel* model = rm.GetModel(handle);
-if (model && !model->meshes.empty())
+if (model && model->mesh.IsValid())
 {
-    // Копирование — GPU-буферы разделяются через MeshLoader (refcount)
-    entity.GetComponent<MeshComponent>().Meshes = model->meshes;
+    // MeshRef copy — AddRef'ит общий GpuRecord через MeshLoader
+    entity.GetComponent<MeshComponent>().Mesh = model->mesh;
 }
 ```
+
+Все примитивы/шейпы модели объединяются в **один** `MeshRef` с несколькими субмешами.
+Каждый субмеш имеет свой диапазон индексов и независимый материал.
 
 Поддерживаемые форматы: `.obj`, `.gltf`, `.glb`.  
 Поддерживаются: меши, материалы (PBR/диффуз/specular), текстуры, UV-развёртка.

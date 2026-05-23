@@ -377,13 +377,12 @@ void SceneViewLayerHost::AddCubePrimitive()
     entity->AddComponent<CHEngine::MeshComponent>();
 
     CHEngine::MeshRef cube_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:cube");
-    CHEngine::Application::Get().Resources().GetMeshLoader()->SetMaterial(cube_mesh.Handle(),
+    CHEngine::Application::Get().Resources().GetMeshLoader()->SetMaterial(cube_mesh.Handle(), 0,
         CHEngine::MaterialInstance::FromBase(
             std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
     entity->PatchComponent<CHEngine::MeshComponent>(
         [cube_mesh = std::move(cube_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
-            mesh_component.Meshes.clear();
-            mesh_component.Meshes.push_back(std::move(cube_mesh));
+            mesh_component.Mesh = std::move(cube_mesh);
             mesh_component.SourcePath = ":primitive:cube";
         });
 
@@ -409,13 +408,12 @@ void SceneViewLayerHost::AddSpherePrimitive()
     // Sphere impostor: 2 triangles + ray-sphere intersection in shader.
     // World radius is encoded as the entity's transform scale (scale == radius).
     CHEngine::MeshRef sphere_mesh = CHEngine::Application::Get().Resources().LoadPrimitiveMesh(":primitive:sphere");
-    CHEngine::Application::Get().Resources().GetMeshLoader()->SetMaterial(sphere_mesh.Handle(),
+    CHEngine::Application::Get().Resources().GetMeshLoader()->SetMaterial(sphere_mesh.Handle(), 0,
         CHEngine::MaterialInstance::FromBase(
             std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereImpostorShader())));
     entity->PatchComponent<CHEngine::MeshComponent>(
         [sphere_mesh = std::move(sphere_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
-            mesh_component.Meshes.clear();
-            mesh_component.Meshes.push_back(std::move(sphere_mesh));
+            mesh_component.Mesh = std::move(sphere_mesh);
             mesh_component.SourcePath = ":primitive:sphere";
         });
 
@@ -1181,15 +1179,16 @@ void SceneViewLayerHost::ApplyDiffuseTextureToSelectedSubmesh(size_t submesh_ind
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
     const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
-    if (submesh_index >= meshComp.Meshes.size())
+    if (!meshComp.Mesh.IsValid() || submesh_index >= meshComp.Mesh->GetSubMeshCount())
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
-        auto& subMesh = mesh_component.Meshes[submesh_index];
+        auto& subMesh = mesh_component.Mesh;
         CHEngine::MeshLoader* ml = CHEngine::Application::Get().Resources().GetMeshLoader();
-        if (!subMesh->GetMatInstance())
-            ml->SetMaterial(subMesh.Handle(), CHEngine::MaterialInstance::FromBase(
-                std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
-        auto mat_ref = subMesh->GetMatInstance();
+        if (!subMesh->GetMaterial(static_cast<uint32_t>(submesh_index)))
+            ml->SetMaterial(subMesh.Handle(), static_cast<uint32_t>(submesh_index),
+                CHEngine::MaterialInstance::FromBase(
+                    std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
+        auto mat_ref = subMesh->GetMaterial(static_cast<uint32_t>(submesh_index));
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (d0.IsValid())
@@ -1215,13 +1214,13 @@ void SceneViewLayerHost::ClearDiffuseTextureOnSelectedSubmesh(size_t submesh_ind
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
     const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
-    if (submesh_index >= meshComp.Meshes.size())
+    if (!meshComp.Mesh.IsValid() || submesh_index >= meshComp.Mesh->GetSubMeshCount())
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
-        auto& subMesh = mesh_component.Meshes[submesh_index];
-        if (!subMesh.IsValid() || !subMesh->GetMatInstance())
+        auto& subMesh = mesh_component.Mesh;
+        auto mat_ref = subMesh.IsValid() ? subMesh->GetMaterial(static_cast<uint32_t>(submesh_index)) : nullptr;
+        if (!mat_ref)
             return;
-        auto mat_ref = subMesh->GetMatInstance();
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (d0.IsValid())
@@ -1247,15 +1246,16 @@ void SceneViewLayerHost::ApplySpecularTextureToSelectedSubmesh(size_t submesh_in
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
     const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
-    if (submesh_index >= meshComp.Meshes.size())
+    if (!meshComp.Mesh.IsValid() || submesh_index >= meshComp.Mesh->GetSubMeshCount())
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
-        auto& subMesh = mesh_component.Meshes[submesh_index];
+        auto& subMesh = mesh_component.Mesh;
         CHEngine::MeshLoader* ml = CHEngine::Application::Get().Resources().GetMeshLoader();
-        if (!subMesh->GetMatInstance())
-            ml->SetMaterial(subMesh.Handle(), CHEngine::MaterialInstance::FromBase(
-                std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
-        auto mat_ref = subMesh->GetMatInstance();
+        if (!subMesh->GetMaterial(static_cast<uint32_t>(submesh_index)))
+            ml->SetMaterial(subMesh.Handle(), static_cast<uint32_t>(submesh_index),
+                CHEngine::MaterialInstance::FromBase(
+                    std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
+        auto mat_ref = subMesh->GetMaterial(static_cast<uint32_t>(submesh_index));
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (s0.IsValid())
@@ -1281,13 +1281,13 @@ void SceneViewLayerHost::ClearSpecularTextureOnSelectedSubmesh(size_t submesh_in
     if (!selectedEntity || !selectedEntity->HasComponent<CHEngine::MeshComponent>())
         return;
     const auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
-    if (submesh_index >= meshComp.Meshes.size())
+    if (!meshComp.Mesh.IsValid() || submesh_index >= meshComp.Mesh->GetSubMeshCount())
         return;
     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
-        auto& subMesh = mesh_component.Meshes[submesh_index];
-        if (!subMesh.IsValid() || !subMesh->GetMatInstance())
+        auto& subMesh = mesh_component.Mesh;
+        auto mat_ref = subMesh.IsValid() ? subMesh->GetMaterial(static_cast<uint32_t>(submesh_index)) : nullptr;
+        if (!mat_ref)
             return;
-        auto mat_ref = subMesh->GetMatInstance();
         CHEngine::TextureHandle d0, s0;
         mat_ref->ResolveTextures(d0, s0);
         if (s0.IsValid())

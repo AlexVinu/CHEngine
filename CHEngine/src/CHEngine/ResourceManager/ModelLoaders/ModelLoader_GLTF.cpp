@@ -22,7 +22,7 @@ namespace CHEngine {
 	Ref<MaterialInstance> CreateGltfMaterialInstance(const tinygltf::Model& model, int materialIndex,
 	                                                             ShaderHandle meshShader)
 	{
-		auto base = std::make_shared<Material>(meshShader);
+		auto base = MakeRef<Material>(meshShader);
 
 		if (materialIndex < 0 || materialIndex >= static_cast<int>(model.materials.size()))
 			return MaterialInstance::FromBase(base);
@@ -97,6 +97,12 @@ namespace CHEngine {
 			gltfMats.push_back(CreateGltfMaterialInstance(model, static_cast<int>(mi), meshShader));
 
 		auto defaultMat = MaterialInstance::FromBase(MakeRef<Material>(meshShader));
+
+		// Global pools for the whole model.
+		std::vector<Vertex>   verticesAll;
+		std::vector<uint32_t> indicesAll;
+		std::vector<SubMesh>  subMeshes;
+		std::vector<Ref<MaterialInstance>> matsOut;
 
 		for (const auto& gltfMesh : model.meshes)
 		{
@@ -217,20 +223,44 @@ namespace CHEngine {
 					    ? gltfMats[static_cast<size_t>(matIdx)]
 					    : defaultMat;
 
-					MeshLoader* loader = Application::Get().Resources().GetMeshLoader();
-					result.meshes.push_back(MeshRef{ loader->GetOrCreate(vertices, indices, std::move(mat)) });
+					// Append this primitive's vertices/indices to global pools,
+					// shifting indices by current vertex count.
+					const uint32_t vertexBase = static_cast<uint32_t>(verticesAll.size());
+					const uint32_t indexStart = static_cast<uint32_t>(indicesAll.size());
+
+					verticesAll.insert(verticesAll.end(), vertices.begin(), vertices.end());
+					indicesAll.reserve(indicesAll.size() + indices.size());
+					for (uint32_t idx : indices)
+						indicesAll.push_back(idx + vertexBase);
+
+					SubMesh sm{};
+					sm.startIndex = indexStart;
+					sm.indexCount = static_cast<uint32_t>(indices.size());
+					sm.baseVertex = 0;
+					subMeshes.push_back(sm);
+					matsOut.push_back(std::move(mat));
 				}
 			}
 		}
 
-		if (result.meshes.empty())
+		if (verticesAll.empty() || subMeshes.empty())
 		{
 			CHE_CORE_WARN("No geometry found in GLTF file: {}", filepath.string());
 			return {};
 		}
 
+		MeshLoader* meshLoader = Application::Get().Resources().GetMeshLoader();
+		result.mesh = MeshRef{ meshLoader->GetOrCreate(verticesAll, indicesAll, subMeshes, std::move(matsOut)) };
+
+		if (!result.mesh.IsValid())
+		{
+			CHE_CORE_WARN("GLTF load produced invalid mesh: {}", filepath.string());
+			return {};
+		}
+
 		result.success = true;
-		CHE_CORE_INFO("Loaded GLTF '{}': {} mesh(es)", result.name.c_str(), result.meshes.size());
+		CHE_CORE_INFO("Loaded GLTF '{}': {} submesh(es), {} vertices",
+		              result.name.c_str(), subMeshes.size(), verticesAll.size());
 		return m_Models.Add(new LoadedModel(std::move(result)));
 	}
 

@@ -357,29 +357,30 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 ImGui::Spacing();
             }
 
-            for (size_t mi = 0; mi < meshComp.Meshes.size(); ++mi)
+            const uint32_t subCountUI = meshComp.Mesh.IsValid() ? meshComp.Mesh->GetSubMeshCount() : 0;
+            for (uint32_t mi = 0; mi < subCountUI; ++mi)
             {
                 ImGui::PushID(static_cast<int>(mi));
-                if (meshComp.Meshes.size() > 1)
+                if (subCountUI > 1)
                 {
                     ImGui::Spacing();
                     ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
-                    ImGui::Text("Mesh %zu", mi);
+                    ImGui::Text("SubMesh %u", mi);
                     ImGui::PopStyleColor();
                 }
 
-                auto& subMesh = meshComp.Meshes[mi];
-                if (!subMesh.IsValid() || !subMesh->GetMatInstance())
+                auto& subMesh = meshComp.Mesh;
+                if (!subMesh.IsValid() || !subMesh->GetMaterial(mi))
                 {
-                    const size_t submeshIndex = mi;
+                    const uint32_t submeshIndex = mi;
                     CHEngine::MeshLoader* ml = CHEngine::Application::Get().Resources().GetMeshLoader();
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
-                        auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
-                        ml->SetMaterial(patchSubMesh.Handle(), CHEngine::MaterialInstance::FromBase(
-                            std::make_shared<CHEngine::Material>(host.GetEditorViewport().GetMeshShader())));
+                        ml->SetMaterial(mesh_component.Mesh.Handle(), submeshIndex,
+                            CHEngine::MaterialInstance::FromBase(
+                                std::make_shared<CHEngine::Material>(host.GetEditorViewport().GetMeshShader())));
                     });
                 }
-                auto mat_ref = selectedEntity->GetComponent<CHEngine::MeshComponent>().Meshes[mi]->GetMatInstance();
+                auto mat_ref = selectedEntity->GetComponent<CHEngine::MeshComponent>().Mesh->GetMaterial(mi);
 
                 ImGui::Spacing();
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
@@ -406,7 +407,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         std::string path = CHEngine::FileDialog::OpenImageFile();
                         if (!path.empty())
                         {
-                            const size_t submeshIndex = mi;
+                            const uint32_t submeshIndex = mi;
                             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                                 [&host, submeshIndex, path] {
                                     host.ApplyDiffuseTextureToSelectedSubmesh(submeshIndex, path);
@@ -419,7 +420,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     ImGui::SameLine(0, 4);
                     if (ImGui::Button("X##difMesh", ImVec2(20, 0)))
                     {
-                        const size_t submeshIndex = mi;
+                        const uint32_t submeshIndex = mi;
                         host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                             [&host, submeshIndex] { host.ClearDiffuseTextureOnSelectedSubmesh(submeshIndex); },
                             [] {}, false));
@@ -448,7 +449,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         std::string path = CHEngine::FileDialog::OpenImageFile();
                         if (!path.empty())
                         {
-                            const size_t submeshIndex = mi;
+                            const uint32_t submeshIndex = mi;
                             host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                                 [&host, submeshIndex, path] {
                                     host.ApplySpecularTextureToSelectedSubmesh(submeshIndex, path);
@@ -461,7 +462,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     ImGui::SameLine(0, 4);
                     if (ImGui::Button("X##specMesh", ImVec2(20, 0)))
                     {
-                        const size_t submeshIndex = mi;
+                        const uint32_t submeshIndex = mi;
                         host.GetCommandStack().Push(MakeScope<CallbackCommand>(
                             [&host, submeshIndex] { host.ClearSpecularTextureOnSelectedSubmesh(submeshIndex); },
                             [] {}, false));
@@ -478,12 +479,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 float shininess = mat_ref->Shininess;
                 if (ImGui::DragFloat("##shinMesh", &shininess, 0.5f, 1.0f, 256.0f, "%.1f"))
                 {
-                    const size_t submeshIndex = mi;
+                    const uint32_t submeshIndex = mi;
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>(
                         [&](CHEngine::MeshComponent& mesh_component) {
-                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
-                            if (patchSubMesh.IsValid() && patchSubMesh->GetMatInstance())
-                                patchSubMesh->GetMatInstance()->Shininess = shininess;
+                            auto m = mesh_component.Mesh.IsValid() ? mesh_component.Mesh->GetMaterial(submeshIndex) : nullptr;
+                            if (m) m->Shininess = shininess;
                         });
                 }
 
@@ -495,12 +495,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 float specularScale = mat_ref->SpecularScale;
                 if (ImGui::DragFloat("##specScaleMesh", &specularScale, 0.02f, 0.0f, 4.0f, "%.2f"))
                 {
-                    const size_t submeshIndex = mi;
+                    const uint32_t submeshIndex = mi;
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>(
                         [&](CHEngine::MeshComponent& mesh_component) {
-                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
-                            if (patchSubMesh.IsValid() && patchSubMesh->GetMatInstance())
-                                patchSubMesh->GetMatInstance()->SpecularScale = specularScale;
+                            auto m = mesh_component.Mesh.IsValid() ? mesh_component.Mesh->GetMaterial(submeshIndex) : nullptr;
+                            if (m) m->SpecularScale = specularScale;
                         });
                 }
 
@@ -512,13 +511,12 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 bool usePBR = (mat_ref->GetMaterial()->MaterialFlags & CHEngine::kPBR_EnablePBR) != 0;
                 if (ImGui::Checkbox("Enable PBR##pbrEnable", &usePBR))
                 {
-                    const size_t submeshIndex = mi;
+                    const uint32_t submeshIndex = mi;
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>(
                         [&](CHEngine::MeshComponent& mesh_component) {
-                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
-                            if (patchSubMesh.IsValid() && patchSubMesh->GetMatInstance())
+                            auto mat = mesh_component.Mesh.IsValid() ? mesh_component.Mesh->GetMaterial(submeshIndex) : nullptr;
+                            if (mat)
                             {
-                                auto mat = patchSubMesh->GetMatInstance();
                                 if (usePBR)
                                     mat->GetMaterial()->MaterialFlags |= CHEngine::kPBR_EnablePBR;
                                 else
@@ -538,12 +536,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 float roughness = mat_ref->Roughness;
                 if (ImGui::DragFloat("##roughnessMesh", &roughness, 0.005f, 0.0f, 1.0f, "%.3f"))
                 {
-                    const size_t submeshIndex = mi;
+                    const uint32_t submeshIndex = mi;
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>(
                         [&](CHEngine::MeshComponent& mesh_component) {
-                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
-                            if (patchSubMesh.IsValid() && patchSubMesh->GetMatInstance())
-                                patchSubMesh->GetMatInstance()->Roughness = roughness;
+                            auto m = mesh_component.Mesh.IsValid() ? mesh_component.Mesh->GetMaterial(submeshIndex) : nullptr;
+                            if (m) m->Roughness = roughness;
                         });
                 }
 
@@ -555,12 +552,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 float metallic = mat_ref->Metallic;
                 if (ImGui::DragFloat("##metallicMesh", &metallic, 0.005f, 0.0f, 1.0f, "%.3f"))
                 {
-                    const size_t submeshIndex = mi;
+                    const uint32_t submeshIndex = mi;
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>(
                         [&](CHEngine::MeshComponent& mesh_component) {
-                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
-                            if (patchSubMesh.IsValid() && patchSubMesh->GetMatInstance())
-                                patchSubMesh->GetMatInstance()->Metallic = metallic;
+                            auto m = mesh_component.Mesh.IsValid() ? mesh_component.Mesh->GetMaterial(submeshIndex) : nullptr;
+                            if (m) m->Metallic = metallic;
                         });
                 }
 
@@ -572,12 +568,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 float ao = mat_ref->AO;
                 if (ImGui::DragFloat("##aoMesh", &ao, 0.005f, 0.0f, 1.0f, "%.3f"))
                 {
-                    const size_t submeshIndex = mi;
+                    const uint32_t submeshIndex = mi;
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>(
                         [&](CHEngine::MeshComponent& mesh_component) {
-                            auto& patchSubMesh = mesh_component.Meshes[submeshIndex];
-                            if (patchSubMesh.IsValid() && patchSubMesh->GetMatInstance())
-                                patchSubMesh->GetMatInstance()->AO = ao;
+                            auto m = mesh_component.Mesh.IsValid() ? mesh_component.Mesh->GetMaterial(submeshIndex) : nullptr;
+                            if (m) m->AO = ao;
                         });
                 }
 
@@ -1476,17 +1471,18 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     {
         auto& meshComp = selectedEntity->GetComponent<CHEngine::MeshComponent>();
         CHEngine::MeshLoader* meshLoader = CHEngine::Application::Get().Resources().GetMeshLoader();
-        uint32_t tv = 0, ti = 0;
-        for (auto& m : meshComp.Meshes)
+        uint32_t tv = 0, ti = 0, subCnt = 0;
+        if (meshComp.Mesh.IsValid())
         {
-            if (const auto* rec = meshLoader->GetGpuRecord(m.Handle()))
+            if (const auto* rec = meshLoader->GetGpuRecord(meshComp.Mesh.Handle()))
             {
                 tv += static_cast<uint32_t>(rec->vertices.size());
                 ti += static_cast<uint32_t>(rec->indices.size());
             }
+            subCnt = meshComp.Mesh->GetSubMeshCount();
         }
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
-        ImGui::Text("Meshes      %zu", meshComp.Meshes.size());
+        ImGui::Text("SubMeshes   %u", subCnt);
         ImGui::Text("Vertices    %u", tv);
         ImGui::Text("Triangles   %u", ti / 3);
         ImGui::PopStyleColor();

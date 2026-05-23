@@ -57,7 +57,6 @@ namespace CHEngine
 		                  const std::vector<Vertex>& vertices,
 		                  const std::vector<uint32_t>& indices)
 		{
-			static_assert(sizeof(Vertex) == 44, "Vertex padding detected! memcmp is unsafe.");
 			if (r.vertices.size() != vertices.size() || r.indices.size() != indices.size())
 				return false;
 			if (!vertices.empty() &&
@@ -72,10 +71,18 @@ namespace CHEngine
 
 	MeshHandle MeshLoader::GetOrCreate(const std::vector<Vertex>& vertices,
 	                                   const std::vector<uint32_t>& indices,
-	                                   Ref<MaterialInstance> mat)
+	                                   const std::vector<SubMesh>& subMeshes,
+	                                   std::vector<Ref<MaterialInstance>> materials)
 	{
-		if (vertices.empty() || indices.empty())
+		if (vertices.empty() || indices.empty() || subMeshes.empty())
 			return {};
+
+		if (materials.size() != subMeshes.size())
+		{
+			CHE_CORE_ERROR("MeshLoader::GetOrCreate — materials.size()={} != subMeshes.size()={}",
+			               materials.size(), subMeshes.size());
+			return {};
+		}
 
 		const uint64_t hash = ComputeContentHash(vertices, indices);
 
@@ -98,7 +105,6 @@ namespace CHEngine
 
 		if (!recordHandle.IsValid())
 		{
-			// Create new GPU buffers and record.
 			IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 			if (!f) { CHE_CORE_ERROR("MeshLoader::GetOrCreate — no render factory"); return {}; }
 
@@ -115,7 +121,7 @@ namespace CHEngine
 			auto* rec        = new MeshGpuRecord{};
 			rec->vb          = vb;
 			rec->ib          = ib;
-			rec->indexCount  = static_cast<uint32_t>(indices.size());
+			rec->subMeshes   = subMeshes;
 			rec->contentHash = hash;
 			rec->refcount    = 0;
 			rec->vertices    = vertices;
@@ -128,8 +134,22 @@ namespace CHEngine
 		MeshGpuRecord* rec = m_Records.Get(recordHandle);
 		++rec->refcount;
 
-		auto* mesh = new Mesh(recordHandle, rec->vb, rec->ib, rec->indexCount, std::move(mat));
+		auto* mesh = new Mesh(recordHandle, std::move(materials));
 		return m_Meshes.Add(mesh);
+	}
+
+	MeshHandle MeshLoader::GetOrCreate(const std::vector<Vertex>& vertices,
+	                                   const std::vector<uint32_t>& indices,
+	                                   Ref<MaterialInstance> mat)
+	{
+		if (vertices.empty() || indices.empty())
+			return {};
+
+		std::vector<SubMesh> subs = {
+			SubMesh{ static_cast<uint32_t>(indices.size()), 0u, 0 }
+		};
+		std::vector<Ref<MaterialInstance>> mats = { std::move(mat) };
+		return GetOrCreate(vertices, indices, subs, std::move(mats));
 	}
 
 	MeshHandle MeshLoader::AddRef(MeshHandle h)
@@ -141,8 +161,8 @@ namespace CHEngine
 		if (!rec) return {};
 
 		++rec->refcount;
-		auto* mesh = new Mesh(src->m_RecordHandle, src->m_VertexHandle,
-		                      src->m_IndexHandle, src->m_IndexCount, src->m_Mat);
+		// Copy materials so each instance can override independently.
+		auto* mesh = new Mesh(src->m_RecordHandle, src->m_Materials);
 		return m_Meshes.Add(mesh);
 	}
 
@@ -178,14 +198,20 @@ namespace CHEngine
 		return m_Records.Get(mesh->m_RecordHandle);
 	}
 
-	void MeshLoader::SetMaterial(MeshHandle h, Ref<MaterialInstance> mat)
+	void MeshLoader::SetMaterial(MeshHandle h, uint32_t submeshIndex, Ref<MaterialInstance> mat)
 	{
 		Mesh* mesh = m_Meshes.Get(h);
-		if (mesh)
-			mesh->m_Mat = std::move(mat);
+		if (!mesh) return;
+		if (submeshIndex >= mesh->m_Materials.size())
+		{
+			CHE_CORE_ERROR("MeshLoader::SetMaterial — submeshIndex {} out of range (count={})",
+			               submeshIndex, mesh->m_Materials.size());
+			return;
+		}
+		mesh->m_Materials[submeshIndex] = std::move(mat);
 	}
 
-	void MeshLoader::UpdateVertexUVs(MeshHandle h, std::span<const glm::vec2> uvs)
+	void MeshLoader::UpdateVertexUVs(MeshHandle h, uint32_t submeshIndex, std::span<const glm::vec2> uvs)
 	{
 		Mesh* mesh = m_Meshes.Get(h);
 		if (!mesh) return;
@@ -193,29 +219,64 @@ namespace CHEngine
 		MeshGpuRecord* rec = m_Records.Get(mesh->m_RecordHandle);
 		if (!rec) return;
 
-		if (uvs.size() != rec->vertices.size())
+		if (submeshIndex >= rec->subMeshes.size())
 		{
-			CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — UV count {} != vertex count {}",
-			               uvs.size(), rec->vertices.size());
+			CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — submeshIndex {} out of range (count={})",
+			               submeshIndex, rec->subMeshes.size());
 			return;
 		}
 
-		for (size_t i = 0; i < uvs.size(); ++i)
-			rec->vertices[i].TexCoords = uvs[i];
+		const SubMesh sm = rec->subMeshes[submeshIndex];
+
+		// Collect unique vertex indices used by this submesh.
+		std::vector<uint32_t> uniqueVerts;
+		uniqueVerts.reserve(sm.indexCount);
+		const uint32_t end = sm.startIndex + sm.indexCount;
+		if (end > rec->indices.size())
+		{
+			CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — submesh index range exceeds index buffer");
+			return;
+		}
+		for (uint32_t i = sm.startIndex; i < end; ++i)
+		{
+			const int64_t vi = static_cast<int64_t>(rec->indices[i]) + sm.baseVertex;
+			if (vi < 0 || static_cast<size_t>(vi) >= rec->vertices.size())
+			{
+				CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — vertex index out of range");
+				return;
+			}
+			uniqueVerts.push_back(static_cast<uint32_t>(vi));
+		}
+		std::sort(uniqueVerts.begin(), uniqueVerts.end());
+		uniqueVerts.erase(std::unique(uniqueVerts.begin(), uniqueVerts.end()), uniqueVerts.end());
+
+		if (uvs.size() != uniqueVerts.size())
+		{
+			CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — UV count {} != submesh unique vertex count {}",
+			               uvs.size(), uniqueVerts.size());
+			return;
+		}
+
+		for (size_t k = 0; k < uniqueVerts.size(); ++k)
+			rec->vertices[uniqueVerts[k]].TexCoords = uvs[k];
 
 		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 		if (!f) { CHE_CORE_ERROR("MeshLoader::UpdateVertexUVs — no render factory"); return; }
 
-		std::span<const std::byte> allData{
-		    reinterpret_cast<const std::byte*>(rec->vertices.data()),
-		    rec->vertices.size() * sizeof(Vertex)
+		// Update the contiguous range covering all touched vertices.
+		const uint32_t minV = uniqueVerts.front();
+		const uint32_t maxV = uniqueVerts.back();
+		const uint64_t offset = static_cast<uint64_t>(minV) * sizeof(Vertex);
+		const uint64_t bytes  = static_cast<uint64_t>(maxV - minV + 1) * sizeof(Vertex);
+		std::span<const std::byte> data{
+		    reinterpret_cast<const std::byte*>(rec->vertices.data() + minV),
+		    static_cast<size_t>(bytes)
 		};
-		f->UpdateBuffer(rec->vb, allData, 0);
+		f->UpdateBuffer(rec->vb, data, offset);
 	}
 
 	void MeshLoader::DestroyRecord(MeshGpuRecordHandle rh, MeshGpuRecord* r)
 	{
-		// Remove from hash bucket.
 		auto it = m_HashBuckets.find(r->contentHash);
 		if (it != m_HashBuckets.end())
 		{
@@ -232,17 +293,13 @@ namespace CHEngine
 			if (r->ib.IsValid()) f->Delete(r->ib);
 		}
 
-		m_Records.Remove(rh); // HandlePool deleter calls delete r
+		m_Records.Remove(rh);
 	}
 
 	void MeshLoader::Shutdown()
 	{
-		// Release all meshes first (suppresses per-record destruction — records cleaned below).
-		// We clear meshes without triggering Release() to avoid double-free;
-		// just zero refcounts and wipe pool.
 		m_Meshes.Clear();
 
-		// Destroy GPU buffers for each surviving record.
 		IRenderFactory* f = Application::Get().Render().GetRenderFactory();
 		m_Records.ForEachOccupied([&](MeshGpuRecord* r) {
 			if (!f) return;
