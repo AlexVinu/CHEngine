@@ -19,8 +19,8 @@ void CloneTo(entt::registry& dst, entt::entity dstE,
     dst.emplace_or_replace<T>(dstE, src.get<T>(srcE));
 }
 
-// RigidBody3DComponent: copy only the data desc, leave runtime pointers null.
-// IPhysicsBody* and IPhysicsShape* will be (re)created via OnTransferIn / OnComponentAdded hooks.
+// RigidBody3DComponent: copy only the data desc, leave runtime handles invalid.
+// PhysBody / PhysShape handles will be (re)created via OnTransferIn / OnComponentAdded hooks.
 template<>
 void CloneTo<RigidBody3DComponent>(entt::registry& dst, entt::entity dstE,
                                     entt::registry& src, entt::entity srcE)
@@ -32,8 +32,8 @@ void CloneTo<RigidBody3DComponent>(entt::registry& dst, entt::entity dstE,
     d.ShapeDesc            = s.ShapeDesc;
     d.SyncMode             = s.SyncMode;
     d.SynchronisedTransform = s.SynchronisedTransform;
-    d.Body                 = nullptr;
-    d.Shape                = nullptr;
+    d.Body                 = {};
+    d.Shape                = {};
 }
 
 template<typename... Ts>

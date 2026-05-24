@@ -267,6 +267,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                                 transform_component.ObjectTransform.Rotation = vec;
                             else if (std::strcmp(id, "##sclTr") == 0)
                                 transform_component.ObjectTransform.Scale = vec;
+                            transform_component.MarkDirty();
                         });
                 }
                 if (ImGui::IsItemActivated())
@@ -966,7 +967,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             {
                 selectedEntity->PatchComponent<CHEngine::RigidBody3DComponent>(
                     [&](CHEngine::RigidBody3DComponent& rigidbody_component) {
-                        rigidbody_component.ShapeDesc.Type = static_cast<CHEngine::PhysicsColliderShapeType>(st);
+                        rigidbody_component.ShapeDesc.Type = static_cast<CHEngine::PhysShapeType>(st);
                     });
             }
 

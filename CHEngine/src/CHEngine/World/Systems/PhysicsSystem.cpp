@@ -6,6 +6,7 @@
 #include "CHEngine/World/World.h"
 #include "CHEngine/World/WorldEvents.h"
 #include "CHEngine/Application.h"
+#include "CHEngine/Physics/PhysicsSubsystem.h"
 
 
 #include <algorithm>
@@ -18,19 +19,24 @@ void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
     if (dt <= 0.0f)
         return;
 
-    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().get();
-    if (!runtimeWorld)
+    PhysWorldHandle runtimeWorld = world.GetPhysicsRuntimeWorld();
+    if (!runtimeWorld.IsValid())
         return;
 
+    auto* factory = Application::Get().Physics()->GetFactory();
     auto scene = world.GetSceneRef();
 
+    // Write block: transform → physics (пропускаем, если ничего не изменилось).
     scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
-        if (!rigidBody.Body)
+        if (!rigidBody.Body.IsValid())
             return;
 
-        const PhysicsBodyType bodyType = rigidBody.Body->GetType();
+        const PhysicsBodyType bodyType = factory->GetBodyType(rigidBody.Body);
         if (!ShouldWriteToPhysics(rigidBody.SyncMode, bodyType))
             return;
+
+        if (!transformComponent.Dirty)
+            return;   // fast-path: ничего не менялось с прошлого кадра
 
         const Transform& transform = transformComponent.ObjectTransform;
         PhysicsTransform physicsTransform{};
@@ -38,24 +44,30 @@ void PhysicsSystem::Run(World& world, DeferredOps& deferred_ops, Timestep dt)
         physicsTransform.Rotation = glm::quat(glm::radians(transform.Rotation));
 
         if (bodyType == PhysicsBodyType::Kinematic)
-            rigidBody.Body->SetKinematicTarget(physicsTransform);
+            factory->SetBodyKinematicTarget(rigidBody.Body, physicsTransform);
         else
-            rigidBody.Body->SetTransform(physicsTransform);
+            factory->SetBodyTransform(rigidBody.Body, physicsTransform);
+
+        transformComponent.Dirty = false;
     });
 
-    runtimeWorld->StepSimulation(dt);
+    factory->StepSimulation(runtimeWorld, dt);
 
+    // Read block: physics → transform (всегда, физика авторитетна для Dynamic).
     scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
-        if (!rigidBody.Body)
+        if (!rigidBody.Body.IsValid())
             return;
 
-        const PhysicsBodyType bodyType = rigidBody.Body->GetType();
+        const PhysicsBodyType bodyType = factory->GetBodyType(rigidBody.Body);
         if (!ShouldReadFromPhysics(rigidBody.SyncMode, bodyType))
             return;
 
-        const PhysicsTransform physicsTransform = rigidBody.Body->GetTransform();
+        const PhysicsTransform physicsTransform = factory->GetBodyTransform(rigidBody.Body);
         transformComponent.ObjectTransform.Position = physicsTransform.Position;
         transformComponent.ObjectTransform.Rotation = glm::degrees(glm::eulerAngles(physicsTransform.Rotation));
+        // Физика только что записала позицию — обнуляем dirty, чтобы
+        // следующий write-блок не re-uploadил то же значение обратно.
+        transformComponent.Dirty = false;
     });
 }
 
@@ -115,12 +127,17 @@ void PhysicsSystem::RebuildPhysicsRuntime(World& world)
 {
     ClearPhysicsRuntime(world);
 
-    IPhysicsWorld* runtimeWorld = Application::Get().Physics()->CreateWorld(world.GetPhysicsWorldDesc());
-    if (!runtimeWorld)
+    if (!Application::Get().HasPhysics())
         return;
 
-    world.GetPhysicsRuntimeWorld().reset(runtimeWorld);
+    auto* physics = Application::Get().Physics();
+    PhysWorldHandle runtimeWorld = physics->CreateWorld(world.GetPhysicsWorldDesc());
+    if (!runtimeWorld.IsValid())
+        return;
 
+    world.SetPhysicsRuntimeWorld(runtimeWorld);
+
+    auto* factory = physics->GetFactory();
     auto scene = world.GetSceneRef();
 
     scene->ForEach<RigidBody3DComponent, TransformComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody, TransformComponent& transformComponent) {
@@ -128,45 +145,53 @@ void PhysicsSystem::RebuildPhysicsRuntime(World& world)
         initialTransform.Position = transformComponent.ObjectTransform.Position;
         initialTransform.Rotation = glm::quat(glm::radians(transformComponent.ObjectTransform.Rotation));
 
-        auto bodyDesc = rigidBody.BodyDesc;
-        auto shapeDesc = rigidBody.ShapeDesc;
-        auto* shape = Application::Get().Physics()->CreateShape(shapeDesc);
-        rigidBody.Shape = shape;
-        rigidBody.Body = world.GetPhysicsRuntimeWorld()->CreateRigidBody(bodyDesc, shape);
+        rigidBody.Shape = physics->CreateShape(rigidBody.ShapeDesc);
+        rigidBody.Body  = factory->CreateRigidBody(runtimeWorld, rigidBody.BodyDesc, rigidBody.Shape);
 
-        if (rigidBody.Body)
-            rigidBody.Body->SetTransform(initialTransform);
-        });
+        if (rigidBody.Body.IsValid())
+        {
+            factory->SetBodyTransform(rigidBody.Body, initialTransform);
+            transformComponent.Dirty = false;   // физика синхронизирована
+        }
+    });
 }
 
 void PhysicsSystem::ClearPhysicsRuntime(World& world)
 {
-    // Release ownership before DestroyWorld: the factory deletes the instance;
-    // unique_ptr must not delete the same pointer again.
-    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().release();
+    PhysWorldHandle runtimeWorld = world.GetPhysicsRuntimeWorld();
+    world.SetPhysicsRuntimeWorld({});
+
+    if (!Application::Get().HasPhysics())
+        return;
+
+    auto* physics = Application::Get().Physics();
+    auto* factory = physics->GetFactory();
     auto scene = world.GetSceneRef();
+
     if (scene)
     {
         scene->ForEach<RigidBody3DComponent>([&](EntityHandle, const UUID&, RigidBody3DComponent& rigidBody) {
-            if (runtimeWorld && rigidBody.Body)
-                runtimeWorld->DestroyRigidBody(rigidBody.Body);
-            rigidBody.Body = nullptr;
-
-            if (Application::Get().HasPhysics() && rigidBody.Shape)
-                Application::Get().Physics()->Delete(rigidBody.Shape);
-            rigidBody.Shape = nullptr;
-
-            });
+            if (rigidBody.Body.IsValid())
+            {
+                factory->Delete(rigidBody.Body);
+                rigidBody.Body = {};
+            }
+            if (rigidBody.Shape.IsValid())
+            {
+                physics->Delete(rigidBody.Shape);
+                rigidBody.Shape = {};
+            }
+        });
     }
 
-    if (runtimeWorld)
-        Application::Get().Physics()->DestroyWorld(runtimeWorld);
+    if (runtimeWorld.IsValid())
+        physics->DestroyWorld(runtimeWorld);
 }
 
 void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
 {
-    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().get();
-    if (!runtimeWorld)
+    PhysWorldHandle runtimeWorld = world.GetPhysicsRuntimeWorld();
+    if (!runtimeWorld.IsValid() || !Application::Get().HasPhysics())
         return;
 
     auto scene = world.GetSceneRef();
@@ -184,18 +209,23 @@ void PhysicsSystem::CreateRigidBody(World& world, EntityHandle handle)
     initialTransform.Position = transform.Position;
     initialTransform.Rotation = glm::quat(glm::radians(transform.Rotation));
 
-    auto* shape = Application::Get().Physics()->CreateShape(rigidBody.ShapeDesc);
-    rigidBody.Shape = shape;
-    rigidBody.Body = runtimeWorld->CreateRigidBody(rigidBody.BodyDesc, shape);
+    auto* physics = Application::Get().Physics();
+    auto* factory = physics->GetFactory();
 
-    if (rigidBody.Body)
-        rigidBody.Body->SetTransform(initialTransform);
+    rigidBody.Shape = physics->CreateShape(rigidBody.ShapeDesc);
+    rigidBody.Body  = factory->CreateRigidBody(runtimeWorld, rigidBody.BodyDesc, rigidBody.Shape);
+
+    if (rigidBody.Body.IsValid())
+    {
+        factory->SetBodyTransform(rigidBody.Body, initialTransform);
+        entity->PatchComponent<TransformComponent>([](TransformComponent& tc) { tc.Dirty = false; });
+    }
 }
 
 void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
 {
     auto scene = world.GetSceneRef();
-    if (!scene)
+    if (!scene || !Application::Get().HasPhysics())
         return;
 
     auto* entity = scene->TryGetEntity(handle);
@@ -204,42 +234,52 @@ void PhysicsSystem::DestroyRigidBody(World& world, EntityHandle handle)
 
     auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
 
-    if (world.GetPhysicsRuntimeWorld() && rigidBody.Body)
-        world.GetPhysicsRuntimeWorld()->DestroyRigidBody(rigidBody.Body);
-    rigidBody.Body = nullptr;
+    auto* physics = Application::Get().Physics();
+    auto* factory = physics->GetFactory();
 
-    if (Application::Get().HasPhysics() && rigidBody.Shape)
-        Application::Get().Physics()->Delete(rigidBody.Shape);
-    rigidBody.Shape = nullptr;
+    if (rigidBody.Body.IsValid())
+    {
+        factory->Delete(rigidBody.Body);
+        rigidBody.Body = {};
+    }
+    if (rigidBody.Shape.IsValid())
+    {
+        physics->Delete(rigidBody.Shape);
+        rigidBody.Shape = {};
+    }
 }
+
 void PhysicsSystem::OnTransferOut(World& world, EntityHandle handle, TransferContext& ctx)
 {
     auto scene = world.GetSceneRef();
-    if (!scene) return;
+    if (!scene || !Application::Get().HasPhysics()) return;
 
     auto* entity = scene->TryGetEntity(handle);
     if (!entity || !entity->HasComponent<RigidBody3DComponent>()) return;
 
     auto& rigidBody = entity->GetComponent<RigidBody3DComponent>();
 
-    if (rigidBody.Body)
+    auto* physics = Application::Get().Physics();
+    auto* factory = physics->GetFactory();
+
+    if (rigidBody.Body.IsValid())
     {
-        ctx.Set<glm::vec3>(rigidBody.Body->GetLinearVelocity());
-        world.GetPhysicsRuntimeWorld()->DestroyRigidBody(rigidBody.Body);
-        rigidBody.Body = nullptr;
+        ctx.Set<glm::vec3>(factory->GetBodyLinearVelocity(rigidBody.Body));
+        factory->Delete(rigidBody.Body);
+        rigidBody.Body = {};
     }
 
-    if (Application::Get().HasPhysics() && rigidBody.Shape)
+    if (rigidBody.Shape.IsValid())
     {
-        Application::Get().Physics()->Delete(rigidBody.Shape);
-        rigidBody.Shape = nullptr;
+        physics->Delete(rigidBody.Shape);
+        rigidBody.Shape = {};
     }
 }
 
 void PhysicsSystem::OnTransferIn(World& world, EntityHandle handle, const TransferContext& ctx)
 {
-    IPhysicsWorld* runtimeWorld = world.GetPhysicsRuntimeWorld().get();
-    if (!runtimeWorld) return;
+    PhysWorldHandle runtimeWorld = world.GetPhysicsRuntimeWorld();
+    if (!runtimeWorld.IsValid() || !Application::Get().HasPhysics()) return;
 
     auto scene = world.GetSceneRef();
     if (!scene) return;
@@ -254,15 +294,17 @@ void PhysicsSystem::OnTransferIn(World& world, EntityHandle handle, const Transf
     physicsTransform.Position = transform.Position;
     physicsTransform.Rotation = glm::quat(glm::radians(transform.Rotation));
 
-    auto* shape = Application::Get().Physics()->CreateShape(rigidBody.ShapeDesc);
-    rigidBody.Shape = shape;
-    rigidBody.Body = runtimeWorld->CreateRigidBody(rigidBody.BodyDesc, shape);
+    auto* physics = Application::Get().Physics();
+    auto* factory = physics->GetFactory();
 
-    if (rigidBody.Body)
+    rigidBody.Shape = physics->CreateShape(rigidBody.ShapeDesc);
+    rigidBody.Body  = factory->CreateRigidBody(runtimeWorld, rigidBody.BodyDesc, rigidBody.Shape);
+
+    if (rigidBody.Body.IsValid())
     {
-        rigidBody.Body->SetTransform(physicsTransform);
+        factory->SetBodyTransform(rigidBody.Body, physicsTransform);
         if (const glm::vec3* vel = ctx.TryGet<glm::vec3>())
-            rigidBody.Body->SetLinearVelocity(*vel);
+            factory->SetBodyLinearVelocity(rigidBody.Body, *vel);
     }
 }
 

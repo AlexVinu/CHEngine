@@ -7,7 +7,8 @@
 #include "EventBus.h"
 #include "SystemScheduler.h"
 #include "WorldsList.h"
-#include "Physics/IPhysicsWorld.h"
+#include "Physics/PhysicsTypes.h"
+#include "Physics/Handles.h"
 #include "CHEngine/Scene/Components.h"
 
 #include <string>
@@ -57,8 +58,8 @@ namespace CHEngine
 
         void SetPhysicsWorldDesc(const PhysicsWorldDesc& world_desc);
         const PhysicsWorldDesc& GetPhysicsWorldDesc() const { return m_PhysicsWorldDesc; }
-        Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() { return m_PhysicsWorld; }
-        const Scope<IPhysicsWorld>& GetPhysicsRuntimeWorld() const { return m_PhysicsWorld; }
+        PhysWorldHandle GetPhysicsRuntimeWorld() const { return m_PhysicsWorld; }
+        void SetPhysicsRuntimeWorld(PhysWorldHandle handle) { m_PhysicsWorld = handle; }
 
         // Getters
         SystemScheduler& GetScheduler() { return m_Scheduler; }
@@ -83,7 +84,7 @@ namespace CHEngine
         DeferredOps m_DeferredOps;
         EventBus m_EventBus;
         PhysicsWorldDesc m_PhysicsWorldDesc{};
-        Scope<IPhysicsWorld> m_PhysicsWorld;
+        PhysWorldHandle m_PhysicsWorld{};
         Ref<Scene> m_Scene      = nullptr;
         // WARNING !!!!!!!!!!!!!!!!
         // SHIT CODE but its necessary

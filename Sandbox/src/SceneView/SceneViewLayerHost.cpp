@@ -314,6 +314,7 @@ void SceneViewLayerHost::AddDirectionalLight()
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Directional } });
         entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
             transform_component.ObjectTransform.Rotation = { -45.0f, -30.0f, 0.0f };
+            transform_component.MarkDirty();
         });
         activeSession->SelectedEntity = handle;
     }
@@ -334,6 +335,7 @@ void SceneViewLayerHost::AddPointLight()
             CHEngine::LightComponent{ CHEngine::Light{ CHEngine::LightType::Point } });
         entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
             transform_component.ObjectTransform.Position = { 0.0f, 3.0f, 0.0f };
+            transform_component.MarkDirty();
         });
         activeSession->SelectedEntity = handle;
     }
@@ -355,6 +357,7 @@ void SceneViewLayerHost::AddSpotLight()
         entity->PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& transform_component) {
             transform_component.ObjectTransform.Position = { 0.0f, 5.0f, 0.0f };
             transform_component.ObjectTransform.Rotation = { -90.0f, 0.0f, 0.0f };
+            transform_component.MarkDirty();
         });
         activeSession->SelectedEntity = handle;
     }
@@ -727,6 +730,7 @@ void SceneViewLayerHost::SetSelectedEntityPosition(float x, float y, float z)
     entity->PatchComponent<CHEngine::TransformComponent>(
         [x, y, z](CHEngine::TransformComponent& tc) {
             tc.ObjectTransform.Position = { x, y, z };
+            tc.MarkDirty();
         });
 }
 
@@ -888,7 +892,7 @@ void SceneViewLayerHost::SetSelectedEntityRotation(float x, float y, float z)
     auto* e = scene->TryGetEntity(session->SelectedEntity);
     if (!e || !e->HasComponent<CHEngine::TransformComponent>()) return;
     e->PatchComponent<CHEngine::TransformComponent>(
-        [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Rotation = {x,y,z}; });
+        [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Rotation = {x,y,z}; tc.MarkDirty(); });
 }
 
 void SceneViewLayerHost::SetSelectedEntityScale(float x, float y, float z)
@@ -899,7 +903,7 @@ void SceneViewLayerHost::SetSelectedEntityScale(float x, float y, float z)
     auto* e = scene->TryGetEntity(session->SelectedEntity);
     if (!e || !e->HasComponent<CHEngine::TransformComponent>()) return;
     e->PatchComponent<CHEngine::TransformComponent>(
-        [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Scale = {x,y,z}; });
+        [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Scale = {x,y,z}; tc.MarkDirty(); });
 }
 
 void SceneViewLayerHost::RenameSelectedEntity(const std::string& newName)
@@ -927,7 +931,7 @@ void SceneViewLayerHost::SetEntityPositionByName(const std::string& name,
     for (auto h : FindHandlesByName(scene0, name))
         if (auto* e = scene0->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
             e->PatchComponent<CHEngine::TransformComponent>(
-                [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Position = {x,y,z}; });
+                [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Position = {x,y,z}; tc.MarkDirty(); });
 }
 
 void SceneViewLayerHost::SetEntityRotationByName(const std::string& name,
@@ -938,7 +942,7 @@ void SceneViewLayerHost::SetEntityRotationByName(const std::string& name,
     for (auto h : FindHandlesByName(scene1, name))
         if (auto* e = scene1->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
             e->PatchComponent<CHEngine::TransformComponent>(
-                [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Rotation = {x,y,z}; });
+                [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Rotation = {x,y,z}; tc.MarkDirty(); });
 }
 
 void SceneViewLayerHost::SetEntityScaleByName(const std::string& name,
@@ -949,7 +953,7 @@ void SceneViewLayerHost::SetEntityScaleByName(const std::string& name,
     for (auto h : FindHandlesByName(scene2, name))
         if (auto* e = scene2->TryGetEntity(h); e && e->HasComponent<CHEngine::TransformComponent>())
             e->PatchComponent<CHEngine::TransformComponent>(
-                [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Scale = {x,y,z}; });
+                [x,y,z](CHEngine::TransformComponent& tc) { tc.ObjectTransform.Scale = {x,y,z}; tc.MarkDirty(); });
 }
 
 void SceneViewLayerHost::SetEntityColorByName(const std::string& name,

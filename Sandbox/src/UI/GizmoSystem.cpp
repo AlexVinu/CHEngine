@@ -99,6 +99,7 @@ void GizmoSystem::Draw(SceneSession* scene_session,
             transform_component.ObjectTransform.Position = { translation[0], translation[1], translation[2] };
             transform_component.ObjectTransform.Rotation = { rotation[0], rotation[1], rotation[2] };
             transform_component.ObjectTransform.Scale = { scale[0], scale[1], scale[2] };
+            transform_component.MarkDirty();
         });
     }
 

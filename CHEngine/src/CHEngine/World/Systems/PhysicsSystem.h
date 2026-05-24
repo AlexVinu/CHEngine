@@ -3,7 +3,8 @@
 #include "CHEngine/Scene/Components.h"
 #include "CHEngine/Scene/Scene.h"
 #include "CHEngine/World/ISystem.h"
-#include "Physics/IPhysicsWorld.h"
+#include "Physics/Handles.h"
+#include "Physics/PhysicsTypes.h"
 #include "CHEngine/World/DeferredOps.h"
 
 #include <cstdint>

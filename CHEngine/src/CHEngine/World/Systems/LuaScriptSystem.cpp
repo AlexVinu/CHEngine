@@ -190,7 +190,11 @@ struct ScriptEntity
     void SetPosition(float x, float y, float z) const
     {
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
-            e->GetComponent<TransformComponent>().ObjectTransform.Position = { x, y, z };
+        {
+            auto& tc = e->GetComponent<TransformComponent>();
+            tc.ObjectTransform.Position = { x, y, z };
+            tc.MarkDirty();
+        }
     }
 
     sol::table GetRotation(sol::this_state s) const
@@ -206,7 +210,11 @@ struct ScriptEntity
     void SetRotation(float x, float y, float z) const
     {
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
-            e->GetComponent<TransformComponent>().ObjectTransform.Rotation = { x, y, z };
+        {
+            auto& tc = e->GetComponent<TransformComponent>();
+            tc.ObjectTransform.Rotation = { x, y, z };
+            tc.MarkDirty();
+        }
     }
 
     sol::table GetScale(sol::this_state s) const
@@ -222,7 +230,11 @@ struct ScriptEntity
     void SetScale(float x, float y, float z) const
     {
         if (auto* e = GetEntity(); e && e->HasComponent<TransformComponent>())
-            e->GetComponent<TransformComponent>().ObjectTransform.Scale = { x, y, z };
+        {
+            auto& tc = e->GetComponent<TransformComponent>();
+            tc.ObjectTransform.Scale = { x, y, z };
+            tc.MarkDirty();
+        }
     }
 
     sol::table GetColor(sol::this_state s) const

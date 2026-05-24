@@ -9,16 +9,18 @@
 #include "CHEngine/Camera/PerspectiveCamera.h"
 #include "CHEngine/Camera/OrthographicCamera.h"
 #include <Physics/PhysicsTypes.h>
-#include <Physics/IPhysicsBody.h>
-#include <Physics/IPhysicsShape.h>
+#include <Physics/PhysicsTypes.h>   // RigidBodySyncMode, PhysicsRigidBodyDesc, ...
+#include <Physics/IPhysicsShape.h>  // PhysicsColliderShapeDesc / PhysShapeType
+#include <Physics/Handles.h>
 #include <glm/glm.hpp>
 
 
 // NOTE: Components must be POD structures
+
 namespace CHEngine {
 
-    class IPhysicsBody;
-    class IPhysicsShape;
+    //std::unordered_map<uint32_t, std::string> string_pool;
+    //std::unordered_map<uint32_t, std::vector<ScriptEntry>> script_pool;
 
     struct IDComponent
     {
@@ -42,6 +44,9 @@ namespace CHEngine {
     // Render
     struct TransformComponent {
         Transform ObjectTransform;
+        bool Dirty = true;
+
+        void MarkDirty() { Dirty = true; }
     };
 
     struct MeshComponent {
@@ -77,8 +82,8 @@ namespace CHEngine {
         PhysicsColliderShapeDesc ShapeDesc{};
         RigidBodySyncMode SyncMode = RigidBodySyncMode::Auto;
 
-        IPhysicsBody* Body = nullptr;
-        IPhysicsShape* Shape = nullptr;
+        PhysBodyHandle  Body{};
+        PhysShapeHandle Shape{};
 
         bool SynchronisedTransform = true;
     };

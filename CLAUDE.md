@@ -133,6 +133,60 @@ ShaderHandle sh = RenderFacade::CreateShaderFromFile("name", "shaders/mesh.slang
 
 `Handle::IsValid()` — проверяет `index != 0xFFFFFFFF`.
 
+### Физика — handle-based API
+
+Физика полностью перешла на модель хэндлов, симметричную рендеру. Единственный виртуальный класс — `IPhysicsFactory`; PhysX-объекты живут в сторах внутри бэкенда.
+
+**Хэндл-типы** (`Core/Interfaces/Physics/Handles.h`):
+```cpp
+using PhysWorldHandle = Handle<PhysWorldTag>;   // физический мир (PxScene)
+using PhysBodyHandle  = Handle<PhysBodyTag>;    // тело (PxRigidActor)
+using PhysShapeHandle = Handle<PhysShapeTag>;   // дескриптор шейпа
+```
+
+**`IPhysicsFactory`** — единственный публичный API физики. Основные группы методов:
+- World: `CreateWorld`, `Delete(PhysWorldHandle)`, `SetGravity`, `StepSimulation`, `SetContactListener`
+- Shapes: `CreateShape(PhysShapeDesc)`, `Delete(PhysShapeHandle)` — `PhysShapeDesc = variant<BoxDesc, SphereDesc, CapsuleDesc>`
+- Bodies: `CreateRigidBody`, `Delete(PhysBodyHandle)`, `GetBodyType/Transform`, `SetBodyTransform/KinematicTarget`, линейная скорость, силы
+- Queries: `Raycast`, `OverlapSphere/Box/Capsule`
+
+**Бэкенд** (`PhysicsFactoryPhysX`) — нативные сторы с generation-битами:
+- `WorldRecord { PxScene*, PxDefaultCpuDispatcher*, IPhysicsContactListener*, ContactCallbackPhysX }`
+- `BodyRecord  { PxRigidActor*, PhysWorldHandle, PhysicsBodyType }`
+- `ShapeRecord { PhysXShapeType, halfExtents/radius/halfHeight }` — чистый дескриптор, `PxShape` создаётся только при `CreateRigidBody`
+- Обратный индекс `unordered_map<PxRigidActor*, PhysBodyHandle>` для contact callbacks и query results
+- `Delete(PhysWorldHandle)` инвалидирует все BodyRecord этого мира, затем `PxScene::release()` каскадно освобождает акторов
+
+**`PhysicsSubsystem`** (`CHEngine/Physics`) — тонкий прокси. Конвертирует POD `PhysicsColliderShapeDesc` → `PhysShapeDesc` variant; выставляет `GetFactory()` для прямого доступа к body/query API.
+
+**`RigidBody3DComponent`** (ECS):
+```cpp
+struct RigidBody3DComponent {
+    PhysicsRigidBodyDesc   BodyDesc{};    // параметры создания тела
+    PhysicsColliderShapeDesc ShapeDesc{}; // параметры шейпа
+    RigidBodySyncMode       SyncMode = RigidBodySyncMode::Auto;
+    PhysBodyHandle          Body{};       // handle, невалиден вне Play-режима
+    PhysShapeHandle         Shape{};      // handle дескриптора шейпа
+    bool SynchronisedTransform = true;
+};
+```
+
+**`TransformComponent::Dirty`** — оптимизация write-path:
+```cpp
+struct TransformComponent {
+    Transform ObjectTransform;
+    bool Dirty = true;    // true = пользователь изменил, физика не знает
+    void MarkDirty() { Dirty = true; }
+};
+```
+В `PhysicsSystem::Run` write-блок пропускается если `!Dirty`. Read-блок (физика → transform) всегда сбрасывает `Dirty = false`. Любое изменение `ObjectTransform` из кода (Gizmo, Properties, Undo, скрипт) обязано вызвать `MarkDirty()`.
+
+**`IPhysicsContactListener`** (`Core/Interfaces/Physics/IPhysicsContactListener.h`):
+```cpp
+struct PhysicsContactEvent { PhysBodyHandle BodyA, BodyB; glm::vec3 Point, Normal; };
+class IPhysicsContactListener { virtual void OnContact(const PhysicsContactEvent&) = 0; };
+```
+
 ### Mesh / Submesh архитектура
 
 **Модель данных:** один `MeshGpuRecord` хранит единый VB + IB для всей модели. Отдельные части описываются массивом `SubMesh`:

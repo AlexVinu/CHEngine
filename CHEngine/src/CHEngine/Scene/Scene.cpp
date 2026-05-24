@@ -269,13 +269,13 @@ namespace CHEngine {
 
 			switch (scaledShapeDesc.Type)
 			{
-			case PhysicsColliderShapeType::Box:
+			case PhysShapeType::Box:
 				scaledShapeDesc.HalfExtents = absScale;
 				break;
-			case PhysicsColliderShapeType::Sphere:
+			case PhysShapeType::Sphere:
 				scaledShapeDesc.Radius = maxAxisAbsScale;
 				break;
-			case PhysicsColliderShapeType::Capsule:
+			case PhysShapeType::Capsule:
 				scaledShapeDesc.Radius = maxAxisAbsScale;
 				scaledShapeDesc.HalfHeight = maxAxisAbsScale;
 				break;

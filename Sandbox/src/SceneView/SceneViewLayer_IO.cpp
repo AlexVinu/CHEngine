@@ -629,6 +629,7 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     });
     entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {
         transform_component.ObjectTransform.Position = centroid;
+        transform_component.MarkDirty();
     });
     activeSession->SelectedEntity = handle;
     activeSession->CommandStack.Push(MakeScope<Sandbox::CallbackCommand>(

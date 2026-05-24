@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Handles.h"
+
 #include <cstdint>
 #include <vector>
 
@@ -8,8 +10,6 @@
 
 namespace CHEngine
 {
-    class IPhysicsBody;
-
     struct PhysicsTransform
     {
         glm::vec3 Position{ 0.0f };
@@ -53,16 +53,16 @@ namespace CHEngine
 
     struct PhysicsRaycastHit
     {
-        bool          HasHit   = false;
-        float         Distance = 0.0f;
-        glm::vec3     Position{};
-        glm::vec3     Normal{};
-        IPhysicsBody* Body = nullptr;
+        bool           HasHit   = false;
+        float          Distance = 0.0f;
+        glm::vec3      Position{};
+        glm::vec3      Normal{};
+        PhysBodyHandle Body{};
     };
 
     struct PhysicsOverlapHit
     {
-        IPhysicsBody* Body = nullptr;
+        PhysBodyHandle Body{};
     };
 
     struct PhysicsOverlapResult
@@ -73,9 +73,17 @@ namespace CHEngine
 
     struct PhysicsContactEvent
     {
-        IPhysicsBody* BodyA = nullptr;
-        IPhysicsBody* BodyB = nullptr;
-        glm::vec3     Point{};
-        glm::vec3     Normal{};
+        PhysBodyHandle BodyA{};
+        PhysBodyHandle BodyB{};
+        glm::vec3      Point{};
+        glm::vec3      Normal{};
+    };
+
+    enum class RigidBodySyncMode : uint8_t
+    {
+        Auto           = 0,
+        ReadFromPhysics = 1,
+        WriteToPhysics  = 2,
+        ReadWrite       = 3
     };
 }

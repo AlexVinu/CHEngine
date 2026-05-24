@@ -456,8 +456,8 @@ RigidBody3DComponent DeserializeRigidBody(const json& rbj)
 
     if (rbj.contains("shape") && rbj["shape"].is_object()) {
         const auto& shapeJson = rbj["shape"];
-        rigidBody.ShapeDesc.Type = static_cast<PhysicsColliderShapeType>(
-            shapeJson.value("type", static_cast<int>(PhysicsColliderShapeType::Box)));
+        rigidBody.ShapeDesc.Type = static_cast<PhysShapeType>(
+            shapeJson.value("type", static_cast<int>(PhysShapeType::Box)));
         if (shapeJson.contains("halfExtents") && shapeJson["halfExtents"].is_array() && shapeJson["halfExtents"].size() >= 3) {
             rigidBody.ShapeDesc.HalfExtents.x = shapeJson["halfExtents"][0].get<float>();
             rigidBody.ShapeDesc.HalfExtents.y = shapeJson["halfExtents"][1].get<float>();

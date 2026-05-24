@@ -113,6 +113,7 @@ private:
         entity->PatchComponent<CHEngine::TransformComponent>(
             [&](CHEngine::TransformComponent& transform_component) {
                 transform_component.ObjectTransform = transform;
+                transform_component.MarkDirty();
             });
     }
 

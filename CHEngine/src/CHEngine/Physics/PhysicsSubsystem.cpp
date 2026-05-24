@@ -9,33 +9,34 @@ namespace CHEngine
         CHE_CORE_ASSERT(factory, "PhysicsSubsystem: factory must be non-null");
     }
 
-    IPhysicsWorld* PhysicsSubsystem::CreateWorld(const PhysicsWorldDesc& worldDesc)
+    PhysWorldHandle PhysicsSubsystem::CreateWorld(const PhysicsWorldDesc& worldDesc)
     {
         return m_Factory->CreateWorld(worldDesc);
     }
 
-    void PhysicsSubsystem::DestroyWorld(IPhysicsWorld* world)
+    void PhysicsSubsystem::DestroyWorld(PhysWorldHandle world)
     {
-        if (world) m_Factory->Delete(world);
+        if (world.IsValid()) m_Factory->Delete(world);
     }
 
-    IPhysicsShape* PhysicsSubsystem::CreateShape(const PhysicsColliderShapeDesc& shapeDesc)
+    PhysShapeHandle PhysicsSubsystem::CreateShape(const PhysicsColliderShapeDesc& shapeDesc)
     {
+        // Конвертируем POD-desc → variant.
         switch (shapeDesc.Type)
         {
-        case PhysicsColliderShapeType::Box:
-            return m_Factory->CreateBoxShape(shapeDesc.HalfExtents);
-        case PhysicsColliderShapeType::Sphere:
-            return m_Factory->CreateSphereShape(shapeDesc.Radius);
-        case PhysicsColliderShapeType::Capsule:
-            return m_Factory->CreateCapsuleShape(shapeDesc.Radius, shapeDesc.HalfHeight);
+        case PhysShapeType::Box:
+            return m_Factory->CreateShape(BoxDesc{ shapeDesc.HalfExtents });
+        case PhysShapeType::Sphere:
+            return m_Factory->CreateShape(SphereDesc{ shapeDesc.Radius });
+        case PhysShapeType::Capsule:
+            return m_Factory->CreateShape(CapsuleDesc{ shapeDesc.Radius, shapeDesc.HalfHeight });
         default:
-            return nullptr;
+            return {};
         }
     }
 
-    void PhysicsSubsystem::Delete(IPhysicsShape* shape)
+    void PhysicsSubsystem::Delete(PhysShapeHandle shape)
     {
-        if (shape) m_Factory->Delete(shape);
+        if (shape.IsValid()) m_Factory->Delete(shape);
     }
 }
