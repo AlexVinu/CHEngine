@@ -216,7 +216,7 @@ namespace CHEngine
             if (!srcEnt) continue;
 
             const std::string name = srcEnt->HasComponent<TagComponent>()
-                ? srcEnt->GetComponent<TagComponent>().Name
+                ? srcScene->GetString(srcEnt->GetComponent<TagComponent>().Name)
                 : "Object";
 
             entt::registry& srcReg = srcScene->GetRegistryRef();

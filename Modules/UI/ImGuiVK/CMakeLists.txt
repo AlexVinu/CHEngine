@@ -33,6 +33,7 @@ endif()
 target_compile_definitions(${PROJECT_NAME} PRIVATE
     CHE_BUILD_MODULE_DLL
     CHE_ENABLE_ASSERTS
+    NOMINMAX
     $<$<CONFIG:Debug>:CHE_DEBUG>
     $<$<CONFIG:Release>:CHE_RELEASE>
     $<$<CONFIG:Dist>:CHE_DIST>

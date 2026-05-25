@@ -64,33 +64,40 @@ namespace UITheme
     {
         ImGuiIO& io = ImGui::GetIO();
 
-        // ── Body font (platform-aware search order) ───────────────────────
+        // ── Body font: Roboto Medium из ассетов, затем системные fallback'и ──
         {
-            const char* paths[] = {
-                // macOS — SF Pro (system + user-installed locations)
-                "/System/Library/Fonts/SFNS.ttf",
-                "/System/Library/Fonts/SFNSText.ttf",
-                "/System/Library/Fonts/SFNSDisplay.ttf",
-                "/System/Library/Fonts/SF-Pro.ttf",
-                "/Library/Fonts/SF-Pro-Display-Regular.otf",
-                "/Library/Fonts/SF-Pro-Text-Regular.otf",
-                "/Library/Fonts/SF-Pro.ttf",
-                // macOS fallbacks
-                "/System/Library/Fonts/HelveticaNeue.ttc",
-                "/System/Library/Fonts/Helvetica.ttc",
-                // Windows — Segoe UI (closest to SF Pro)
-                "C:/Windows/Fonts/segoeui.ttf",
-                "C:/Windows/Fonts/arial.ttf",
-                // Linux
-                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-                "/usr/share/fonts/TTF/DejaVuSans.ttf",
-            };
+            const std::string robotoPath =
+                (CHEngine::AppPaths::EditorAssetsDir() / "fonts" / "Roboto-Medium.ttf").string();
+
             ImFontConfig cfg;
             cfg.OversampleH = 3;  cfg.OversampleV = 2;
-            for (const char* p : paths)
-                if (std::filesystem::exists(p)) {
-                    g_FontBody = io.Fonts->AddFontFromFileTTF(p, 14.5f, &cfg);
-                    break; }
+
+            if (std::filesystem::exists(robotoPath))
+            {
+                g_FontBody = io.Fonts->AddFontFromFileTTF(robotoPath.c_str(), 14.5f, &cfg);
+            }
+            else
+            {
+                const char* fallbacks[] = {
+                    "/System/Library/Fonts/SFNS.ttf",
+                    "/System/Library/Fonts/SFNSText.ttf",
+                    "/System/Library/Fonts/SFNSDisplay.ttf",
+                    "/System/Library/Fonts/SF-Pro.ttf",
+                    "/Library/Fonts/SF-Pro-Display-Regular.otf",
+                    "/Library/Fonts/SF-Pro-Text-Regular.otf",
+                    "/Library/Fonts/SF-Pro.ttf",
+                    "/System/Library/Fonts/HelveticaNeue.ttc",
+                    "/System/Library/Fonts/Helvetica.ttc",
+                    "C:/Windows/Fonts/segoeui.ttf",
+                    "C:/Windows/Fonts/arial.ttf",
+                    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+                };
+                for (const char* p : fallbacks)
+                    if (std::filesystem::exists(p)) {
+                        g_FontBody = io.Fonts->AddFontFromFileTTF(p, 14.5f, &cfg);
+                        break; }
+            }
         }
 
         // ── Headings: PP Neue Montreal Mono Bold ──────────────────────────
@@ -117,6 +124,9 @@ namespace UITheme
     static void Apply()
     {
         LoadFonts();
+
+        if (g_FontBody)
+            ImGui::GetIO().FontDefault = g_FontBody;
 
         ImGuiStyle& s = ImGui::GetStyle();
         ImVec4*     c = s.Colors;

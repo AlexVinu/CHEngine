@@ -66,6 +66,9 @@ public:
         return m_Scene != nullptr && m_EnttHandle != entt::null;
     }
     operator bool() const { return IsValid(); }
+
+    Scene*       GetScene()       { return m_Scene; }
+    const Scene* GetScene() const { return m_Scene; }
     operator entt::entity() const { return m_EnttHandle; }
     entt::entity GetEnttHandle() const { return m_EnttHandle; }
 

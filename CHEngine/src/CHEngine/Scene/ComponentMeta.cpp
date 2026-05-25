@@ -1,10 +1,13 @@
 #include "chepch.h"
 #include "ComponentMeta.h"
 #include "Components.h"
+#include "ComponentMeta.h"
+#include "MetaSerializer.h"
+
 
 #include <entt/entt.hpp>
 
-namespace CHEngine::Meta {
+namespace CHEngine {
 
 using namespace entt::literals;
 
@@ -36,18 +39,26 @@ void CloneTo<RigidBody3DComponent>(entt::registry& dst, entt::entity dstE,
     d.Shape                = {};
 }
 
+template<typename T>
+void RegisterComponentMeta()
+{
+	auto factory = entt::meta<T>();
+	factory.template func<&CloneTo<T>>("clone_to"_hs);
+	factory.template func<&SerializeComponent<T>>("serialize"_hs);
+	factory.template func<&DeserializeComponent<T>>("deserialize"_hs);
+}
+
 template<typename... Ts>
 void RegisterGroup(ComponentGroup<Ts...>)
 {
-    (entt::meta<Ts>()
-        .template func<&CloneTo<Ts>>("clone_to"_hs), ...);
+	(RegisterComponentMeta<Ts>(), ...);
 }
 
 } // namespace
 
 void RegisterAllComponents()
 {
-    RegisterGroup(CopyableSceneComponents{});
+	RegisterGroup(AllComponents{});
 }
 
 } // namespace CHEngine::Meta

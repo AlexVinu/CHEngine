@@ -85,9 +85,10 @@ struct ScriptEntity
 
     std::string GetName() const
     {
-        if (auto* e = GetEntity(); e && e->HasComponent<TagComponent>())
-            return e->GetComponent<TagComponent>().Name;
-        return "Unknown";
+        auto* e = GetEntity();
+        if (!e || !e->HasComponent<TagComponent>()) return "Unknown";
+        auto* sc = e->GetScene();
+        return sc ? sc->GetString(e->GetComponent<TagComponent>().Name) : "Unknown";
     }
 
     std::string GetUUID() const
@@ -344,7 +345,7 @@ struct ScriptWorld
 
         EntityHandle found{};
         scene->ForEach<TagComponent>([&](EntityHandle h, const UUID&, TagComponent& tag) {
-            if (!found.IsValid() && tag.Name == name)
+            if (!found.IsValid() && scene->GetString(tag.Name) == name)
                 found = h;
         });
         if (!found.IsValid()) return sol::lua_nil;
@@ -612,9 +613,13 @@ private:
     // ── Загрузка скриптов энтити ─────────────────────────────────────────────
     void LoadEntityScripts(World& world, DeferredOps& deferred, EntityHandle handle, const ScriptComponent& sc)
     {
-        for (uint32_t i = 0; i < (uint32_t)sc.Scripts.size(); ++i)
+        auto* scene   = world.GetSceneRef().get();
+        const auto* entries = scene ? scene->GetScripts(sc.Scripts) : nullptr;
+        if (!entries) return;
+
+        for (uint32_t i = 0; i < (uint32_t)entries->size(); ++i)
         {
-            const auto& entry = sc.Scripts[i];
+            const auto& entry = (*entries)[i];
             if (!entry.Enabled || entry.Path.empty()) continue;
 
             ScriptKey key{ ScriptKey::Kind::Entity, EntityKey(handle), i };

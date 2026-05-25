@@ -5,6 +5,7 @@
 #include "PlatformAPICapabilities.h"
 #include "Profiler.h"
 #include "CHEngine/Input/Input.h"
+#include "CHEngine/Scene/ComponentMeta.h"
 #include "CHEngine/EngineConfig.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
 #include "CHEngine/Utils/AppPaths.h"
@@ -261,6 +262,9 @@ namespace CHEngine {
         // ─── 6. Physics ────────────────────────────────────────────────────────────
         if (m_PhysicsFactory)
             m_Physics = std::make_unique<PhysicsSubsystem>(m_PhysicsFactory);
+
+        // ─── 7. Register component types (for serialization) ──────────────────────────────────────────────────────────── 
+        RegisterAllComponents();
     }
 
     Application::~Application()

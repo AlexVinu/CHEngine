@@ -11,7 +11,67 @@ namespace CHEngine {
 		{
 			return UUID::Generate();
 		}
+
+		static const std::string kEmptyString{};
 	} // namespace
+
+	// ── String pool ──────────────────────────────────────────────────────────
+
+	StringID Scene::InternString(const std::string& str)
+	{
+		if (str.empty()) return INVALID_ID<StringID>;
+		auto it = m_StringLookup.find(str);
+		if (it != m_StringLookup.end()) return it->second;
+		StringID id = m_NextStringID++;
+		StringPool[id] = str;
+		m_StringLookup[str] = id;
+		return id;
+	}
+
+	const std::string& Scene::GetString(StringID id) const
+	{
+		if (id == INVALID_ID<StringID>) return kEmptyString;
+		auto it = StringPool.find(id);
+		return it != StringPool.end() ? it->second : kEmptyString;
+	}
+
+	// ── Script pool ──────────────────────────────────────────────────────────
+
+	ScriptsID Scene::AllocateScripts()
+	{
+		ScriptsID id = m_NextScriptsID++;
+		ScriptPool[id] = {};
+		return id;
+	}
+
+	const std::vector<ScriptEntry>* Scene::GetScripts(ScriptsID id) const
+	{
+		if (id == INVALID_ID<ScriptsID>) return nullptr;
+		auto it = ScriptPool.find(id);
+		return it != ScriptPool.end() ? &it->second : nullptr;
+	}
+
+	std::vector<ScriptEntry>* Scene::GetScripts(ScriptsID id)
+	{
+		if (id == INVALID_ID<ScriptsID>) return nullptr;
+		auto it = ScriptPool.find(id);
+		return it != ScriptPool.end() ? &it->second : nullptr;
+	}
+
+	void Scene::LoadStringPoolEntry(StringID id, const std::string& str)
+	{
+		if (id == INVALID_ID<StringID> || str.empty()) return;
+		StringPool[id] = str;
+		m_StringLookup[str] = id;
+		if (id >= m_NextStringID) m_NextStringID = id + 1;
+	}
+
+	void Scene::LoadScriptPoolEntry(ScriptsID id, std::vector<ScriptEntry> scripts)
+	{
+		if (id == INVALID_ID<ScriptsID>) return;
+		ScriptPool[id] = std::move(scripts);
+		if (id >= m_NextScriptsID) m_NextScriptsID = id + 1;
+	}
 
 	Scene::Scene()
 	{
@@ -63,6 +123,13 @@ namespace CHEngine {
 			InitializeRegistry();
 		}
 
+		StringPool      = std::move(other.StringPool);
+		ScriptPool      = std::move(other.ScriptPool);
+		m_StringLookup  = std::move(other.m_StringLookup);
+		m_NextStringID  = other.m_NextStringID;
+		m_NextScriptsID = other.m_NextScriptsID;
+		WorldScripts    = std::move(other.WorldScripts);
+
 		m_SceneRegistry->EntityPool.ForEachOccupied([this](Entity* entity) { entity->SetScene(this); });
 
 		// The moved registry's on_update signal still points to 'other' — rewire it to 'this'
@@ -95,16 +162,24 @@ namespace CHEngine {
 	{
 		using namespace entt::literals;
 
+		// 1. Copy pools first so InternString calls in CreateEntity find existing IDs.
+		StringPool      = source.StringPool;
+		ScriptPool      = source.ScriptPool;
+		m_StringLookup  = source.m_StringLookup;
+		m_NextStringID  = source.m_NextStringID;
+		m_NextScriptsID = source.m_NextScriptsID;
+
 		auto& srcReg = source.m_SceneRegistry->Registry;
 		auto& dstReg = m_SceneRegistry->Registry;
 
-		// 1. Create all entities preserving UUIDs and names.
+		// 2. Create all entities preserving UUIDs and names.
 		auto srcView = srcReg.view<IDComponent, TagComponent>();
 		for (entt::entity srcEntt : srcView)
 		{
 			const auto& id  = srcReg.get<IDComponent>(srcEntt);
 			const auto& tag = srcReg.get<TagComponent>(srcEntt);
-			CreateEntity(tag.Name, id.Value);
+			// GetString returns the interned name; CreateEntity re-interns → same ID.
+			CreateEntity(source.GetString(tag.Name), id.Value);
 		}
 
 		// 2. Copy all registered components via entt::meta clone_to.
@@ -150,7 +225,7 @@ namespace CHEngine {
 		const entt::entity enttEntity = m_SceneRegistry->Registry.create();
 		auto* entity = new Entity{ enttEntity, this };
 
-		entity->AddComponent<TagComponent>(TagComponent{ name });
+		entity->AddComponent<TagComponent>(TagComponent{ InternString(name.empty() ? "Object" : name) });
 		entity->AddComponent<IDComponent>(IDComponent{ uuid });
 		entity->AddComponent<VisibilityComponent>();
 
@@ -249,6 +324,11 @@ namespace CHEngine {
 		m_SceneRegistry->EnttToHandleStore.clear();
 		m_SceneRegistry->EntityPool.Clear();
 		m_SceneRegistry->Registry.clear();
+		StringPool.clear();
+		ScriptPool.clear();
+		m_StringLookup.clear();
+		m_NextStringID  = 0;
+		m_NextScriptsID = 0;
 	}
 
 	EntityHandle Scene::TryGetEntityHandleByEntt(entt::entity e) const

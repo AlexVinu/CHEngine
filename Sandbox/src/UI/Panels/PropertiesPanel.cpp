@@ -203,8 +203,12 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             ImGui::OpenPopup("AddComponentPopup");
         if (ImGui::BeginPopup("AddComponentPopup"))
         {
-            DisplayAddComponentEntry<CHEngine::TagComponent>(
-                "Tag", selectedEntity, *activeSession, CHEngine::TagComponent{ "Object" });
+            {
+                auto* sc = selectedEntity->GetScene();
+                CHEngine::StringID nameId = sc ? sc->InternString("Object") : 0;
+                DisplayAddComponentEntry<CHEngine::TagComponent>(
+                    "Tag", selectedEntity, *activeSession, CHEngine::TagComponent{ nameId });
+            }
             DisplayAddComponentEntry<CHEngine::MeshComponent>("Mesh", selectedEntity, *activeSession);
             DisplayAddComponentEntry<CHEngine::ColorComponent>("Color", selectedEntity, *activeSession);
             DisplayAddComponentEntry<CHEngine::VisibilityComponent>("Visibility", selectedEntity, *activeSession);
@@ -232,13 +236,16 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
         "Tag",
         [&](CHEngine::TagComponent& tag) {
             char nameBuf[256];
-            std::strncpy(nameBuf, tag.Name.c_str(), sizeof(nameBuf));
+            const std::string& nameStr = scene_ptr->GetString(tag.Name);
+            std::strncpy(nameBuf, nameStr.c_str(), sizeof(nameBuf));
             nameBuf[sizeof(nameBuf) - 1] = '\0';
             ImGui::SetNextItemWidth(-1.0f);
-            if (ImGui::InputText("##nameTagComp", nameBuf, sizeof(nameBuf)) && tag.Name != nameBuf)
+            if (ImGui::InputText("##nameTagComp", nameBuf, sizeof(nameBuf)) && nameStr != nameBuf)
             {
                 selectedEntity->PatchComponent<CHEngine::TagComponent>(
-                    [&](CHEngine::TagComponent& tag_component) { tag_component.Name = nameBuf; });
+                    [&, sp = scene_ptr.get()](CHEngine::TagComponent& tag_component) {
+                        tag_component.Name = sp->InternString(nameBuf);
+                    });
             }
         });
 
@@ -343,17 +350,20 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
         [&](CHEngine::MeshComponent& meshComp) {
             {
                 char pathBuf[1024];
-                std::strncpy(pathBuf, meshComp.SourcePath.c_str(), sizeof(pathBuf));
+                const std::string& srcPathStr = scene_ptr->GetString(meshComp.SourcePath);
+                std::strncpy(pathBuf, srcPathStr.c_str(), sizeof(pathBuf));
                 pathBuf[sizeof(pathBuf) - 1] = '\0';
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("Source path");
                 ImGui::PopStyleColor();
                 ImGui::SameLine(labelW);
                 ImGui::SetNextItemWidth(-1.0f);
-                if (ImGui::InputText("##meshSourcePathMesh", pathBuf, sizeof(pathBuf)) && meshComp.SourcePath != pathBuf)
+                if (ImGui::InputText("##meshSourcePathMesh", pathBuf, sizeof(pathBuf)) && srcPathStr != pathBuf)
                 {
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>(
-                        [&](CHEngine::MeshComponent& mesh_component) { mesh_component.SourcePath = pathBuf; });
+                        [&, sp = scene_ptr.get()](CHEngine::MeshComponent& mesh_component) {
+                            mesh_component.SourcePath = sp->InternString(pathBuf);
+                        });
                 }
                 ImGui::Spacing();
             }
@@ -1061,13 +1071,16 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
         selectedEntity,
         "Script",
         [&](CHEngine::ScriptComponent& script) {
+            auto* sp = scene_ptr.get();
+            auto* entries = sp->GetScripts(script.Scripts);
+            const int entryCount = entries ? static_cast<int>(entries->size()) : 0;
+
             int removeIdx = -1;
-            for (int i = 0; i < static_cast<int>(script.Scripts.size()); ++i)
+            for (int i = 0; i < entryCount; ++i)
             {
-                const auto& entry = script.Scripts[i];
+                const auto& entry = (*entries)[i];
                 ImGui::PushID(i);
 
-                // Filename label
                 std::string filename = entry.Path.empty()
                     ? "(no path)"
                     : std::filesystem::path(entry.Path).filename().string();
@@ -1092,9 +1105,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         {
                             int idx = i;
                             selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
-                                [idx, picked](CHEngine::ScriptComponent& sc) {
-                                    if (idx < static_cast<int>(sc.Scripts.size()))
-                                        sc.Scripts[idx].Path = picked;
+                                [idx, picked, sp](CHEngine::ScriptComponent& sc) {
+                                    auto* vec = sp->GetScripts(sc.Scripts);
+                                    if (vec && idx < static_cast<int>(vec->size()))
+                                        (*vec)[idx].Path = picked;
                                 });
                         }
                     }
@@ -1103,15 +1117,15 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     if (ImGui::SmallButton("x"))
                         removeIdx = i;
 
-                    // Enabled checkbox on next line
                     bool enabled = entry.Enabled;
                     if (ImGui::Checkbox("Enabled", &enabled))
                     {
                         int idx = i;
                         selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
-                            [idx, enabled](CHEngine::ScriptComponent& sc) {
-                                if (idx < static_cast<int>(sc.Scripts.size()))
-                                    sc.Scripts[idx].Enabled = enabled;
+                            [idx, enabled, sp](CHEngine::ScriptComponent& sc) {
+                                auto* vec = sp->GetScripts(sc.Scripts);
+                                if (vec && idx < static_cast<int>(vec->size()))
+                                    (*vec)[idx].Enabled = enabled;
                             });
                     }
                 }
@@ -1120,18 +1134,18 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 ImGui::PopID();
             }
 
-            // Apply removal after the loop (avoid invalidating the range)
             if (removeIdx >= 0)
             {
                 int idx = removeIdx;
                 selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
-                    [idx](CHEngine::ScriptComponent& sc) {
-                        if (idx < static_cast<int>(sc.Scripts.size()))
-                            sc.Scripts.erase(sc.Scripts.begin() + idx);
+                    [idx, sp](CHEngine::ScriptComponent& sc) {
+                        auto* vec = sp->GetScripts(sc.Scripts);
+                        if (vec && idx < static_cast<int>(vec->size()))
+                            vec->erase(vec->begin() + idx);
                     });
             }
 
-            if (script.Scripts.empty())
+            if (entryCount == 0)
             {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.55f, 0.55f, 0.57f, 1.0f));
                 ImGui::TextUnformatted("No scripts assigned");
@@ -1143,10 +1157,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 ImGui::Spacing();
                 if (ImGui::Button("+ Add Script"))
                 {
-                    std::string tag = selectedEntity->HasComponent<CHEngine::TagComponent>()
-                        ? selectedEntity->GetComponent<CHEngine::TagComponent>().Name
+                    std::string entityName = selectedEntity->HasComponent<CHEngine::TagComponent>()
+                        ? sp->GetString(selectedEntity->GetComponent<CHEngine::TagComponent>().Name)
                         : "Entity";
-                    host.CreateAndAttachScript(selectedHandle, tag);
+                    host.CreateAndAttachScript(selectedHandle, entityName);
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Browse..."))
@@ -1155,8 +1169,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     if (!picked.empty())
                     {
                         selectedEntity->PatchComponent<CHEngine::ScriptComponent>(
-                            [picked](CHEngine::ScriptComponent& sc) {
-                                sc.Scripts.push_back(CHEngine::ScriptEntry{ picked, true });
+                            [picked, sp](CHEngine::ScriptComponent& sc) {
+                                if (sc.Scripts == CHEngine::INVALID_ID<CHEngine::ScriptsID>) sc.Scripts = sp->AllocateScripts();
+                                auto* vec = sp->GetScripts(sc.Scripts);
+                                if (vec) vec->push_back(CHEngine::ScriptEntry{ picked, true });
                             });
                     }
                 }
@@ -1215,7 +1231,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     std::string nm = "UI Element";
                     auto* ce = scene_ptr->TryGetEntity(h);
                     if (ce && ce->HasComponent<CHEngine::TagComponent>())
-                        nm = ce->GetComponent<CHEngine::TagComponent>().Name;
+                        nm = scene_ptr->GetString(ce->GetComponent<CHEngine::TagComponent>().Name);
                     childHandles.push_back(h);
                     childUuids.push_back(uuid);
                     childNames.push_back(std::move(nm));
@@ -1282,7 +1298,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     std::string nm = "UI Element";
                     auto* ce = scene_ptr->TryGetEntity(h);
                     if (ce && ce->HasComponent<CHEngine::TagComponent>())
-                        nm = ce->GetComponent<CHEngine::TagComponent>().Name;
+                        nm = scene_ptr->GetString(ce->GetComponent<CHEngine::TagComponent>().Name);
                     wChildHandles.push_back(h);
                     wChildUuids.push_back(uuid);
                     wChildNames.push_back(std::move(nm));
@@ -1361,14 +1377,17 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     DrawComponent<CHEngine::UITextComponent>("UI Text", true, propsReadOnly,
         *activeSession, selectedHandle, selectedEntity, "UIText",
         [&](CHEngine::UITextComponent& c) {
-            char buf[1024]; std::strncpy(buf, c.Text.c_str(), sizeof(buf)-1); buf[sizeof(buf)-1]=0;
+            auto* sp = scene_ptr.get();
+            char buf[1024];
+            std::strncpy(buf, sp->GetString(c.Text).c_str(), sizeof(buf)-1); buf[sizeof(buf)-1]=0;
             if (ImGui::InputTextMultiline("Text##uitext", buf, sizeof(buf), ImVec2(-1, 60)))
                 selectedEntity->PatchComponent<CHEngine::UITextComponent>(
-                    [&](CHEngine::UITextComponent& t) { t.Text = buf; });
-            char fbuf[512]; std::strncpy(fbuf, c.FontPath.c_str(), sizeof(fbuf)-1); fbuf[sizeof(fbuf)-1]=0;
+                    [&, sp](CHEngine::UITextComponent& t) { t.Text = sp->InternString(buf); });
+            char fbuf[512];
+            std::strncpy(fbuf, sp->GetString(c.FontPath).c_str(), sizeof(fbuf)-1); fbuf[sizeof(fbuf)-1]=0;
             if (ImGui::InputText("Font Path##uitext", fbuf, sizeof(fbuf)))
                 selectedEntity->PatchComponent<CHEngine::UITextComponent>(
-                    [&](CHEngine::UITextComponent& t) { t.FontPath = fbuf; });
+                    [&, sp](CHEngine::UITextComponent& t) { t.FontPath = sp->InternString(fbuf); });
             float fs = c.FontSize;
             if (ImGui::DragFloat("Font Size##uitext", &fs, 0.5f, 6.0f, 120.0f))
                 selectedEntity->PatchComponent<CHEngine::UITextComponent>(
@@ -1401,10 +1420,11 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             if (ImGui::DragFloat("Width##uiimg", &iw, 1.0f, 0.0f, 4000.0f))
                 selectedEntity->PatchComponent<CHEngine::UIImageComponent>(
                     [iw](CHEngine::UIImageComponent& i) { i.Width = iw; });
-            char tbuf[512]; std::strncpy(tbuf, c.TexturePath.c_str(), sizeof(tbuf)-1); tbuf[sizeof(tbuf)-1]=0;
+            char tbuf[512];
+            std::strncpy(tbuf, scene_ptr->GetString(c.TexturePath).c_str(), sizeof(tbuf)-1); tbuf[sizeof(tbuf)-1]=0;
             if (ImGui::InputText("Texture##uiimg", tbuf, sizeof(tbuf)))
                 selectedEntity->PatchComponent<CHEngine::UIImageComponent>(
-                    [&](CHEngine::UIImageComponent& i) { i.TexturePath = tbuf; });
+                    [&, sp = scene_ptr.get()](CHEngine::UIImageComponent& i) { i.TexturePath = sp->InternString(tbuf); });
             bool pa = c.PreserveAspect;
             if (ImGui::Checkbox("Preserve Aspect##uiimg", &pa))
                 selectedEntity->PatchComponent<CHEngine::UIImageComponent>(

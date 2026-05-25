@@ -146,7 +146,7 @@ void TryPick(SceneViewLayer& layer)
 
             // Sphere impostors: the mesh is a flat billboard quad (z=0 vertices),
             // so AABB-based picking fails. Use analytic ray-sphere intersection instead.
-            if (meshComp.SourcePath == ":primitive:sphere")
+            if (scene->GetString(meshComp.SourcePath) == ":primitive:sphere")
             {
                 // Sphere center = translation column; radius = scale magnitude
                 glm::vec3 center = glm::vec3(model[3]);

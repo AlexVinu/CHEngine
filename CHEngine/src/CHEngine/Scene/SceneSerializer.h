@@ -14,7 +14,11 @@ struct CHENGINE_API SceneSerializer {
     Ref<Scene> LoadFromFile(const std::string& path);
 
     // ── In-memory snapshot ───────────────────────────────
-    nlohmann::json SerializeToJson(Ref<Scene> scene);
+    // Returns the scene as a JSON object (callers can add extra fields before writing).
+    nlohmann::json BuildJson(Ref<Scene> scene);
+
+    // Convenience: BuildJson + dump(4).
+    std::string SerializeToJson(Ref<Scene> scene);
 
     // Restores scene from JSON snapshot.
     Ref<Scene> DeserializeFromJson(const nlohmann::json& data);

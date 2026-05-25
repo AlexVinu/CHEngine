@@ -2,6 +2,7 @@
 #include <string>
 #include <tuple>
 #include <vector>
+#include <limits>
 #include "UUID.h"
 #include "CHEngine/Mesh/MeshRef.h"
 #include "Light.h"
@@ -9,8 +10,7 @@
 #include "CHEngine/Camera/PerspectiveCamera.h"
 #include "CHEngine/Camera/OrthographicCamera.h"
 #include <Physics/PhysicsTypes.h>
-#include <Physics/PhysicsTypes.h>   // RigidBodySyncMode, PhysicsRigidBodyDesc, ...
-#include <Physics/IPhysicsShape.h>  // PhysicsColliderShapeDesc / PhysShapeType
+#include <Physics/IPhysicsShape.h>  
 #include <Physics/Handles.h>
 #include <glm/glm.hpp>
 
@@ -19,8 +19,17 @@
 
 namespace CHEngine {
 
-    //std::unordered_map<uint32_t, std::string> string_pool;
-    //std::unordered_map<uint32_t, std::vector<ScriptEntry>> script_pool;
+    using StringID = uint32_t;
+    using ScriptsID = uint32_t;
+
+    template<typename T>
+    inline constexpr T INVALID_ID = std::numeric_limits<T>::max();
+
+	struct ScriptEntry
+	{
+		std::string Path;
+		bool        Enabled = true;
+	};
 
     struct IDComponent
     {
@@ -33,7 +42,7 @@ namespace CHEngine {
     };
 
     struct TagComponent {
-        std::string         Name;
+        StringID Name = INVALID_ID<StringID>;
     };
 
     struct ParentNodeComponent
@@ -51,7 +60,7 @@ namespace CHEngine {
 
     struct MeshComponent {
         MeshRef     Mesh;
-        std::string SourcePath;  // original file path for serialization
+        StringID SourcePath = INVALID_ID<StringID>;  // original file path for serialization
     };
 
     struct ColorComponent {
@@ -94,15 +103,9 @@ namespace CHEngine {
         bool DestroyOnExpire = true;
     };
 
-    struct ScriptEntry
-    {
-        std::string Path;
-        bool        Enabled = true;
-    };
-
     struct ScriptComponent
     {
-        std::vector<ScriptEntry> Scripts;
+        ScriptsID Scripts = INVALID_ID<ScriptsID>;
     };
 
     // =========================================================================
@@ -144,7 +147,7 @@ namespace CHEngine {
     struct UIImageComponent
     {
         float       Width          = 160.0f;
-        std::string TexturePath;   // empty = solid colour
+        StringID TexturePath = INVALID_ID<StringID>;  // empty = solid colour
         bool        PreserveAspect = true;
         bool        SlicedBorder   = false; // 9-slice (future)
     };
@@ -152,8 +155,8 @@ namespace CHEngine {
     // UITextComponent — renders text with a custom font.
     struct UITextComponent
     {
-        std::string Text     = "Text";
-        std::string FontPath;          // absolute path to TTF/OTF; empty = default
+        StringID Text     = INVALID_ID<StringID>;
+        StringID FontPath = INVALID_ID<StringID>;  // absolute path to TTF/OTF; empty = default
         float       FontSize = 16.0f;
         glm::vec4   Color    = { 1.0f, 1.0f, 1.0f, 1.0f };
         enum class HAlign : uint8_t { Left = 0, Center = 1, Right = 2 };
@@ -207,24 +210,26 @@ namespace CHEngine {
 		using types = std::tuple<Components...>;
 	};
 
-    // TODO: Copying between scenes could be better
-    using CopyableSceneComponents = ComponentGroup<
-        TransformComponent,
-        ParentNodeComponent,
-        ColorComponent,
-        VisibilityComponent,
-        LightComponent,
-        CameraComponent,
-        LifetimeComponent,
-        ScriptComponent,
-        RigidBody3DComponent,
-        MeshComponent,
-        UIOverlayCanvasComponent,
-        UIWorldCanvasComponent,
-        UIRectTransformComponent,
-        UIImageComponent,
-        UITextComponent,
-        UIPanelComponent,
-        UIButtonComponent,
-        UISliderComponent>;
+
+	using AllComponents = ComponentGroup<
+		IDComponent,
+		TagComponent,
+		ParentNodeComponent,
+		TransformComponent,
+		MeshComponent,
+		ColorComponent,
+		VisibilityComponent,
+		LightComponent,
+		CameraComponent,
+		RigidBody3DComponent,
+		LifetimeComponent,
+		ScriptComponent,
+		UIOverlayCanvasComponent,
+		UIWorldCanvasComponent,
+		UIRectTransformComponent,
+		UIImageComponent,
+		UITextComponent,
+		UIPanelComponent,
+		UIButtonComponent,
+		UISliderComponent>;
 }

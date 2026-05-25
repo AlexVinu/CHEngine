@@ -26,8 +26,6 @@ public:
 	SandboxApp(const CHEngine::ApplicationConfig& config)
 		: CHEngine::Application(config)
 	{
-		CHEngine::Meta::RegisterAllComponents();
-
 		// Загрузка биндов: каждый JSON в config/keybindings/ = отдельный контекст.
 		auto* is = CHEngine::Application::Get().InputSystem();
 		is->LoadFromDirectory(CHEngine::AppPaths::ExecutableDir() / "config/keybindings");

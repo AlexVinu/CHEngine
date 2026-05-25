@@ -384,9 +384,9 @@ void SceneViewLayerHost::AddCubePrimitive()
         CHEngine::MaterialInstance::FromBase(
             std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetMeshShader())));
     entity->PatchComponent<CHEngine::MeshComponent>(
-        [cube_mesh = std::move(cube_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
+        [cube_mesh = std::move(cube_mesh), &scene_ref](CHEngine::MeshComponent& mesh_component) mutable {
             mesh_component.Mesh = std::move(cube_mesh);
-            mesh_component.SourcePath = ":primitive:cube";
+            mesh_component.SourcePath = scene_ref->InternString(":primitive:cube");
         });
 
     activeSession->SelectedEntity = handle;
@@ -415,9 +415,9 @@ void SceneViewLayerHost::AddSpherePrimitive()
         CHEngine::MaterialInstance::FromBase(
             std::make_shared<CHEngine::Material>(SceneViewLayerAccess::Viewport(m_Layer).GetSphereImpostorShader())));
     entity->PatchComponent<CHEngine::MeshComponent>(
-        [sphere_mesh = std::move(sphere_mesh)](CHEngine::MeshComponent& mesh_component) mutable {
+        [sphere_mesh = std::move(sphere_mesh), &scene_ref](CHEngine::MeshComponent& mesh_component) mutable {
             mesh_component.Mesh = std::move(sphere_mesh);
-            mesh_component.SourcePath = ":primitive:sphere";
+            mesh_component.SourcePath = scene_ref->InternString(":primitive:sphere");
         });
 
     activeSession->SelectedEntity = handle;
@@ -663,18 +663,20 @@ void SceneViewLayerHost::CreateAndAttachScript(CHEngine::EntityHandle handle, co
     std::string absScriptPath = scriptPath.string();
     if (!entity->HasComponent<CHEngine::ScriptComponent>())
     {
-        CHEngine::ScriptComponent sc;
-        sc.Scripts.push_back(CHEngine::ScriptEntry{ absScriptPath, true });
-        entity->AddComponent<CHEngine::ScriptComponent>(std::move(sc));
+        CHEngine::ScriptsID id = scene->AllocateScripts();
+        scene->GetScripts(id)->push_back(CHEngine::ScriptEntry{ absScriptPath, true });
+        entity->AddComponent<CHEngine::ScriptComponent>(CHEngine::ScriptComponent{ id });
     }
     else
     {
         entity->PatchComponent<CHEngine::ScriptComponent>(
-            [&](CHEngine::ScriptComponent& sc) {
-                // Не дублируем тот же путь.
-                for (const auto& e : sc.Scripts)
+            [&, scenePtr = scene.get()](CHEngine::ScriptComponent& sc) {
+                if (sc.Scripts == CHEngine::INVALID_ID<CHEngine::ScriptsID>) sc.Scripts = scenePtr->AllocateScripts();
+                auto* vec = scenePtr->GetScripts(sc.Scripts);
+                if (!vec) return;
+                for (const auto& e : *vec)
                     if (e.Path == absScriptPath) return;
-                sc.Scripts.push_back(CHEngine::ScriptEntry{ absScriptPath, true });
+                vec->push_back(CHEngine::ScriptEntry{ absScriptPath, true });
             });
     }
 }
@@ -695,7 +697,7 @@ void SceneViewLayerHost::SelectEntityByName(const std::string& name)
     scene->ForEach<CHEngine::TagComponent>(
         [&](CHEngine::EntityHandle handle, const CHEngine::UUID&, CHEngine::TagComponent& tag)
         {
-            if (tag.Name == name)
+            if (scene->GetString(tag.Name) == name)
                 found = handle;
         });
 
@@ -714,7 +716,7 @@ static std::vector<CHEngine::EntityHandle> FindHandlesByName(CHEngine::Scene* sc
     if (!scene || name.empty()) return result;
     scene->ForEach<CHEngine::TagComponent>(
         [&](CHEngine::EntityHandle h, const CHEngine::UUID&, CHEngine::TagComponent& tag) {
-            if (tag.Name == name)
+            if (scene->GetString(tag.Name) == name)
                 result.push_back(h);
         });
     return result;
@@ -788,17 +790,20 @@ void SceneViewLayerHost::CreateAndAttachScriptWithContent(const std::string& ent
         if (!e) continue;
         if (!e->HasComponent<CHEngine::ScriptComponent>())
         {
-            CHEngine::ScriptComponent sc;
-            sc.Scripts.push_back(CHEngine::ScriptEntry{ absPath, true });
-            e->AddComponent<CHEngine::ScriptComponent>(std::move(sc));
+            CHEngine::ScriptsID id = scene->AllocateScripts();
+            scene->GetScripts(id)->push_back(CHEngine::ScriptEntry{ absPath, true });
+            e->AddComponent<CHEngine::ScriptComponent>(CHEngine::ScriptComponent{ id });
         }
         else
         {
             e->PatchComponent<CHEngine::ScriptComponent>(
-                [&](CHEngine::ScriptComponent& sc) {
-                    for (const auto& entry : sc.Scripts)
+                [&, scenePtr = scene.get()](CHEngine::ScriptComponent& sc) {
+                    if (sc.Scripts == CHEngine::INVALID_ID<CHEngine::ScriptsID>) sc.Scripts = scenePtr->AllocateScripts();
+                    auto* vec = scenePtr->GetScripts(sc.Scripts);
+                    if (!vec) return;
+                    for (const auto& entry : *vec)
                         if (entry.Path == absPath) return;
-                    sc.Scripts.push_back(CHEngine::ScriptEntry{ absPath, true });
+                    vec->push_back(CHEngine::ScriptEntry{ absPath, true });
                 });
         }
     }
@@ -914,7 +919,9 @@ void SceneViewLayerHost::RenameSelectedEntity(const std::string& newName)
     auto* e = scene->TryGetEntity(session->SelectedEntity);
     if (!e || !e->HasComponent<CHEngine::TagComponent>()) return;
     e->PatchComponent<CHEngine::TagComponent>(
-        [&](CHEngine::TagComponent& tag) { tag.Name = newName; });
+        [&, scenePtr = scene.get()](CHEngine::TagComponent& tag) {
+            tag.Name = scenePtr->InternString(newName);
+        });
 }
 
 void SceneViewLayerHost::FocusOnEntityByName(const std::string& name)
@@ -998,7 +1005,7 @@ void SceneViewLayerHost::RenameEntityByName(const std::string& oldName,
     for (auto h : FindHandlesByName(scene5, oldName))
         if (auto* e = scene5->TryGetEntity(h); e && e->HasComponent<CHEngine::TagComponent>())
             e->PatchComponent<CHEngine::TagComponent>(
-                [&](CHEngine::TagComponent& tag) { tag.Name = newName; });
+                [&, scene5](CHEngine::TagComponent& tag) { tag.Name = scene5->InternString(newName); });
 }
 
 void SceneViewLayerHost::DeleteEntityByName(const std::string& name)
@@ -1012,7 +1019,7 @@ void SceneViewLayerHost::DeleteEntityByName(const std::string& name)
     bool found = false;
     scene->ForEach<CHEngine::TagComponent>(
         [&](CHEngine::EntityHandle h, const CHEngine::UUID& uuid, CHEngine::TagComponent& tag) {
-            if (tag.Name == name && !found) { targetUuid = uuid; found = true; }
+            if (scene->GetString(tag.Name) == name && !found) { targetUuid = uuid; found = true; }
         });
     if (found) DestroyEntityByUuid(targetUuid);
 }
@@ -1066,7 +1073,7 @@ void SceneViewLayerHost::CreateAndAttachScriptToEntityByName(const std::string& 
     scene->ForEach<CHEngine::TagComponent>(
         [&](CHEngine::EntityHandle handle, const CHEngine::UUID&, CHEngine::TagComponent& tag)
         {
-            if (tag.Name == entityName)
+            if (scene->GetString(tag.Name) == entityName)
                 found = handle;
         });
 
@@ -1084,7 +1091,7 @@ void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
     scene->ForEach<CHEngine::TagComponent>(
         [&](CHEngine::EntityHandle handle, const CHEngine::UUID&, CHEngine::TagComponent& tag)
         {
-            if (tag.Name == entityName)
+            if (scene->GetString(tag.Name) == entityName)
                 found = handle;
         });
 
@@ -1092,9 +1099,10 @@ void SceneViewLayerHost::OpenScriptForEntity(const std::string& entityName)
     auto* entity = scene->TryGetEntity(found);
     if (!entity || !entity->HasComponent<CHEngine::ScriptComponent>()) return;
 
-    const auto& scripts = entity->GetComponent<CHEngine::ScriptComponent>().Scripts;
-    if (!scripts.empty())
-        OpenScriptInEditor(scripts[0].Path);
+    const auto& sc = entity->GetComponent<CHEngine::ScriptComponent>();
+    const auto* scripts = scene->GetScripts(sc.Scripts);
+    if (scripts && !scripts->empty())
+        OpenScriptInEditor((*scripts)[0].Path);
 }
 
 void SceneViewLayerHost::OpenExportPanel()
@@ -1123,7 +1131,7 @@ std::string SceneViewLayerHost::GetSceneContextString()
             [&](CHEngine::EntityHandle h, const CHEngine::UUID&, CHEngine::TagComponent& tag)
             {
                 any = true;
-                ss << "  - \"" << tag.Name << "\"";
+                ss << "  - \"" << scene->GetString(tag.Name) << "\"";
 
                 auto* e = scene->TryGetEntity(h);
                 if (e && e->HasComponent<CHEngine::TransformComponent>())
@@ -1145,8 +1153,9 @@ std::string SceneViewLayerHost::GetSceneContextString()
                 if (e && e->HasComponent<CHEngine::ScriptComponent>())
                 {
                     const auto& sc = e->GetComponent<CHEngine::ScriptComponent>();
-                    if (!sc.Scripts.empty())
-                        ss << " [has_script:" << sc.Scripts.size() << "]";
+                    const auto* svec = scene->GetScripts(sc.Scripts);
+                    if (svec && !svec->empty())
+                        ss << " [has_script:" << svec->size() << "]";
                 }
                 if (e && e->HasComponent<CHEngine::CameraComponent>())
                     ss << " [camera]";

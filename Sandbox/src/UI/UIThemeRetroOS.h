@@ -111,10 +111,11 @@ namespace UIThemeRetro
                    (magic[0] == 'O'  && magic[1] == 'T'  && magic[2] == 'T'  && magic[3] == 'O');
         };
 
-        // ── Обычный текст: Inter Medium (bundled) → SF Pro .otf → Windows ──────
+        // ── Обычный текст: Roboto Medium (bundled) → Inter Medium → SF Pro .otf → Windows ─
         {
             std::vector<std::string> paths = {
-                fontPath("Inter-Medium.ttf"),               // bundled, кроссплатформенный
+                fontPath("Roboto-Medium.ttf"),              // bundled, кроссплатформенный
+                fontPath("Inter-Medium.ttf"),               // fallback bundled
                 "/Library/Fonts/SF-Pro-Display-Medium.otf", // macOS (если установлен SF Pro)
                 "/Library/Fonts/SF-Pro-Text-Medium.otf",
                 "C:/Windows/Fonts/segoeui.ttf",             // Windows

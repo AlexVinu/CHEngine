@@ -68,7 +68,7 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
 
             CHE_CORE_WARN(
                 "SceneViewLayer: post-load entity='{}' uuid={} visible={} submeshes={} validShaders={} validVaos={} renderSubmitReady={}",
-                tag.Name,
+                scene->GetString(tag.Name),
                 uuid.ToString(),
                 visibility.Visible,
                 subCount,
@@ -168,7 +168,7 @@ void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
     auto* viewport_camera = ctx->ViewportCamera.get();
     if (!scene_ref || !viewport_camera)
         return;
-    nlohmann::json sceneJson = serializer.SerializeToJson(scene_ref);
+    nlohmann::json sceneJson = serializer.BuildJson(scene_ref);
 
     const glm::vec3 cameraPosition = viewport_camera->GetPosition();
     sceneJson["meta"]["editorCamera"] = {
@@ -625,7 +625,7 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     entity->AddComponent<CHEngine::MeshComponent>();
     entity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
         mesh_component.Mesh = std::move(meshRefImported);
-        mesh_component.SourcePath = sourceForScene;
+        mesh_component.SourcePath = scene_ref->InternString(sourceForScene);
     });
     entity->PatchComponent<CHEngine::TransformComponent>([&](CHEngine::TransformComponent& transform_component) {
         transform_component.ObjectTransform.Position = centroid;

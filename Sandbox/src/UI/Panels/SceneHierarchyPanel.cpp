@@ -147,7 +147,7 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
             else if (type == CHEngine::LightType::Point)        icon = "[P] ";
             else if (type == CHEngine::LightType::Spot)         icon = "[S] ";
         }
-        allEntities.push_back({ handle, id, tag.Name, icon });
+        allEntities.push_back({ handle, id, scene_ptr->GetString(tag.Name), icon });
     });
 
     // Pass 2: build parent→children map; orphaned/missing parents → root

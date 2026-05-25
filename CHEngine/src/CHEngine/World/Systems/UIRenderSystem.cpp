@@ -24,6 +24,8 @@
 
 namespace CHEngine {
 
+namespace { static const std::string kEmptyString; }
+
 // ─── ResolveRect ─────────────────────────────────────────────────────────────
 //
 // Layout a child UIRectTransform inside a parent (canvas or another rect) whose
@@ -138,13 +140,15 @@ void UIRenderSystem::DrawElement(UIRendererBackend* backend,
     if (entity->HasComponent<UITextComponent>())
     {
         const auto& c = entity->GetComponent<UITextComponent>();
-        if (!c.Text.empty())
+        const Scene* scenePtr = entity->GetScene();
+        const std::string& textStr     = scenePtr ? scenePtr->GetString(c.Text)     : kEmptyString;
+        const std::string& fontPathStr = scenePtr ? scenePtr->GetString(c.FontPath) : kEmptyString;
+        if (!textStr.empty())
         {
             const float fontSize = rect.h;
-            FontAtlasHandle fh = GetFontFromCache(*backend, fontCache,
-                                                  c.FontPath, fontSize);
+            FontAtlasHandle fh = GetFontFromCache(*backend, fontCache, fontPathStr, fontSize);
             glm::vec4 col = { c.Color.r, c.Color.g, c.Color.b, c.Color.a * alpha };
-            backend->DrawUIText(c.Text, rect.x, rect.y, rect.w, rect.h,
+            backend->DrawUIText(textStr, rect.x, rect.y, rect.w, rect.h,
                                 fh, fontSize, col);
         }
     }
