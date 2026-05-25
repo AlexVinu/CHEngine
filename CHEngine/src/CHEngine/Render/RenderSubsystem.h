@@ -101,8 +101,15 @@ namespace CHEngine
         ShaderHandle GetDefaultSphereImpostorShader()        const  { return m_DefaultSphereImpostorShader; }
 
         // ── Per-frame scene camera ────────────────────────────────────────────
+        // SetSceneCamera принимает уже скорректированную для текущего API VP
+        // (clipCorr * logicalVP) — она идёт прямо в scene-шейдеры.
+        // Параллельно вызывающий передаёт logical (GLM/OpenGL-convention) VP,
+        // которая нужна системам, композирующим дополнительные трансформы поверх
+        // (UI world-canvas), чтобы избежать двойного применения коррекции.
         void             SetSceneCamera(const UBOCamera& cam);
+        void             SetSceneCameraLogicalVP(const glm::mat4& vp) { m_SceneCameraLogicalVP = vp; }
         const UBOCamera& GetSceneCamera()        const { return m_SceneCamera; }
+        const glm::mat4& GetSceneCameraLogicalVP() const { return m_SceneCameraLogicalVP; }
         bool             HasSceneCamera()         const { return m_SceneCameraValid; }
         void             InvalidateSceneCamera()        { m_SceneCameraValid = false; }
 
@@ -136,6 +143,7 @@ namespace CHEngine
 
         // ── Scene camera ──────────────────────────────────────────────────────
         UBOCamera m_SceneCamera{};
+        glm::mat4 m_SceneCameraLogicalVP{1.0f};
         bool      m_SceneCameraValid = false;
 
         // ── Shader hot-reload ─────────────────────────────────────────────────

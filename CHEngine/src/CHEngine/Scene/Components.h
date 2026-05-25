@@ -16,7 +16,7 @@
 
 
 // NOTE: Components must be POD structures
-
+// After making new components you have to register them in metaserializer, component meta and add AllComponents below this file
 namespace CHEngine {
 
     using StringID = uint32_t;

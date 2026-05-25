@@ -131,9 +131,9 @@ void UvEditorPanel::Draw(SceneViewLayerHost& host)
             uint64_t nativeID = factory->GetTextureNativeID(diffuseTex);
             if (nativeID != 0)
             {
-                const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
-                const ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
-                const ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
+                const bool flipV = factory->ImGuiImageNeedsVFlip();
+                const ImVec2 uv0 = flipV ? ImVec2(0, 1) : ImVec2(0, 0);
+                const ImVec2 uv1 = flipV ? ImVec2(1, 0) : ImVec2(1, 1);
                 dl->AddImage(static_cast<ImTextureID>(nativeID),
                              canvasOrigin, canvasEnd, uv0, uv1);
                 hasTexture = true;

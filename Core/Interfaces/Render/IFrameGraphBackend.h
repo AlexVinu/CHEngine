@@ -14,6 +14,12 @@ namespace CHEngine {
     public:
         virtual ~IFrameGraphBackend() = default;
 
+        /// Called once after the frame graph is compiled (topologically sorted, validated),
+        /// before the first Execute(). Backends may use this to pre-bake barriers, warm up
+        /// pipelines, pre-allocate descriptor pools, or merge compatible passes.
+        /// Default: no-op. OGL and Metal leave this unimplemented.
+        virtual void OnGraphCompiled(const Vector<PassDesc>& passes) { (void)passes; }
+
         /// Execute all passes in the order provided.
         virtual void Execute(const Vector<PassDesc>& passes) = 0;
     };

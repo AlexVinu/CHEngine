@@ -83,6 +83,7 @@ namespace CHEngine {
             CHE_CORE_WARN("BasicFrameGraphFrontend::Execute: no compiled passes — call Compile() first");
             return;
         }
+        backend.OnGraphCompiled(m_Sorted);
         backend.Execute(m_Sorted);
     }
 

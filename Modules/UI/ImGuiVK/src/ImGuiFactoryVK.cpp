@@ -1,9 +1,10 @@
 #include "chepch.h"
 #include "ImGuiFactoryVK.h"
 
-CHEngine::IImGuiLayer* CHModules::ImGuiFactoryVK::CreateImGuiLayer(CHEngine::IWindow* window)
+CHEngine::IImGuiLayer* CHModules::ImGuiFactoryVK::CreateImGuiLayer(
+    CHEngine::IWindow* window, CHEngine::IRenderFactory* renderFactory)
 {
-    return CreateImpl<ImGuiLayerVK>(window);
+    return CreateImpl<ImGuiLayerVK>(window, renderFactory);
 }
 
 void CHModules::ImGuiFactoryVK::Delete(CHEngine::IImGuiLayer* ptr)

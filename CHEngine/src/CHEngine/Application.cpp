@@ -245,7 +245,8 @@ namespace CHEngine {
         // ─── 4. Create ImGui layer ────────────────────────────────────────────────
         if (m_ImGuiFactory)
         {
-            IImGuiLayer* layer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow());
+            IImGuiLayer* layer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow(),
+                                                                  render_factory);
             m_UI = std::make_unique<UISubsystem>(m_ImGuiFactory, layer);
         }
 
@@ -269,6 +270,11 @@ namespace CHEngine {
 
     Application::~Application()
     {
+        // GPU должен быть idle до уничтожения любых ресурсов — иначе под Vulkan
+        // ловим validation errors про "buffer/pipeline/descriptor in use by command buffer".
+        if (m_Render)
+            if (auto* rf = m_Render->GetRenderFactory()) rf->WaitIdle();
+
         m_LayerStack.Clear();
         // Subsystems (m_Resources → m_NativeUI → m_UI → m_Physics → m_Render → m_Window → m_ModuleManager)
         // destruct in reverse declaration order automatically.

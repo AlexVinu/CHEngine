@@ -7,7 +7,8 @@ namespace CHModules {
 
     struct ImGuiFactoryVK : CHEngine::IImGuiFactory
     {
-        CHEngine::IImGuiLayer* CreateImGuiLayer(CHEngine::IWindow* window) override;
+        CHEngine::IImGuiLayer* CreateImGuiLayer(CHEngine::IWindow* window,
+                                                CHEngine::IRenderFactory* renderFactory) override;
         void Delete(CHEngine::IImGuiLayer* ptr) override;
         CHEngine::ModuleType GetType() const override;
     };

@@ -37,7 +37,14 @@ struct UIDrawUBO
 ConstantBuffer<UICameraUBO> uiCamera : register(b0);
 ConstantBuffer<UIDrawUBO>   uiDraw   : register(b1);
 
+// For Vulkan/SPIRV: register(b0) and register(t0)/register(s0) occupy the same
+// flat binding namespace, causing a conflict at binding=0.  Force the texture +
+// sampler pair to binding=2 and mark them as a combined-image-sampler so Slang
+// emits a single VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER descriptor.
+// The [[vk::*]] attributes are ignored for OpenGL/Metal targets.
+[[vk::combinedImageSampler]] [[vk::binding(2, 0)]]
 Texture2D    uiTexture : register(t0);
+[[vk::combinedImageSampler]] [[vk::binding(2, 0)]]
 SamplerState uiSampler : register(s0);
 
 struct VSIn

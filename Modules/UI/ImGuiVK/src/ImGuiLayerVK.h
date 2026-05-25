@@ -2,20 +2,26 @@
 
 #include "UISystem/IImGuiLayer.h"
 #include "WindowSystem/IWindow.h"
+#include "Render/IRenderFactory.h"
+#include "RendererVK/VulkanSharedContext.h"
+#include <vulkan/vulkan.h>
 
 namespace CHModules {
 
     class ImGuiLayerVK : public CHEngine::IImGuiLayer
     {
     public:
-        explicit ImGuiLayerVK(CHEngine::IWindow* window);
+        ImGuiLayerVK(CHEngine::IWindow* window, CHEngine::IRenderFactory* renderFactory);
         ~ImGuiLayerVK() override;
 
         void Begin() override;
-        void End() override;
+        void End()   override;
 
     private:
-        bool m_Initialized = false;
+        VulkanSharedContext*    m_VkCtx          = nullptr;
+        bool                    m_Initialized    = false;
+        PFN_vkCmdBeginRendering m_BeginRendering = nullptr;
+        PFN_vkCmdEndRendering   m_EndRendering   = nullptr;
     };
 
 }

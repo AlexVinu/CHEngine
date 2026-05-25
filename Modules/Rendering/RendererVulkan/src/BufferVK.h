@@ -1,33 +1,40 @@
 #pragma once
 
-#include "Render/IBuffer.h"
+#include "Render/Core/RenderTypes.h"
+#include <vulkan/vulkan.h>
+#include <vk_mem_alloc.h>
+#include <span>
+#include <cstdint>
 
-namespace CHModules
-{
-    class VertexBufferVK : public CHEngine::IVertexBuffer
+namespace CHModules {
+
+    class BufferVK
     {
     public:
-        VertexBufferVK(float* vertices, uint32_t size);
-        ~VertexBufferVK() override;
+        BufferVK(uint64_t size,
+                 CHEngine::BufferUsage usage,
+                 CHEngine::MemoryType  memory,
+                 std::span<const std::byte> initialData);
+        ~BufferVK();
 
-        const CHEngine::BufferLayout& GetLayout() const override;
-        void SetLayout(const CHEngine::BufferLayout& layout) override;
+        BufferVK(const BufferVK&)            = delete;
+        BufferVK& operator=(const BufferVK&) = delete;
 
-    private:
-        CHEngine::BufferLayout m_Layout;
-        // TODO: VkBuffer + VkDeviceMemory
-    };
+        void UpdateData(std::span<const std::byte> data, uint64_t offset = 0);
 
-    class IndexBufferVK : public CHEngine::IIndexBuffer
-    {
-    public:
-        IndexBufferVK(uint32_t* indices, uint32_t count);
-        ~IndexBufferVK() override;
-
-        uint32_t GetCount() const override;
+        VkBuffer     GetBuffer() const { return m_Buffer; }
+        uint64_t     GetSize()   const { return m_Size; }
+        CHEngine::BufferUsage GetUsage()  const { return m_Usage; }
+        CHEngine::MemoryType  GetMemory() const { return m_Memory; }
 
     private:
-        uint32_t m_Count = 0;
-        // TODO: VkBuffer + VkDeviceMemory
+        VkBuffer      m_Buffer = VK_NULL_HANDLE;
+        VmaAllocation m_Alloc  = VK_NULL_HANDLE;
+        uint64_t      m_Size   = 0;
+        CHEngine::BufferUsage m_Usage;
+        CHEngine::MemoryType  m_Memory;
+
+        bool m_HostVisible = false; // true for CpuToGpu — can map directly
     };
-}
+
+} // namespace CHModules

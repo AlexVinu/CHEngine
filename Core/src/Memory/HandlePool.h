@@ -107,6 +107,26 @@ namespace CHEngine {
 			m_FreeList.push_back(h.index);
 		}
 
+		// Removes the entry from the pool WITHOUT calling the deleter and returns ownership.
+		// Used for deferred deletion — caller wraps the pointer and destroys it later.
+		std::unique_ptr<T> Take(HandleType h)
+		{
+			if (h.index >= m_Slots.size())
+				return nullptr;
+
+			auto& slot = m_Slots[h.index];
+			if (!slot.occupied || slot.generation != h.generation)
+				return nullptr;
+
+			T* ptr        = slot.ptr;
+			slot.ptr      = nullptr;
+			slot.occupied = false;
+			++slot.generation;
+			--m_Count;
+			m_FreeList.push_back(h.index);
+			return std::unique_ptr<T>(ptr);
+		}
+
 		void Clear()
 		{
 			m_FreeList.clear();

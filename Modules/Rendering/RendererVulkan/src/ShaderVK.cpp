@@ -3,6 +3,7 @@
 #include "VulkanGlobals.h"
 
 #include <Log/Log.h>
+#include <algorithm>
 
 namespace CHModules
 {
@@ -18,7 +19,7 @@ namespace CHModules
         {
             if (spirv.empty() || (spirv.size() % 4) != 0)
             {
-                CHE_CORE_ERROR("ShaderVK: SPIR-V blob for {0} has bad size {1}", stage, spirv.size());
+                CHE_CORE_ERROR("ShaderVK: SPIR-V blob for {} has bad size {}", stage, spirv.size());
                 return VK_NULL_HANDLE;
             }
 
@@ -30,7 +31,7 @@ namespace CHModules
             VkShaderModule mod = VK_NULL_HANDLE;
             if (vkCreateShaderModule(device, &info, nullptr, &mod) != VK_SUCCESS)
             {
-                CHE_CORE_ERROR("ShaderVK: vkCreateShaderModule failed for {0}", stage);
+                CHE_CORE_ERROR("ShaderVK: vkCreateShaderModule failed for {}", stage);
                 return VK_NULL_HANDLE;
             }
             return mod;
@@ -58,7 +59,7 @@ namespace CHModules
         CompiledShader compiled = m_Slang->Compile(slangSource, vertEntry, fragEntry, sourcePath);
         if (!compiled.valid)
         {
-            CHE_CORE_ERROR("ShaderVK: Slang compilation failed:\n{0}", compiled.errorLog);
+            CHE_CORE_ERROR("ShaderVK: Slang compilation failed:\n{}", compiled.errorLog);
             return false;
         }
 
@@ -74,14 +75,46 @@ namespace CHModules
         DestroyModules();
         m_VertModule = vert;
         m_FragModule = frag;
+
+        // Build sorted binding lists from reflection.
+        m_UboBindings.clear();
+        m_SamplerBindings.clear();
+
+        for (const auto& [name, info] : compiled.params)
+        {
+            BindingEntry e{ info.binding, info.set };
+            if (info.isSampler)
+                m_SamplerBindings.push_back(e);
+            else
+                m_UboBindings.push_back(e);
+        }
+
+        auto byBinding = [](const BindingEntry& a, const BindingEntry& b) {
+            return a.vkBinding < b.vkBinding;
+        };
+        auto sameBinding = [](const BindingEntry& a, const BindingEntry& b) {
+            return a.vkBinding == b.vkBinding;
+        };
+        std::sort(m_UboBindings.begin(),     m_UboBindings.end(),     byBinding);
+        std::sort(m_SamplerBindings.begin(), m_SamplerBindings.end(), byBinding);
+
+        // Remove duplicate binding indices.  [[vk::combinedImageSampler]] causes
+        // Slang reflection to emit both the Texture2D and SamplerState at the same
+        // binding number; we only need one descriptor layout entry per binding.
+        m_UboBindings.erase(
+            std::unique(m_UboBindings.begin(),     m_UboBindings.end(),     sameBinding),
+            m_UboBindings.end());
+        m_SamplerBindings.erase(
+            std::unique(m_SamplerBindings.begin(), m_SamplerBindings.end(), sameBinding),
+            m_SamplerBindings.end());
+
         return true;
     }
 
     void ShaderVK::DestroyModules()
     {
         VkDevice device = GetActiveDevice();
-        if (device == VK_NULL_HANDLE)
-            return;
+        if (device == VK_NULL_HANDLE) return;
 
         if (m_VertModule != VK_NULL_HANDLE)
         {
@@ -103,7 +136,7 @@ namespace CHModules
         : m_Slang(&slang)
     {
         if (!BuildModules(slangSource, vertEntry, fragEntry, sourcePath))
-            CHE_CORE_WARN("ShaderVK: shader was created without valid modules");
+            CHE_CORE_WARN("ShaderVK: shader created without valid modules");
     }
 
     ShaderVK::~ShaderVK()
@@ -119,6 +152,4 @@ namespace CHModules
         return BuildModules(slangSource, vertEntry, fragEntry, sourcePath);
     }
 
-    void ShaderVK::SetUniformBlock(CHEngine::EUniformBlock /*block*/, const void* /*data*/, uint32_t /*size*/) {}
-    void ShaderVK::SetInt(const String& /*name*/, int /*value*/) {}
 }

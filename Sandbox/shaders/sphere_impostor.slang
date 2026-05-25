@@ -110,9 +110,13 @@ PSOut fragMain(VSOut input)
     float3 viewDir  = -rayDir;
 
     // Exact sphere-surface depth for correct Z-buffering.
-    // clipPos.z / clipPos.w is OpenGL NDC z in [-1, 1]; gl_FragDepth expects [0, 1].
+    // camera.ViewProjection already incorporates the per-API clip correction, so
+    // clipPos.z / clipPos.w is in the NDC depth range for the current API.
+    // NDCDepthScale/NDCDepthBias convert it to the [0,1] hardware depth range:
+    //   Vulkan:       scale=1.0, bias=0.0  (NDC Z already in [0,1])
+    //   OpenGL/Metal: scale=0.5, bias=0.5  (NDC Z in [-1,1] → [0,1])
     float4 clipPos = mul(camera.ViewProjection, float4(hitPoint, 1.0f));
-    o.depth = clipPos.z / clipPos.w * 0.5 + 0.5;
+    o.depth = clipPos.z / clipPos.w * camera.NDCDepthScale + camera.NDCDepthBias;
 
     // Blinn-Phong shading
     float3 baseColor    = input.Color;

@@ -345,10 +345,9 @@ void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*
     // ── World canvases ────────────────────────────────────────────────────────
     if (!worldList.empty())
     {
-        const auto& sceneCam = Application::Get().Render().GetSceneCamera();
-        glm::mat4 cameraVP;
-        std::memcpy(glm::value_ptr(cameraVP),
-                    sceneCam.ViewProjection, sizeof(cameraVP));
+        // Берём LOGICAL VP — backend сам применит clipCorr внутри BeginCanvas,
+        // иначе под Vulkan получим двойной Y-flip.
+        const glm::mat4 cameraVP = Application::Get().Render().GetSceneCameraLogicalVP();
 
         for (const UUID& uuid : worldList)
         {

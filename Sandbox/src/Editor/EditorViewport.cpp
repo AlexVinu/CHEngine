@@ -78,8 +78,17 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
     if (scene_session->GetSessionState() != SceneSession::State::Play)
     {
         glm::mat4 vp    = viewport_camera->GetViewProjection();
-        glm::mat4 invVP = glm::inverse(vp);
         glm::vec3 camPos = viewport_camera->GetPosition();
+
+        // Сохраняем logical VP для UI world-canvas (он сам применит clipCorr).
+        CHEngine::Application::Get().Render().SetSceneCameraLogicalVP(vp);
+
+        // Backend задаёт clip-space correction и NDC depth range — здесь без API-веток.
+        auto* rf = CHEngine::Application::Get().Render().GetRenderFactory();
+        if (rf)
+            vp = rf->GetClipSpaceCorrection() * vp;
+
+        glm::mat4 invVP = glm::inverse(vp);
 
         CHEngine::UBOCamera cameraUBO{};
         std::memcpy(cameraUBO.ViewProjection, glm::value_ptr(vp),    sizeof(cameraUBO.ViewProjection));
@@ -88,6 +97,12 @@ void EditorViewport::BeginSceneRender(SceneSession* scene_session)
         cameraUBO.CameraPos[1] = camPos.y;
         cameraUBO.CameraPos[2] = camPos.z;
         cameraUBO.CameraPos[3] = 0.0f;
+
+        const auto depth = rf ? rf->GetNDCDepthRange()
+                              : CHEngine::IRenderFactory::NDCDepthRange{};
+        cameraUBO.NDCNearZ      = depth.NearZ;
+        cameraUBO.NDCDepthScale = depth.Scale;
+        cameraUBO.NDCDepthBias  = depth.Bias;
 
         CHEngine::Application::Get().Render().SetSceneCamera(cameraUBO);
 
@@ -389,9 +404,10 @@ void EditorViewport::DrawImGui(GizmoSystem& gizmo,
                           colorTexID, (int)panelSize.x, (int)panelSize.y);
             s_LoggedOnce = true;
         }
-        const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
-        ImVec2 uv0 = isMetal ? ImVec2(0, 0) : ImVec2(0, 1);
-        ImVec2 uv1 = isMetal ? ImVec2(1, 1) : ImVec2(1, 0);
+        auto* rf2 = CHEngine::Application::Get().Render().GetRenderFactory();
+        const bool needsVFlip = rf2 && rf2->ImGuiImageNeedsVFlip();
+        ImVec2 uv0 = needsVFlip ? ImVec2(0, 1) : ImVec2(0, 0);
+        ImVec2 uv1 = needsVFlip ? ImVec2(1, 0) : ImVec2(1, 1);
         ImGui::Image(static_cast<ImTextureID>(colorTexID), panelSize, uv0, uv1);
     }
 

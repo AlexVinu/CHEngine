@@ -43,6 +43,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE
     ${CHE_INTERFACES_DIR}
     ${CHE_CORE_DIR}
     ${IMGUI_INCLUDE_DIR}
+    ${CMAKE_SOURCE_DIR}/Modules/Rendering/RendererVulkan/public
 )
 
 target_link_libraries(${PROJECT_NAME} PRIVATE

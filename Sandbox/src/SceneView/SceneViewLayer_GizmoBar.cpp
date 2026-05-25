@@ -83,10 +83,11 @@ void Draw(SceneViewLayer& layer)
     const float  kIconDraw = kBtnSize - 2.0f * kIconPad;
     const ImVec2 kIconSize = ImVec2(kIconDraw, kIconDraw);
 
-    // Metal: UV без флипа; OGL: флип Y
-    const bool   isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
-    const ImVec2 kUV0    = isMetal ? ImVec2(0,0) : ImVec2(0,1);
-    const ImVec2 kUV1    = isMetal ? ImVec2(1,1) : ImVec2(1,0);
+    // V-flip определяется бэкендом (OGL/VK: да, Metal: нет).
+    auto* rf = CHEngine::Application::Get().Render().GetRenderFactory();
+    const bool   flipV = rf && rf->ImGuiImageNeedsVFlip();
+    const ImVec2 kUV0  = flipV ? ImVec2(0,1) : ImVec2(0,0);
+    const ImVec2 kUV1  = flipV ? ImVec2(1,0) : ImVec2(1,1);
 
     // Рисует кнопку с иконкой (или текстом-fallback).
     // Явно задаём FramePadding = kIconPad чтобы ImageButton был ровно kBtnSize × kBtnSize

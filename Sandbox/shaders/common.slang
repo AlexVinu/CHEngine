@@ -4,6 +4,14 @@ struct CameraUBO
     float4x4 ViewProjection;
     float4x4 InvViewProj;
     float4   CameraPos;
+    // NDC convention helpers (API-specific, set by RenderSystem):
+    //   NDCNearZ      : -1.0 (OpenGL/Metal)  or  0.0 (Vulkan)
+    //   NDCDepthScale :  0.5 (OpenGL/Metal)  or  1.0 (Vulkan)
+    //   NDCDepthBias  :  0.5 (OpenGL/Metal)  or  0.0 (Vulkan)
+    float    NDCNearZ;
+    float    NDCDepthScale;
+    float    NDCDepthBias;
+    float    _camPad;
 };
 
 struct ObjectUBO

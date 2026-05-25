@@ -153,6 +153,17 @@ namespace CHEngine {
                 String("DefaultMaterialUBO"));
         }
 
+        // Tonemap params UBO: {GammaCorrect=1 for OGL/Metal, 0 for Vulkan SRGB swapchain}.
+        // Created once; value updated each frame in Run().
+        if (!m_TonemapParamsUBO.IsValid())
+        {
+            float init[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+            m_TonemapParamsUBO = factory->CreateBuffer(
+                sizeof(init), BufferUsage::Uniform, MemoryType::CpuToGpu,
+                std::span<const std::byte>(reinterpret_cast<const std::byte*>(init), sizeof(init)),
+                String("TonemapParamsUBO"));
+        }
+
         // Load tonemap shader once.
         if (!m_TonemapShader.IsValid())
         {
@@ -182,6 +193,7 @@ namespace CHEngine {
 
         return m_HDRTarget.IsValid() && m_DepthTarget.IsValid() && m_LDRTarget.IsValid()
             && m_TonemapShader.IsValid() && m_TonemapPipeline.IsValid()
+            && m_TonemapParamsUBO.IsValid()
             && m_CameraUBO.IsValid() && m_LightingUBO.IsValid()
             && m_DefaultMaterialUBO.IsValid();
     }
@@ -385,6 +397,17 @@ namespace CHEngine {
             Application::Get().Render().GetFrameGraph().AddPass(std::move(pass));
         }
 
+        // Update tonemap params: skip manual gamma when the swapchain itself applies
+        // linear→sRGB on write (SRGB-format swapchain), otherwise the image is doubly
+        // gamma-corrected and looks washed out.
+        if (m_TonemapParamsUBO.IsValid())
+        {
+            const float gammaCorrect = (factory && factory->SwapchainIsSRGB()) ? 0.0f : 1.0f;
+            float params[4] = { gammaCorrect, 0.0f, 0.0f, 0.0f };
+            factory->UpdateBuffer(m_TonemapParamsUBO,
+                std::span<const std::byte>(reinterpret_cast<const std::byte*>(params), sizeof(params)));
+        }
+
         // TonemapPass: ACES HDR → LDR (RGBA8 target for ImGui display).
         PassDesc tonemapPass;
         tonemapPass.Name       = "TonemapPass";
@@ -397,6 +420,8 @@ namespace CHEngine {
 
         // Setup render target and input texture
         tonemapPass.ColorAttachments.push_back(m_LDRTarget);
+        tonemapPass.Uniforms.push_back({ m_TonemapParamsUBO,
+            static_cast<uint32_t>(EUniformBlock::Camera), 0, 16u });  // slot 0 → tonemap params
         tonemapPass.Textures.push_back({ m_HDRTarget, 0 });  // Input: HDR target at slot 0
 
         // ── Dependency tracking ────────────────────────────────────────────────
@@ -685,6 +710,26 @@ namespace CHEngine {
             view_proj     = proj * view;
             inv_view_proj = glm::inverse(view_proj);
             pos           = t.Position;
+        }
+
+        // Сохраняем logical (GLM/OpenGL-convention) VP для систем, которые
+        // композируют дополнительные трансформы поверх (UI world-canvas).
+        Application::Get().Render().SetSceneCameraLogicalVP(view_proj);
+
+        // Clip-space correction and NDC depth range come from the backend; this
+        // system stays API-agnostic.
+        {
+            IRenderFactory* factory = Application::Get().Render().GetRenderFactory();
+            if (factory)
+            {
+                view_proj     = factory->GetClipSpaceCorrection() * view_proj;
+                inv_view_proj = glm::inverse(view_proj);
+
+                const auto depth = factory->GetNDCDepthRange();
+                out.NDCNearZ      = depth.NearZ;
+                out.NDCDepthScale = depth.Scale;
+                out.NDCDepthBias  = depth.Bias;
+            }
         }
 
         std::memcpy(out.ViewProjection, glm::value_ptr(view_proj),     sizeof(out.ViewProjection));

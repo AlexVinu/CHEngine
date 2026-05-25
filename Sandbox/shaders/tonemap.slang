@@ -2,6 +2,16 @@
 // Uses SV_VertexID to generate a full-screen triangle without a vertex buffer.
 // Metal supports this natively. OpenGL uses gl_VertexID (GLSL 1.30+).
 
+struct TonemapParamsUBO
+{
+    float GammaCorrect; // 1.0 = apply manual pow(1/2.2),  0.0 = skip (GPU SRGB swapchain does it)
+    float _pad0, _pad1, _pad2;
+};
+
+// Params UBO at register(b0) → Vulkan binding 0.
+// Texture at explicit binding 1 to avoid flat-namespace conflict with b0 in SPIRV.
+ConstantBuffer<TonemapParamsUBO> params;
+[[vk::binding(1, 0)]]
 Sampler2D u_HDRTexture;
 
 struct VSOut
@@ -48,7 +58,10 @@ float4 fragMain(VSOut input) : SV_Target
     float3 ldrColor = ACESApprox(hdrColor);
 
     // Gamma correction: linear -> sRGB (approximate, gamma = 2.2).
-    ldrColor = pow(max(ldrColor, float3(0.0, 0.0, 0.0)), float3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));
+    // Skipped when the target API (Vulkan SRGB swapchain) already applies gamma automatically,
+    // because applying it twice would produce a washed-out, overexposed image.
+    if (params.GammaCorrect > 0.5)
+        ldrColor = pow(max(ldrColor, float3(0.0, 0.0, 0.0)), float3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));
 
     return float4(ldrColor, 1.0);
 }

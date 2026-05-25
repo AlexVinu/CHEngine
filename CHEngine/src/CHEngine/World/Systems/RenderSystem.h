@@ -64,6 +64,7 @@ namespace CHEngine {
     PipelineHandle GetOrCreatePipeline(ShaderHandle shader);
         ShaderHandle   m_TonemapShader;
         PipelineHandle m_TonemapPipeline;
+        BufferHandle   m_TonemapParamsUBO;  // {GammaCorrect, pad, pad, pad}
         BufferHandle   m_CameraUBO;
         BufferHandle   m_LightingUBO;
         BufferHandle   m_DefaultMaterialUBO; // default material: UseTexture=0

@@ -1,40 +1,46 @@
 #pragma once
 
-#include <Render/IShader.h>
 #include <CheStl/String.h>
 #include <SlangBackend/SlangBackend.h>
 
 #include <vulkan/vulkan.h>
+#include <string>
+#include <vector>
+#include <cstdint>
 
 namespace CHModules
 {
-    // Vulkan shader: takes a .slang source, compiles via SlangBackend → SPIR-V,
-    // and creates one VkShaderModule per stage. Pipeline creation (which needs
-    // these modules) happens elsewhere.
-    class ShaderVK : public CHEngine::IShader
+    // Vulkan shader: compiles .slang → SPIR-V via SlangBackend, creates VkShaderModules.
+    // Stores Slang reflection data (binding layout) for use by PipelineVK.
+    class ShaderVK
     {
     public:
-        // slang: reference to the factory-owned SlangBackend (must outlive this shader)
         ShaderVK(const String& slangSource,
                  const String& vertEntry,
                  const String& fragEntry,
                  const String& sourcePath,
                  SlangBackend& slang);
-        ~ShaderVK() override;
+        ~ShaderVK();
+
+        ShaderVK(const ShaderVK&)            = delete;
+        ShaderVK& operator=(const ShaderVK&) = delete;
 
         bool Reload(const String& slangSource,
                     const String& vertEntry  = String("vertMain"),
                     const String& fragEntry  = String("fragMain"),
-                    const String& sourcePath = String()) override;
-
-        void SetUniformBlock(CHEngine::EUniformBlock block, const void* data, uint32_t size) override;
-        void SetInt(const String& name, int value) override;
+                    const String& sourcePath = String());
 
         VkShaderModule GetVertexModule()   const { return m_VertModule; }
         VkShaderModule GetFragmentModule() const { return m_FragModule; }
 
+        // Reflection: bindings sorted into UBOs and samplers by VK binding number.
+        struct BindingEntry { uint32_t vkBinding = 0; uint32_t set = 0; };
+        const std::vector<BindingEntry>& GetUboBindings()     const { return m_UboBindings; }
+        const std::vector<BindingEntry>& GetSamplerBindings() const { return m_SamplerBindings; }
+
     private:
-        SlangBackend* m_Slang = nullptr; // owned by factory; valid for shader lifetime
+        SlangBackend* m_Slang = nullptr;
+
         bool BuildModules(const String& slangSource,
                           const String& vertEntry,
                           const String& fragEntry,
@@ -43,5 +49,10 @@ namespace CHModules
 
         VkShaderModule m_VertModule = VK_NULL_HANDLE;
         VkShaderModule m_FragModule = VK_NULL_HANDLE;
+
+        // Sorted lists of reflection bindings: index in vector = slot index used by FG backend.
+        // UBOs are sorted ascending by vkBinding; same for samplers.
+        std::vector<BindingEntry> m_UboBindings;
+        std::vector<BindingEntry> m_SamplerBindings;
     };
 }

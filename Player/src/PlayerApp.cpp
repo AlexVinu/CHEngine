@@ -120,9 +120,10 @@ public:
             ImGuiWindowFlags_NoBringToFrontOnFocus|ImGuiWindowFlags_NoNav);
         ImGui::PopStyleVar(2);
 
-        const bool isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
-        ImVec2 uv0 = isMetal ? ImVec2(0,0) : ImVec2(0,1);
-        ImVec2 uv1 = isMetal ? ImVec2(1,1) : ImVec2(1,0);
+        auto* rf = CHEngine::Application::Get().Render().GetRenderFactory();
+        const bool flipV = rf && rf->ImGuiImageNeedsVFlip();
+        ImVec2 uv0 = flipV ? ImVec2(0,1) : ImVec2(0,0);
+        ImVec2 uv1 = flipV ? ImVec2(1,0) : ImVec2(1,1);
         ImGui::Image(static_cast<ImTextureID>(texID), size, uv0, uv1);
         ImGui::End();
     }

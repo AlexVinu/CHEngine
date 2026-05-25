@@ -11,6 +11,8 @@
 #include "Render/Descriptors.h"
 #include "Render/IFrameGraphBackend.h"
 
+#include <glm/mat4x4.hpp>
+
 #include <span>
 #include <memory>
 
@@ -97,6 +99,36 @@ namespace CHEngine {
         // Returns the required alignment (in bytes) for UBO sub-range offsets.
         // OGL: GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT (typically 256).
         virtual uint32_t GetUniformBufferOffsetAlignment() const = 0;
+
+        // ── API-agnostic backend traits ───────────────────────────────────────
+        // Block until the GPU is idle. Must be called before destroying GPU
+        // resources during shutdown or API switch. OGL/Metal: no-op. Vulkan: vkDeviceWaitIdle.
+        virtual void WaitIdle() {}
+
+        // Correction matrix applied on top of GLM's OpenGL-convention projection.
+        // OGL/Metal: identity. Vulkan: Y-flip + Z [-1,1] → [0,1].
+        virtual glm::mat4 GetClipSpaceCorrection() const { return glm::mat4(1.0f); }
+
+        // NDC depth-range constants for shaders that linearise depth.
+        // Defaults: OpenGL/Metal convention (Z in [-1,1] → remap with 0.5*z+0.5).
+        struct NDCDepthRange { float NearZ = -1.0f; float Scale = 0.5f; float Bias = 0.5f; };
+        virtual NDCDepthRange GetNDCDepthRange() const { return {}; }
+
+        // True if any backend texture displayed through ImGui::Image must have its
+        // V coordinate flipped. OGL stores rows bottom-up (UV.y=0 = bottom);
+        // Vulkan inherits the same convention for the viewport HDR→LDR path.
+        // Metal stores textures top-down → no flip.
+        virtual bool ImGuiImageNeedsVFlip() const { return false; }
+
+        // True if the swapchain uses a perceptual sRGB format and the GPU applies
+        // linear→sRGB on write. In that case manual gamma correction in tonemap
+        // pass must be skipped to avoid double correction.
+        virtual bool SwapchainIsSRGB() const { return false; }
+
+        // Returns an opaque pointer to a backend-specific shared context struct
+        // (e.g. Vulkan: RendererVK::VulkanSharedContext). Other APIs: nullptr.
+        // Used by API-specific consumers (ImGuiVK) that need native handles.
+        virtual void* GetNativeSharedContext() { return nullptr; }
     };
 }
 

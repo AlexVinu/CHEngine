@@ -1,7 +1,8 @@
 #include "chepch.h"
 #include "ImGuiFactoryMTL.h"
 
-CHEngine::IImGuiLayer* CHModules::ImGuiFactoryMTL::CreateImGuiLayer(CHEngine::IWindow* window)
+CHEngine::IImGuiLayer* CHModules::ImGuiFactoryMTL::CreateImGuiLayer(
+    CHEngine::IWindow* window, CHEngine::IRenderFactory* /*renderFactory*/)
 {
     return CreateImpl<ImGuiLayerMTL>(window);
 }

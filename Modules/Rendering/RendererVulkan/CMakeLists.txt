@@ -66,8 +66,11 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
     $<$<CONFIG:Dist>:CHE_DIST>
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE
-    "${CMAKE_CURRENT_BINARY_DIR}/vma"
+target_include_directories(${PROJECT_NAME}
+    PUBLIC
+        "${CMAKE_CURRENT_SOURCE_DIR}/public"
+    PRIVATE
+        "${CMAKE_CURRENT_BINARY_DIR}/vma"
 )
 
 target_link_libraries(${PROJECT_NAME}

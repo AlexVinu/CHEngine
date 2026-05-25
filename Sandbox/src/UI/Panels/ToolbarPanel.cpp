@@ -166,9 +166,10 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         const float kRound   = 4.0f;               // скругление углов
         const float gap      = 5.0f;               // зазор между двумя кнопками
 
-        const bool   isMetal = (CHEngine::Application::Get().GetRenderAPIType() == CHEngine::ERenderAPI::METAL);
-        const ImVec2 uv0     = isMetal ? ImVec2(0,0) : ImVec2(0,1);
-        const ImVec2 uv1     = isMetal ? ImVec2(1,1) : ImVec2(1,0);
+        auto* rf = CHEngine::Application::Get().Render().GetRenderFactory();
+        const bool   flipV = rf && rf->ImGuiImageNeedsVFlip();
+        const ImVec2 uv0   = flipV ? ImVec2(0,1) : ImVec2(0,0);
+        const ImVec2 uv1   = flipV ? ImVec2(1,0) : ImVec2(1,1);
 
         // Хелпер: рисует кнопку "Текст + отступ + Иконка" через InvisibleButton + DrawList
         auto playBtn = [&](const char* strId, const char* label,

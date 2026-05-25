@@ -35,9 +35,10 @@ float gridLine(float2 xz, float cellSize)
 [shader("fragment")]
 float4 fragMain(VSOut input) : SV_Target
 {
-    // Unproject NDC pixel → world space
-    float4 nearH = mul(camera.InvViewProj, float4(input.NDC, -1.0, 1.0));
-    float4 farH  = mul(camera.InvViewProj, float4(input.NDC,  1.0, 1.0));
+    // Unproject NDC pixel → world space.
+    // NDCNearZ is -1.0 for OpenGL/Metal (Z in [-1,1]) and 0.0 for Vulkan (Z in [0,1]).
+    float4 nearH = mul(camera.InvViewProj, float4(input.NDC, camera.NDCNearZ, 1.0));
+    float4 farH  = mul(camera.InvViewProj, float4(input.NDC, 1.0, 1.0));
     float3 nearP = nearH.xyz / nearH.w;
     float3 farP  = farH.xyz  / farH.w;
 

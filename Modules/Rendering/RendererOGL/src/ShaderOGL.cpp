@@ -255,6 +255,10 @@ namespace CHModules
 		constexpr int kBlockCount = static_cast<int>(sizeof(blocks) / sizeof(blocks[0]));
 
 		bool bound[kBlockCount] = {};
+		// Помимо bound[expected] нужно знать, какие *активные* блоки шейдера уже
+		// съедены Pass-1 — иначе Pass-2 может пере-привязать тот же блок к чужому
+		// слоту, если размеры совпадают (например UBOCamera и UBOObject оба 160 байт).
+		std::vector<bool> activeBlockTaken;
 
 		for (int bi = 0; bi < kBlockCount; ++bi) {
 			const auto& b = blocks[bi];
@@ -264,13 +268,17 @@ namespace CHModules
 				if (idx != GL_INVALID_INDEX) {
 					glUniformBlockBinding(m_ProgramID, idx, b.binding);
 					bound[bi] = true;
+					if (activeBlockTaken.size() <= idx)
+						activeBlockTaken.resize(idx + 1, false);
+					activeBlockTaken[idx] = true;
 					break;
 				}
 			}
 		}
 
-		// Pass 2: size-based fallback for any blocks not matched by name.
-		// All four UBO sizes are unique (144 / 160 / 672 / 32), so size alone is unambiguous.
+		// Pass 2: size-based fallback для блоков, не привязанных по имени.
+		// Размеры могут совпадать (UBOCamera == UBOObject == 160), поэтому
+		// используем activeBlockTaken чтобы не трогать уже привязанные блоки.
 		bool anyUnbound = false;
 		for (int bi = 0; bi < kBlockCount; ++bi) anyUnbound |= !bound[bi];
 
@@ -295,12 +303,19 @@ namespace CHModules
 
 				CHE_CORE_WARN("  block[{}] name='{}' size={}", gi, nameBuf.data(), blockSize);
 
+				const GLuint gu = static_cast<GLuint>(gi);
+				if (gu < activeBlockTaken.size() && activeBlockTaken[gu]) continue;
+
 				for (int bi = 0; bi < kBlockCount; ++bi) {
 					if (bound[bi]) continue;
 					if (blockSize == blocks[bi].knownSize) {
-						glUniformBlockBinding(m_ProgramID, static_cast<GLuint>(gi), blocks[bi].binding);
+						glUniformBlockBinding(m_ProgramID, gu, blocks[bi].binding);
 						bound[bi] = true;
+						if (activeBlockTaken.size() <= gu)
+							activeBlockTaken.resize(gu + 1, false);
+						activeBlockTaken[gu] = true;
 						CHE_CORE_WARN("  → matched to '{}' binding={} by size", blocks[bi].names[0], blocks[bi].binding);
+						break;
 					}
 				}
 			}

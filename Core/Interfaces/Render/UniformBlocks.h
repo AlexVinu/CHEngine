@@ -60,13 +60,24 @@ struct alignas(16) UBOCamera
     float ViewProjection[16]; // mat4, offset 0
     float InvViewProj[16];   // mat4, offset 64
     float CameraPos[4];      // vec4, offset 128 (.xyz)
-    // sizeof = 144
+    // NDC convention helpers (set per-API by RenderSystem / EditorViewport):
+    //   NDCNearZ      : -1.0 (OpenGL/Metal) or 0.0 (Vulkan)
+    //   NDCDepthScale :  0.5 (OpenGL/Metal) or 1.0 (Vulkan)
+    //   NDCDepthBias  :  0.5 (OpenGL/Metal) or 0.0 (Vulkan)
+    float NDCNearZ;          // offset 144
+    float NDCDepthScale;     // offset 148
+    float NDCDepthBias;      // offset 152
+    float _camPad;           // offset 156  (padding to 160 bytes)
+    // sizeof = 160
 
     UBOCamera()
     {
         std::memset(this, 0, sizeof(*this));
         ViewProjection[0] = ViewProjection[5] = ViewProjection[10] = ViewProjection[15] = 1.0f;
         InvViewProj[0]    = InvViewProj[5]    = InvViewProj[10]    = InvViewProj[15]    = 1.0f;
+        NDCNearZ      = -1.0f; // OpenGL default
+        NDCDepthScale =  0.5f;
+        NDCDepthBias  =  0.5f;
     }
 };
 

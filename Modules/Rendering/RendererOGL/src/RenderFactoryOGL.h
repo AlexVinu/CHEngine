@@ -89,6 +89,10 @@ namespace CHModules
         // ── Alignment query ────────────────────────────────────────────────────
         virtual uint32_t GetUniformBufferOffsetAlignment() const override { return m_UBOOffsetAlignment; }
 
+        // ── API-agnostic traits ───────────────────────────────────────────────
+        // OGL FBO textures хранятся снизу-вверх → ImGui::Image нужно перевернуть V.
+        bool ImGuiImageNeedsVFlip() const override { return true; }
+
         // ── Resource pools ─────────────────────────────────────────────────────
         ShaderPool   Shaders;
         TexturePool  Textures;

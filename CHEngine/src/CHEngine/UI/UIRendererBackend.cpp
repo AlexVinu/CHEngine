@@ -217,8 +217,14 @@ void UIRendererBackend::BeginCanvas(const glm::mat4& viewProj, bool depthTest)
     if (m_CurrentSubmission >= 0)
         EndCanvas(); // implicit close
 
+    // Apply backend clip-space correction here so callers always pass a logical
+    // (OpenGL-convention) matrix. Without this, world-canvas would double-flip
+    // on Vulkan and overlay would render upside-down.
+    const glm::mat4 corrected =
+        (m_Factory ? m_Factory->GetClipSpaceCorrection() : glm::mat4(1.0f)) * viewProj;
+
     UICameraUBOData cam{};
-    std::memcpy(cam.ViewProj, glm::value_ptr(viewProj), sizeof(cam.ViewProj));
+    std::memcpy(cam.ViewProj, glm::value_ptr(corrected), sizeof(cam.ViewProj));
     cam.ScreenSize[0] = static_cast<float>(m_ScreenW);
     cam.ScreenSize[1] = static_cast<float>(m_ScreenH);
     uint32_t camIdx = static_cast<uint32_t>(m_CameraUBOs.size());
