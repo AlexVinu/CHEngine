@@ -1,5 +1,6 @@
 #pragma once
 #include <string>
+#include <filesystem>
 #include "Scene.h"
 #include <nlohmann/json.hpp>
 
@@ -11,7 +12,10 @@ struct CHENGINE_API SceneSerializer {
     bool SaveToFile(Ref<Scene> scene, const std::string& path);
 
     // Loads scene from .chscene JSON file and returns a ready-to-use scene instance.
-    Ref<Scene> LoadFromFile(const std::string& path);
+    // basePath: project root used to resolve relative SourcePaths (e.g. "Assets/Models/…").
+    // Pass empty to fall back to absolute-only behaviour.
+    Ref<Scene> LoadFromFile(const std::string& path,
+                             const std::filesystem::path& basePath = {});
 
     // ── In-memory snapshot ───────────────────────────────
     // Returns the scene as a JSON object (callers can add extra fields before writing).
@@ -21,7 +25,10 @@ struct CHENGINE_API SceneSerializer {
     std::string SerializeToJson(Ref<Scene> scene);
 
     // Restores scene from JSON snapshot.
-    Ref<Scene> DeserializeFromJson(const nlohmann::json& data);
+    // basePath: project root used to resolve relative SourcePaths. Pass empty to
+    // keep the old absolute-only behaviour.
+    Ref<Scene> DeserializeFromJson(const nlohmann::json& data,
+                                    const std::filesystem::path& basePath = {});
 };
 
 } // namespace CHEngine

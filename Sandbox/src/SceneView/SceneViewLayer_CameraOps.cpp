@@ -2,6 +2,7 @@
 
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
+#include "EditorPopupState.h"
 
 #include <CHEngine/Scene/Components.h>
 #include <CHEngine/Scene/Entity.h>
@@ -68,7 +69,8 @@ void UpdateEditorCameraInput(SceneViewLayer& layer)
     CHEngine::InputSystem* input_system = CHEngine::Application::Get().InputSystem();
 
     Sandbox::EditorCameraController::InputSnapshot inputSnapshot{};
-    inputSnapshot.IsViewportHovered = SceneViewLayerAccess::Viewport(layer).IsViewportHovered();
+    inputSnapshot.IsViewportHovered = SceneViewLayerAccess::Viewport(layer).IsViewportHovered()
+        && !EditorPopup::AnyOpen();
     inputSnapshot.IsGizmoUsing = ImGuizmo::IsUsing();
     inputSnapshot.IsCtrlPressed = input_system->IsModifierDown(CHEngine::Mod_Ctrl);
     inputSnapshot.IsFocusPressed = input_system->Triggered("Editor.Camera.Focus");

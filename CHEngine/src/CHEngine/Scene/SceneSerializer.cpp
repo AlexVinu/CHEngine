@@ -154,7 +154,8 @@ std::string SceneSerializer::SerializeToJson(Ref<Scene> scene) {
     return BuildJson(scene).dump(4);
 }
 
-Ref<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& sceneJson) {
+Ref<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& sceneJson,
+                                                  const std::filesystem::path& basePath) {
     Ref<Scene> loadedScene = MakeRef<Scene>();
 
     // Restore pools before entities so component StringID/ScriptsID values resolve.
@@ -261,8 +262,12 @@ Ref<Scene> SceneSerializer::DeserializeFromJson(const nlohmann::json& sceneJson)
             } else {
                 std::filesystem::path fsPath(meshPath);
                 if (!fsPath.is_absolute()) {
-                    CHE_CORE_WARN("SceneSerializer: SourcePath '{}' is not absolute — skipping mesh reload", meshPath);
-                    return;
+                    if (!basePath.empty())
+                        fsPath = basePath / fsPath;
+                    else {
+                        CHE_CORE_WARN("SceneSerializer: SourcePath '{}' is relative but no basePath provided — skipping mesh reload", meshPath);
+                        return;
+                    }
                 }
                 auto modelHandle = Application::Get().Resources().Load<ModelHandle>(
                     fsPath, Application::Get().Render().GetDefaultMeshShader());
@@ -286,14 +291,15 @@ bool SceneSerializer::SaveToFile(Ref<Scene> scene, const std::string& path) {
     return FileSystem::WriteFileText(path, SerializeToJson(scene));
 }
 
-Ref<Scene> SceneSerializer::LoadFromFile(const std::string& path) {
+Ref<Scene> SceneSerializer::LoadFromFile(const std::string& path,
+                                          const std::filesystem::path& basePath) {
     const std::string txt = FileSystem::ReadFileText(path);
     if (txt.empty()) {
         CHE_CORE_ERROR("SceneSerializer::LoadFromFile: empty or missing file '{}'", path);
         return nullptr;
     }
     try {
-        return DeserializeFromJson(json::parse(txt));
+        return DeserializeFromJson(json::parse(txt), basePath);
     } catch (const std::exception& e) {
         CHE_CORE_ERROR("SceneSerializer::LoadFromFile: parse error in '{}': {}", path, e.what());
         return nullptr;

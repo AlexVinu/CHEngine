@@ -11,6 +11,7 @@
 
 #include <CHEngine/Application.h>
 #include <CHEngine/EngineConfig.h>
+#include <CHEngine/Utils/FileDialog.h>
 #include <CHEngine/Mesh/Material.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
@@ -1328,6 +1329,13 @@ void SceneViewLayerHost::AutoSaveForRestart()
 void SceneViewLayerHost::ImportModel(const std::string& filepath)
 {
     SceneViewLayerIO::ImportModel(m_Layer, filepath);
+}
+
+void SceneViewLayerHost::OpenImportModelDialog()
+{
+    std::string path = CHEngine::FileDialog::OpenModelFile();
+    if (!path.empty())
+        SceneViewLayerIO::ImportModel(m_Layer, path);
 }
 
 void SceneViewLayerHost::ApplyOrbit()

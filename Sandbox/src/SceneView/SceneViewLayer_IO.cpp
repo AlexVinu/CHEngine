@@ -91,8 +91,13 @@ void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string&
     ctx->CommandStack.Clear();
     ctx->SelectedEntity = {};
 
+    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    std::filesystem::path basePath;
+    if (proj_manager->HasProject())
+        basePath = proj_manager->Current()->RootDir();
+
     CHEngine::SceneSerializer serializer{};
-    auto loadedScene = serializer.LoadFromFile(absPath);
+    auto loadedScene = serializer.LoadFromFile(absPath, basePath);
     if (!loadedScene)
     {
         CHE_CORE_ERROR("SceneViewLayerIO::LoadSceneSilent: failed to load '{}'", absPath);
@@ -101,8 +106,6 @@ void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string&
     CHE_CORE_ASSERT(ctx->EditorScene, "SceneViewLayer: EditorScene must exist");
     *ctx->EditorScene = std::move(*loadedScene);
     ctx->ActivateEditorScene();
-
-    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
     // Record the file this session is bound to.
     if (proj_manager->HasProject())
     {
@@ -220,6 +223,11 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
     ctx->CommandStack.Clear();
     ctx->SelectedEntity = {};
 
+    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    std::filesystem::path basePath;
+    if (proj_manager->HasProject())
+        basePath = proj_manager->Current()->RootDir();
+
     CHEngine::SceneSerializer serializer{};
     {
         const std::string sceneText = CHEngine::FileSystem::ReadFileText(filePath);
@@ -240,7 +248,7 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
             return;
         }
 
-        auto loadedScene = serializer.DeserializeFromJson(sceneJson);
+        auto loadedScene = serializer.DeserializeFromJson(sceneJson, basePath);
         if (!loadedScene)
             return;
         CHE_CORE_ASSERT(ctx->EditorScene, "SceneViewLayer: EditorScene must exist");
@@ -248,7 +256,6 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
         ctx->ActivateEditorScene();
 
         // Bind the session to its file so future Saves can write without a dialog.
-        Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
         if (proj_manager->HasProject())
         {
             const std::string rel = proj_manager->Current()->ToRelativePath(filePath);

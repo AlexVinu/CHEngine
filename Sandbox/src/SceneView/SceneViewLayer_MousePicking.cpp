@@ -2,6 +2,7 @@
 
 #include "SceneViewLayer.h"
 #include "SceneViewLayerAccess.h"
+#include "EditorPopupState.h"
 
 #include <CHEngine/Application.h>
 #include <CHEngine/Camera/EditorCamera.h>
@@ -81,6 +82,9 @@ void TryPick(SceneViewLayer& layer)
         return;
 
     if (!ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+        return;
+
+    if (EditorPopup::AnyOpen())
         return;
 
     // Don't pick when the gizmo is active/under cursor — gizmo handles its own LMB drag.

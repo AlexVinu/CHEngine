@@ -62,6 +62,7 @@ public:
     void SetStartupSceneFile(const std::string& rel) ;
 
     void ImportModel(const std::string& filepath) ;
+    void OpenImportModelDialog() ;
 
     void ApplyOrbit() ;
     void SetViewPreset(float yaw_degrees, float pitch_degrees) ;

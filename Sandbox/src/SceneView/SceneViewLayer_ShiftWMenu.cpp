@@ -63,7 +63,10 @@ void Draw(SceneViewLayer& layer)
         bool outside = io.MousePos.x < wPos.x || io.MousePos.x > wPos.x + wSize.x ||
                        io.MousePos.y < wPos.y || io.MousePos.y > wPos.y + wSize.y;
         if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) && outside)
-        { EditorPopup::Close(); ImGui::End(); return; }
+        {
+            ImGui::GetIO().MouseClicked[ImGuiMouseButton_Left] = false;
+            EditorPopup::Close(); ImGui::End(); return;
+        }
     }
 
     const float w = 170.0f;

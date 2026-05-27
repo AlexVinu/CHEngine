@@ -59,7 +59,10 @@ void Draw(SceneViewLayer& layer)
     // before the MenuItem inside can return true.
     if (ImGui::IsMouseClicked(ImGuiMouseButton_Left) &&
         !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
-    { EditorPopup::Close(); ImGui::End(); return; }
+    {
+        ImGui::GetIO().MouseClicked[ImGuiMouseButton_Left] = false;
+        EditorPopup::Close(); ImGui::End(); return;
+    }
 
     Sandbox::SceneViewLayerHost host(layer);
     const float w = 150.0f;
@@ -72,6 +75,7 @@ void Draw(SceneViewLayer& layer)
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
     if (ImGui::Selectable("  Cube",   false, 0, ImVec2(w, 0))) { host.AddCubePrimitive();   EditorPopup::Close(); }
     if (ImGui::Selectable("  Sphere", false, 0, ImVec2(w, 0))) { host.AddSpherePrimitive(); EditorPopup::Close(); }
+    if (ImGui::Selectable("  Import Model...", false, 0, ImVec2(w, 0))) { EditorPopup::Close(); host.OpenImportModelDialog(); }
     ImGui::PopStyleVar();
 
     ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
