@@ -92,7 +92,11 @@ namespace CHEngine {
 
             const bool window_loaded   = module_manager->LoadModule(out_selection->WindowModuleName);
             const bool renderer_loaded = module_manager->LoadModule(out_selection->RendererModuleName);
-            const bool imgui_loaded    = module_manager->LoadModule(out_selection->ImGuiModuleName);
+            bool imgui_loaded          = false;
+            if (config.ImGuiEnabled)
+                imgui_loaded = module_manager->LoadModule(out_selection->ImGuiModuleName);
+            else
+                CHE_CORE_INFO("ImGui module loading disabled by startup config (headless present).");
 
             bool physics_loaded = false;
             if (config.PhysicsEnabled)
@@ -124,7 +128,7 @@ namespace CHEngine {
                 module_manager->UnloadAll();
                 return false;
             }
-            if (!imgui_loaded || !*out_imgui_factory)
+            if (config.ImGuiEnabled && (!imgui_loaded || !*out_imgui_factory))
                 CHE_CORE_WARN("Failed to load ImGui module '{}'! ImGui will be unavailable.", out_selection->ImGuiModuleName.c_str());
 
             if (config.PhysicsEnabled && *out_physics_factory)
@@ -152,6 +156,9 @@ namespace CHEngine {
     Application::Application(const ApplicationConfig& config)
         : m_RenderAPIType(config.RenderAPI)
     {
+        if (config.AppName && config.AppName[0] != '\0')
+            m_AppName = config.AppName;
+
         m_ModuleManager = std::make_unique<ModuleManager>();
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
@@ -375,6 +382,14 @@ namespace CHEngine {
                 for (Scope<Layer>& layer : m_LayerStack)
                     layer->OnImGuiRender();
                 m_UI->End();
+            }
+            else if (IRenderFactory* factory = m_Render->GetRenderFactory())
+            {
+                // ImGui-less runtime (Player): blit the viewport texture straight
+                // to the backbuffer instead of compositing it through ImGui::Image.
+                factory->PresentToBackbuffer(m_Render->GetViewportOutputTexture(),
+                                             m_Render->GetViewportWidth(),
+                                             m_Render->GetViewportHeight());
             }
 
             m_Render->EndFrame();

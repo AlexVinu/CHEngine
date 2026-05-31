@@ -5,11 +5,13 @@
 #include <algorithm>
 #include <filesystem>
 #include <memory>
+#include <sstream>
 #include <unordered_map>
 
 #include "CHEngine/Mesh/Material.h"
 #include "CHEngine/ResourceManager/ResourceManager.h"
 #include "CHEngine/Application.h"
+#include "FileSystem/FileSystem.h"
 
 // OBJ loader implementation (header-only lib — compile exactly once here)
 #define TINYOBJLOADER_IMPLEMENTATION
@@ -17,6 +19,39 @@
 #include <tiny_obj_loader.h>
 
 namespace CHEngine {
+
+	namespace {
+
+	// Reads .mtl files through FileSystem (pak-first, disk fallback) so exported
+	// OBJ models resolve their materials from game.chepak. In the editor no pak is
+	// mounted, so the read falls through to disk.
+	class PakMaterialReader : public tinyobj::MaterialReader
+	{
+	public:
+		explicit PakMaterialReader(std::string baseDir) : m_BaseDir(std::move(baseDir)) {}
+
+		bool operator()(const std::string& matId,
+		                std::vector<tinyobj::material_t>* materials,
+		                std::map<std::string, int>* matMap,
+		                std::string* warn, std::string* err) override
+		{
+			const std::string path = m_BaseDir + matId;
+			std::string text = FileSystem::ReadFileText(std::filesystem::path(path));
+			if (text.empty())
+			{
+				if (warn) *warn += "PakMaterialReader: cannot read mtl '" + path + "'\n";
+				return true;  // отсутствующий .mtl — не фатально для tinyobj
+			}
+			std::istringstream ms(text);
+			tinyobj::LoadMtl(matMap, materials, &ms, warn, err);
+			return true;
+		}
+
+	private:
+		std::string m_BaseDir;
+	};
+
+	} // namespace
 
 	ModelHandle ModelLoader::LoadOBJ(const std::filesystem::path& filepath, ShaderHandle meshShader)
 	{
@@ -28,11 +63,23 @@ namespace CHEngine {
 		std::vector<tinyobj::material_t> materials;
 		std::string warn, err;
 
-		std::string baseDir = filepath.parent_path().string();
+		std::string baseDir = filepath.parent_path().generic_string();
 		if (!baseDir.empty()) baseDir += "/";
 
+		// Read the .obj through FileSystem (pak-first), parse from memory; .mtl
+		// files resolve through PakMaterialReader (also pak-aware).
+		std::string objText = FileSystem::ReadFileText(filepath);
+		if (objText.empty())
+		{
+			CHE_CORE_ERROR("Failed to read OBJ file: {}", filepath.string());
+			delete result;
+			return {};
+		}
+		std::istringstream objStream(objText);
+		PakMaterialReader matReader(baseDir);
+
 		bool ok = tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err,
-		                           filepath.string().c_str(), baseDir.c_str());
+		                           &objStream, &matReader);
 
 		if (!warn.empty())
 			CHE_CORE_WARN("OBJ warning: {0}", warn.c_str());

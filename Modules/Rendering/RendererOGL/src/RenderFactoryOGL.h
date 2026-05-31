@@ -63,6 +63,10 @@ namespace CHModules
         // ── Texture native ID (for ImGui::Image) ──────────────────────────────
         virtual uint64_t GetTextureNativeID(CHEngine::TextureHandle h) override;
 
+        // ── Present (ImGui-less runtime) ───────────────────────────────────────
+        virtual void PresentToBackbuffer(CHEngine::TextureHandle viewportTex,
+                                         uint32_t w, uint32_t h) override;
+
         // ── Shader hot-reload ──────────────────────────────────────────────────
         virtual bool ReloadShader(CHEngine::ShaderHandle h,
                                   const String& slangSource,
@@ -110,5 +114,10 @@ namespace CHModules
     private:
         // ShaderHandle index → list of dependent PipelineHandles (for hot-reload).
         std::unordered_map<uint32_t, std::vector<CHEngine::PipelineHandle>> m_ShaderToPipelines;
+
+        // ── Present blit (lazily created GL resources) ─────────────────────────
+        uint32_t m_PresentProgram = 0;
+        uint32_t m_PresentVAO     = 0;
+        void EnsurePresentResources();
     };
 }

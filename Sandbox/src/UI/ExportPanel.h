@@ -5,6 +5,7 @@
 
 #include <imgui.h>
 #include <string>
+#include <vector>
 #include <thread>
 #include <mutex>
 #include <atomic>
@@ -32,6 +33,13 @@ private:
     char m_BundleId[256]     = "com.chengine.game";
     int  m_Width             = 1280;
     int  m_Height            = 720;
+
+    // Startup scene picker (relative pak paths, e.g. "Scenes/main.chscene").
+    std::vector<std::string> m_Scenes;
+    int                      m_SceneSel = -1;
+    bool                     m_ScenesScanned = false;
+
+    void RefreshScenes();
 
     // Export progress (runs on worker thread)
     std::thread          m_Worker;

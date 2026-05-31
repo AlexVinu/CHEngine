@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "CHEngine/Application.h"
+#include "FileSystem/FileSystem.h"
 
 // GLTF/GLB loader implementation (header-only lib — compile exactly once here)
 // STB_IMAGE_IMPLEMENTATION defined here so stbi_load is available for OBJ loader too
@@ -18,6 +19,48 @@
 namespace CHEngine {
 
 	namespace {
+
+	// Pak-aware tinygltf filesystem callbacks. All external buffer/image reads
+	// (.gltf + .bin + textures) go through FileSystem (pak-first, disk fallback),
+	// so exported games load models straight from game.chepak. In the editor no
+	// pak is mounted, so every call falls through to disk transparently.
+	tinygltf::FsCallbacks MakePakFsCallbacks()
+	{
+		tinygltf::FsCallbacks cb{};
+		cb.user_data = nullptr;
+
+		cb.FileExists = [](const std::string& path, void*) -> bool {
+			return FileSystem::Exists(std::filesystem::path(path));
+		};
+		cb.ExpandFilePath = [](const std::string& path, void*) -> std::string {
+			return path;
+		};
+		cb.ReadWholeFile = [](std::vector<unsigned char>* out, std::string* err,
+		                      const std::string& path, void*) -> bool {
+			Buffer buf = FileSystem::ReadFileBinary(std::filesystem::path(path));
+			if (!buf || buf.Size == 0) {
+				if (err) *err += "FileSystem: cannot read '" + path + "'\n";
+				return false;
+			}
+			out->assign(buf.Data, buf.Data + buf.Size);
+			return true;
+		};
+		cb.WriteWholeFile = [](std::string*, const std::string&,
+		                       const std::vector<unsigned char>&, void*) -> bool {
+			return false;  // загрузчик ничего не пишет
+		};
+		cb.GetFileSizeInBytes = [](size_t* filesize_out, std::string* err,
+		                           const std::string& path, void*) -> bool {
+			Buffer buf = FileSystem::ReadFileBinary(std::filesystem::path(path));
+			if (!buf) {
+				if (err) *err += "FileSystem: cannot stat '" + path + "'\n";
+				return false;
+			}
+			*filesize_out = static_cast<size_t>(buf.Size);
+			return true;
+		};
+		return cb;
+	}
 
 	Ref<MaterialInstance> CreateGltfMaterialInstance(const tinygltf::Model& model, int materialIndex,
 	                                                             ShaderHandle meshShader)
@@ -75,10 +118,26 @@ namespace CHEngine {
 		tinygltf::TinyGLTF loader;
 		std::string warn, err;
 
+		tinygltf::FsCallbacks fscb = MakePakFsCallbacks();
+		loader.SetFsCallbacks(fscb);
+
+		// Read the root file through FileSystem (pak-first), then parse from memory.
+		// base_dir is the asset's directory so relative .bin/texture URIs resolve
+		// against it; our FsCallbacks then route those reads through FileSystem too.
+		Buffer rootData = FileSystem::ReadFileBinary(filepath);
+		if (!rootData || rootData.Size == 0)
+		{
+			CHE_CORE_ERROR("Failed to read GLTF file: {}", filepath.string());
+			return {};
+		}
+		const std::string baseDir = filepath.parent_path().generic_string();
+
 		std::string ext = filepath.extension().string();
 		bool ok = (ext == ".glb")
-		    ? loader.LoadBinaryFromFile(&model, &err, &warn, filepath.string())
-		    : loader.LoadASCIIFromFile(&model, &err, &warn, filepath.string());
+		    ? loader.LoadBinaryFromMemory(&model, &err, &warn,
+		                                  rootData.Data, static_cast<unsigned int>(rootData.Size), baseDir)
+		    : loader.LoadASCIIFromString(&model, &err, &warn,
+		                                  rootData.As<char>(), static_cast<unsigned int>(rootData.Size), baseDir);
 
 		if (!warn.empty())
 			CHE_CORE_WARN("GLTF warning: {0}", warn.c_str());

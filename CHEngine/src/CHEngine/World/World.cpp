@@ -9,9 +9,12 @@
 #include "Systems/RenderSystem.h"
 #include "Systems/UIRenderSystem.h"
 #include "CHEngine/Scene/Entity.h"
+#include "CHEngine/Scene/SceneSerializer.h"
+#include "CHEngine/Utils/AppPaths.h"
 #include "WorldEvents.h"
 
 #include <glm/gtc/quaternion.hpp>
+#include <filesystem>
 #include <vector>
 
 namespace CHEngine
@@ -73,6 +76,44 @@ namespace CHEngine
 
         // Processing deffered operations like components changes/creations/deletions
         m_DeferredOps.Flush(*this, m_Scene);
+
+        // Scene switch happens last — outside every system's ForEach.
+        if (m_HasPendingSceneLoad)
+            ProcessPendingSceneLoad();
+    }
+
+    void World::RequestSceneLoad(const std::string& relPath)
+    {
+        m_PendingSceneLoad    = relPath;
+        m_HasPendingSceneLoad = true;
+    }
+
+    void World::ProcessPendingSceneLoad()
+    {
+        m_HasPendingSceneLoad = false;
+        const std::string relPath = std::move(m_PendingSceneLoad);
+        m_PendingSceneLoad.clear();
+
+        const std::filesystem::path exeDir = AppPaths::ExecutableDir();
+        const std::filesystem::path full   = exeDir / relPath;
+
+        SceneSerializer serializer;
+        Ref<Scene> next = serializer.LoadFromFile(full.string(), exeDir);
+        if (!next)
+        {
+            CHE_CORE_ERROR("World::RequestSceneLoad: failed to load scene '{}'", relPath.c_str());
+            return;
+        }
+
+        // Restart running systems around the swap so OnBegin runs for the new scene.
+        const WorldState prev = m_State;
+        ApplyStateTransition(WorldState::NONE);
+        m_Scene = next;
+        SetWorldName(relPath);
+        m_PendingState = prev;
+        ApplyStateTransition(prev);
+
+        CHE_CORE_INFO("World: switched to scene '{}'", relPath.c_str());
     }
 
     void World::ApplyStateTransition(WorldState new_state)

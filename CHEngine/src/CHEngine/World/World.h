@@ -39,6 +39,13 @@ namespace CHEngine
         bool HasScene() const { return m_Scene != nullptr; }
         Ref<Scene> GetSceneRef() { return m_Scene; }
 
+        // Deferred scene switch. The path is resolved against the executable dir
+        // and loaded (pak-first) at the END of the current frame — never inside a
+        // system's ForEach. The running systems are restarted (NotifyEnd/Begin)
+        // around the swap so OnBegin runs for the new scene. Used by Lua
+        // (World:LoadScene) for runtime level changes.
+        void RequestSceneLoad(const std::string& relPath);
+
         void Update(Timestep dt);
         void OnEvent(Event& event);
 
@@ -78,6 +85,7 @@ namespace CHEngine
     private:
         void RegisterDefaultSystems();
         void ApplyStateTransition(WorldState new_state);
+        void ProcessPendingSceneLoad();
 
         SystemScheduler  m_Scheduler;
         class RenderSystem* m_RenderSystem = nullptr; // cached pointer, owned by m_Scheduler
@@ -95,5 +103,9 @@ namespace CHEngine
 
         WorldsList* m_Worlds = nullptr;
         std::string m_Name = "Untitled";
+
+        // Deferred scene-load request (processed at end of Update).
+        std::string m_PendingSceneLoad;
+        bool        m_HasPendingSceneLoad = false;
     };
 }

@@ -1,6 +1,8 @@
 #include "chepch.h"
 #include "AppPaths.h"
 
+#include <cstdlib>
+
 #if defined(_WIN32)
     #include <windows.h>
 #elif defined(__APPLE__)
@@ -59,6 +61,59 @@ std::filesystem::path AppPaths::EditorAssetsDir()
 std::filesystem::path AppPaths::EngineConfigPath()
 {
     return ExecutableDir() / "engine.json";
+}
+
+namespace {
+
+std::filesystem::path ResolveUserDataRoot()
+{
+#if defined(_WIN32)
+    if (const char* localAppData = std::getenv("LOCALAPPDATA"))
+        return std::filesystem::path(localAppData);
+#elif defined(__APPLE__)
+    if (const char* home = std::getenv("HOME"))
+        return std::filesystem::path(home) / "Library" / "Application Support";
+#elif defined(__linux__)
+    if (const char* xdg = std::getenv("XDG_DATA_HOME"))
+        return std::filesystem::path(xdg);
+    if (const char* home = std::getenv("HOME"))
+        return std::filesystem::path(home) / ".local" / "share";
+#endif
+    return {};
+}
+
+// Strip path separators and other characters that aren't safe in a directory name.
+std::string SanitizeTitle(const std::string& title)
+{
+    std::string out;
+    out.reserve(title.size());
+    for (char c : title)
+    {
+        if (c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' ||
+            c == '"' || c == '<' || c == '>' || c == '|')
+            out += '_';
+        else
+            out += c;
+    }
+    if (out.empty())
+        out = "CHEngineGame";
+    return out;
+}
+
+} // namespace
+
+std::filesystem::path AppPaths::UserDataDir(const std::string& gameTitle)
+{
+    const std::string safe = SanitizeTitle(gameTitle);
+
+    std::filesystem::path root = ResolveUserDataRoot();
+    std::filesystem::path dir = root.empty()
+        ? (ExecutableDir() / "saves" / safe)
+        : (root / safe);
+
+    std::error_code ec;
+    std::filesystem::create_directories(dir, ec);
+    return dir;
 }
 
 } // namespace CHEngine

@@ -34,17 +34,41 @@ bool FileSystem::IsPakMounted()
     return s_Pak && s_Pak->IsOpen();
 }
 
-// Convert an absolute path to a pak-relative key.
-// Strategy: take the path relative to the executable directory.
-// Fallback: use filename only.
+// Convert an arbitrary (usually absolute) path to a pak-relative key.
+//
+// Editor safety: when no pak is mounted this returns "" immediately, so the
+// function is a no-op for the editor and all reads fall through to disk.
+//
+// When a pak IS mounted we don't rely on current_path() (fragile). Instead we
+// try every trailing sub-path of `filepath`, longest first, and return the
+// longest one the pak actually contains. This makes packed assets resolve
+// reliably no matter what absolute prefix the caller passed
+// (e.g. ".../bin/Assets/Models/x.glb" → "Assets/Models/x.glb").
 std::string FileSystem::ToPakKey(const std::filesystem::path& filepath)
 {
-    std::error_code ec;
-    // Try to make relative to current_path (which Application sets to exe dir)
-    auto rel = std::filesystem::relative(filepath, std::filesystem::current_path(), ec);
-    if (!ec && !rel.empty() && rel.native()[0] != '.')
-        return rel.generic_string();
-    return filepath.filename().generic_string();
+    if (!s_Pak || !s_Pak->IsOpen())
+        return {};
+
+    std::vector<std::string> parts;
+    for (const auto& p : filepath) {
+        std::string s = p.generic_string();
+        if (s.empty() || s == "/" || s == "\\") continue;
+        parts.push_back(std::move(s));
+    }
+    if (parts.empty())
+        return {};
+
+    // Longest trailing sub-path first.
+    for (size_t start = 0; start < parts.size(); ++start) {
+        std::string candidate;
+        for (size_t i = start; i < parts.size(); ++i) {
+            if (!candidate.empty()) candidate += '/';
+            candidate += parts[i];
+        }
+        if (s_Pak->Has(candidate))
+            return candidate;
+    }
+    return {};
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

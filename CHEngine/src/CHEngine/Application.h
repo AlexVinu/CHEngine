@@ -36,6 +36,11 @@ namespace CHEngine {
         const char* ImGuiModuleOverride     = nullptr;
         const char* PhysicsModuleOverride   = nullptr;
         bool        PhysicsEnabled          = true;
+        // Runtime без ImGui (Player): не грузить ImGui-модуль, презент идёт
+        // через RenderFactory::PresentToBackbuffer (blit), а не ImGui::Image.
+        bool        ImGuiEnabled            = true;
+        // Имя игры — ключ для папки сейвов (AppPaths::UserDataDir).
+        const char* AppName                 = nullptr;
     };
 
     class CHENGINE_API Application
@@ -63,6 +68,9 @@ namespace CHEngine {
         Window* GetWindow() const { return m_Window.get(); }
 
         ERenderAPI GetRenderAPIType() const { return m_RenderAPIType; }
+
+        // Game/app name — used to key the per-user save directory (AppPaths::UserDataDir).
+        const std::string& GetAppName() const { return m_AppName; }
 
         // ── Subsystem accessors ───────────────────────────────────────────────
         // Render is always valid after a successful startup.
@@ -126,6 +134,8 @@ namespace CHEngine {
         LayerStack m_LayerStack;
 
         ShaderHandle m_Shader;
+
+        std::string m_AppName = "CHEngine";
 
         ERenderAPI m_RenderAPIType    = ERenderAPI::OPENGL;
         bool       m_RestartRequested = false;

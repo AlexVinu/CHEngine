@@ -6,6 +6,8 @@
 #include <nlohmann/json.hpp>
 #include <fstream>
 #include <filesystem>
+#include <algorithm>
+#include <cctype>
 
 using json = nlohmann::json;
 namespace fs = std::filesystem;
@@ -210,7 +212,10 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg, const fs::path& binDir
         CHE_CORE_WARN("[Export] Could not set executable bit: {}", ec.message());
 #endif
 
-    // Copy dylibs/dlls — next to executable so @executable_path works
+    // Copy dylibs/dlls — next to executable so @executable_path works.
+    // ImGui modules are deliberately EXCLUDED: the runtime presents via the
+    // renderer blit-pass and never loads ImGui (ApplicationConfig::ImGuiEnabled
+    // is false in the Player).
     if (!cfg.engineBinDir.empty() && fs::exists(cfg.engineBinDir))
     {
         for (auto& entry : fs::directory_iterator(cfg.engineBinDir, ec))
@@ -218,6 +223,17 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg, const fs::path& binDir
             if (!entry.is_regular_file()) continue;
             auto ext = entry.path().extension().string();
             if (ext != ".dylib" && ext != ".dll" && ext != ".so") continue;
+
+            // Skip any ImGui module (ImGuiOGL/ImGuiVK/ImGuiMTL, with lib prefix).
+            std::string fname = entry.path().filename().string();
+            std::string lower = fname;
+            std::transform(lower.begin(), lower.end(), lower.begin(),
+                           [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
+            if (lower.find("imgui") != std::string::npos)
+            {
+                CHE_CORE_INFO("[Export] Skipping ImGui module: {}", fname);
+                continue;
+            }
 
             fs::path dst = binDir / entry.path().filename();
             fs::copy_file(entry.path(), dst, fs::copy_options::overwrite_existing, ec);
@@ -227,24 +243,9 @@ bool ExportManager::CopyBinaries(const ExportConfig& cfg, const fs::path& binDir
         }
     }
 
-    // Copy scenes next to the executable — player loads scenes via direct path
-    // (pak lookup can fail due to path resolution; disk is 100% reliable)
-    fs::path scenesSource = cfg.projectDir / "Scenes";
-    if (!fs::exists(scenesSource)) scenesSource = cfg.projectDir / "scenes";
-    fs::path scenesDest = binDir / "Scenes";
-    if (fs::exists(scenesSource))
-    {
-        fs::create_directories(scenesDest, ec);
-        for (auto& entry : fs::recursive_directory_iterator(scenesSource, ec))
-        {
-            if (!entry.is_regular_file()) continue;
-            fs::path rel = fs::relative(entry.path(), scenesSource, ec);
-            fs::path dst = scenesDest / rel;
-            fs::create_directories(dst.parent_path(), ec);
-            fs::copy_file(entry.path(), dst, fs::copy_options::overwrite_existing, ec);
-        }
-        CHE_CORE_INFO("[Export] Scenes copied to {}", scenesDest.string());
-    }
+    // Scenes are NOT copied loose — they live in game.chepak and resolve through
+    // the pak-aware FileSystem (ToPakKey suffix matching). The Player passes
+    // exeDir/Scenes/<name> which maps to the "Scenes/<name>" pak key.
 
     // Copy shaders next to the executable — player loads them from exeDir/shaders/
     // (ResourceManager reads shaders via direct file I/O, bypassing the pak)

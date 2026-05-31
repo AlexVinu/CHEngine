@@ -72,6 +72,14 @@ namespace CHEngine {
         // Returns 0 on invalid handle.
         virtual uint64_t GetTextureNativeID(TextureHandle h) = 0;
 
+        // ── Present ───────────────────────────────────────────────────────────
+        // Blit an offscreen viewport texture to the default framebuffer/swapchain
+        // with a fullscreen pass. Used by the ImGui-less runtime (Player) to show
+        // the rendered frame without going through ImGui::Image. Editors keep
+        // using the ImGui present path. Default: no-op (backends override).
+        virtual void PresentToBackbuffer(TextureHandle viewportTex,
+                                         uint32_t w, uint32_t h) {}
+
         // ── Shader hot-reload ────────────────────────────────────────────────
         // Recompiles the shader in-place. The handle stays valid.
         // Returns false if compilation/link fails (existing program is preserved).

@@ -186,12 +186,24 @@ namespace CHEngine
 
     TextureHandle RenderSubsystem::CreateTextureFromFile(const std::string& path)
     {
+        // Read raw bytes through the pak-aware FileSystem (pak first, disk fallback),
+        // then decode from memory. This lets packed textures load in exported games;
+        // in the editor (no pak mounted) it is a plain disk read.
+        Buffer fileData = FileSystem::ReadFileBinary(std::filesystem::path(path));
+        if (!fileData || fileData.Size == 0)
+        {
+            CHE_CORE_ERROR("RenderSubsystem: failed to read texture file '{}'", path.c_str());
+            return TextureHandle::Invalid();
+        }
+
         int w = 0, h = 0, channels = 0;
         stbi_set_flip_vertically_on_load(1);
-        uint8_t* data = stbi_load(path.c_str(), &w, &h, &channels, 0);
+        uint8_t* data = stbi_load_from_memory(fileData.Data,
+                                              static_cast<int>(fileData.Size),
+                                              &w, &h, &channels, 0);
         if (!data)
         {
-            CHE_CORE_ERROR("RenderSubsystem: failed to load texture '{}'", path.c_str());
+            CHE_CORE_ERROR("RenderSubsystem: failed to decode texture '{}'", path.c_str());
             return TextureHandle::Invalid();
         }
         TextureHandle handle = CreateTexture(data, static_cast<uint32_t>(w),

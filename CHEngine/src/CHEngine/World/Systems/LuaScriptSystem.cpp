@@ -18,10 +18,15 @@
 #include "CHEngine/Scene/Components.h"
 #include "CHEngine/Input/InputSystem.h"
 #include "CHEngine/Application.h"
+#include "CHEngine/Scene/SceneSerializer.h"
+#include "CHEngine/Utils/AppPaths.h"
 #include <Input/KeyCodes.h>
+#include <FileSystem/FileSystem.h>
 #include "Log/Log.h"
 
 #include <filesystem>
+#include <fstream>
+#include <sstream>
 #include <unordered_map>
 #include <string>
 #include <mutex>
@@ -381,6 +386,24 @@ struct ScriptWorld
     }
 
     std::string GetName() const { return world ? world->GetWorldName() : ""; }
+
+    // Deferred runtime scene switch (resolved against the executable dir,
+    // pak-first). The swap happens at end of frame, never mid-ForEach.
+    void LoadScene(const std::string& relPath) const
+    {
+        if (world)
+            world->RequestSceneLoad(relPath);
+    }
+
+    // Serialize the current scene to a JSON string. A low-level primitive the
+    // dev can persist with Save.WriteText to build their own save format.
+    std::string Serialize() const
+    {
+        auto scene = world ? world->GetSceneRef() : nullptr;
+        if (!scene) return {};
+        SceneSerializer serializer;
+        return serializer.SerializeToJson(scene);
+    }
 
     // Override the automatic world-state logic after a camera transfer.
     void SetState(const std::string& stateStr) const
@@ -868,6 +891,8 @@ private:
         m_Lua.new_usertype<ScriptWorld>("World",
             "GetName",       &ScriptWorld::GetName,
             "SetState",      &ScriptWorld::SetState,
+            "LoadScene",     &ScriptWorld::LoadScene,
+            "Serialize",     &ScriptWorld::Serialize,
             "FindByName",    &ScriptWorld::FindByName,
             "FindByUUID",    &ScriptWorld::FindByUUID,
             "SpawnEntity",   &ScriptWorld::SpawnEntity,
@@ -925,6 +950,43 @@ private:
         log["Info"]  = [](const std::string& m) { CHE_CORE_INFO("[Lua] {}", m); };
         log["Warn"]  = [](const std::string& m) { CHE_CORE_WARN("[Lua] {}", m); };
         log["Error"] = [](const std::string& m) { CHE_CORE_ERROR("[Lua] {}", m); };
+
+        // ── Save (низкоуровневые примитивы сейвов) ────────────────────────────
+        // Песочница: всё пишется/читается только в UserDataDir(<AppName>). Имя
+        // слота нормализуется до filename, чтобы '..' и разделители путей не
+        // позволяли выйти за пределы папки сейвов. Dev строит свой формат сам.
+        {
+            auto save = m_Lua.create_named_table("Save");
+
+            auto slotPath = [](const std::string& name) -> std::filesystem::path {
+                const std::string appName = Application::Get().GetAppName();
+                std::filesystem::path dir = AppPaths::UserDataDir(appName);
+                std::string leaf = std::filesystem::path(name).filename().string();
+                if (leaf.empty()) leaf = "save.dat";
+                return dir / leaf;
+            };
+
+            // Saves are disk-only: read directly (NOT via the pak-aware FileSystem)
+            // so a slot name can never accidentally resolve to a packed asset.
+            save["WriteText"] = [slotPath](const std::string& name, const std::string& data) -> bool {
+                return FileSystem::WriteFileText(slotPath(name), data);
+            };
+            save["ReadText"] = [slotPath](const std::string& name) -> std::string {
+                std::ifstream in(slotPath(name), std::ios::binary);
+                if (!in) return {};
+                std::ostringstream ss;
+                ss << in.rdbuf();
+                return ss.str();
+            };
+            save["Exists"] = [slotPath](const std::string& name) -> bool {
+                std::error_code ec;
+                return std::filesystem::exists(slotPath(name), ec);
+            };
+            save["Delete"] = [slotPath](const std::string& name) -> bool {
+                std::error_code ec;
+                return std::filesystem::remove(slotPath(name), ec);
+            };
+        }
     }
 };
 

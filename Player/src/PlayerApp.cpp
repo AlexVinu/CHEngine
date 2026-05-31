@@ -80,53 +80,9 @@ public:
         m_World->Update(dt);
     }
 
-    void OnImGuiRender() override
-    {
-        uint64_t texID = CHEngine::Application::Get().Render().GetViewportColorTexID();
-
-        static double s_LastLog = -1.0;
-        double now = ImGui::GetTime();
-        if (now - s_LastLog > 2.0) {
-            CHE_CORE_INFO("[Player] texID={} worldState={}", texID,
-                m_World ? (int)m_World->GetState() : -1);
-            s_LastLog = now;
-        }
-
-        if (texID == 0)
-        {
-            // Render texture not ready — show magenta placeholder
-            ImGui::SetNextWindowPos(ImVec2(0,0));
-            ImGui::SetNextWindowSize(ImGui::GetIO().DisplaySize);
-            ImGui::SetNextWindowBgAlpha(1.0f);
-            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.6f, 0.0f, 0.6f, 1.0f));
-            ImGui::Begin("##notex", nullptr,
-                ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|
-                ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings);
-            ImGui::TextUnformatted("texID=0 (render not ready)");
-            ImGui::End();
-            ImGui::PopStyleColor();
-            return;
-        }
-
-        ImVec2 size = ImGui::GetIO().DisplaySize;
-        ImGui::SetNextWindowPos(ImVec2(0,0), ImGuiCond_Always);
-        ImGui::SetNextWindowSize(size, ImGuiCond_Always);
-        ImGui::SetNextWindowBgAlpha(0.0f);
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding,  ImVec2(0,0));
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-        ImGui::Begin("##game", nullptr,
-            ImGuiWindowFlags_NoTitleBar|ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|
-            ImGuiWindowFlags_NoScrollbar|ImGuiWindowFlags_NoSavedSettings|
-            ImGuiWindowFlags_NoBringToFrontOnFocus|ImGuiWindowFlags_NoNav);
-        ImGui::PopStyleVar(2);
-
-        auto* rf = CHEngine::Application::Get().Render().GetRenderFactory();
-        const bool flipV = rf && rf->ImGuiImageNeedsVFlip();
-        ImVec2 uv0 = flipV ? ImVec2(0,1) : ImVec2(0,0);
-        ImVec2 uv1 = flipV ? ImVec2(1,0) : ImVec2(1,1);
-        ImGui::Image(static_cast<ImTextureID>(texID), size, uv0, uv1);
-        ImGui::End();
-    }
+    // Презент кадра выполняется движком через RenderFactory::PresentToBackbuffer
+    // (blit-пасс) — ImGui в рантайме Player не используется, поэтому
+    // OnImGuiRender не переопределяется.
 
 private:
     Ref<CHEngine::World> m_World;
@@ -213,7 +169,31 @@ private:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+namespace {
+    // Read the game title from game.json so saves go to a per-game UserDataDir.
+    // Stored in a static so the const char* in ApplicationConfig stays valid.
+    const char* ResolveGameTitle()
+    {
+        static std::string s_Title;
+        fs::path exeDir = CHEngine::AppPaths::ExecutableDir();
+        fs::path cfgPath = exeDir / "../Resources/game.json";
+        if (!fs::exists(cfgPath)) cfgPath = exeDir / "game.json";
+        std::string text = CHEngine::FileSystem::ReadFileText(cfgPath);
+        if (!text.empty()) {
+            try {
+                auto j = json::parse(text);
+                s_Title = j.value("title", "");
+            } catch (...) {}
+        }
+        return s_Title.empty() ? nullptr : s_Title.c_str();
+    }
+}
+
 CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config)
 {
-    return new PlayerApp(config);
+    // Player — headless-runtime без ImGui: презент идёт через blit-пасс рендерера.
+    CHEngine::ApplicationConfig playerConfig = config;
+    playerConfig.ImGuiEnabled = false;
+    playerConfig.AppName      = ResolveGameTitle();
+    return new PlayerApp(playerConfig);
 }

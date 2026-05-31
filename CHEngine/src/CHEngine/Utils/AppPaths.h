@@ -3,6 +3,7 @@
 #include <Core.h>
 
 #include <filesystem>
+#include <string>
 
 namespace CHEngine {
 
@@ -23,6 +24,14 @@ public:
 
     /// <ExecutableDir>/engine.json — global editor preferences (last project, renderer).
     static std::filesystem::path EngineConfigPath();
+
+    /// OS per-user writable directory for game saves, keyed by game title.
+    /// Windows: %LOCALAPPDATA%/<title>; macOS: ~/Library/Application Support/<title>;
+    /// Linux: $XDG_DATA_HOME (or ~/.local/share)/<title>.
+    /// The bundle/pak is read-only — saves must never go there. The directory is
+    /// created on first call. Falls back to <ExecutableDir>/saves/<title> if the
+    /// OS location can't be resolved.
+    static std::filesystem::path UserDataDir(const std::string& gameTitle);
 };
 
 } // namespace CHEngine
