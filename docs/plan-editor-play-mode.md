@@ -1,5 +1,12 @@
 # План: Editor / Play режимы
 
+> ⚠️ **Исторический документ.** Это план реализации Play/Edit-режимов, который уже
+> по большей части воплощён. Код и API в примерах ниже устарели (`World::update` →
+> `World::Update`, `RenderFacade` → `RenderSubsystem`, `RebuildPhysicsRuntime` убран,
+> состояние режима — через `WorldState`). Актуальное описание — в
+> [architecture.md](architecture.md), [ecs.md](ecs.md) и [physics.md](physics.md).
+> Документ оставлен для контекста проектных решений.
+
 ## Текущее состояние
 
 Что **уже есть** в движке:

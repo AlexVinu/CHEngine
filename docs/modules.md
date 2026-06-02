@@ -6,19 +6,22 @@
 `ModuleManager` загружает их в рантайме через `dlopen`/`LoadLibrary`.
 
 Это даёт:
-- **Горячую перезагрузку** без перезапуска приложения
-- **Выбор рендерера** в рантайме (`--renderer=opengl`)
-- **Опциональные модули** (физика может отсутствовать)
+- **Выбор рендерера** в рантайме (`--renderer=opengl`; смена API — через рестарт процесса)
+- **Опциональные модули** (физика и ImGui могут отсутствовать)
 - **Изоляцию** — замена рендерера не трогает остальной код
+- **Горячую перезагрузку шейдеров** (hot-reload самих модулей сейчас отключён — см. ниже)
 
 ## Интерфейс модуля
 
 Каждый модуль экспортирует ровно два символа:
 
 ```cpp
-extern "C" CHE_API IModuleFactory* CreateFactory();
-extern "C" CHE_API void DestroyFactory(IModuleFactory* factory);
+extern "C" CHE_MODULE_API IModuleFactory* CreateFactory();
+extern "C" CHE_MODULE_API void DestroyFactory(IModuleFactory* factory);
 ```
+
+Обычно их не пишут вручную — для этого есть макросы `DECLARE_MODULE_FACTORY()` /
+`IMPLEMENT_MODULE_FACTORY(FactoryType)` из `IModuleFactory.h`.
 
 `IModuleFactory` — базовый класс. Конкретные фабрики:
 
@@ -31,130 +34,128 @@ extern "C" CHE_API void DestroyFactory(IModuleFactory* factory);
 
 ## ModuleManager API
 
+`ModuleManager` — нестатический объект, которым владеет `Application`. По одному
+загруженному модулю на `ModuleType` (хранятся в `unordered_map<ModuleType, ModuleData>`).
+
 ```cpp
-// Загрузить модуль
-ModuleHandle handle = ModuleManager::LoadModule("lib/libRendererOGL.dylib");
+// Загрузить модуль (вызывает CreateFactory(), регистрирует по ModuleType из GetType())
+bool ok = moduleManager.LoadModule("libRendererOGL.dylib");
 
-// Получить фабрику
-auto* factory = ModuleManager::GetFactory<IRenderFactory>(handle);
+// Получить фабрику по типу модуля
+IRenderFactory* factory =
+    moduleManager.GetModule<IRenderFactory>(ModuleType::Render);
 
-// Подписаться на горячую перезагрузку
-ModuleManager::Watch(ModuleType::ImGui, {
-    .OnBeforeReload = []() {
-        // Уничтожить ImGui-слой и все объекты старого модуля
-        UIFacade::Shutdown();
-    },
-    .OnAfterReload = [](IModuleFactory* newFactory) {
-        // Пересоздать через новую фабрику
-        UIFacade::Init(static_cast<IImGuiFactory*>(newFactory));
-    }
-});
-
-// Выгрузить модуль
-ModuleManager::UnloadModule(handle);
+// Выгрузить все модули (вызывает DestroyFactory + dlclose/FreeLibrary)
+moduleManager.UnloadAll();
 ```
+
+Загрузку модулей по выбранному API делает `Application` в конструкторе; прикладному
+коду обычно работать с `ModuleManager` напрямую не нужно.
 
 ## Горячая перезагрузка
 
-Горячая перезагрузка работает **только для ImGui-модулей** (ImGuiOGL, ImGuiMTL, ImGuiVK).  
-FileWatcher убран — перезагрузка происходит по явному вызову, а не автоматически по таймеру.
+> **Текущее состояние:** hot-reload *модулей* в движке **упрощён и не функционирует**
+> (`FileWatcher` для модулей убран). Модули загружаются один раз при старте и живут до
+> завершения процесса. Работает только **горячая перезагрузка шейдеров** (см. ниже).
 
-### Последовательность перезагрузки
+Концептуально модули делятся на перезагружаемые и нет: Renderer/Window/Physics держат
+OS-хэндлы (GL/Metal-контекст, окно, физический мир) и не предназначены для перезагрузки;
+кандидатами на hot-reload были только ImGui-модули. Сейчас этот путь отключён.
 
+### Шейдеры (рабочий механизм)
+
+Шейдеры имеют собственный механизм горячей перезагрузки в `RenderSubsystem`:
+
+- `Application::Run` вызывает `RenderSubsystem::PollShaders()` каждые **0.5 секунды**
+- При изменении `.slang` файла (по `FileWatcher`) шейдер перекомпилируется (`ReloadShader`)
+- Работает независимо от модулей; список шейдеров — `RenderSubsystem::GetShaderEntries()`
+
+## Контракт модуля
+
+Каждый модуль реализует один из заводских интерфейсов (`IRenderFactory`,
+`IWindowFactory`, `IImGuiFactory`, `IPhysicsFactory`). Все они наследуют
+`IModuleFactory`, у которого единственный обязательный метод:
+
+```cpp
+struct IModuleFactory {
+    virtual ~IModuleFactory() = default;
+    virtual ModuleType GetType() const = 0;   // по нему ModuleManager раскладывает модуль
+};
 ```
-1. Явный вызов перезагрузки ImGui-модуля
-2. Вызов OnBeforeReload() — пользователь уничтожает старые объекты
-3. dlclose(старый модуль)
-4. [Windows] удалить старую теневую копию
-5. [Windows] скопировать новый файл → libImGuiOGL_temp.dll
-6. dlopen(новый файл / теневая копия)
-7. Вызов OnAfterReload(newFactory) — пользователь пересоздаёт объекты
-8. При ошибке: откат к резервной копии _prev.dll
+
+Экспортируемых символа по-прежнему два — их объявляет/реализует пара макросов из
+`IModuleFactory.h` (тип линковки — `CHE_MODULE_API`):
+
+```cpp
+DECLARE_MODULE_FACTORY()             // в заголовке: extern "C" CreateFactory/DestroyFactory
+IMPLEMENT_MODULE_FACTORY(MyFactory)  // в .cpp: new MyFactory() / delete factory
 ```
-
-### Windows: теневые копии
-
-На Windows загруженную DLL нельзя перезаписать — она заблокирована.  
-Движок работает с теневой копией `path_temp.dll`, что позволяет пересобирать оригинал в любой момент.
-
-### Что перезагружается
-
-| Модуль | Горячая перезагрузка |
-|--------|---------------------|
-| RendererOGL/Metal/Vulkan | Нет — держит GL/Metal контекст |
-| WindowGLFW | Нет — держит окно ОС |
-| ImGuiOGL/MTL/VK | **Да** — полная перезагрузка |
-| PhysicsPhysX | Нет — требует пересоздания мира |
-
-### Шейдеры (отдельный механизм)
-
-Шейдеры имеют собственный механизм горячей перезагрузки через `RenderResourceManager`:
-
-- Опрос каждые **0.5 секунды**
-- При изменении файла — перекомпиляция шейдера
-- Работает независимо от перезагрузки модулей
 
 ## Создание собственного модуля
 
-Минимальный пример модуля рендерера:
+`IRenderFactory` — это и есть «рендерер»: отдельного `IRenderer` нет. Фабрика владеет
+всем backend-состоянием и реализует **полный** интерфейс (буферы, шейдеры, текстуры,
+пайплайны, frame-graph backend, present и т.д.) — он большой, проще взять за основу
+готовый `Modules/Rendering/RendererOGL`. Скелет фабрики:
 
 ```cpp
-// MyRenderer/src/MyRenderer.cpp
+// MyRenderer/src/MyRenderFactory.h
+#include <Render/IRenderFactory.h>
 
-#include <Core/Interfaces/Render/IRenderFactory.h>
-#include <Core/Interfaces/Render/IRenderer.h>
-
-class MyRenderer : public IRenderer {
+class MyRenderFactory : public CHEngine::IRenderFactory {
 public:
-    void BeginScene(const SceneData& data) override { /* ... */ }
-    void EndScene() override { /* ... */ }
-    void Submit(IShader*, IVertexArray*, const glm::mat4&) override { /* ... */ }
-    void BeginFrame() override { /* ... */ }
-    void EndFrame() override { /* ... */ }
-    void Clear() override { /* ... */ }
+    CHEngine::ModuleType GetType() const override { return CHEngine::ModuleType::Render; }
+    CHEngine::ERenderAPI GetRenderApi() override   { return CHEngine::ERenderAPI::OPENGL; }
+    bool CheckIsWorking() override                 { return true; }
+
+    void Init(const CHEngine::RendererInitInfo& init) override { /* загрузить loader, выделить state */ }
+    void Shutdown() override { /* освободить ресурсы */ }
+
+    // + CreateBuffer / CreateShader / CreateTexture / CreatePipeline /
+    //   CreateFrameGraphBackend / Delete(...) / UpdateBuffer / ReloadShader /
+    //   GetTextureNativeID / PresentToBackbuffer / GetClipSpaceCorrection / ...
 };
 
-class MyRenderFactory : public IRenderFactory {
-public:
-    IRenderer* CreateRenderer() override { return new MyRenderer(); }
-    ERenderAPI GetAPI() const override { return ERenderAPI::OPENGL; }
-    // ... CreateShader, CreateVertexArray, CreateTexture, CreateFramebuffer
-};
-
-extern "C" CHE_API IModuleFactory* CreateFactory() {
-    return new MyRenderFactory();
-}
-
-extern "C" CHE_API void DestroyFactory(IModuleFactory* f) {
-    delete f;
-}
+DECLARE_MODULE_FACTORY()
 ```
 
-CMakeLists.txt для модуля:
+```cpp
+// MyRenderer/src/MyRenderFactory.cpp
+#include "MyRenderFactory.h"
+IMPLEMENT_MODULE_FACTORY(MyRenderFactory)
+```
+
+CMakeLists.txt модуля (по образцу `Modules/Window/WindowGLFW/CMakeLists.txt`):
 
 ```cmake
-add_library(MyRenderer SHARED
-    src/MyRenderer.cpp
-)
+project(MyRenderer LANGUAGES CXX)
+file(GLOB_RECURSE CHE_SOURCES "src/*.cpp")
 
-target_link_libraries(MyRenderer PRIVATE CHEngine_CORE)
-target_compile_definitions(MyRenderer PRIVATE CHE_BUILD_MODULE_DLL)
+add_library(${PROJECT_NAME} SHARED ${CHE_SOURCES})
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON POSITION_INDEPENDENT_CODE ON)
 
-# Вывод рядом с основным приложением
-set_target_properties(MyRenderer PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${BIN_DIR}"
-    LIBRARY_OUTPUT_DIRECTORY "${BIN_DIR}/lib"
-)
+target_compile_definitions(${PROJECT_NAME} PRIVATE CHE_BUILD_MODULE_DLL)
+target_include_directories(${PROJECT_NAME} PRIVATE ${CHE_INTERFACES_DIR} ${CHE_CORE_DIR})
+target_link_libraries(${PROJECT_NAME} PRIVATE CHEngine_CORE)
+
+# Вывод + POST_BUILD копирование рядом с бинарником (см. WindowGLFW для деталей)
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    LIBRARY_OUTPUT_DIRECTORY "${OUTPUT_DIR_PREFIX}/$<CONFIG>${OUTPUT_SYSTEM_PREFIX}/lib")
 ```
 
 ## Типы модулей
 
 ```cpp
+// ВАЖНО: значения заданы явно — вставка нового элемента в середину сдвинула бы
+// остальные, и уже скомпилированные DLL начали бы возвращать неверный тип.
 enum class ModuleType {
-    Render,   // IRenderFactory
-    Window,   // IWindowFactory
-    ImGui,    // IImGuiFactory
-    Physics,  // IPhysicsFactory
+    Window        = 0,   // IWindowFactory
+    WindowHandler = 1,
+    Render        = 2,   // IRenderFactory
+    ImGui         = 3,   // IImGuiFactory
+    Physics       = 4,   // IPhysicsFactory
+    None          = 5
 };
 ```
 

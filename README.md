@@ -10,15 +10,17 @@
 - **Мульти-рендеринг** — OpenGL 4.1, Metal (Apple Silicon / Intel Mac), Vulkan; переключение API в рантайме без перезапуска
 - **Модульная архитектура** — рендерер, окно, UI и физика — отдельные `.dylib`/`.dll`, загружаются динамически через `ModuleManager`
 - **Shaders на [Slang](https://shader-slang.org/)** — единый `.slang` исходник компилируется в GLSL, MSL или SPIR-V; горячая перезагрузка каждые 0.5 с
-- **ECS** — Entity Component System на базе [entt](https://github.com/skypjack/entt); `DeferredOps` для безопасных операций во время итерации
+- **ECS** — Entity Component System на базе [entt](https://github.com/skypjack/entt); `DeferredOps` для безопасных структурных операций во время итерации
 - **World / SystemScheduler** — фазы `Simulation` и `Presentation`; `WorldState` управляет активными фазами (Edit / Play / Background)
 - **EventBus** — типизированная шина событий между системами, привязанная к фазе
+- **Frame graph рендеринг** — `RenderSystem` сам обходит сцену и строит рендер-граф; пользователь не вызывает `Submit` вручную
 - **Lua-скрипты** — `ScriptComponent` + `LuaScriptSystem`; скрипты можно добавлять и редактировать прямо из редактора
 - **AI-ассистент** — встроенный чат-агент для генерации Lua-скриптов и управления сценой
-- **2D UI система** — `UICanvasComponent` / `UIRectTransform` для Screen Space и World Space UI поверх 3D-сцены
-- **Физика** — NVIDIA PhysX + Blast (опционально; на macOS через o3de-форк с поддержкой ARM64/Intel)
+- **2D / 3D UI система** — `UIOverlayCanvasComponent` (Screen Space) и `UIWorldCanvasComponent` (World Space) + Image / Text / Panel / Button / Slider
+- **Физика** — NVIDIA PhysX (опционально; на macOS через o3de-форк с поддержкой ARM64/Intel); полностью handle-based API
 - **Загрузка моделей** — OBJ и GLTF/GLB; кэш через `ResourceManager`
-- **Редактор (Sandbox)** — orbit-камера, ImGuizmo гизмо, иерархия сцены, Play/Edit режимы, undo, экспорт проекта
+- **Редактор (Sandbox)** — orbit-камера, ImGuizmo гизмо, иерархия сцены, Play/Edit режимы, undo, экспорт проекта в `.chepak`
+- **Player** — отдельный рантайм, запускающий упакованную сцену (`.chepak`) без редактора и ImGui
 
 ---
 
@@ -42,9 +44,10 @@ CHEngine/
 │       ├── Application.*    — главный класс и цикл
 │       ├── ModuleManager.*  — загрузка плагинов
 │       ├── Scene/           — Scene, Entity, Components (ECS)
-│       ├── World/           — World, SystemScheduler, DeferredOps, EventBus
-│       ├── Render/          — RenderFacade, RenderResourceManager
-│       ├── Physics/         — PhysicsFacade
+│       ├── World/           — World, SystemScheduler, DeferredOps, EventBus, Systems
+│       ├── Render/          — RenderSubsystem, frame graph
+│       ├── Physics/         — PhysicsSubsystem (прокси над IPhysicsFactory)
+│       ├── ResourceManager/ — Shader/Texture/Model/Mesh лоадеры, AssetPack (.chepak)
 │       └── …
 ├── Modules/        — динамически загружаемые плагины
 │   ├── Rendering/  — RendererOGL, RendererMetal, RendererVulkan
@@ -52,6 +55,7 @@ CHEngine/
 │   ├── UI/         — ImGuiOGL, ImGuiMTL, ImGuiVK
 │   └── Physics/    — PhysicsPhysX
 ├── Sandbox/        — редактор / демо-приложение
+├── Player/         — рантайм для запуска упакованной сцены (.chepak)
 ├── docs/           — подробная документация
 └── CMakeLists.txt
 ```
@@ -152,37 +156,55 @@ cd bin/Debug-macos-x64/Sandbox
 ```cpp
 #include <CHEngine.h>
 
-class GameLayer : public CHEngine::Layer {
+using namespace CHEngine;
+
+class GameLayer : public Layer {
 public:
+    GameLayer() : Layer("GameLayer") {}
+
     void OnAttach() override {
-        auto& scene = CHEngine::Application::Get().GetWorld().GetScene();
-        auto& rm    = CHEngine::ResourceManager::Instance();
+        ResourceManager& rm = Application::Get().Resources();
 
-        auto shader = rm.Load<CHEngine::ShaderHandle>("Mesh", "shaders/mesh.slang");
-        auto model  = rm.Load<CHEngine::ModelHandle>("assets/cube.obj", shader);
+        // Шейдеры/модели кэшируются по пути
+        ShaderHandle shader = rm.Load<ShaderHandle>("Mesh", "shaders/mesh.slang");
+        ModelHandle  model  = rm.Load<ModelHandle>("assets/cube.obj", shader);
+        const LoadedModel* data = rm.GetModel(model);
 
-        auto entity = scene.CreateEntity("Cube");
-        entity.GetComponent<CHEngine::MeshComponent>().Meshes = rm.GetModel(model)->meshes;
-        entity.GetComponent<CHEngine::TransformComponent>().Position = {0, 0, -3};
+        // m_World — собственный World слоя (Application не владеет дефолтным миром)
+        Scene& scene = *m_World.GetSceneRef();
+        EntityHandle h = scene.CreateEntity("Cube");
+        Entity* e = scene.TryGetEntity(h);
+
+        if (data && data->mesh.IsValid())
+            e->AddComponent<MeshComponent>(MeshComponent{ data->mesh });
+
+        auto& tc = e->AddComponent<TransformComponent>();
+        tc.ObjectTransform.Position = { 0.0f, 0.0f, -3.0f };
     }
 
-    void OnUpdate(CHEngine::Timestep dt) override {
-        if (CHEngine::Input::IsKeyPressed(CHEngine::Key::Escape))
-            CHEngine::Application::Get().Close();
+    void OnUpdate(Timestep dt) override {
+        m_World.Update(dt);   // прогоняет фазы Simulation + Presentation
     }
+
+private:
+    WorldsList m_Worlds;
+    World      m_World{ &m_Worlds };
 };
 
-class MyApp : public CHEngine::Application {
+class MyApp : public Application {
 public:
-    MyApp(const CHEngine::ApplicationConfig& cfg) : Application(cfg) {
+    MyApp(const ApplicationConfig& cfg) : Application(cfg) {
         PushLayer(new GameLayer());
     }
 };
 
-CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& cfg) {
+Application* CHEngine::CreateApplication(const ApplicationConfig& cfg) {
     return new MyApp(cfg);
 }
 ```
+
+> Рендеринг происходит автоматически: `RenderSystem` (фаза `Presentation`) обходит
+> сущности с `MeshComponent` и строит рендер-граф. Ручного `Submit` нет.
 
 ---
 
@@ -193,8 +215,9 @@ CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationCo
 | [Архитектура](docs/architecture.md) | Схема системы, паттерны, последовательность запуска |
 | [Быстрый старт](docs/getting-started.md) | Сборка, первый проект |
 | [ECS / Scene / World](docs/ecs.md) | Сущности, компоненты, системы, DeferredOps, EventBus |
-| [Рендеринг](docs/rendering.md) | RenderFacade, Slang-шейдеры, текстуры, UBO |
-| [Физика](docs/physics.md) | PhysX-интеграция, RigidBody |
+| [Рендеринг](docs/rendering.md) | RenderSubsystem, frame graph, Slang-шейдеры, текстуры, UBO |
+| [Физика](docs/physics.md) | Handle-based PhysX-интеграция, RigidBody3DComponent |
+| [Управление ресурсами](docs/resource-management.md) | ResourceManager, лоадеры, MeshLoader, AssetPack |
 | [Модули](docs/modules.md) | Горячая перезагрузка, создание своего модуля |
 | [Ввод и события](docs/input-events.md) | Input polling, EventDispatcher, Layer |
 

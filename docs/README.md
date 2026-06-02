@@ -1,6 +1,6 @@
 # CHEngine — Документация
 
-CHEngine — игровой движок на C++17 с модульной архитектурой, поддержкой нескольких графических API (OpenGL, Metal, Vulkan), RAII-подсистемами и Lua-скриптингом.
+CHEngine — игровой движок на C++20 с модульной архитектурой, поддержкой нескольких графических API (OpenGL, Metal, Vulkan), RAII-подсистемами, frame-graph рендерингом и Lua-скриптингом.
 
 ## Содержание
 
@@ -9,8 +9,9 @@ CHEngine — игровой движок на C++17 с модульной арх
 | [Архитектура](architecture.md) | Общая структура, RAII-подсистемы, паттерны, цикл |
 | [Быстрый старт](getting-started.md) | Сборка, запуск, первый проект |
 | [ECS / Scene / World](ecs.md) | Система сущностей, компоненты, World, SystemScheduler, Lua |
-| [Рендеринг](rendering.md) | RenderSubsystem, фрейм-граф, шейдеры, материалы |
-| [Физика](physics.md) | PhysX-интеграция, компоненты, режимы синхронизации |
+| [Рендеринг](rendering.md) | RenderSubsystem, frame graph, Slang-шейдеры, материалы |
+| [Управление ресурсами](resource-management.md) | ResourceManager, лоадеры, MeshLoader, AssetPack |
+| [Физика](physics.md) | Handle-based PhysX, компоненты, режимы синхронизации |
 | [Модульная система](modules.md) | Загрузка плагинов, горячая перезагрузка шейдеров |
 | [Ввод и события](input-events.md) | Input polling, event system, слои |
 
@@ -30,9 +31,14 @@ CHEngine/
 │   ├── UI/                # ImGuiOGL, ImGuiVK, ImGuiMTL
 │   └── Physics/           # PhysicsPhysX
 ├── Sandbox/               # Редактор (SceneView, панели, script editor, экспорт)
-├── Player/                # Рантайм-плеер (.chepak → запуск сцены без редактора)
+├── Player/                # Рантайм-плеер (.chepak → запуск сцены без редактора и ImGui)
 └── docs/                  # Эта документация
 ```
+
+> **Примечание.** Раньше движок предоставлял статические фасады (`RenderFacade`,
+> `PhysicsFacade`, `UIFacade`) и синглтон `ResourceManager::Instance()`. Сейчас они
+> заменены на **подсистемы**, которыми владеет `Application` и которые доступны через
+> `Application::Get().Render()`, `.Physics()`, `.UI()`, `.Resources()`.
 
 ## Зависимости
 
@@ -49,7 +55,7 @@ CHEngine/
 | [sol2](https://github.com/ThePhD/sol2) / [Lua](https://www.lua.org/) | Lua-скриптинг |
 | [tinygltf](https://github.com/syoyo/tinygltf) | Загрузка GLTF-моделей |
 | [tinyobjloader](https://github.com/tinyobjloader/tinyobjloader) | Загрузка OBJ-моделей |
-| [PhysX](https://github.com/NVIDIA-Omniverse/PhysX) | Физический движок (Windows only) |
+| [PhysX](https://github.com/NVIDIA-Omniverse/PhysX) | Физический движок (Windows / Linux — NVIDIA SDK, macOS — o3de-форк) |
 | [boost](https://www.boost.org/) | UUID |
 | [nlohmann/json](https://github.com/nlohmann/json) | JSON (engine.json, сериализация сцен) |
 | [stb_image](https://github.com/nothings/stb) | Загрузка текстур |

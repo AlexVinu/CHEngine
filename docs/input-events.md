@@ -109,13 +109,16 @@ void OnEvent(Event& e) override {
 
     dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& e) {
         if (e.GetKeyCode() == Key::Escape) {
-            Application::Get().Close();
+            m_ShowMenu = !m_ShowMenu;
             return true;  // Поглотить событие
         }
         return false;
     });
 }
 ```
+
+> Закрытие приложения происходит по `WindowCloseEvent` (крестик окна) — публичного
+> `Application::Close()` нет; цикл `Run` завершается, когда окно закрывается.
 
 ### Типы событий
 
@@ -199,27 +202,25 @@ PushOverlay(new DebugOverlay());  // Оверлей — поверх всех с
 
 ## Camera — камера
 
-```cpp
-CHEngine::Camera camera;
-camera.FOV         = 60.0f;
-camera.NearClip    = 0.1f;
-camera.FarClip     = 500.0f;
-camera.AspectRatio = 16.0f / 9.0f;
-
-// Управление
-camera.Yaw   += Input::GetMouseDeltaX() * 0.1f;
-camera.Pitch += Input::GetMouseDeltaY() * 0.1f;
-// Pitch автоматически зажимается в диапазоне [-89°, +89°]
-
-// Передать в рендерер
-Application::Get().Render().SetSceneCamera(cameraUBO);
-```
-
-Либо через `CameraComponent` в ECS — `RenderSystem` сам найдёт Primary-камеру:
+Камера задаётся через `CameraComponent`, который хранит `CameraVariant`
+(`std::variant<PerspectiveCamera, OrthographicCamera>`). `RenderSystem` сам находит
+сущность с `Primary = true` и заполняет scene-камеру:
 
 ```cpp
-auto camEntity = scene.CreateEntity("MainCamera");
-auto& cc = camEntity.AddComponent<CameraComponent>();
-cc.FOV     = 60.0f;
-cc.Primary = true;  // Используется RenderSystem
+EntityHandle camH = scene.CreateEntity("MainCamera");
+Entity*      cam  = scene.TryGetEntity(camH);
+
+auto& cc = cam->AddComponent<CameraComponent>();
+cc.Primary  = true;       // используется RenderSystem
+cc.IsActive = true;
+std::get<PerspectiveCamera>(cc.Camera).SetVerticalFOV(glm::radians(60.0f));
+
+// Позиция/ориентация — через TransformComponent сущности камеры
+auto& tc = cam->AddComponent<TransformComponent>();
+tc.ObjectTransform.Position = {0, 2, 8};
+tc.MarkDirty();
 ```
+
+В редакторе используется orbit-камера `EditorCamera` (Blender-style), которую слой
+выставляет в `World::SetActiveCamera`. Низкоуровнево готовый UBO можно отдать напрямую:
+`Application::Get().Render().SetSceneCamera(uboCamera);`.

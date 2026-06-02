@@ -3,54 +3,80 @@
 ## Обзор
 
 Физический движок — NVIDIA PhysX (опциональный модуль `PhysicsPhysX`).  
-Движок подключается через `PhysicsFacade` и `RigidBody3DComponent`.
-
-## PhysicsFacade
-
-Статический фасад для создания физических объектов.
+Физика **полностью handle-based**, симметрично рендеру. Единственный публичный
+виртуальный интерфейс — `IPhysicsFactory`; все PhysX-объекты живут в сторах внутри
+бэкенда и адресуются хэндлами:
 
 ```cpp
-// Инициализация (вызывается автоматически в Application)
-PhysicsFacade::Init(physicsFactory);
-
-// Создать физический мир
-auto physWorld = PhysicsFacade::CreateWorld(PhysicsWorldDesc{ .Gravity = {0, -9.81f, 0} });
-
-// Создать тело для сущности
-PhysicsFacade::CreateRigidBodyRuntime(physWorld, rigidBodyComp, initialTransform);
-
-// Уничтожить тело
-PhysicsFacade::DestroyRigidBodyRuntime(physWorld, rigidBodyComp);
+using PhysWorldHandle = Handle<PhysWorldTag>;   // физический мир (PxScene)
+using PhysBodyHandle  = Handle<PhysBodyTag>;    // тело (PxRigidActor)
+using PhysShapeHandle = Handle<PhysShapeTag>;   // дескриптор шейпа
 ```
+
+Прикладной код обычно не трогает физику напрямую — он добавляет
+`RigidBody3DComponent`, а `PhysicsSystem` создаёт/удаляет тела и синхронизирует
+трансформы.
+
+## PhysicsSubsystem
+
+Тонкий прокси над `IPhysicsFactory`. `Application` держит его как
+`Scope<PhysicsSubsystem>` (`nullptr` = физика отключена). Доступ:
+
+```cpp
+PhysicsSubsystem* phys = Application::Get().Physics();
+if (!phys) return;  // модуль не загружен / PhysicsEnabled=false
+
+PhysWorldHandle world = phys->CreateWorld(PhysicsWorldDesc{ .Gravity = {0, -9.81f, 0} });
+PhysShapeHandle shape = phys->CreateShape(PhysicsColliderShapeDesc{ /* Box по умолчанию */ });
+
+// Операции над телами и queries — напрямую через фабрику
+IPhysicsFactory* f = phys->GetFactory();
+PhysBodyHandle body = f->CreateRigidBody(world, bodyDesc, shape);
+f->AddBodyForce(body, {0, 10, 0}, PhysicsForceMode::Impulse);
+
+phys->Delete(shape);
+f->Delete(body);
+phys->DestroyWorld(world);
+```
+
+`IPhysicsFactory` группы методов: World (`CreateWorld`/`Delete`/`SetGravity`/`StepSimulation`/`SetContactListener`),
+Shapes (`CreateShape`/`Delete`), Bodies (`CreateRigidBody`/`Delete`/`GetBodyType`/`Get|SetBodyTransform`/
+`SetBodyKinematicTarget`/`Get|SetBodyLinearVelocity`/`AddBodyForce`), Queries (`Raycast`/`OverlapSphere|Box|Capsule`).
 
 ## RigidBody3DComponent
 
 Добавляется к сущности для включения физики.
 
 ```cpp
-RigidBody3DComponent rb;
-
-// Тип тела
-rb.BodyDesc.Type = PhysicsBodyType::Dynamic;    // Динамика (гравитация, столкновения)
-// rb.BodyDesc.Type = PhysicsBodyType::Static;  // Статика (пол, стены)
-// rb.BodyDesc.Type = PhysicsBodyType::Kinematic; // Кинематика (управляется кодом)
-
-// Масса
-rb.BodyDesc.Mass = 1.0f;
-
-// Форма коллайдера
-rb.ShapeDesc.Type   = PhysicsColliderShapeType::Box;
-rb.ShapeDesc.HalfExtents = {0.5f, 0.5f, 0.5f};  // Полуразмеры AABB
-
-// Режим синхронизации с трансформом ECS
-rb.SyncMode = RigidBodySyncMode::Auto;
-
-entity.AddComponent<RigidBody3DComponent>(rb);
+struct RigidBody3DComponent {
+    PhysicsRigidBodyDesc     BodyDesc{};   // параметры тела
+    PhysicsColliderShapeDesc ShapeDesc{};  // параметры шейпа
+    RigidBodySyncMode        SyncMode = RigidBodySyncMode::Auto;
+    PhysBodyHandle           Body{};       // handle, валиден только в Play-режиме
+    PhysShapeHandle          Shape{};      // handle дескриптора шейпа
+    bool                     SynchronisedTransform = true;
+};
 ```
+
+```cpp
+RigidBody3DComponent rb;
+rb.BodyDesc.Type         = PhysicsBodyType::Dynamic;  // Static / Dynamic / Kinematic
+rb.BodyDesc.Mass         = 1.0f;
+rb.ShapeDesc.Type        = PhysShapeType::Box;        // Box / Sphere / Capsule
+rb.ShapeDesc.HalfExtents = {0.5f, 0.5f, 0.5f};
+rb.SyncMode              = RigidBodySyncMode::Auto;
+
+scene.TryGetEntity(handle)->AddComponent<RigidBody3DComponent>(rb);
+```
+
+> Поля `Body` / `Shape` заполняет `PhysicsSystem` при входе в Play-режим; вне его они невалидны.
 
 ### Форма коллайдера
 
-| Тип | Поля | Описание |
+`PhysicsColliderShapeDesc` — POD-дескриптор; внутри `PhysicsSubsystem` он
+конвертируется в `variant<BoxDesc, SphereDesc, CapsuleDesc>`.
+
+| `Type` (`PhysShapeType`) | Поля | Описание |
 |-----|------|----------|
 | `Box` | `HalfExtents` (vec3) | Прямоугольный параллелепипед |
 | `Sphere` | `Radius` (float) | Сфера |
@@ -74,8 +100,9 @@ rb.BodyDesc.Type = PhysicsBodyType::Kinematic;
 rb.SyncMode      = RigidBodySyncMode::WriteToPhysics;
 
 // В системе:
-auto& transform = entity.GetComponent<TransformComponent>();
-transform.Position += velocity * dt;  // PhysicsSystem отправит это в PhysX
+auto& tc = entity->GetComponent<TransformComponent>();
+tc.ObjectTransform.Position += velocity * dt;
+tc.MarkDirty();   // обязательно — иначе write-блок PhysicsSystem пропустит правку
 ```
 
 **Для падающего объекта:**
@@ -91,74 +118,92 @@ rb.SyncMode      = RigidBodySyncMode::Auto;  // PhysX управляет поз�
 Запускается автоматически, пользователю не нужно её регистрировать.
 
 **Алгоритм:**
-1. Перебрать все `RigidBody3DComponent`
-2. Если `ShouldWriteToPhysics()` → скопировать TransformComponent → тело PhysX
-3. Шаг симуляции PhysX (`world.Simulate(dt)`)
-4. Если `ShouldReadFromPhysics()` → скопировать позицию PhysX → TransformComponent
+1. Для каждого `RigidBody3DComponent`: если `SyncMode` пишет в физику **и** `Transform.Dirty` — скопировать `TransformComponent` → тело (`SetBodyTransform` / `SetBodyKinematicTarget`)
+2. Шаг симуляции PhysX: `IPhysicsFactory::StepSimulation(world, dt)`
+3. Если `SyncMode` читает из физики — скопировать `GetBodyTransform` → `TransformComponent` (и сбросить `Dirty = false`)
+
+Создание/удаление тел `PhysicsSystem` делает через хуки `DeferredOps`
+(`SubscribeOnComponentAdded/Removed<RigidBody3DComponent>`) и при входе/выходе из
+Play-режима (`OnBegin` / `OnEnd`).
 
 ## Инициализация физики в World
 
-`World` автоматически создаёт физический мир при старте. После загрузки новой сцены нужно пересоздать рантайм:
+Физический мир создаётся при переходе `World` в состояние, включающее симуляцию
+(`Simulating` / `SimulatingWithoutPresenting`). Описание мира задаётся заранее:
 
 ```cpp
-// После загрузки сцены
-world.RebuildPhysicsRuntime();
-// Перебирает все RigidBody3DComponent и создаёт для них IPhysicsBody + IPhysicsShape
+world.SetPhysicsWorldDesc(PhysicsWorldDesc{
+    .Gravity = {0.0f, -9.81f, 0.0f},   // {0,0,0} — невесомость
+});
+
+world.SetState(WorldState::Simulating);          // тела создаются здесь
+PhysWorldHandle pw = world.GetPhysicsRuntimeWorld();
 ```
 
-При удалении сущности с физическим компонентом движок вызывает:
-
-```cpp
-world.DestroyRigidBodyRuntime(entityHandle);
-// Это освобождает IPhysicsBody и IPhysicsShape из PhysX
-```
-
-## Настройки мира
-
-```cpp
-PhysicsWorldDesc desc;
-desc.Gravity = {0.0f, -9.81f, 0.0f};  // Стандартная гравитация Земли
-// desc.Gravity = {0, 0, 0};           // Нулевая гравитация (космос)
-
-world.SetPhysicsWorldDesc(desc);
-world.RebuildPhysicsRuntime();          // Применить
-```
+При выходе из Play-режима (`SetState(WorldState::Presenting)`) тела уничтожаются, а
+хэндлы `Body`/`Shape` в компонентах становятся невалидными.
 
 ## Пример: падающий куб
 
 ```cpp
 void OnAttach() override {
-    auto& scene = Application::Get().GetWorld().GetScene();
+    Scene& scene = *m_World.GetSceneRef();
 
-    // Создать пол
-    auto floor = scene.CreateEntity("Floor");
-    floor.GetComponent<TransformComponent>().Scale = {10, 0.1f, 10};
-    {
+    auto makeBox = [&](const char* name, glm::vec3 pos, glm::vec3 half,
+                       PhysicsBodyType type) {
+        EntityHandle h = scene.CreateEntity(name);
+        Entity* e = scene.TryGetEntity(h);
+
+        auto& tc = e->AddComponent<TransformComponent>();
+        tc.ObjectTransform.Position = pos;
+        tc.ObjectTransform.Scale    = half * 2.0f;
+        tc.MarkDirty();
+
         RigidBody3DComponent rb;
-        rb.BodyDesc.Type        = PhysicsBodyType::Static;
-        rb.ShapeDesc.Type       = PhysicsColliderShapeType::Box;
-        rb.ShapeDesc.HalfExtents = {5, 0.05f, 5};
-        floor.AddComponent<RigidBody3DComponent>(rb);
-    }
+        rb.BodyDesc.Type         = type;
+        rb.ShapeDesc.Type        = PhysShapeType::Box;
+        rb.ShapeDesc.HalfExtents = half;
+        rb.SyncMode              = RigidBodySyncMode::Auto;
+        e->AddComponent<RigidBody3DComponent>(rb);
+    };
 
-    // Создать куб
-    auto cube = scene.CreateEntity("Cube");
-    cube.GetComponent<TransformComponent>().Position = {0, 5, 0};
-    {
-        RigidBody3DComponent rb;
-        rb.BodyDesc.Type        = PhysicsBodyType::Dynamic;
-        rb.BodyDesc.Mass        = 1.0f;
-        rb.ShapeDesc.Type       = PhysicsColliderShapeType::Box;
-        rb.ShapeDesc.HalfExtents = {0.5f, 0.5f, 0.5f};
-        rb.SyncMode             = RigidBodySyncMode::Auto;
-        cube.AddComponent<RigidBody3DComponent>(rb);
-    }
+    makeBox("Floor", {0, 0, 0}, {5.0f, 0.05f, 5.0f}, PhysicsBodyType::Static);
+    makeBox("Cube",  {0, 5, 0}, {0.5f, 0.5f, 0.5f}, PhysicsBodyType::Dynamic);
 
-    Application::Get().GetWorld().RebuildPhysicsRuntime();
+    // Тела создаются при входе в Play-режим:
+    m_World.SetState(WorldState::Simulating);
 }
+```
+
+## Queries и контакты
+
+Лучи и overlap-запросы идут через `IPhysicsFactory` по миру; результаты содержат
+`PhysBodyHandle` (обратный индекс по `PxRigidActor*` внутри бэкенда):
+
+```cpp
+IPhysicsFactory* f = Application::Get().Physics()->GetFactory();
+
+PhysicsRaycastHit hit;
+if (f->Raycast(world, origin, dir, /*maxDistance=*/100.0f, hit))
+    CHE_INFO("Hit body {} at {}", hit.Body.Index(), glm::to_string(hit.Position));
+
+PhysicsOverlapResult res;
+f->OverlapSphere(world, center, /*radius=*/2.0f, res);
+```
+
+Контакты — через `IPhysicsContactListener`:
+
+```cpp
+struct MyListener : IPhysicsContactListener {
+    void OnContact(const PhysicsContactEvent& e) override {
+        // e.BodyA, e.BodyB, e.Point, e.Normal
+    }
+};
+f->SetContactListener(world, &listener);
 ```
 
 ## Отключение физики
 
-Если модуль `PhysicsPhysX` не загружен (или не установлен), движок продолжает работу без физики.  
-`PhysicsFacade` возвращает `nullptr`, а `PhysicsSystem` просто пропускает обработку.
+Если модуль `PhysicsPhysX` не загружен (`PhysicsEnabled = false` или модуль
+отсутствует), движок работает без физики: `Application::Get().Physics()` возвращает
+`nullptr`, `World` не создаёт физический мир, а `PhysicsSystem` пропускает обработку.

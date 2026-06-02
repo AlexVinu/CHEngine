@@ -7,11 +7,11 @@ CHEngine использует [entt](https://github.com/skypjack/entt) как о
 
 ```
 World
-├── Scene          — контейнер сущностей (entt::registry + UUID-индекс)
+├── Scene           — контейнер сущностей (entt::registry + UUID-индекс + строковый/скриптовый пул)
 ├── SystemScheduler — управляет системами и их фазами
-├── DeferredOps    — отложенные операции создания/удаления
-├── EventBus       — типизированная шина событий по фазам
-└── IPhysicsWorld  — физический мир (из PhysicsPhysX-модуля)
+├── DeferredOps     — отложенные структурные операции + хуки компонентов
+├── EventBus        — типизированная шина событий по фазам
+└── PhysWorldHandle — handle физического мира (создаётся через PhysicsSubsystem)
 ```
 
 ## Scene
@@ -22,11 +22,20 @@ World
 
 ```cpp
 EntityHandle h = scene.CreateEntity("Player");
-// По умолчанию добавляются: TagComponent, IDComponent, TransformComponent,
-// MeshComponent, ColorComponent, VisibilityComponent
+// По умолчанию добавляются ТОЛЬКО: TagComponent, IDComponent, VisibilityComponent.
+// Transform / Mesh / Light и т.д. добавляются явно через Entity::AddComponent<T>.
 ```
 
-UUID генерируется автоматически (RFC 4122 v4, через `boost::uuids`).
+UUID генерируется автоматически (через `boost::uuids`). `CreateEntity` возвращает
+`EntityHandle` (index + generation), **не** объект `Entity`. Чтобы работать с
+компонентами, получи обёртку:
+
+```cpp
+Entity* e = scene.TryGetEntity(h);   // nullptr если хэндл невалиден
+```
+
+Имя тега хранится как `StringID` в строковом пуле сцены (`Scene::InternString` /
+`Scene::GetString`), а не как `std::string`.
 
 ### Поиск сущности
 
@@ -50,41 +59,66 @@ world.GetDeferredOps().DestroyEntity(handle);
 
 ## Entity
 
-`Entity` — тонкая обёртка с удобным API поверх `entt::entity`.
+`Entity` — тонкая обёртка (`entt::entity` + `Scene*`), получаемая через
+`Scene::TryGetEntity(handle)`.
 
 ```cpp
-// Работа с компонентами
-entity.AddComponent<LightComponent>(lightDesc);
-entity.GetComponent<TransformComponent>().Position = {1, 2, 3};
-entity.HasComponent<RigidBody3DComponent>();
-entity.RemoveComponent<LightComponent>();
+Entity* e = scene.TryGetEntity(handle);
 
-// TryGet — не бросает исключение если компонента нет
-auto* transform = entity.TryGetComponent<TransformComponent>();
+// Работа с компонентами
+e->AddComponent<LightComponent>();
+e->GetComponent<TransformComponent>().ObjectTransform.Position = {1, 2, 3};
+e->HasComponent<RigidBody3DComponent>();
+e->RemoveComponent<LightComponent>();
+
+// PatchComponent — вызывает entt-signal'ы (нужно для реактивных систем)
+e->PatchComponent<TransformComponent>([](TransformComponent& t) {
+    t.ObjectTransform.Position.y += 1.0f;
+    t.MarkDirty();
+});
 ```
 
 ## Компоненты
 
-Все компоненты — простые структуры данных (data-only, без методов с логикой).
+Все компоненты — **POD-структуры** (data-only). При добавлении нового компонента его
+нужно зарегистрировать в meta-сериализаторе и добавить в `AllComponents`
+(см. `Scene/Components.h`).
+
+### IDComponent / TagComponent / ParentNodeComponent
+
+```cpp
+struct IDComponent  { UUID Value{}; };
+struct TagComponent { StringID Name = INVALID_ID<StringID>; };   // имя в строковом пуле
+struct ParentNodeComponent { UUID Value{}; };                    // родитель (иерархия сцены)
+```
 
 ### TransformComponent
 
 ```cpp
-struct TransformComponent {
+struct Transform {
     glm::vec3 Position = {0, 0, 0};
-    glm::vec3 Rotation = {0, 0, 0};  // Эйлеровы углы в радианах
+    glm::vec3 Rotation = {0, 0, 0};  // Эйлеровы углы в ГРАДУСАХ
     glm::vec3 Scale    = {1, 1, 1};
+    glm::mat4 GetMatrix() const;
+    glm::mat4 GetNormalMatrix() const;
+};
 
-    glm::mat4 GetMatrix() const;     // Вычисляет TRS-матрицу
+struct TransformComponent {
+    Transform ObjectTransform;
+    bool      Dirty = true;          // true = изменено пользователем, физика ещё не знает
+    void MarkDirty() { Dirty = true; }
 };
 ```
+
+> Любое изменение `ObjectTransform` из кода (Gizmo, Properties, Undo, скрипт)
+> обязано вызвать `MarkDirty()` — иначе `PhysicsSystem` не подхватит правку.
 
 ### MeshComponent
 
 ```cpp
 struct MeshComponent {
-    MeshRef     Mesh;        // единый меш с субмешами (VB/IB разделяется через MeshLoader)
-    std::string SourcePath;  // путь к файлу-источнику (для отображения в UI)
+    MeshRef  Mesh;        // единый меш с субмешами (VB/IB разделяется через MeshLoader)
+    StringID SourcePath;  // путь к файлу-источнику в строковом пуле сцены
 };
 ```
 
@@ -95,85 +129,89 @@ struct MeshComponent {
 ### CameraComponent
 
 ```cpp
+using CameraVariant = std::variant<PerspectiveCamera, OrthographicCamera>;
+
 struct CameraComponent {
-    float FOV         = 60.0f;
-    float NearClip    = 0.1f;
-    float FarClip     = 1000.0f;
-    float AspectRatio = 16.0f / 9.0f;
-    bool  Active      = true;
-    bool  Primary     = false;       // Используется RenderSystem для выбора камеры
+    CameraVariant Camera = PerspectiveCamera{};
+    bool FixedAspectRatio = false;
+    bool Primary          = true;    // RenderSystem выбирает Primary-камеру
+    bool IsActive         = false;
 };
 ```
 
 ### LightComponent
 
 ```cpp
-struct LightComponent {
+enum class LightType : int { None = -1, Directional = 0, Point = 1, Spot = 2 };
+
+struct Light {
+    LightType Type      = LightType::None;
     glm::vec3 Color     = {1, 1, 1};
     float     Intensity = 1.0f;
-    LightType Type      = LightType::Point;  // Point, Directional, Spot
+    float     Range     = 10.0f;     // Point / Spot
+    float     InnerCone = 12.5f;     // Spot, градусы
+    float     OuterCone = 17.5f;     // Spot, градусы
 };
+
+struct LightComponent { Light LightData; };
 ```
 
-### ColorComponent
+Направление (Directional/Spot) берётся из `Transform.Rotation`, позиция (Point/Spot) — из `Transform.Position`.
+
+### ColorComponent / VisibilityComponent
 
 ```cpp
-struct ColorComponent {
-    glm::vec4 Color = {1, 1, 1, 1};  // RGBA
-};
-```
-
-### VisibilityComponent
-
-```cpp
-struct VisibilityComponent {
-    bool Visible = true;
-};
+struct ColorComponent      { glm::vec4 Color = {0.8f, 0.8f, 0.8f, 1.0f}; };  // RGBA
+struct VisibilityComponent { bool Visible = true; };
 ```
 
 ### LifetimeComponent
 
 ```cpp
 struct LifetimeComponent {
-    float RemainingSeconds;
-    bool  ShouldDestroy = false;  // Устанавливается LifetimeSystem при достижении 0
+    float RemainingSeconds = 0.0f;
+    bool  DestroyOnExpire  = true;   // LifetimeSystem уничтожает сущность при достижении 0
 };
 ```
 
-Используется для временных сущностей (эффекты, пули, частицы):
-
 ```cpp
-auto bullet = scene.CreateEntity("Bullet");
-bullet.AddComponent<LifetimeComponent>(3.0f);  // Уничтожится через 3 секунды
+EntityHandle h = scene.CreateEntity("Bullet");
+scene.TryGetEntity(h)->AddComponent<LifetimeComponent>(LifetimeComponent{ 3.0f });
 ```
 
 ### ScriptComponent
 
 ```cpp
-struct ScriptEntry {
-    std::string Name;   // Имя скрипта (для отображения в UI)
-    std::string Source; // Lua-исходник
-};
+struct ScriptEntry { std::string Path; bool Enabled = true; };  // путь к .lua файлу
 
-struct ScriptComponent {
-    std::vector<ScriptEntry> Scripts;
-};
+struct ScriptComponent { ScriptsID Scripts = INVALID_ID<ScriptsID>; };
 ```
 
-Скрипты выполняются `LuaScriptSystem` на каждом тике фазы `Simulation`.
+`ScriptComponent` ссылается на запись в **скриптовом пуле** сцены
+(`Scene::AllocateScripts` / `GetScripts`), а не хранит исходник напрямую. Скрипты —
+ссылки на `.lua` файлы; выполняются `LuaScriptSystem` на каждом тике фазы `Simulation`.
+Кроме того, у сцены есть `Scene::WorldScripts` — скрипты уровня всей сцены.
 
-### UICanvasComponent / UIRectTransform
+### UI-компоненты
 
-Компоненты для 2D UI поверх 3D-сцены:
+Система UI: корневой канвас (`UIOverlayCanvasComponent` для Screen Space или
+`UIWorldCanvasComponent` для World Space) + дочерние элементы, у каждого —
+`UIRectTransformComponent` и один из визуальных компонентов:
 
 ```cpp
-struct UICanvasComponent { /* настройки канваса */ };
-struct UIRectTransform {
-    glm::vec2 Position;
-    glm::vec2 Size;
-    glm::vec2 Anchor;
-};
+struct UIOverlayCanvasComponent { glm::vec2 AnchorMin, AnchorMax, Position, Size, Pivot; int SortOrder; float Alpha; };
+struct UIWorldCanvasComponent   { glm::vec2 Size; float Alpha; bool DoubleSided; };
+struct UIRectTransformComponent { glm::vec2 AnchorMin, AnchorMax, Pivot; float Size; float Alpha; int ZOrder; };
+
+struct UIImageComponent  { float Width; StringID TexturePath; bool PreserveAspect, SlicedBorder; };
+struct UITextComponent   { StringID Text, FontPath; float FontSize; glm::vec4 Color; /* + выравнивание, Bold/Italic/WordWrap */ };
+struct UIPanelComponent  { float Width; glm::vec4 BorderColor; float BorderWidth, CornerRadius; };
+struct UIButtonComponent { float Width; glm::vec4 NormalColor, HoverColor, PressedColor, DisabledColor; bool Interactable; float CornerRadius; };
+struct UISliderComponent { float Width, Value, Min, Max; glm::vec4 BackgroundColor, FillColor, HandleColor; float HandleSize; bool Interactable; };
 ```
+
+UI-ввод обрабатывает `UIInputSystem` (фаза `Simulation`), рендер — `UIRenderSystem` (фаза `Presentation`).
+Кнопки вызывают Lua-функцию `OnClick(entity)` на своей сущности.
 
 ### RigidBody3DComponent
 
@@ -181,48 +219,59 @@ struct UIRectTransform {
 
 ## World
 
-`World` — контейнер для всей симуляции. Обычно создаётся один, но может быть несколько (например, игровой мир + превью-сцена в редакторе).
+`World` — контейнер для всей симуляции. `Application` им **не владеет** — мир создаёт
+прикладной слой; в редакторе их несколько (по одному на сессию-вкладку), а список
+ведёт `WorldsList`.
 
 ```cpp
-World& world = Application::Get().GetWorld();
-Scene& scene = world.GetScene();
+WorldsList worlds;
+World      world{ &worlds };
+world.SetScene(MakeRef<Scene>());
+Scene& scene = *world.GetSceneRef();
 ```
 
 ### Жизненный цикл
 
 ```cpp
-world.update(dt);
+world.Update(dt);
 // Внутри:
-// 1. SystemScheduler::runPhase(Simulation, ...)
-// 2. SystemScheduler::runPhase(Presentation, ...)  [если WorldState включает рендер]
-// 3. DeferredOps::flush(scene)                     [удаление/создание сущностей]
+// 1. SystemScheduler::RunPhase(Simulation, ...)
+// 2. SystemScheduler::RunPhase(Presentation, ...)  [если WorldState включает рендер]
+// 3. DeferredOps::Flush(scene)                      [удаление/создание/трансфер сущностей]
+// 4. ProcessPendingSceneLoad()                      [отложенная загрузка сцены, если есть]
 ```
+
+Дополнительно:
+- `world.RefreshRenderTransforms()` — пере-загрузить UBO трансформов после поздних
+  правок в кадре (drag гизмо) перед `EndFrame`.
+- `world.RequestSceneLoad(relPath)` — отложенная смена сцены в конце кадра
+  (используется Lua: `World:LoadScene`).
 
 ### WorldState
 
 `WorldState` управляет тем, какие фазы активны:
 
 ```cpp
-enum class WorldState {
+enum class WorldState : uint8_t {
+    NONE,
     Presenting,                  // Только рендер (Edit-режим редактора)
     Simulating,                  // Физика + рендер (Play-режим)
     SimulatingWithoutPresenting, // Только физика (неактивные сессии)
 };
 
 world.SetState(WorldState::Simulating);
+WorldState s = world.GetState();
 ```
 
 ### Физика в World
 
+`World` хранит описание физического мира и handle рантайма; само создание тел
+делает `PhysicsSystem` (через хуки `DeferredOps` на добавление/удаление
+`RigidBody3DComponent`).
+
 ```cpp
-// Пересоздать физический рантайм (например, после загрузки сцены)
-world.RebuildPhysicsRuntime();
-
-// Уничтожить физику конкретной сущности
-world.DestroyRigidBodyRuntime(entityHandle);
-
-// Очистить весь физический мир
-world.ClearPhysicsRuntime();
+world.SetPhysicsWorldDesc(PhysicsWorldDesc{ .Gravity = {0, -9.81f, 0} });
+PhysWorldHandle pw = world.GetPhysicsRuntimeWorld();  // невалиден вне Play-режима
 ```
 
 ## SystemScheduler
@@ -232,61 +281,62 @@ world.ClearPhysicsRuntime();
 ### Регистрация системы
 
 ```cpp
-world.GetScheduler().emplaceSystem<MySystem>(/* приоритет */ 50);
+world.GetScheduler().EmplaceSystem<MySystem>(/* приоритет */ 50);
 ```
 
 ### Реализация системы
 
+Фаза и приоритет задаются в конструкторе базового `ISystem`. Главный метод — `Run`.
+
 ```cpp
 class MySystem : public ISystem {
 public:
-    SystemPhase GetPhase() const override { return SystemPhase::Simulation; }
-    uint8_t     GetPriority() const override { return 50; }
+    explicit MySystem(uint8_t priority = 50)
+        : ISystem(SystemPhase::Simulation, priority) {}
 
-    void update(World& world, DeferredOps& ops, Timestep dt) override {
-        auto& scene = world.GetScene();
+    const char* GetName() const override { return "MySystem"; }
+
+    void Run(World& world, DeferredOps& ops, Timestep dt) override {
+        Scene& scene = *world.GetSceneRef();
 
         scene.ForEach<MyComponent>([&](EntityHandle h, const UUID& id, MyComponent& comp) {
             comp.Timer += dt.GetSeconds();
-
             if (comp.Timer > comp.Lifetime)
                 ops.DestroyEntity(h);  // НЕ удаляет сразу, а откладывает
         });
     }
 
-    void onEvent(World& world, Event& e) override {
-        EventDispatcher dispatcher(e);
-        dispatcher.Dispatch<KeyPressedEvent>([](KeyPressedEvent& e) {
-            // обработка клавиши
-            return false;
-        });
-    }
+    // Опционально: вызываются при входе/выходе из активного состояния World
+    void OnBegin(World& world, DeferredOps& ops) override {}
+    void OnEnd  (World& world, DeferredOps& ops) override {}
 };
 ```
 
+> События обрабатываются не через систему, а через `EventBus`: системы публикуют
+> `world.GetEvents().Publish<E>(...)` и потребляют `ConsumePhase<E>(...)` внутри `Run`.
+
 ### Фазы и встроенные системы
 
-Активны только две фазы: `Simulation` и `Presentation` (фаза `Initialization` убрана).
+Две фазы: `Simulation` и `Presentation`. Регистрируются в `World::RegisterDefaultSystems`:
 
 | Система | Фаза | Приоритет | Что делает |
 |---------|------|-----------|-----------|
-| `PhysicsSystem` | Simulation | 100 | Синхронизирует ECS ↔ PhysX |
-| `LuaScriptSystem` | Simulation | 50 | Выполняет Lua-скрипты из ScriptComponent |
+| `LuaScriptSystem` | Simulation | 5 | Выполняет Lua-скрипты (ScriptComponent + WorldScripts) |
+| `UIInputSystem` | Simulation | 6 | Обрабатывает наведение/клики по UI-элементам |
 | `LifetimeSystem` | Simulation | 20 | Уменьшает таймер, помечает к удалению |
 | `ComponentValidationSystem` | Simulation | 30 | Проверяет целостность компонентов |
-| `RenderSystem` | Presentation | 100 | Отправляет меши на рендер |
+| `PhysicsSystem` | Simulation | 100 | Синхронизирует ECS ↔ PhysX, шаг симуляции |
+| `RenderSystem` | Presentation | 10 | Обходит меши и строит рендер-граф |
+| `UIRenderSystem` | Presentation | 200 | Рендерит UI поверх сцены |
 
 ### Управление системами
 
 ```cpp
-auto& scheduler = world.GetScheduler();
+SystemScheduler& scheduler = world.GetScheduler();
 
-// Включить/выключить
-scheduler.setEnabled<PhysicsSystem>(false);
-scheduler.isEnabled<PhysicsSystem>();
-
-// Получить указатель
-auto* sys = scheduler.getSystem<MySystem>();
+// Включить/выключить по имени или ссылке
+scheduler.SetEnabled("PhysicsSystem", false);
+bool on = scheduler.IsEnabled("PhysicsSystem");
 ```
 
 ## DeferredOps
@@ -295,9 +345,9 @@ auto* sys = scheduler.getSystem<MySystem>();
 Все операции откладываются и применяются после завершения всех фаз текущего тика.
 
 ```cpp
-// Внутри системы (сигнатура update принимает DeferredOps&):
-void update(World& world, DeferredOps& ops, Timestep dt) override {
-    world.GetScene().ForEach<ProjectileComponent>([&](EntityHandle h, ..., ProjectileComponent& p) {
+// Внутри системы (сигнатура Run принимает DeferredOps&):
+void Run(World& world, DeferredOps& ops, Timestep dt) override {
+    world.GetSceneRef()->ForEach<ProjectileComponent>([&](EntityHandle h, const UUID&, ProjectileComponent& p) {
         if (p.HitSomething)
             ops.DestroyEntity(h);  // НЕ удаляет сразу, а откладывает
     });
@@ -319,6 +369,20 @@ ops.RemoveComponent<LightComponent>(handle);
 ops.Enqueue([](Ref<Scene> scene) {
     // любой код, работающий со сценой
 });
+
+// Перенести сущность (с поддеревом ParentNodeComponent) в другой World — для мультимировой симуляции
+ops.TransferEntity(handle, "OtherWorldName");
+```
+
+### Хуки компонентов
+
+`DeferredOps` умеет вызывать колбэки при добавлении/удалении компонента и при
+кросс-мировом трансфере. Этим пользуется, например, `PhysicsSystem`, чтобы создавать
+PhysX-тело при появлении `RigidBody3DComponent`:
+
+```cpp
+ops.SubscribeOnComponentAdded<RigidBody3DComponent>(+[](World& w, EntityHandle h) { /* создать тело */ });
+ops.SubscribeOnComponentRemoved<RigidBody3DComponent>(+[](World& w, EntityHandle h) { /* удалить тело */ });
 ```
 
 ## EventBus

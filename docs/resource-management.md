@@ -6,16 +6,16 @@
 Все шейдеры, текстуры и модели должны загружаться через неё — это обеспечивает кэширование,
 корректное время жизни и единую точку учёта.
 
-Доступ — через синглтон:
+Доступ — через `Application` (объектом владеет приложение, синглтона больше нет):
 
 ```cpp
 #include <CHEngine/ResourceManager/ResourceManager.h>
 
-auto& rm = CHEngine::ResourceManager::Instance();
+CHEngine::ResourceManager& rm = CHEngine::Application::Get().Resources();
 ```
 
-Синглтон инициализируется при первом обращении. Обращаться к нему допустимо только **после**
-инициализации рендерера (`RenderFacade::InitRenderer`).
+`ResourceManager` создаётся в конструкторе `Application` уже после рендер-подсистемы,
+поэтому к моменту `Layer::OnAttach` он валиден.
 
 ---
 
@@ -58,7 +58,7 @@ const LoadedModel* data = rm.GetModel(handle);
 if (data && data->mesh.IsValid())
 {
     // MeshRef copy — AddRef'ит общий GpuRecord через MeshLoader
-    entity.GetComponent<MeshComponent>().Mesh = data->mesh;
+    scene.TryGetEntity(h)->GetComponent<MeshComponent>().Mesh = data->mesh;
 }
 ```
 
@@ -82,7 +82,7 @@ ResourceManager
 
 Кэширует шейдеры по пути к файлу. При повторном запросе возвращает уже загруженный хэндл.
 
-Под капотом вызывает `RenderFacade::CreateShaderFromFile(name, path)`.
+Под капотом вызывает `RenderSubsystem::CreateShaderFromFile(name, path)`.
 
 ### TextureLoader
 
@@ -108,6 +108,9 @@ ResourceManager
 ```cpp
 MeshLoader* ml = Application::Get().Resources().GetMeshLoader();
 ```
+
+> `ResourceManager` также умеет загружать примитивы по URI (`":primitive:..."`) через
+> `LoadPrimitiveMesh` / `IsPrimitiveUri`, минуя файловые лоадеры.
 
 Ключевые свойства:
 - **Контент-адресуемость**: одинаковые `(vertices, indices)` → один `MeshGpuRecord` (VB/IB)
@@ -142,12 +145,12 @@ ml->UpdateVertexUVs(h, /*submeshIndex=*/0, uvSpan);
 |-----|----------|----------|
 | Шейдер (из файла) | `rm.Load<ShaderHandle>(...)` | `rm.Unload(handle)` |
 | Текстура (из файла) | `rm.Load<TextureHandle>(...)` | `rm.Unload(handle)` |
-| Текстура (из пикселей) | `RenderFacade::CreateTexture(...)` | `RenderFacade::DestroyTexture(handle)` |
+| Текстура (из пикселей) | `Render().CreateTexture(...)` | `Render().DestroyTexture(handle)` |
 | Модель | `rm.Load<ModelHandle>(...)` | `rm.Unload(handle)` *(освобождает LoadedModel + Mesh'и)* |
 | GPU-буфер меша | `MeshLoader::GetOrCreate(...)` | Автоматически при удалении последнего MeshRef |
 
 > Если шейдер или текстура загружены через ResourceManager — вызывать
-> `RenderFacade::DestroyShader/DestroyTexture` напрямую не нужно.
+> `RenderSubsystem::DestroyShader/DestroyTexture` напрямую не нужно.
 
 ---
 
@@ -158,23 +161,24 @@ ml->UpdateVertexUVs(h, /*submeshIndex=*/0, uvSpan);
 
 void PlaceModelInScene(CHEngine::Scene& scene, const std::string& path)
 {
-    auto& rm = CHEngine::ResourceManager::Instance();
-    CHEngine::ShaderHandle meshShader = CHEngine::RenderFacade::GetDefaultMeshShader();
+    using namespace CHEngine;
+    ResourceManager& rm = Application::Get().Resources();
+    ShaderHandle meshShader = Application::Get().Render().GetDefaultMeshShader();
 
     // Загружаем модель (или получаем из кэша)
-    CHEngine::ModelHandle handle = rm.Load<CHEngine::ModelHandle>(path, meshShader);
-    const CHEngine::LoadedModel* model = rm.GetModel(handle);
+    ModelHandle handle = rm.Load<ModelHandle>(path, meshShader);
+    const LoadedModel* model = rm.GetModel(handle);
     if (!model || !model->mesh.IsValid())
     {
         CHE_CORE_ERROR("Failed to load model: {}", path);
         return;
     }
 
-    // Создаём сущность
-    auto entity = scene.CreateEntity(model->name);
-    entity.PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mc) {
-        mc.Mesh       = model->mesh;  // MeshRef copy — AddRef GpuRecord
-        mc.SourcePath = path;
-    });
+    // Создаём сущность (имя — model->name)
+    EntityHandle h = scene.CreateEntity(model->name);
+    Entity*      e = scene.TryGetEntity(h);
+    e->AddComponent<MeshComponent>(MeshComponent{
+        model->mesh,                 // MeshRef copy — AddRef GpuRecord
+        scene.InternString(path) }); // SourcePath — StringID
 }
 ```

@@ -2,55 +2,53 @@
 
 ## Обзор
 
-Рендеринг организован в трёх слоях:
+Рендеринг организован так:
 
 ```
-RenderFacade (статический API для пользователя)
+RenderSubsystem (Application::Get().Render())
+     │  владеет фабрикой, frame graph, дефолтными шейдерами, scene-камерой
      │
-RenderResourceManager (пулы ресурсов, шейдеры, UBO)
-     │
-IRenderer / IRenderApi (интерфейсы из Core)
+IRenderGraph / IFrameGraphBackend  +  IRenderFactory (интерфейсы из Core)
      │
 Конкретный модуль: RendererOGL / RendererMetal / RendererVulkan
 ```
 
-## RenderFacade — основной API
+Рендеринг **управляется frame graph'ом**: пользователь не вызывает `Submit` вручную.
+`RenderSystem` (фаза `Presentation`) сам обходит сущности с `MeshComponent` и
+наполняет рендер-граф. Прикладному коду обычно достаточно создавать сущности.
 
-Все вызовы рендеринга проходят через статический класс `RenderFacade`.
+## RenderSubsystem — API
 
-### Управление кадром
+Доступ — через `Application::Get().Render()` (всегда валиден после старта).
 
-```cpp
-RenderFacade::BeginFrame();
-RenderFacade::Clear();          // Очистить буфер цвета и глубины
-// ... рендеринг ...
-RenderFacade::EndFrame();       // Финализировать кадр
-```
+### Кадр и frame graph
 
-### Сцена и камера
+Эти вызовы делает `Application::Run` — пользователю трогать их не нужно:
 
 ```cpp
-// Установить камеру для текущего кадра (заполняет UBO)
-RenderFacade::SetSceneCamera(viewMatrix, projMatrix, cameraPosition);
-
-RenderFacade::BeginScene();
-// ... Submit() вызовы ...
-RenderFacade::EndScene();
+RenderSubsystem& r = Application::Get().Render();
+r.BeginFrame();
+r.BeginFrameGraph();
+//  ... Layer::OnUpdate → World::Update → RenderSystem строит граф ...
+r.EndFrameGraph();
+r.EndFrame();
 ```
 
-### Отправка геометрии
+### Scene-камера
 
 ```cpp
-// Стандартный сабмит
-RenderFacade::Submit(shaderHandle, vaoHandle, modelMatrix);
-
-// С кастомным шейдером (переопределяет шейдер материала)
-RenderFacade::Submit(customShader, vaoHandle, modelMatrix);
+// Камера текущего кадра передаётся как заполненный UBO
+UBOCamera cam = /* ... view-projection, позиция ... */;
+Application::Get().Render().SetSceneCamera(cam);
 ```
+
+Обычно камеру выставляет редактор/слой из активной `EditorCamera` либо `RenderSystem`
+из `CameraComponent` с `Primary = true`.
 
 ## Управление ресурсами
 
-Все ресурсы загружаются через `ResourceManager`. Подробнее — в [resource-management.md](resource-management.md).
+Все ресурсы загружаются через `ResourceManager` (`Application::Get().Resources()`).
+Подробнее — в [resource-management.md](resource-management.md).
 
 ### Шейдеры
 
@@ -59,12 +57,13 @@ RenderFacade::Submit(customShader, vaoHandle, modelMatrix);
 Все файлы находятся в `Sandbox/shaders/`.
 
 ```cpp
+ResourceManager& rm = Application::Get().Resources();
+
 // Загрузить шейдер (кэшируется по пути)
-ShaderHandle shader = ResourceManager::Instance().Load<ShaderHandle>(
-    "Mesh", "shaders/mesh.slang");
+ShaderHandle shader = rm.Load<ShaderHandle>("Mesh", "shaders/mesh.slang");
 
 // Выгрузить
-ResourceManager::Instance().Unload(shader);
+rm.Unload(shader);
 ```
 
 **Структура Slang-шейдера:**
@@ -94,13 +93,16 @@ float4 fragMain(VSOut input) : SV_Target { ... }
 ### Текстуры
 
 ```cpp
+ResourceManager& rm = Application::Get().Resources();
+
 // Из файла (кэшируется по пути)
-TextureHandle tex = ResourceManager::Instance().Load<TextureHandle>("textures/diffuse.png");
-ResourceManager::Instance().Unload(tex);
+TextureHandle tex = rm.Load<TextureHandle>("textures/diffuse.png");
+rm.Unload(tex);
 
 // Из сырых пикселей (минуя кэш — например при загрузке OBJ/GLTF)
-TextureHandle tex = RenderFacade::CreateTexture(pixels, width, height, channels);
-RenderFacade::DestroyTexture(tex);
+RenderSubsystem& r = Application::Get().Render();
+TextureHandle tex2 = r.CreateTexture(pixels, width, height, channels);
+r.DestroyTexture(tex2);
 ```
 
 ### GPU-буферы меша
@@ -133,33 +135,43 @@ MeshRef ref{ h };
 
 ## Материалы
 
-`Material` привязывает шейдер к набору uniform-переменных и текстур.
+`Material` — это **PBR-описание ассета** (шейдер + набор PBR-полей и карт), а не
+произвольный uniform-словарь. `MaterialInstance` — экземпляр с переопределениями
+поверх базового материала; именно он хранится в `Mesh` (по одному на субмеш).
 
 ```cpp
-Material mat(shaderHandle);
-mat.SetVec4("u_Color",     {1.0f, 0.5f, 0.0f, 1.0f});
-mat.SetFloat("u_Metallic", 0.8f);
-mat.SetTexture("u_Albedo", albedoTexture);
+// Базовый материал
+auto base = MakeRef<Material>(shaderHandle);
+base->Roughness  = 0.4f;
+base->Metallic   = 0.0f;
+base->DiffuseMap = albedoTexture;       // TextureHandle
 
-// Применить перед сабмитом
-mat.Bind();
-RenderFacade::Submit(mat.GetShader(), vao, transform);
-mat.Unbind();
+// Экземпляр с переопределениями
+Ref<MaterialInstance> inst = MaterialInstance::FromBase(base);
+inst->Metallic = 0.8f;                  // переопределяет базовое значение
+
+// Назначить материал субмешу меша
+meshLoader->SetMaterial(meshHandle, /*submeshIndex=*/0, inst);
 ```
+
+Поля: `DiffuseMap`, `SpecularMap`, `NormalMap`, `ORMmap`, `EmissiveMap` (+ их пути),
+`Shininess`, `SpecularScale`, `Roughness`, `Metallic`, `AO`, `EmissiveColor`.
+Материал заполняет `UBOMaterial` через `FillUBOMaterial`.
 
 ## UBO (Uniform Buffer Object)
 
-Движок автоматически заполняет UBO с данными камеры:
+Общие UBO описаны в `Sandbox/shaders/common.slang`: `CameraUBO`, `ObjectUBO`,
+`MaterialUBO`, `LightingUBO`. Камера заполняется один раз за кадр через
+`RenderSubsystem::SetSceneCamera(UBOCamera)` — пользователю не нужно вручную
+передавать матрицу вида/проекции в каждый сабмит.
 
-```glsl
-// В шейдере (привязывается автоматически к точке 0):
-layout(std140, binding = 0) uniform Camera {
-    mat4 u_ViewProjection;
-    vec3 u_CameraPosition;
-};
+```slang
+import common;
+ConstantBuffer<CameraUBO>   camera;     // [[buffer(0)]] на Metal
+ConstantBuffer<ObjectUBO>   object;     // [[buffer(1)]]
+ConstantBuffer<LightingUBO> lighting;   // [[buffer(2)]]
+ConstantBuffer<MaterialUBO> material;   // [[buffer(3)]]
 ```
-
-Пользователю не нужно вручную передавать матрицу вида/проекции — она устанавливается через `RenderFacade::SetSceneCamera()` один раз за кадр.
 
 ## RenderSystem — встроенная система рендеринга
 
@@ -182,7 +194,7 @@ ForEach<MeshComponent, TransformComponent, VisibilityComponent>:
 Чтобы отключить объект:
 
 ```cpp
-entity.GetComponent<VisibilityComponent>().Visible = false;
+scene.TryGetEntity(handle)->GetComponent<VisibilityComponent>().Visible = false;
 ```
 
 ## Загрузка моделей
@@ -190,8 +202,8 @@ entity.GetComponent<VisibilityComponent>().Visible = false;
 Модели загружаются через `ResourceManager`. `ModelLoader` не вызывается напрямую.
 
 ```cpp
-auto& rm = ResourceManager::Instance();
-ShaderHandle meshShader = RenderFacade::GetDefaultMeshShader();
+ResourceManager& rm = Application::Get().Resources();
+ShaderHandle meshShader = Application::Get().Render().GetDefaultMeshShader();
 
 // Загрузить OBJ или GLTF/GLB (формат определяется по расширению)
 ModelHandle handle = rm.Load<ModelHandle>("assets/models/scene.obj", meshShader);
@@ -200,7 +212,7 @@ const LoadedModel* model = rm.GetModel(handle);
 if (model && model->mesh.IsValid())
 {
     // MeshRef copy — AddRef'ит общий GpuRecord через MeshLoader
-    entity.GetComponent<MeshComponent>().Mesh = model->mesh;
+    scene.TryGetEntity(h)->GetComponent<MeshComponent>().Mesh = model->mesh;
 }
 ```
 
@@ -236,10 +248,14 @@ if (model && model->mesh.IsValid())
 ```cpp
 void OnImGuiRender() override {
     ImGui::Begin("Renderer Info");
-    ImGui::Text("API: %s", RenderFacade::GetAPIName());
-    // Превью фреймбуфера
-    ImGui::Image((ImTextureID)fb->GetColorAttachment(0)->GetRendererID(),
-                 ImVec2(320, 180));
+    ImGui::Text("API: %d", (int)Application::Get().GetRenderAPIType());
+    // Превью результата сцены (выходная текстура viewport'а)
+    uint64_t texId = Application::Get().Render().GetViewportColorTexID();
+    ImGui::Image((ImTextureID)texId, ImVec2(320, 180));
     ImGui::End();
 }
 ```
+
+> В редакторе сцена рендерится в offscreen-текстуру (`RenderSubsystem::GetViewportOutputTexture`),
+> которую `EditorViewport` показывает через `ImGui::Image`. В Player та же текстура
+> блитится в backbuffer через `IRenderFactory::PresentToBackbuffer`.

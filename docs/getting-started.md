@@ -68,70 +68,83 @@ bin/<Config>-<platform>-<arch>/Sandbox/
 ```cpp
 #include <CHEngine.h>
 
-class MyLayer : public CHEngine::Layer {
+using namespace CHEngine;
+
+class MyLayer : public Layer {
 public:
+    MyLayer() : Layer("MyLayer") {}
+
     void OnAttach() override {
         // Инициализация: загрузка ресурсов, создание сцены
+        m_World.SetState(WorldState::Simulating);
     }
 
-    void OnUpdate(CHEngine::Timestep dt) override {
-        // Обновление каждый кадр
-        if (CHEngine::Input::IsKeyPressed(CHEngine::Key::Escape))
-            CHEngine::Application::Get().Close();
+    void OnUpdate(Timestep dt) override {
+        m_LastDt = dt;
+        m_World.Update(dt);   // прогоняет фазы Simulation + Presentation
     }
 
     void OnImGuiRender() override {
         ImGui::Begin("Debug");
-        ImGui::Text("FPS: %.1f", 1.0f / dt);
+        ImGui::Text("FPS: %.1f", m_LastDt > 0.0f ? 1.0f / m_LastDt : 0.0f);
         ImGui::End();
     }
+
+private:
+    WorldsList m_Worlds;
+    World      m_World{ &m_Worlds };
+    float      m_LastDt = 0.0f;
 };
 
-class MyApp : public CHEngine::Application {
+class MyApp : public Application {
 public:
-    MyApp(const CHEngine::ApplicationConfig& config)
-        : CHEngine::Application(config)
-    {
+    MyApp(const ApplicationConfig& config) : Application(config) {
         PushLayer(new MyLayer());
     }
 };
 
-CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config) {
+Application* CHEngine::CreateApplication(const ApplicationConfig& config) {
     return new MyApp(config);
 }
 ```
+
+> `Application` не владеет дефолтным `World`. Слой создаёт и обновляет свой `World`
+> (так же, как редактор Sandbox хранит `World` внутри сессии `EditorWorldContext`).
 
 ## Загрузка модели и рендеринг
 
 ```cpp
 #include <CHEngine.h>
-#include <CHEngine/ResourceManager/ResourceManager.h>
+
+using namespace CHEngine;
 
 void OnAttach() override {
-    auto& scene = CHEngine::Application::Get().GetWorld().GetScene();
-    auto& rm    = CHEngine::ResourceManager::Instance();
+    Scene&           scene = *m_World.GetSceneRef();
+    ResourceManager& rm    = Application::Get().Resources();
 
     // Загрузить шейдер и модель (кэшируются — повторный вызов вернёт тот же хэндл)
-    CHEngine::ShaderHandle shader = rm.Load<CHEngine::ShaderHandle>(
-        "Mesh", "shaders/mesh.slang");
-    CHEngine::ModelHandle model = rm.Load<CHEngine::ModelHandle>(
-        "assets/models/cube.obj", shader);
+    ShaderHandle shader = rm.Load<ShaderHandle>("Mesh", "shaders/mesh.slang");
+    ModelHandle  model  = rm.Load<ModelHandle>("assets/models/cube.obj", shader);
 
-    const CHEngine::LoadedModel* data = rm.GetModel(model);
-    if (!data || data->meshes.empty())
+    const LoadedModel* data = rm.GetModel(model);
+    if (!data || !data->mesh.IsValid())
         return;
 
-    // Создать сущность и скопировать меши (GPU-буферы разделяются через MeshLoader)
-    auto entity = scene.CreateEntity("Cube");
-    entity.PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mc) {
-        mc.Meshes     = data->meshes;
-        mc.SourcePath = "assets/models/cube.obj";
-    });
+    // CreateEntity возвращает EntityHandle; работаем через Entity-обёртку
+    EntityHandle h = scene.CreateEntity("Cube");
+    Entity*      e = scene.TryGetEntity(h);
 
-    // Настроить трансформ
-    entity.PatchComponent<CHEngine::TransformComponent>([](CHEngine::TransformComponent& t) {
-        t.Position = {0.0f, 0.0f, -3.0f};
-        t.Scale    = {1.0f, 1.0f, 1.0f};
-    });
+    // MeshComponent хранит один MeshRef (GPU-буферы разделяются через MeshLoader)
+    e->AddComponent<MeshComponent>(MeshComponent{
+        data->mesh,
+        scene.InternString("assets/models/cube.obj") });
+
+    // Трансформ: Position/Rotation(Euler, градусы)/Scale внутри ObjectTransform
+    auto& tc = e->AddComponent<TransformComponent>();
+    tc.ObjectTransform.Position = { 0.0f, 0.0f, -3.0f };
+    tc.MarkDirty();
 }
 ```
+
+> `SourcePath` в `MeshComponent` — это `StringID` из строкового пула сцены
+> (`Scene::InternString` / `GetString`), а не `std::string`.
