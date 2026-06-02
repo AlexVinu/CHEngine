@@ -1,19 +1,20 @@
 #pragma once
 
-class SceneViewLayer;
+namespace Sandbox { struct EditorContext; }
 
 namespace SceneViewLayerCameraOps {
 
-void ApplyOrbit(SceneViewLayer& layer);
-void SetViewPreset(SceneViewLayer& layer, float yaw_degrees, float pitch_degrees);
-void FocusOnSelected(SceneViewLayer& layer);
-void UpdateEditorCameraInput(SceneViewLayer& layer);
-void PrepareEditorCameraFrame(SceneViewLayer& layer);
+void ApplyOrbit(Sandbox::EditorContext& ctx);
+void SetViewPreset(Sandbox::EditorContext& ctx, float yaw_degrees, float pitch_degrees);
+void FocusOnSelected(Sandbox::EditorContext& ctx);
+void ResetViewportCamera(Sandbox::EditorContext& ctx);
+void UpdateEditorCameraInput(Sandbox::EditorContext& ctx);
+void PrepareEditorCameraFrame(Sandbox::EditorContext& ctx);
 
 } // namespace SceneViewLayerCameraOps
 
 namespace SceneViewLayerRender {
 
-void DrawOrbitIndicator(SceneViewLayer& layer);
+void DrawOrbitIndicator(Sandbox::EditorContext& ctx);
 
 } // namespace SceneViewLayerRender

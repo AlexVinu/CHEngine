@@ -1,6 +1,7 @@
 #include "SceneBrowserPanel.h"
 
-#include "SceneViewLayerHost.h"
+#include "EditorContext.h"
+#include "SceneViewLayer_IO.h"
 #include "ProjectManager.h"
 
 #include <algorithm>
@@ -53,12 +54,12 @@ std::vector<SceneEntry> CollectScenes(const Project& proj)
 
 } // namespace
 
-void SceneBrowserPanel::OnImGuiRender(SceneViewLayerHost& host)
+void SceneBrowserPanel::OnImGuiRender(EditorContext& ctx)
 {
     if (!m_Open)
         return;
 
-    Ref<ProjectManager> proj_manager = host.GetProjectManager();
+    Ref<ProjectManager> proj_manager = ctx.Projects;
     if (!proj_manager || !proj_manager->HasProject())
     {
         m_Open = false;
@@ -78,7 +79,7 @@ void SceneBrowserPanel::OnImGuiRender(SceneViewLayerHost& host)
 
     if (ImGui::Button("+ New Scene"))
     {
-        host.NewSceneFile();
+        SceneViewLayerIO::NewSceneFile(ctx);
     }
     ImGui::SameLine();
     ImGui::TextDisabled("(double-click an entry to open)");
@@ -101,7 +102,7 @@ void SceneBrowserPanel::OnImGuiRender(SceneViewLayerHost& host)
             if (ImGui::InputText("##rename", m_RenameBuf, sizeof(m_RenameBuf),
                                  ImGuiInputTextFlags_EnterReturnsTrue))
             {
-                host.RenameSceneFile(e.rel, m_RenameBuf);
+                SceneViewLayerIO::RenameSceneFile(ctx, e.rel, m_RenameBuf);
                 m_RenameTarget.clear();
             }
             ImGui::SameLine();
@@ -118,15 +119,15 @@ void SceneBrowserPanel::OnImGuiRender(SceneViewLayerHost& host)
                                                    ImGuiSelectableFlags_AllowDoubleClick,
                                                    ImVec2(220, 0));
             if (clicked && ImGui::IsMouseDoubleClicked(0))
-                host.OpenSceneFile(e.rel);
+                SceneViewLayerIO::OpenSceneFile(ctx, e.rel);
         }
 
         ImGui::SameLine();
         if (ImGui::SmallButton("Open"))
-            host.OpenSceneFile(e.rel);
+            SceneViewLayerIO::OpenSceneFile(ctx, e.rel);
         ImGui::SameLine();
         if (ImGui::SmallButton("Startup"))
-            host.SetStartupSceneFile(e.rel);
+            SceneViewLayerIO::SetStartupSceneFile(ctx, e.rel);
         ImGui::SameLine();
         if (ImGui::SmallButton("Rename"))
         {
@@ -150,7 +151,7 @@ void SceneBrowserPanel::OnImGuiRender(SceneViewLayerHost& host)
         ImGui::Separator();
         if (ImGui::Button("Delete", ImVec2(120, 0)))
         {
-            host.DeleteSceneFile(m_PendingDelete);
+            SceneViewLayerIO::DeleteSceneFile(ctx, m_PendingDelete);
             m_PendingDelete.clear();
             ImGui::CloseCurrentPopup();
         }

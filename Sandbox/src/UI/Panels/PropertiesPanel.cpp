@@ -1,4 +1,7 @@
 #include "PropertiesPanel.h"
+#include "EditorContext.h"
+#include "SceneViewLayer_CameraOps.h"
+#include "SceneViewLayer_Scripts.h"
 
 #include "EditorViewport.h"
 #include "SceneSession.h"
@@ -131,10 +134,10 @@ void DisplayAddComponentEntry(const char* menuLabel, CHEngine::Entity* entity, [
 
 } // namespace
 
-void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void PropertiesPanel::Draw(EditorContext& ctx, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Properties", pos, size, 0, reset_layout);
-    SceneSession* activeSession = host.GetActiveSceneSession();
+    SceneSession* activeSession = ctx.ActiveCtx();
 
     auto scene_ptr = activeSession->EditorScene;
     if (!scene_ptr)
@@ -278,12 +281,12 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         });
                 }
                 if (ImGui::IsItemActivated())
-                    host.GetTransformBeforeDrag() = tc.ObjectTransform;
+                    ctx.ActiveCtx()->TransformBeforeDrag = tc.ObjectTransform;
                 if (ImGui::IsItemDeactivatedAfterEdit())
                 {
                     CHEngine::Transform after = selectedEntity->GetComponent<CHEngine::TransformComponent>().ObjectTransform;
-                    host.GetCommandStack().Push(MakeScope<SetTransformCommand>(
-                        scene_ptr, selectedHandle, host.GetTransformBeforeDrag(), after));
+                    ctx.ActiveCtx()->CommandStack.Push(MakeScope<SetTransformCommand>(
+                        scene_ptr, selectedHandle, ctx.ActiveCtx()->TransformBeforeDrag, after));
                 }
             };
             glm::vec3 position = tc.ObjectTransform.Position;
@@ -297,7 +300,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             if (ImGui::Button("Reset Transform##resetTr", ImVec2(-1.0f, 0.0f)))
             {
                 CHEngine::Transform before = tc.ObjectTransform;
-                host.GetCommandStack().Push(MakeScope<SetTransformCommand>(
+                ctx.ActiveCtx()->CommandStack.Push(MakeScope<SetTransformCommand>(
                     scene_ptr, selectedHandle, before, CHEngine::Transform{}));
             }
         });
@@ -334,7 +337,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
             {
                 selectedEntity->PatchComponent<CHEngine::VisibilityComponent>(
                     [&](CHEngine::VisibilityComponent& visibility_component) { visibility_component.Visible = visible; });
-                host.GetCommandStack().Push(MakeScope<SetVisibilityCommand>(
+                ctx.ActiveCtx()->CommandStack.Push(MakeScope<SetVisibilityCommand>(
                     scene_ptr, scene_ptr->GetUUID(selectedHandle), before, visible));
             }
             ImGui::Spacing();
@@ -388,7 +391,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     selectedEntity->PatchComponent<CHEngine::MeshComponent>([&](CHEngine::MeshComponent& mesh_component) {
                         ml->SetMaterial(mesh_component.Mesh.Handle(), submeshIndex,
                             CHEngine::MaterialInstance::FromBase(
-                                std::make_shared<CHEngine::Material>(host.GetEditorViewport().GetMeshShader())));
+                                std::make_shared<CHEngine::Material>(ctx.Viewport.GetMeshShader())));
                     });
                 }
                 auto mat_ref = selectedEntity->GetComponent<CHEngine::MeshComponent>().Mesh->GetMaterial(mi);
@@ -419,9 +422,9 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         if (!path.empty())
                         {
                             const uint32_t submeshIndex = mi;
-                            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                                [&host, submeshIndex, path] {
-                                    host.ApplyDiffuseTextureToSelectedSubmesh(submeshIndex, path);
+                            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                                [&ctx, submeshIndex, path] {
+                                    ctx.ActiveCtx()->ApplyDiffuseTexture(submeshIndex, path, ctx.Viewport.GetMeshShader());
                                 },
                                 [] {}, false));
                         }
@@ -432,8 +435,8 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     if (ImGui::Button("X##difMesh", ImVec2(20, 0)))
                     {
                         const uint32_t submeshIndex = mi;
-                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                            [&host, submeshIndex] { host.ClearDiffuseTextureOnSelectedSubmesh(submeshIndex); },
+                        ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                            [&ctx, submeshIndex] { ctx.ActiveCtx()->ClearDiffuseTexture(submeshIndex); },
                             [] {}, false));
                     }
                     if (ImGui::IsItemHovered())
@@ -461,9 +464,9 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                         if (!path.empty())
                         {
                             const uint32_t submeshIndex = mi;
-                            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                                [&host, submeshIndex, path] {
-                                    host.ApplySpecularTextureToSelectedSubmesh(submeshIndex, path);
+                            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                                [&ctx, submeshIndex, path] {
+                                    ctx.ActiveCtx()->ApplySpecularTexture(submeshIndex, path, ctx.Viewport.GetMeshShader());
                                 },
                                 [] {}, false));
                         }
@@ -474,8 +477,8 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     if (ImGui::Button("X##specMesh", ImVec2(20, 0)))
                     {
                         const uint32_t submeshIndex = mi;
-                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                            [&host, submeshIndex] { host.ClearSpecularTextureOnSelectedSubmesh(submeshIndex); },
+                        ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                            [&ctx, submeshIndex] { ctx.ActiveCtx()->ClearSpecularTexture(submeshIndex); },
                             [] {}, false));
                     }
                     if (ImGui::IsItemHovered())
@@ -533,8 +536,8 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                                 else
                                     mat->GetMaterial()->MaterialFlags &= ~CHEngine::kPBR_EnablePBR;
                                 mat->GetMaterial()->ShaderHandler = usePBR
-                                    ? host.GetEditorViewport().GetPBRShader()
-                                    : host.GetEditorViewport().GetMeshShader();
+                                    ? ctx.Viewport.GetPBRShader()
+                                    : ctx.Viewport.GetMeshShader();
                             }
                         });
                 }
@@ -1095,7 +1098,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                 {
                     ImGui::SameLine();
                     if (ImGui::SmallButton("Edit") && !entry.Path.empty())
-                        host.OpenScriptInEditor(entry.Path);
+                        SceneViewLayerScripts::OpenScriptInEditor(ctx, entry.Path);
 
                     ImGui::SameLine();
                     if (ImGui::SmallButton("Browse"))
@@ -1160,7 +1163,7 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     std::string entityName = selectedEntity->HasComponent<CHEngine::TagComponent>()
                         ? sp->GetString(selectedEntity->GetComponent<CHEngine::TagComponent>().Name)
                         : "Entity";
-                    host.CreateAndAttachScript(selectedHandle, entityName);
+                    SceneViewLayerScripts::CreateAndAttachScript(ctx, selectedHandle, entityName);
                 }
                 ImGui::SameLine();
                 if (ImGui::Button("Browse..."))
@@ -1252,10 +1255,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     float avail = ImGui::GetContentRegionAvail().x - 28.0f;
                     if (ImGui::Selectable(childNames[ci].c_str(), isSel,
                                           ImGuiSelectableFlags_None, ImVec2(avail, 0)))
-                        host.SetSelection(childHandles[ci]);
+                        ctx.ActiveCtx()->SelectEntity(childHandles[ci]);
                     ImGui::SameLine();
                     if (ImGui::SmallButton("x"))
-                        host.DestroyEntityByUuid(childUuids[ci]);
+                        ctx.ActiveCtx()->DestroyEntityByUuid(childUuids[ci]);
                     ImGui::PopID();
                 }
             }
@@ -1319,10 +1322,10 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
                     float avail = ImGui::GetContentRegionAvail().x - 28.0f;
                     if (ImGui::Selectable(wChildNames[ci].c_str(), isSel,
                                           ImGuiSelectableFlags_None, ImVec2(avail, 0)))
-                        host.SetSelection(wChildHandles[ci]);
+                        ctx.ActiveCtx()->SelectEntity(wChildHandles[ci]);
                     ImGui::SameLine();
                     if (ImGui::SmallButton("x"))
-                        host.DestroyEntityByUuid(wChildUuids[ci]);
+                        ctx.ActiveCtx()->DestroyEntityByUuid(wChildUuids[ci]);
                     ImGui::PopID();
                 }
             }
@@ -1518,8 +1521,8 @@ void PropertiesPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bo
     ImGui::Spacing();
     if (ImGui::Button("Focus Camera  (F)", ImVec2(-1.0f, 0.0f)))
     {
-        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-            [&host] { host.FocusOnSelected(); }, [] {}, false));
+        ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+            [&ctx] { SceneViewLayerCameraOps::FocusOnSelected(ctx); }, [] {}, false));
     }
 
     if (propsReadOnly)

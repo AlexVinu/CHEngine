@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ExportManager.h"
-#include "SceneViewLayerHost.h"
 
 #include <imgui.h>
 #include <string>
@@ -12,16 +11,18 @@
 
 namespace Sandbox {
 
+struct EditorContext;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ExportPanel — floating dialog for exporting the game
 //
-// Open via: m_ExportPanel.Open()
-// Draw via: m_ExportPanel.Draw(host)  — call every ImGui frame
+// Open via: ctx.Export.Open()
+// Draw via: ctx.Export.Draw(ctx)  — call every ImGui frame
 // ─────────────────────────────────────────────────────────────────────────────
 class ExportPanel {
 public:
     void Open();
-    void Draw(SceneViewLayerHost& host);
+    void Draw(EditorContext& ctx);
     bool IsOpen() const { return m_Open; }
 
 private:
@@ -50,7 +51,7 @@ private:
     bool                 m_Done       = false;
     bool                 m_Success    = false;
 
-    void StartExport(SceneViewLayerHost& host);
+    void StartExport(EditorContext& ctx);
 };
 
 } // namespace Sandbox

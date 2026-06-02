@@ -1,7 +1,6 @@
 #include "SceneViewLayer_MousePicking.h"
 
-#include "SceneViewLayer.h"
-#include "SceneViewLayerAccess.h"
+#include "EditorContext.h"
 #include "EditorPopupState.h"
 
 #include <CHEngine/Application.h>
@@ -74,9 +73,9 @@ bool RayAABBIntersect(const glm::vec3& rayOrigin, const glm::vec3& rayDir,
 
 } // namespace
 
-void TryPick(SceneViewLayer& layer)
+void TryPick(Sandbox::EditorContext& ec)
 {
-    EditorWorldContext* ctxRef = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* ctxRef = ec.ActiveCtx();
     EditorWorldContext& ctx = *ctxRef;
     if (ctx.GetSessionState() != SceneSession::State::Edit)
         return;
@@ -91,8 +90,8 @@ void TryPick(SceneViewLayer& layer)
     if (ImGuizmo::IsOver() || ImGuizmo::IsUsing())
         return;
 
-    const ImVec2 vpPos  = SceneViewLayerAccess::Viewport(layer).GetViewportPos();
-    const ImVec2 vpSize = SceneViewLayerAccess::Viewport(layer).GetViewportSize();
+    const ImVec2 vpPos  = ec.Viewport.GetViewportPos();
+    const ImVec2 vpSize = ec.Viewport.GetViewportSize();
 
     if (vpSize.x < 1.0f || vpSize.y < 1.0f)
         return;

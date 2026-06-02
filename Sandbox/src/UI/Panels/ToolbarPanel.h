@@ -1,18 +1,18 @@
 #pragma once
 
-#include "SceneViewLayerHost.h"
-
 #include <Render/Handles.h>
 #include <imgui.h>
 
 namespace Sandbox {
+
+struct EditorContext;
 
 class ToolbarPanel
 {
 public:
     ToolbarPanel();
 
-    void Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size);
+    void Draw(EditorContext& ctx, ImVec2 pos, ImVec2 size);
 
 private:
     void LoadIcons();

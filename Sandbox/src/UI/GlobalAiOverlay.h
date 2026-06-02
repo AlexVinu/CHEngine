@@ -8,7 +8,7 @@
 
 namespace Sandbox {
 
-class SceneViewLayerHost;
+struct EditorContext;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GlobalAiOverlay
@@ -36,7 +36,7 @@ public:
     float GetAnimProgress() const { return m_AnimProgress; }
 
     // Call every ImGui frame (after tiling panels are drawn)
-    void Draw(SceneViewLayerHost& host);
+    void Draw(EditorContext& ctx);
 
     // Settings — set before first use
     void SetApiKey(const std::string& key)      { m_ApiKey   = key; }
@@ -91,7 +91,7 @@ private:
     std::string m_SceneContextSnapshot;
 
     // ── Internal ─────────────────────────────────────────────────────────────
-    void Submit(const std::string& userMsg, SceneViewLayerHost& host);
+    void Submit(const std::string& userMsg, EditorContext& ctx);
     // All API fields passed by value — thread has no shared mutable state to race on.
     struct WorkerArgs {
         std::string userMsg;
@@ -102,7 +102,7 @@ private:
         std::vector<HistoryEntry> history;
     };
     void WorkerFn(WorkerArgs args);
-    void ApplyResponse(const std::string& raw, SceneViewLayerHost& host);
+    void ApplyResponse(const std::string& raw, EditorContext& ctx);
 
     std::string BuildRequestBody(const std::string& userMsg) const;
     std::string CallHttp(const std::string& body);

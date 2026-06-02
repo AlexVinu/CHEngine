@@ -1,3 +1,3 @@
 #pragma once
-class SceneViewLayer;
-namespace SceneViewLayerShiftWMenu { void Draw(SceneViewLayer& layer); }
+namespace Sandbox { struct EditorContext; }
+namespace SceneViewLayerShiftWMenu { void Draw(Sandbox::EditorContext& ctx); }

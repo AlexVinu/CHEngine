@@ -1,3 +1,3 @@
 #pragma once
-class SceneViewLayer;
-namespace SceneViewLayerGizmoBar { void Draw(SceneViewLayer& layer); }
+namespace Sandbox { struct EditorContext; }
+namespace SceneViewLayerGizmoBar { void Draw(Sandbox::EditorContext& ctx); }

@@ -92,7 +92,11 @@ namespace CHModules {
 
         if (m_HostVisible) {
             void* mapped = nullptr;
-            vmaMapMemory(ctx->GetAllocator(), m_Alloc, &mapped);
+            const VkResult mr = vmaMapMemory(ctx->GetAllocator(), m_Alloc, &mapped);
+            if (mr != VK_SUCCESS || !mapped) {
+                CHE_CORE_ERROR("BufferVK::UpdateData: vmaMapMemory failed (VkResult={})", static_cast<int>(mr));
+                return;
+            }
             std::memcpy(static_cast<uint8_t*>(mapped) + offset, data.data(), writeSize);
             vmaUnmapMemory(ctx->GetAllocator(), m_Alloc);
         } else {
@@ -108,11 +112,19 @@ namespace CHModules {
 
             VkBuffer      stagingBuf  = VK_NULL_HANDLE;
             VmaAllocation stagingAlloc = VK_NULL_HANDLE;
-            vmaCreateBuffer(ctx->GetAllocator(), &stagingInfo, &stagingVmaInfo,
-                            &stagingBuf, &stagingAlloc, nullptr);
+            if (vmaCreateBuffer(ctx->GetAllocator(), &stagingInfo, &stagingVmaInfo,
+                                &stagingBuf, &stagingAlloc, nullptr) != VK_SUCCESS) {
+                CHE_CORE_ERROR("BufferVK::UpdateData: staging vmaCreateBuffer failed");
+                return;
+            }
 
             void* mapped = nullptr;
-            vmaMapMemory(ctx->GetAllocator(), stagingAlloc, &mapped);
+            const VkResult mr = vmaMapMemory(ctx->GetAllocator(), stagingAlloc, &mapped);
+            if (mr != VK_SUCCESS || !mapped) {
+                CHE_CORE_ERROR("BufferVK::UpdateData: staging vmaMapMemory failed (VkResult={})", static_cast<int>(mr));
+                vmaDestroyBuffer(ctx->GetAllocator(), stagingBuf, stagingAlloc);
+                return;
+            }
             std::memcpy(mapped, data.data(), writeSize);
             vmaUnmapMemory(ctx->GetAllocator(), stagingAlloc);
 

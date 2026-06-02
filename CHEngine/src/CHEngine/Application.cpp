@@ -420,8 +420,7 @@ namespace CHEngine {
                 ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoBackground |
                 ImGuiWindowFlags_AlwaysAutoResize);
             ImGui::TextUnformatted(text);
-            ImGui::End();
-
+			ImGui::End();
             m_UI->End();
 
             m_Render->EndFrame();

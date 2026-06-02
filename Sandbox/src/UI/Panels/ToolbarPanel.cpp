@@ -1,4 +1,8 @@
 #include "ToolbarPanel.h"
+#include "EditorContext.h"
+#include "SceneViewLayer_IO.h"
+#include "SceneViewLayer_Play.h"
+#include "SceneViewLayer_CameraOps.h"
 
 #include "EditorViewport.h"
 #include "SetTransformCommand.h"
@@ -40,13 +44,13 @@ static ImTextureID ToImTex(CHEngine::TextureHandle h)
     return static_cast<ImTextureID>(f->GetTextureNativeID(h));
 }
 
-void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
+void ToolbarPanel::Draw(EditorContext& ctx, ImVec2 pos, ImVec2 size)
 {
     // Ленивая загрузка: при первом Draw factory точно уже готова
     if (!m_IconsLoaded)
         LoadIcons();
     UIActive::BeginToolbar(pos, size);
-    EditorWorldContext* activeSession = host.GetActiveSceneSession();
+    EditorWorldContext* activeSession = ctx.ActiveCtx();
 
     const float winH = ImGui::GetWindowHeight();
     const float startY = ImGui::GetCursorPosY();
@@ -63,66 +67,66 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         CHEngine::InputSystem* input_system = CHEngine::Application::Get().InputSystem();
 
         if (input_system->Triggered("Editor.Gizmo.Translate"))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.GetGizmoOperation() = ImGuizmo::TRANSLATE; }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { ctx.ActiveCtx()->GizmoOperation = ImGuizmo::TRANSLATE; }, [] {}, false));
         if (input_system->Triggered("Editor.Gizmo.Rotate"))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.GetGizmoOperation() = ImGuizmo::ROTATE; }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { ctx.ActiveCtx()->GizmoOperation = ImGuizmo::ROTATE; }, [] {}, false));
         if (input_system->Triggered("Editor.Gizmo.Scale"))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.GetGizmoOperation() = ImGuizmo::SCALE; }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { ctx.ActiveCtx()->GizmoOperation = ImGuizmo::SCALE; }, [] {}, false));
         if (input_system->Triggered("Editor.Profiler.Toggle"))
-            host.GetShowProfiler() = !host.GetShowProfiler();
+            ctx.ActiveCtx()->ShowProfiler = !ctx.ActiveCtx()->ShowProfiler;
 
         // Delete / Backspace — удаление выделенного объекта (только в Edit-режиме)
         if (input_system->Triggered("Editor.Entity.Delete")
             && activeSession->GetSessionState() == SceneSession::State::Edit)
         {
-            EditorWorldContext* s = host.GetActiveSceneSession();
+            EditorWorldContext* s = ctx.ActiveCtx();
             if (s->EditorScene && s->EditorScene->IsEntityHandleValid(s->SelectedEntity))
             {
                 const CHEngine::UUID id = s->EditorScene->GetUUID(s->SelectedEntity);
-                host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                    [&host, id] { host.DestroyEntityByUuid(id); }, [] {}, false));
+                ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                    [&ctx, id] { ctx.ActiveCtx()->DestroyEntityByUuid(id); }, [] {}, false));
             }
         }
 
         if (input_system->Triggered("Editor.History.Undo"))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.RequestUndo(); }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { {if (ctx.ActiveCtx()->CommandStack.CanUndo()) ctx.ActiveCtx()->CommandStack.Undo();}; }, [] {}, false));
 
         if (input_system->Triggered("Editor.Play.Toggle"))
         {
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] {
-                    EditorWorldContext* s = host.GetActiveSceneSession();
-                    if (s->GetSessionState() == SceneSession::State::Edit)        host.EnterPlayMode();
-                    else if (s->GetSessionState() == SceneSession::State::Play)   host.EnterPauseMode();
-                    else if (s->GetSessionState() == SceneSession::State::Pause)  host.ResumeFromPause();
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] {
+                    EditorWorldContext* s = ctx.ActiveCtx();
+                    if (s->GetSessionState() == SceneSession::State::Edit)        SceneViewLayerPlay::EnterPlayMode(ctx);
+                    else if (s->GetSessionState() == SceneSession::State::Play)   SceneViewLayerPlay::EnterPauseMode(ctx);
+                    else if (s->GetSessionState() == SceneSession::State::Pause)  SceneViewLayerPlay::ResumeFromPause(ctx);
                 }, [] {}, false));
         }
         if (input_system->Triggered("Editor.Play.Stop") &&
             activeSession->GetSessionState() != SceneSession::State::Edit)
         {
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.StopPlayMode(); }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { SceneViewLayerPlay::StopPlayMode(ctx); }, [] {}, false));
         }
     }
 
     // ── Session navigation (left side) ────────────────────────────────────────
     {
         vcenter(ImGui::GetFrameHeight());
-        ImGui::BeginDisabled(host.GetActiveSessionIndex() == 0);
+        ImGui::BeginDisabled(ctx.ActiveIndex == 0);
         if (ImGui::ArrowButton("##prev", ImGuiDir_Left))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() - 1); }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { ctx.SetActiveIndex(ctx.ActiveIndex - 1); }, [] {}, false));
         ImGui::EndDisabled();
 
         ImGui::SameLine(0, 4);
         vcenter(ImGui::GetTextLineHeight());
         {
-            const auto& sessions = host.GetSceneSessions();
-            const size_t idx = host.GetActiveSessionIndex();
+            const auto& sessions = SceneViewLayerIO::GetSceneSessions(ctx);
+            const size_t idx = ctx.ActiveIndex;
             const std::string name = idx < sessions.size() ? sessions[idx]->GetWorldName() : "?";
             ImGui::Text("%s  %u/%u", name.c_str(),
                         static_cast<uint32_t>(idx + 1),
@@ -131,25 +135,25 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
 
         ImGui::SameLine(0, 4);
         vcenter(ImGui::GetFrameHeight());
-        ImGui::BeginDisabled(host.GetActiveSessionIndex() + 1 >= host.GetSceneSessions().size());
+        ImGui::BeginDisabled(ctx.ActiveIndex + 1 >= SceneViewLayerIO::GetSceneSessions(ctx).size());
         if (ImGui::ArrowButton("##next", ImGuiDir_Right))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.SetActiveSessionIndex(host.GetActiveSessionIndex() + 1); }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { ctx.SetActiveIndex(ctx.ActiveIndex + 1); }, [] {}, false));
         ImGui::EndDisabled();
 
         ImGui::SameLine(0, 6);
         vcenter(ImGui::GetFrameHeight());
-        ImGui::BeginDisabled(host.GetSceneSessions().size() <= 1);
+        ImGui::BeginDisabled(SceneViewLayerIO::GetSceneSessions(ctx).size() <= 1);
         if (ImGui::Button("x##close"))
-            host.CloseSceneSession(host.GetActiveSessionIndex());
+            SceneViewLayerIO::CloseSceneSession(ctx, ctx.ActiveIndex);
         ImGui::EndDisabled();
 
         ImGui::SameLine(0, 4);
         vcenter(ImGui::GetFrameHeight());
         if (ImGui::Button("+ Scene"))
         {
-            host.GetCommandStack().Push(
-                MakeScope<CallbackCommand>([&host] { host.AddSceneSession(); }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(
+                MakeScope<CallbackCommand>([&ctx] { SceneViewLayerIO::AddSceneSession(ctx); }, [] {}, false));
         }
     }
 
@@ -241,11 +245,11 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         if (playBtn(isPlay ? "##btn_pause" : "##btn_play", playLabel, playIcon,
                     ImVec4(0.15f,0.50f,0.15f,1), ImVec4(0.20f,0.62f,0.20f,1),
                     ImVec4(0.10f,0.38f,0.10f,1), false))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host, isPlay, isEdit] {
-                    if (isPlay)      host.EnterPauseMode();
-                    else if (isEdit) host.EnterPlayMode();
-                    else             host.ResumeFromPause();
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx, isPlay, isEdit] {
+                    if (isPlay)      SceneViewLayerPlay::EnterPauseMode(ctx);
+                    else if (isEdit) SceneViewLayerPlay::EnterPlayMode(ctx);
+                    else             SceneViewLayerPlay::ResumeFromPause(ctx);
                 }, [] {}, false));
 
         ImGui::SameLine(0, gap);
@@ -254,8 +258,8 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
         if (playBtn("##btn_stop", "Stop", m_IconStop,
                     ImVec4(0.50f,0.15f,0.15f,1), ImVec4(0.62f,0.20f,0.20f,1),
                     ImVec4(0.38f,0.10f,0.10f,1), isEdit))
-            host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                [&host] { host.StopPlayMode(); }, [] {}, false));
+            ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                [&ctx] { SceneViewLayerPlay::StopPlayMode(ctx); }, [] {}, false));
     }
 
     // ── Right side: Scene | API | ⚙ Settings ─────────────────────────────────
@@ -291,15 +295,15 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
             if (ImGui::BeginPopup("##scene_dropdown"))
             {
                 if (ImGui::MenuItem("Save Scene"))
-                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                        [&host] { host.SaveScene(); }, [] {}, false));
+                    ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                        [&ctx] { SceneViewLayerIO::SaveScene(ctx); }, [] {}, false));
                 if (ImGui::MenuItem("Open Scene..."))
-                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                        [&host] { host.ToggleSceneBrowser(); }, [] {}, false));
+                    ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                        [&ctx] { ctx.SceneBrowser.Toggle(); }, [] {}, false));
                 ImGui::Separator();
                 if (ImGui::MenuItem("+ New Session"))
-                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                        [&host] { host.AddSceneSession(); }, [] {}, false));
+                    ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                        [&ctx] { SceneViewLayerIO::AddSceneSession(ctx); }, [] {}, false));
                 ImGui::EndPopup();
             }
 
@@ -320,8 +324,8 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
                     if (ImGui::MenuItem(e.name, nullptr, sel) && !sel)
                     {
                         const CHEngine::ERenderAPI chosen = e.api;
-                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                            [&host, chosen] { host.OnRendererApiSelected(chosen); }, [] {}, false));
+                        ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                            [&ctx, chosen] { SceneViewLayerIO::SelectRendererApi(ctx, chosen); }, [] {}, false));
                     }
                 }
                 ImGui::EndPopup();
@@ -331,7 +335,7 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
             ImGui::SameLine(0, 4);
             vcenter(ImGui::GetFrameHeight());
             if (ImGui::Button("Export##exportbtn", ImVec2(62, 0)))
-                host.OpenExportPanel();
+                ctx.Export.Open();
             if (ImGui::IsItemHovered())
                 ImGui::SetTooltip("Export project as standalone game");
 
@@ -345,13 +349,13 @@ void ToolbarPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size)
 
             if (ImGui::BeginPopup("##settings_popup"))
             {
-                UIActive::Toggle("Grid",       &host.GetEditorViewport().ShowGrid());
-                UIActive::Toggle("Profiler",   &host.GetShowProfiler());
+                UIActive::Toggle("Grid",       &ctx.Viewport.ShowGrid());
+                UIActive::Toggle("Profiler",   &ctx.ActiveCtx()->ShowProfiler);
                 ImGui::Separator();
                 const char* themeLabel = (UIActive::g_Theme == AppTheme::RetroOS) ? "Theme: Retro" : "Theme: Dark";
                 if (ImGui::MenuItem(themeLabel))
-                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                        [&host] { host.ToggleUiTheme(); }, [] {}, false));
+                    ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                        [&ctx] { {AppTheme next = (UIActive::g_Theme == AppTheme::RetroOS) ? AppTheme::Dark : AppTheme::RetroOS; UIActive::SetTheme(next);}; }, [] {}, false));
                 ImGui::EndPopup();
             }
         }

@@ -1,8 +1,7 @@
 #include "SceneViewLayer_ShiftAMenu.h"
 
-#include "SceneViewLayer.h"
-#include "SceneViewLayerAccess.h"
-#include "SceneViewLayerHost.h"
+#include "EditorContext.h"
+#include "SceneViewLayer_IO.h"
 #include "EditorPopupState.h"
 #include <CHEngine/Application.h>
 #include "UIThemeRetroOS.h"
@@ -22,10 +21,10 @@ static const ImGuiWindowFlags kFlags =
     ImGuiWindowFlags_NoScrollbar       |
     ImGuiWindowFlags_NoNav;
 
-void Draw(SceneViewLayer& layer)
+void Draw(Sandbox::EditorContext& ec)
 {
-    Sandbox::EditorViewport& viewport = SceneViewLayerAccess::Viewport(layer);
-    EditorWorldContext* ctxRef = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    Sandbox::EditorViewport& viewport = ec.Viewport;
+    EditorWorldContext* ctxRef = ec.ActiveCtx();
     EditorWorldContext& ctx = *ctxRef;
 
     // Open on Shift+A (viewport hovered, edit mode)
@@ -64,7 +63,7 @@ void Draw(SceneViewLayer& layer)
         EditorPopup::Close(); ImGui::End(); return;
     }
 
-    Sandbox::SceneViewLayerHost host(layer);
+    EditorWorldContext* world = ec.ActiveCtx();
     const float w = 150.0f;
 
     // ── Mesh ──────────────────────────────────────────────────────────────────
@@ -73,9 +72,9 @@ void Draw(SceneViewLayer& layer)
     UIThemeRetro::PopFont();
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
-    if (ImGui::Selectable("  Cube",   false, 0, ImVec2(w, 0))) { host.AddCubePrimitive();   EditorPopup::Close(); }
-    if (ImGui::Selectable("  Sphere", false, 0, ImVec2(w, 0))) { host.AddSpherePrimitive(); EditorPopup::Close(); }
-    if (ImGui::Selectable("  Import Model...", false, 0, ImVec2(w, 0))) { EditorPopup::Close(); host.OpenImportModelDialog(); }
+    if (ImGui::Selectable("  Cube",   false, 0, ImVec2(w, 0))) { world->AddCube(ec.Viewport.GetMeshShader());            EditorPopup::Close(); }
+    if (ImGui::Selectable("  Sphere", false, 0, ImVec2(w, 0))) { world->AddSphere(ec.Viewport.GetSphereImpostorShader()); EditorPopup::Close(); }
+    if (ImGui::Selectable("  Import Model...", false, 0, ImVec2(w, 0))) { EditorPopup::Close(); SceneViewLayerIO::OpenImportModelDialog(ec); }
     ImGui::PopStyleVar();
 
     ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
@@ -86,21 +85,21 @@ void Draw(SceneViewLayer& layer)
     UIThemeRetro::PopFont();
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
-    if (ImGui::Selectable("  Point",       false, 0, ImVec2(w, 0))) { host.AddPointLight();       EditorPopup::Close(); }
-    if (ImGui::Selectable("  Directional", false, 0, ImVec2(w, 0))) { host.AddDirectionalLight(); EditorPopup::Close(); }
-    if (ImGui::Selectable("  Spot",        false, 0, ImVec2(w, 0))) { host.AddSpotLight();        EditorPopup::Close(); }
+    if (ImGui::Selectable("  Point",       false, 0, ImVec2(w, 0))) { world->AddPointLight();       EditorPopup::Close(); }
+    if (ImGui::Selectable("  Directional", false, 0, ImVec2(w, 0))) { world->AddDirectionalLight(); EditorPopup::Close(); }
+    if (ImGui::Selectable("  Spot",        false, 0, ImVec2(w, 0))) { world->AddSpotLight();        EditorPopup::Close(); }
     ImGui::PopStyleVar();
 
     ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
     // ── Camera ────────────────────────────────────────────────────────────────
-    if (ImGui::Selectable("  Camera", false, 0, ImVec2(w, 0))) { host.AddCameraEntity(); EditorPopup::Close(); }
+    if (ImGui::Selectable("  Camera", false, 0, ImVec2(w, 0))) { world->AddCameraEntity(); EditorPopup::Close(); }
 
     ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
 
     // ── Empty ─────────────────────────────────────────────────────────────────
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(8.0f, 4.0f));
-    if (ImGui::Selectable("  Empty Entity", false, 0, ImVec2(w, 0))) { host.AddEmptyEntity(); EditorPopup::Close(); }
+    if (ImGui::Selectable("  Empty Entity", false, 0, ImVec2(w, 0))) { world->AddEmptyEntity(); EditorPopup::Close(); }
     ImGui::PopStyleVar();
 
     ImGui::Spacing(); ImGui::Separator(); ImGui::Spacing();
@@ -117,8 +116,8 @@ void Draw(SceneViewLayer& layer)
         ImGui::Separator();
         ImGui::Spacing();
 
-        if (ImGui::MenuItem("  Canvas (Overlay)")) { host.AddUIOverlayCanvas(); EditorPopup::Close(); }
-        if (ImGui::MenuItem("  Canvas (World)"))   { host.AddUIWorldCanvas();   EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Canvas (Overlay)")) { world->AddUIOverlayCanvas(); EditorPopup::Close(); }
+        if (ImGui::MenuItem("  Canvas (World)"))   { world->AddUIWorldCanvas();   EditorPopup::Close(); }
 
         ImGui::EndMenu();
     }

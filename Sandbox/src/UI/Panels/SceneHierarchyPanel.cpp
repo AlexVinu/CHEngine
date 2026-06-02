@@ -1,4 +1,8 @@
 #include "SceneHierarchyPanel.h"
+#include "EditorContext.h"
+#include "SceneViewLayer_IO.h"
+#include "SceneViewLayer_CameraOps.h"
+#include "SceneViewLayer_Scripts.h"
 
 #include "SceneSession.h"
 #include "SetTransformCommand.h"
@@ -39,11 +43,11 @@ void SceneHierarchyPanel::EnsureLogo()
 }
 
 // Draw only the content (no panel wrapper) — used as a tab inside CameraPanel
-void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
+void SceneHierarchyPanel::DrawContent(EditorContext& ctx)
 {
     EnsureLogo();
 
-    SceneSession* activeSession = host.GetActiveSceneSession();
+    SceneSession* activeSession = ctx.ActiveCtx();
     auto scene_ptr = activeSession->EditorScene;
     if (!scene_ptr)
     {
@@ -80,7 +84,7 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
             {
                 ImGui::SameLine();
                 if (ImGui::SmallButton("Edit") && !entry.Path.empty())
-                    host.OpenScriptInEditor(entry.Path);
+                    SceneViewLayerScripts::OpenScriptInEditor(ctx, entry.Path);
                 ImGui::SameLine();
                 if (ImGui::SmallButton("x"))
                     removeWsIdx = i;
@@ -108,7 +112,7 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
         {
             ImGui::Spacing();
             if (ImGui::Button("+ New World Script"))
-                host.CreateAndAttachWorldScript();
+                SceneViewLayerScripts::CreateAndAttachWorldScript(ctx);
             ImGui::SameLine();
             if (ImGui::Button("Browse..."))
             {
@@ -184,14 +188,14 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
         bool opened = ImGui::TreeNodeEx("##object", flags, "  %s%s", info.icon, info.name.c_str());
 
         if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
-            host.SetSelection(info.handle);
+            ctx.ActiveCtx()->SelectEntity(info.handle);
 
         if (ImGui::BeginPopupContextItem())
         {
             if (ImGui::MenuItem("Focus (F)"))
             {
-                host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                    [&host] { host.FocusOnSelected(); }, [] {}, false));
+                ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                    [&ctx] { SceneViewLayerCameraOps::FocusOnSelected(ctx); }, [] {}, false));
             }
 
             if (const auto* ent = scene_ptr->TryGetEntity(info.handle);
@@ -203,11 +207,11 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
                 if (ImGui::BeginMenu("Add UI"))
                 {
                     const auto& uuid = ent->GetComponent<CHEngine::IDComponent>().Value;
-                    if (ImGui::MenuItem("Panel"))  { host.SetSelection(info.handle); host.AddUIPanel(uuid);  }
-                    if (ImGui::MenuItem("Text"))   { host.SetSelection(info.handle); host.AddUIText(uuid);   }
-                    if (ImGui::MenuItem("Button")) { host.SetSelection(info.handle); host.AddUIButton(uuid); }
-                    if (ImGui::MenuItem("Image"))  { host.SetSelection(info.handle); host.AddUIImage(uuid);  }
-                    if (ImGui::MenuItem("Slider")) { host.SetSelection(info.handle); host.AddUISlider(uuid); }
+                    if (ImGui::MenuItem("Panel"))  { ctx.ActiveCtx()->SelectEntity(info.handle); ctx.ActiveCtx()->AddUIPanel(uuid);  }
+                    if (ImGui::MenuItem("Text"))   { ctx.ActiveCtx()->SelectEntity(info.handle); ctx.ActiveCtx()->AddUIText(uuid);   }
+                    if (ImGui::MenuItem("Button")) { ctx.ActiveCtx()->SelectEntity(info.handle); ctx.ActiveCtx()->AddUIButton(uuid); }
+                    if (ImGui::MenuItem("Image"))  { ctx.ActiveCtx()->SelectEntity(info.handle); ctx.ActiveCtx()->AddUIImage(uuid);  }
+                    if (ImGui::MenuItem("Slider")) { ctx.ActiveCtx()->SelectEntity(info.handle); ctx.ActiveCtx()->AddUISlider(uuid); }
                     ImGui::EndMenu();
                 }
             }
@@ -246,22 +250,22 @@ void SceneHierarchyPanel::DrawContent(SceneViewLayerHost& host)
         if (activeSession->GetSessionState() == SceneSession::State::Edit)
         {
             if (ImGui::MenuItem("Create empty entity"))
-                host.AddEmptyEntity();
+                ctx.ActiveCtx()->AddEmptyEntity();
         }
         ImGui::EndPopup();
     }
 
     if (deleteID.has_value())
     {
-        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-            [&host, id = *deleteID] { host.DestroyEntityByUuid(id); }, [] {}, false));
+        ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+            [&ctx, id = *deleteID] { ctx.ActiveCtx()->DestroyEntityByUuid(id); }, [] {}, false));
     }
 }
 
-void SceneHierarchyPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void SceneHierarchyPanel::Draw(EditorContext& ctx, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Scene", pos, size, 0, reset_layout);
-    DrawContent(host);
+    DrawContent(ctx);
     UIActive::EndPanel();
 }
 

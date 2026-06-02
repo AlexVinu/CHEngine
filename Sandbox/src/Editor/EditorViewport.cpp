@@ -194,11 +194,6 @@ void EditorViewport::RegisterEditorPasses(SceneSession* scene_session)
     CHEngine::Application::Get().Render().GetFrameGraph().AddPass(std::move(gridPass));
 }
 
-void EditorViewport::EndSceneRender()
-{
-    CHE_PROFILE_FUNCTION();
-}
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Вспомогательные функции визуализации камеры (ImGui overlay)
 // ─────────────────────────────────────────────────────────────────────────────

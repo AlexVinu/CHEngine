@@ -85,7 +85,6 @@ namespace CHModules {
     void ImGuiLayerMTL::End()
     {
         if (!m_Initialized) return;
-
         ImGui::Render();
 
         if (m_MetalBackendReady && m_CommandBuffer && m_RenderEncoder) {

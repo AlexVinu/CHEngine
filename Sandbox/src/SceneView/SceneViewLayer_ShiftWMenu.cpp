@@ -1,7 +1,6 @@
 #include "SceneViewLayer_ShiftWMenu.h"
 
-#include "SceneViewLayer.h"
-#include "SceneViewLayerAccess.h"
+#include "EditorContext.h"
 #include "EditorPopupState.h"
 #include <CHEngine/Application.h>
 #include "TilingManager.h"
@@ -22,9 +21,9 @@ static const ImGuiWindowFlags kFlags =
     ImGuiWindowFlags_NoScrollbar       |
     ImGuiWindowFlags_NoNav;
 
-void Draw(SceneViewLayer& layer)
+void Draw(Sandbox::EditorContext& ctx)
 {
-    Sandbox::TilingManager& tiling = SceneViewLayerAccess::Tiling(layer);
+    Sandbox::TilingManager& tiling = ctx.Tiling;
 
     // Open on Shift+W
     if (!ImGui::GetIO().WantTextInput)

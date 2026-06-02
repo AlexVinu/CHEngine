@@ -1,4 +1,6 @@
 #include "CameraPanel.h"
+#include "EditorContext.h"
+#include "SceneViewLayer_CameraOps.h"
 #include "SceneHierarchyPanel.h"
 
 #include "EditorCameraController.h"
@@ -13,7 +15,7 @@
 
 namespace Sandbox {
 
-void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout)
+void CameraPanel::Draw(EditorContext& ctx, ImVec2 pos, ImVec2 size, bool reset_layout)
 {
     UIActive::BeginPanel("Inspector", pos, size, 0, reset_layout);
 
@@ -23,14 +25,14 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
         // ── Scene tab (первая и активная по умолчанию) ────────────────────────
         if (ImGui::BeginTabItem("Scene"))
         {
-            m_Hierarchy.DrawContent(host);
+            m_Hierarchy.DrawContent(ctx);
             ImGui::EndTabItem();
         }
 
         // ── Camera tab ────────────────────────────────────────────────────────
         if (ImGui::BeginTabItem("Camera"))
         {
-            EditorWorldContext* activeSession = host.GetActiveSceneSession();
+            EditorWorldContext* activeSession = ctx.ActiveCtx();
             auto* viewport_camera = activeSession->ViewportCamera.get();
             if (viewport_camera)
             {
@@ -40,9 +42,9 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
 
                 if (UIActive::PrimaryButton("Perspective", ImVec2(-1.0f, 0.0f)))
                 {
-                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                        [&host] {
-                            host.SetViewPreset(-90.0f, -15.0f);
+                    ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                        [&ctx] {
+                            SceneViewLayerCameraOps::SetViewPreset(ctx, -90.0f, -15.0f);
                         }, [] {}, false));
                 }
 
@@ -62,8 +64,8 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
                     if (ImGui::Button(presets[i].name, ImVec2(hw, 0)))
                     {
                         const float y = presets[i].yaw, p = presets[i].pitch;
-                        host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                            [&host, y, p] { host.SetViewPreset(y, p); }, [] {}, false));
+                        ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                            [&ctx, y, p] { SceneViewLayerCameraOps::SetViewPreset(ctx, y, p); }, [] {}, false));
                     }
                 }
                 ImGui::PopStyleVar();
@@ -116,7 +118,7 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
 
                 float orbitDist = cameraState.OrbitDist;
                 if (dragRow("Dist", "##dist", &orbitDist, 0.1f, 0.3f, 500.0f)) { cameraState.OrbitDist = orbitDist; orb = true; }
-                if (orb) host.ApplyOrbit();
+                if (orb) SceneViewLayerCameraOps::ApplyOrbit(ctx);
 
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.557f, 0.557f, 0.576f, 1.0f));
                 ImGui::TextUnformatted("Target");
@@ -125,7 +127,7 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
                 ImGui::SetNextItemWidth(-1.0f);
                 glm::vec3 orbitTarget = cameraState.OrbitTarget;
                 if (ImGui::DragFloat3("##target", glm::value_ptr(orbitTarget), 0.05f))
-                    { cameraState.OrbitTarget = orbitTarget; host.ApplyOrbit(); }
+                    { cameraState.OrbitTarget = orbitTarget; SceneViewLayerCameraOps::ApplyOrbit(ctx); }
 
                 glm::vec3 cpos = viewport_camera->GetPosition();
                 ImGui::Spacing();
@@ -140,8 +142,8 @@ void CameraPanel::Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool r
 
                 ImGui::Spacing();
                 if (UIActive::DestructiveButton("Reset Camera", ImVec2(-1.0f, 0.0f)))
-                    host.GetCommandStack().Push(MakeScope<CallbackCommand>(
-                        [&host] { host.ResetViewportCamera(); }, [] {}, false));
+                    ctx.ActiveCtx()->CommandStack.Push(MakeScope<CallbackCommand>(
+                        [&ctx] { SceneViewLayerCameraOps::ResetViewportCamera(ctx); }, [] {}, false));
 
                 UIActive::SectionHeader("PROJECTION");
 

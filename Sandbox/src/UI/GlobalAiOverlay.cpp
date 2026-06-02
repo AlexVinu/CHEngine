@@ -1,5 +1,10 @@
 #include "GlobalAiOverlay.h"
-#include "SceneViewLayerHost.h"
+#include "EditorContext.h"
+#include "SceneViewLayer_IO.h"
+#include "SceneViewLayer_Play.h"
+#include "SceneViewLayer_CameraOps.h"
+#include "SceneViewLayer_Scripts.h"
+#include "UIThemeActive.h"
 
 #include <imgui.h>
 
@@ -653,13 +658,13 @@ void GlobalAiOverlay::WorkerFn(WorkerArgs args)
     m_HasPending      = true;
 }
 
-void GlobalAiOverlay::Submit(const std::string& userMsg, SceneViewLayerHost& host)
+void GlobalAiOverlay::Submit(const std::string& userMsg, EditorContext& ctx)
 {
     if (m_Worker.joinable())
         m_Worker.join();
 
     // Snapshot scene state and history on main thread, before spawning worker.
-    m_SceneContextSnapshot = host.GetSceneContextString();
+    m_SceneContextSnapshot = ctx.ActiveCtx()->GetSceneContextString();
     m_ApiHistory.push_back({ "user", userMsg });
     m_Status = "thinking";
 
@@ -676,7 +681,7 @@ void GlobalAiOverlay::Submit(const std::string& userMsg, SceneViewLayerHost& hos
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& host)
+void GlobalAiOverlay::ApplyResponse(const std::string& raw, EditorContext& ctx)
 {
     if (raw.rfind("__ERR__", 0) == 0)
     {
@@ -722,52 +727,52 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
             auto rot   = ParseJsonVec(act, "rot");
             auto scale = ParseJsonVec(act, "scale");
 
-            if      (object == "cube")        host.AddCubePrimitive();
-            else if (object == "sphere")      host.AddSpherePrimitive();
-            else if (object == "empty")       host.AddEmptyEntity();
-            else if (object == "camera")      host.AddCameraEntity();
-            else if (object == "dir_light")   host.AddDirectionalLight();
-            else if (object == "point_light") host.AddPointLight();
-            else if (object == "spot_light")  host.AddSpotLight();
+            if      (object == "cube")        ctx.ActiveCtx()->AddCube(ctx.Viewport.GetMeshShader());
+            else if (object == "sphere")      ctx.ActiveCtx()->AddSphere(ctx.Viewport.GetSphereImpostorShader());
+            else if (object == "empty")       ctx.ActiveCtx()->AddEmptyEntity();
+            else if (object == "camera")      ctx.ActiveCtx()->AddCameraEntity();
+            else if (object == "dir_light")   ctx.ActiveCtx()->AddDirectionalLight();
+            else if (object == "point_light") ctx.ActiveCtx()->AddPointLight();
+            else if (object == "spot_light")  ctx.ActiveCtx()->AddSpotLight();
             else continue;
 
             if (!name.empty())
-                host.RenameSelectedEntity(name);
+                ctx.ActiveCtx()->RenameSelected(name);
 
-            if (pos.size()   >= 3) host.SetSelectedEntityPosition(pos[0],   pos[1],   pos[2]);
-            if (rot.size()   >= 3) host.SetSelectedEntityRotation(rot[0],   rot[1],   rot[2]);
-            if (scale.size() >= 3) host.SetSelectedEntityScale   (scale[0], scale[1], scale[2]);
+            if (pos.size()   >= 3) ctx.ActiveCtx()->SetSelectedPosition(pos[0],   pos[1],   pos[2]);
+            if (rot.size()   >= 3) ctx.ActiveCtx()->SetSelectedRotation(rot[0],   rot[1],   rot[2]);
+            if (scale.size() >= 3) ctx.ActiveCtx()->SetSelectedScale(scale[0], scale[1], scale[2]);
         }
         else if (type == "set_pos")
         {
             auto pos = ParseJsonVec(act, "pos");
             std::string ent = JsonField(act, "entity");
-            if (pos.size() >= 3) host.SetEntityPositionByName(ent, pos[0], pos[1], pos[2]);
+            if (pos.size() >= 3) ctx.ActiveCtx()->SetPositionByName(ent, pos[0], pos[1], pos[2]);
         }
         else if (type == "set_rot")
         {
             auto rot = ParseJsonVec(act, "rot");
             std::string ent = JsonField(act, "entity");
-            if (rot.size() >= 3) host.SetEntityRotationByName(ent, rot[0], rot[1], rot[2]);
+            if (rot.size() >= 3) ctx.ActiveCtx()->SetRotationByName(ent, rot[0], rot[1], rot[2]);
         }
         else if (type == "set_scale")
         {
             auto sc = ParseJsonVec(act, "scale");
             std::string ent = JsonField(act, "entity");
-            if (sc.size() >= 3) host.SetEntityScaleByName(ent, sc[0], sc[1], sc[2]);
+            if (sc.size() >= 3) ctx.ActiveCtx()->SetScaleByName(ent, sc[0], sc[1], sc[2]);
         }
         else if (type == "set_color")
         {
             auto col = ParseJsonVec(act, "color");
             std::string ent = JsonField(act, "entity");
             float a = col.size() >= 4 ? col[3] : 1.0f;
-            if (col.size() >= 3) host.SetEntityColorByName(ent, col[0], col[1], col[2], a);
+            if (col.size() >= 3) ctx.ActiveCtx()->SetColorByName(ent, col[0], col[1], col[2], a);
         }
         else if (type == "set_visible")
         {
             std::string ent = JsonField(act, "entity");
             bool vis = ParseJsonBool(act, "visible", true);
-            host.SetEntityVisibleByName(ent, vis);
+            ctx.ActiveCtx()->SetVisibleByName(ent, vis);
         }
         else if (type == "set_light")
         {
@@ -776,17 +781,17 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
             auto col              = ParseJsonVec(act, "color");
             float intensity       = ParseJsonFloat(act, "intensity", 1.0f);
             float r = col.size()>0?col[0]:1.0f, g=col.size()>1?col[1]:1.0f, b=col.size()>2?col[2]:1.0f;
-            host.SetEntityLightByName(ent, lightType, r, g, b, intensity);
+            ctx.ActiveCtx()->SetLightByName(ent, lightType, r, g, b, intensity);
         }
         else if (type == "rename")
         {
             std::string ent  = JsonField(act, "entity");
             std::string name = JsonField(act, "name");
-            host.RenameEntityByName(ent, name);
+            ctx.ActiveCtx()->RenameByName(ent, name);
         }
         else if (type == "delete")
         {
-            host.DeleteEntityByName(JsonField(act, "entity"));
+            ctx.ActiveCtx()->DeleteByName(JsonField(act, "entity"));
         }
         else if (type == "add_script")
         {
@@ -794,9 +799,9 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
             std::string tmpl = JsonField(act, "template");
             std::string lua  = GetScriptTemplate(tmpl);
             if (!lua.empty())
-                host.CreateAndAttachScriptWithContent(ent, lua);
+                SceneViewLayerScripts::CreateAndAttachScriptWithContent(ctx, ent, lua);
             else
-                host.CreateAndAttachScriptToEntityByName(ent);
+                SceneViewLayerScripts::CreateAndAttachScriptToEntityByName(ctx, ent);
         }
         else if (type == "add_world_script")
         {
@@ -806,32 +811,32 @@ void GlobalAiOverlay::ApplyResponse(const std::string& raw, SceneViewLayerHost& 
             std::string tmpl    = JsonField(act, "template");
             std::string content = JsonField(act, "content");
             if (!content.empty())
-                host.CreateAndAttachWorldScriptWithContent(content);
+                SceneViewLayerScripts::CreateAndAttachWorldScriptWithContent(ctx, content);
             else if (std::string lua = GetScriptTemplate(tmpl); !lua.empty())
-                host.CreateAndAttachWorldScriptWithContent(lua);
+                SceneViewLayerScripts::CreateAndAttachWorldScriptWithContent(ctx, lua);
             else
-                host.CreateAndAttachWorldScript();
+                SceneViewLayerScripts::CreateAndAttachWorldScript(ctx);
         }
         else if (type == "select")
         {
-            host.SelectEntityByName(JsonField(act, "entity"));
+            ctx.ActiveCtx()->SelectByName(JsonField(act, "entity"));
         }
         else if (type == "focus")
         {
-            host.FocusOnEntityByName(JsonField(act, "entity"));
+            {ctx.ActiveCtx()->SelectByName(JsonField(act, "entity")); SceneViewLayerCameraOps::FocusOnSelected(ctx);};
         }
         else if (type == "layout")
         {
-            host.ApplyLayoutPreset(JsonField(act, "preset"));
+            ctx.Tiling.ApplyPreset(JsonField(act, "preset"));
         }
-        else if (type == "play")  { host.EnterPlayMode();  }
-        else if (type == "stop")  { host.StopPlayMode();   }
-        else if (type == "save")  { host.SaveScene();      }
-        else if (type == "reset_camera") { host.ResetViewportCamera(); }
+        else if (type == "play")  { SceneViewLayerPlay::EnterPlayMode(ctx);  }
+        else if (type == "stop")  { SceneViewLayerPlay::StopPlayMode(ctx);   }
+        else if (type == "save")  { SceneViewLayerIO::SaveScene(ctx);      }
+        else if (type == "reset_camera") { SceneViewLayerCameraOps::ResetViewportCamera(ctx); }
         else if (type == "set_fov")
         {
             float fov = ParseJsonFloat(act, "value", 45.0f);
-            host.SetViewportFovValue(fov);
+            ctx.ActiveCtx()->SetViewportFov(fov);
         }
     }
 
@@ -876,7 +881,7 @@ static float EaseOutCubic(float t)
 static float EaseInCubic(float t) { return t * t * t; }
 
 // ─────────────────────────────────────────────────────────────────────────────
-void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
+void GlobalAiOverlay::Draw(EditorContext& ctx)
 {
     ImGuiIO& io = ImGui::GetIO();
     const float dt = io.DeltaTime;
@@ -896,7 +901,7 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
         std::lock_guard<std::mutex> lock(m_Mutex);
         if (m_HasPending)
         {
-            ApplyResponse(m_PendingResponse, host);
+            ApplyResponse(m_PendingResponse, ctx);
             m_PendingResponse.clear();
             m_HasPending = false;
         }
@@ -1053,7 +1058,7 @@ void GlobalAiOverlay::Draw(SceneViewLayerHost& host)
             m_Messages.push_back({ true, userMsg });
             m_InputBuf[0] = '\0';
             m_FocusInput  = true;
-            Submit(userMsg, host);
+            Submit(userMsg, ctx);
         }
     }
     if (busy) ImGui::EndDisabled();

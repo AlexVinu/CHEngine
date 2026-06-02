@@ -59,5 +59,4 @@ namespace CHModules {
         ImGui::Render();
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
-
 }

@@ -3,6 +3,7 @@
 #include <Core.h>
 #include <CheStl/MemoryTypes.h>
 #include <string>
+#include <string_view>
 #include <vector>
 #include <memory>
 #include <unordered_map>
@@ -57,6 +58,9 @@ public:
 	void LoadStringPoolEntry(StringID id, const std::string& str);
 	void LoadScriptPoolEntry(ScriptsID id, std::vector<ScriptEntry> scripts);
 
+	// Mark-and-sweep cleanup of the string/script pools: walks every component
+	void CollectGarbage();
+
 	EntityHandle CreateEntity(const std::string& name = "Object");
 	EntityHandle CreateEntity(const std::string& name, const UUID& uuid);
 
@@ -76,6 +80,7 @@ public:
 	// Entity getters
 	EntityHandle TryGetEntityHandleByUUID(const UUID& uuid) const;
 	const UUID GetUUID(const EntityHandle entityHandle) const;
+	const UUID GetUUIDByString(const std::string_view name) const;
 	Entity* TryGetEntity(const EntityHandle entityHandle);
 	const Entity* TryGetEntity(const EntityHandle entityHandle) const;
 	bool IsEntityHandleValid(const EntityHandle entityHandle) const;
@@ -88,7 +93,21 @@ private:
 
 	std::unordered_map<StringID,  std::string>             StringPool;
 	std::unordered_map<ScriptsID, std::vector<ScriptEntry>> ScriptPool;
-	std::unordered_map<std::string, StringID>               m_StringLookup;
+
+	struct string_hash {
+		using is_transparent = void; 
+
+		size_t operator()(std::string_view sv) const {
+			return std::hash<std::string_view>{}(sv);
+		}
+		size_t operator()(const std::string& s) const {
+			return std::hash<std::string>{}(s);
+		}
+		size_t operator()(const char* s) const {
+			return std::hash<std::string_view>{}(s);
+		}
+	};
+	std::unordered_map<std::string, StringID, string_hash, std::equal_to<>> m_StringLookup;
 	StringID  m_NextStringID  = 0;
 	ScriptsID m_NextScriptsID = 0;
 

@@ -6,6 +6,7 @@
 
 #include "ContentBrowserPanel.h"
 #include "CameraPanel.h"
+#include "EditorContext.h"
 #include "EditorCameraController.h"
 #include "EditorViewport.h"
 #include "EditorWorldContext.h"
@@ -18,39 +19,28 @@
 #include "ToolbarPanel.h"
 #include "UvEditorPanel.h"
 #include "ProjectBrowserWindow.h"
-#include "ScriptEditorPanel.h"
 #include "TilingManager.h"
 #include "GlobalAiOverlay.h"
-#include "ExportPanel.h"
 
 #include <vector>
-
-struct SceneViewLayerAccess;
 
 class SceneViewLayer : public CHEngine::Layer
 {
 public:
-    explicit SceneViewLayer(Ref<ProjectManager>);
-    void OnUpdate(CHEngine::Timestep dt) override;
+    explicit SceneViewLayer(Sandbox::EditorContext& ctx);
     void OnImGuiRender() override;
-    void OnEvent(CHEngine::Event& e) override;
 
     void OnProjectOpened();
-    CHEngine::WorldsList& GetWorldsList() { return *m_Worlds; }
+    CHEngine::WorldsList& GetWorldsList() { return *m_Ctx.Worlds; }
 
 private:
-    friend struct SceneViewLayerAccess;
-    // NOTE: for editor firstly make ptr to EditorWorldContext
-    // After push it to world list
-    Scope<CHEngine::WorldsList> m_Worlds = MakeScope<CHEngine::WorldsList>();
+	void RunSceneViewImGuiFrame();
+    void Finish();
 
+    Sandbox::EditorContext& m_Ctx;
     Ref<ProjectManager> m_ProjectManager;
-    size_t m_ActiveIndex = 0;
 
-    Sandbox::EditorCameraController m_CameraController;
-    Sandbox::GizmoSystem m_GizmoSystem;
-    Sandbox::EditorViewport m_Viewport;
-
+    // Panels rendered only by SceneViewLayer; ScriptEditor/SceneBrowser/Export live in EditorContext.
     Sandbox::ToolbarPanel m_ToolbarPanel;
     Sandbox::SceneHierarchyPanel m_HierarchyPanel;
     Sandbox::PropertiesPanel m_PropertiesPanel;
@@ -60,17 +50,9 @@ private:
 
     Sandbox::UvEditorPanel m_UvEditor;
     bool m_ShowUVEditor = false;
-    Sandbox::SceneBrowserPanel m_SceneBrowser;
 
     ProjectBrowserWindow m_ProjectBrowser;
-    Sandbox::ScriptEditorPanel m_ScriptEditor;
-
-    // Tiling workspace manager
-    Sandbox::TilingManager m_TilingManager{ "tiling_layout.txt" };
 
     // Global AI overlay (double-tap Z)
     Sandbox::GlobalAiOverlay m_GlobalAiOverlay;
-
-    // Export panel
-    Sandbox::ExportPanel m_ExportPanel;
 };

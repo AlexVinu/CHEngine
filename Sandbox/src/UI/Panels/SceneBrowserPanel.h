@@ -6,14 +6,14 @@
 
 namespace Sandbox {
 
-class SceneViewLayerHost;
+struct EditorContext;
 
 /// Standalone window listing all `*.chscene` files in <project>/Scenes/.
 /// Lets the user open, delete, rename, set-as-startup, and create scenes.
 class SceneBrowserPanel
 {
 public:
-    void OnImGuiRender(SceneViewLayerHost& host);
+    void OnImGuiRender(EditorContext& ctx);
 
     bool IsOpen() const { return m_Open; }
     void SetOpen(bool open) { m_Open = open; }

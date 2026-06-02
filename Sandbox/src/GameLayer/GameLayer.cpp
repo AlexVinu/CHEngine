@@ -2,8 +2,8 @@
 
 #include <CHEngine/World/World.h>
 
-GameLayer::GameLayer(CHEngine::WorldsList& worlds)
-	: m_Worlds(worlds)
+GameLayer::GameLayer(Ref<CHEngine::WorldsList> worldsRef)
+	: m_Worlds(*worldsRef)
 {
 }
 

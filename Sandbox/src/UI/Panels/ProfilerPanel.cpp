@@ -1,5 +1,7 @@
 #include "ProfilerPanel.h"
 
+#include "EditorContext.h"
+
 #include <Profiler.h>
 
 #include <imgui.h>
@@ -13,13 +15,13 @@
 
 namespace Sandbox {
 
-void ProfilerPanel::Draw(SceneViewLayerHost& host)
+void ProfilerPanel::Draw(EditorContext& ctx)
 {
-    if (!host.GetShowProfiler())
+    if (!ctx.ActiveCtx()->ShowProfiler)
         return;
 
     ImGui::SetNextWindowSize(ImVec2(560, 380), ImGuiCond_FirstUseEver);
-    if (!ImGui::Begin("Profiler", &host.GetShowProfiler()))
+    if (!ImGui::Begin("Profiler", &ctx.ActiveCtx()->ShowProfiler))
     {
         ImGui::End();
         return;
@@ -116,7 +118,7 @@ void ProfilerPanel::Draw(SceneViewLayerHost& host)
     ImGui::End();
 }
 
-void ProfilerPanel::DrawInPanel(SceneViewLayerHost& /*host*/)
+void ProfilerPanel::DrawInPanel(EditorContext& /*ctx*/)
 {
     // Tiling mode: window pos/size set externally, open unconditionally
     if (!ImGui::Begin("Profiler"))

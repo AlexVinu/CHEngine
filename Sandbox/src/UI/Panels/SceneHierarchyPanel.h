@@ -1,17 +1,18 @@
 #pragma once
 
-#include "SceneViewLayerHost.h"
 #include <CHEngine/Application.h>
 #include <Render/Handles.h>
 #include <imgui.h>
 
 namespace Sandbox {
 
+struct EditorContext;
+
 class SceneHierarchyPanel
 {
 public:
-    void Draw(SceneViewLayerHost& host, ImVec2 pos, ImVec2 size, bool reset_layout);
-    void DrawContent(SceneViewLayerHost& host);
+    void Draw(EditorContext& ctx, ImVec2 pos, ImVec2 size, bool reset_layout);
+    void DrawContent(EditorContext& ctx);
 
 private:
     CHEngine::TextureHandle m_Logo;

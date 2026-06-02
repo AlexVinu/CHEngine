@@ -2,8 +2,11 @@
 #define CHE_INCLUDE_ENTRY_POINT
 #include <CHEngine.h>
 #include "SceneViewLayer.h"
+#include "EditorRenderLayer.h"
+#include "EditorInputLayer.h"
 #include "GameLayer.h"
 #include "ProjectManager.h"
+#include "EditorContext.h"
 
 #include <CHEngine/EngineConfig.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
@@ -40,18 +43,23 @@ public:
 		CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>("Flat", CHEngine::AppPaths::ExecutableDir() / "shaders/flat.slang");
 		CHEngine::Application::Get().Resources().Load<CHEngine::ShaderHandle>("Neon", CHEngine::AppPaths::ExecutableDir() / "shaders/neon.slang");
 
-		// Scene editor (default)
-		auto* sceneLayer = new SceneViewLayer(m_ProjectManager);
-		PushLayer(sceneLayer);
-		PushLayer(new GameLayer(sceneLayer->GetWorldsList()));
-		// Old cube demo (uncomment to use instead):
-		// PushLayer(new ExampleLayer());
+		m_EditorContext = MakeScope<Sandbox::EditorContext>();
+		m_Worlds = MakeRef<CHEngine::WorldsList>();
+		m_EditorContext->Worlds   = m_Worlds;
+		m_EditorContext->Projects = m_ProjectManager;
+
+		PushLayer(new EditorRenderLayer(*m_EditorContext)); 
+		PushLayer(new EditorInputLayer(*m_EditorContext)); 
+		PushLayer(new SceneViewLayer(*m_EditorContext));   
+		PushLayer(new GameLayer(m_Worlds));
 	}
 
 	~SandboxApp() = default;
 
 private:
 	Ref<ProjectManager> m_ProjectManager;
+	Ref<CHEngine::WorldsList> m_Worlds;
+	Scope<Sandbox::EditorContext> m_EditorContext;
 };
 
 CHEngine::Application* CHEngine::CreateApplication(const CHEngine::ApplicationConfig& config)

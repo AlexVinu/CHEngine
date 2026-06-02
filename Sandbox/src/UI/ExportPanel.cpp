@@ -1,4 +1,5 @@
 #include "ExportPanel.h"
+#include "EditorContext.h"
 
 #include <CHEngine/Utils/AppPaths.h>
 #include <CHEngine/EngineConfig.h>
@@ -72,7 +73,7 @@ void ExportPanel::Open()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-void ExportPanel::Draw(SceneViewLayerHost& host)
+void ExportPanel::Draw(EditorContext& ctx)
 {
     if (!m_Open) return;
 
@@ -109,7 +110,7 @@ void ExportPanel::Draw(SceneViewLayerHost& host)
 
     // On first open default to the active session's scene if present in the list.
     if (m_ScenesScanned) {
-        if (auto session = host.GetActiveSceneSession(); session && !session->SceneRelPath.empty()) {
+        if (auto session = ctx.ActiveCtx(); session && !session->SceneRelPath.empty()) {
             for (size_t i = 0; i < m_Scenes.size(); ++i) {
                 if (m_Scenes[i] == session->SceneRelPath) { m_SceneSel = static_cast<int>(i); break; }
             }
@@ -195,7 +196,7 @@ void ExportPanel::Draw(SceneViewLayerHost& host)
     bool canExport = !m_Exporting && m_OutputDir[0] != '\0';
     if (!canExport) ImGui::BeginDisabled();
     if (ImGui::Button("Экспортировать", ImVec2(160, 0)))
-        StartExport(host);
+        StartExport(ctx);
     if (!canExport) ImGui::EndDisabled();
 
     ImGui::SameLine();
@@ -208,7 +209,7 @@ void ExportPanel::Draw(SceneViewLayerHost& host)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-void ExportPanel::StartExport(SceneViewLayerHost& host)
+void ExportPanel::StartExport(EditorContext& ctx)
 {
     if (m_Worker.joinable()) m_Worker.join();
 
@@ -216,7 +217,7 @@ void ExportPanel::StartExport(SceneViewLayerHost& host)
     if (m_SceneSel >= 0 && m_SceneSel < static_cast<int>(m_Scenes.size()))
         startupScene = m_Scenes[m_SceneSel];
     if (startupScene.empty()) {
-        auto session = host.GetActiveSceneSession();
+        auto session = ctx.ActiveCtx();
         if (session) startupScene = session->SceneRelPath;
     }
     if (startupScene.empty()) startupScene = "Scenes/main.chscene";

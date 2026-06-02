@@ -1,12 +1,12 @@
 #include "SceneViewLayer_IO.h"
 
-#include "SceneViewLayer.h"
-#include "SceneViewLayerAccess.h"
+#include "EditorContext.h"
 #include "SceneViewLayer_CameraOps.h"
 #include "SetTransformCommand.h"
 #include "ProjectManager.h"
 
 #include <CHEngine/Application.h>
+#include <CHEngine/EngineConfig.h>
 #include <CHEngine/Mesh/Material.h>
 #include <CHEngine/ResourceManager/ResourceManager.h>
 #include <CHEngine/Scene/Components.h>
@@ -82,16 +82,16 @@ void LogSceneRenderReadiness(CHEngine::Scene* scene)
 
 } // namespace
 
-void SceneViewLayerIO::LoadSceneSilent(SceneViewLayer& layer, const std::string& absPath)
+void SceneViewLayerIO::LoadSceneSilent(Sandbox::EditorContext& ec, const std::string& absPath)
 {
     if (absPath.empty())
         return;
 
-    auto ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    auto ctx = ec.ActiveCtx();
     ctx->CommandStack.Clear();
     ctx->SelectedEntity = {};
 
-    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    Ref<ProjectManager> proj_manager = ec.Projects;
     std::filesystem::path basePath;
     if (proj_manager->HasProject())
         basePath = proj_manager->Current()->RootDir();
@@ -141,14 +141,14 @@ std::filesystem::path GenerateUntitledScenePath(const std::filesystem::path& sce
 
 } // namespace
 
-void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
+void SceneViewLayerIO::SaveScene(Sandbox::EditorContext& ec)
 {
-    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* ctx = ec.ActiveCtx();
 
     // No-dialog save: write to <project>/Scenes/<name>.chscene.
     // Session's SceneRelPath is the source of truth for the destination.
     std::string path;
-    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    Ref<ProjectManager> proj_manager = ec.Projects;
     if (proj_manager->HasProject())
     {
         Project* proj = proj_manager->Current();
@@ -208,7 +208,7 @@ void SceneViewLayerIO::SaveScene(SceneViewLayer& layer)
         CHE_CORE_ERROR("SceneViewLayer: failed to save scene {}", path);
 }
 
-void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
+void SceneViewLayerIO::LoadScene(Sandbox::EditorContext& ec, const std::string& path)
 {
     std::string filePath = path;
     if (filePath.empty())
@@ -219,11 +219,11 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
     if (filePath.empty())
         return;
 
-    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* ctx = ec.ActiveCtx();
     ctx->CommandStack.Clear();
     ctx->SelectedEntity = {};
 
-    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    Ref<ProjectManager> proj_manager = ec.Projects;
     std::filesystem::path basePath;
     if (proj_manager->HasProject())
         basePath = proj_manager->Current()->RootDir();
@@ -318,7 +318,7 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
                 if (hasOrbitTarget)
                 {
                     ctx->EditorCameraState.OrbitTarget = savedOrbitTarget;
-                    SceneViewLayerCameraOps::ApplyOrbit(layer);
+                    SceneViewLayerCameraOps::ApplyOrbit(ec);
                 }
                 else if (hasPosition)
                     viewport_camera->SetPosition(savedPosition);
@@ -336,10 +336,10 @@ void SceneViewLayerIO::LoadScene(SceneViewLayer& layer, const std::string& path)
     }
 }
 
-void SceneViewLayerIO::AutoSaveForRestart(SceneViewLayer& layer)
+void SceneViewLayerIO::AutoSaveForRestart(Sandbox::EditorContext& ec)
 {
     CHEngine::SceneSerializer serializer{};
-    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* activeSession = ec.ActiveCtx();
     CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
     auto scene_ref = activeSession->EditorScene;
     auto* viewport_camera = activeSession->ViewportCamera.get();
@@ -396,15 +396,20 @@ void SceneViewLayerIO::AutoSaveForRestart(SceneViewLayer& layer)
     CHE_CORE_INFO("SceneViewLayer: editor state saved");
 }
 
-void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
+void SceneViewLayerIO::TryRestoreSession(Sandbox::EditorContext& ec)
 {
     if (std::filesystem::exists(k_SessionFile))
     {
-        auto activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
+        auto activeSession = ec.ActiveCtx();
+
+        Ref<ProjectManager> proj_manager = ec.Projects;
+        std::filesystem::path basePath;
+        if (proj_manager->HasProject())
+            basePath = proj_manager->Current()->RootDir();
 
         CHEngine::SceneSerializer serializer{};
         {
-            auto loadedScene = serializer.LoadFromFile(k_SessionFile);
+            auto loadedScene = serializer.LoadFromFile(k_SessionFile, basePath);
             if (loadedScene)
             {
                 CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
@@ -431,7 +436,7 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
 
     glm::vec3 pos{};
     f >> pos.x >> pos.y >> pos.z;
-    auto activeSession2 = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    auto activeSession2 = ec.ActiveCtx();
     auto* viewport_camera = activeSession2->ViewportCamera.get();
     if (!viewport_camera)
         return;
@@ -497,7 +502,7 @@ void SceneViewLayerIO::TryRestoreSession(SceneViewLayer& layer)
     CHE_CORE_INFO("SceneViewLayer: editor state restored");
 }
 
-void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& filepath)
+void SceneViewLayerIO::ImportModel(Sandbox::EditorContext& ec, const std::string& filepath)
 {
     namespace fs = std::filesystem;
 
@@ -506,7 +511,7 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     std::string loadPath = filepath;        // what the loader actually reads
     std::string sourceForScene = filepath;  // what gets stored in MeshComponent::SourcePath
 
-    Ref<ProjectManager> proj_manager = SceneViewLayerAccess::ProjectManagerRef(layer);
+    Ref<ProjectManager> proj_manager = ec.Projects;
     if (proj_manager->HasProject() && !filepath.empty())
     {
         Project* proj = proj_manager->Current();
@@ -619,7 +624,7 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
     }
 
     const CHEngine::UUID objectID = CHEngine::UUID::Generate();
-    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* activeSession = ec.ActiveCtx();
     CHE_CORE_ASSERT(activeSession->EditorScene, "SceneViewLayer: EditorScene must exist");
     auto scene_ref = activeSession->EditorScene;
     if (!scene_ref)
@@ -649,5 +654,198 @@ void SceneViewLayerIO::ImportModel(SceneViewLayer& layer, const std::string& fil
                 scene_ref->DestroyEntity(objectID);
         },
         true));
-    SceneViewLayerCameraOps::FocusOnSelected(layer);
+    SceneViewLayerCameraOps::FocusOnSelected(ec);
+}
+
+// ── Session (tab) management ──────────────────────────────────────────────────
+
+std::vector<EditorWorldContext*> SceneViewLayerIO::GetSceneSessions(Sandbox::EditorContext& ec)
+{
+    auto* wl = ec.Worlds.get();
+    std::vector<EditorWorldContext*> result;
+    result.reserve(wl->Size());
+    wl->ForEach([&](CHEngine::World& w) {
+        result.push_back(static_cast<EditorWorldContext*>(&w));
+    });
+    return result;
+}
+
+void SceneViewLayerIO::AddSceneSession(Sandbox::EditorContext& ec)
+{
+    auto world_list = ec.Worlds.get();
+    auto session = new EditorWorldContext(world_list);
+    world_list->PushBack(session);
+
+    Sandbox::EditorViewport& viewport = ec.Viewport;
+    const auto active = ec.ActiveCtx();
+    if (viewport.GetViewportSize().x > 1.0f && viewport.GetViewportSize().y > 1.0f)
+        session->ViewportSize = { viewport.GetViewportSize().x, viewport.GetViewportSize().y };
+    else
+        session->ViewportSize = active->ViewportSize;
+    session->ViewportCamera->SetViewportSize(session->ViewportSize.x, session->ViewportSize.y);
+    session->EditorCameraState = active->EditorCameraState;
+    ec.CameraController.ApplyOrbit(session->ViewportCamera.get(), session->EditorCameraState);
+    ec.SetActiveIndex(world_list->Size() - 1);
+}
+
+void SceneViewLayerIO::CloseSceneSession(Sandbox::EditorContext& ec, size_t session_index)
+{
+    auto world_list = ec.Worlds.get();
+    if (world_list->Size() <= 1)
+        return; // Always keep at least one session open.
+    if (session_index >= world_list->Size())
+        return;
+
+    size_t active = ec.ActiveIndex;
+    world_list->Erase(session_index);
+
+    if (active == session_index)
+    {
+        const size_t newIdx = (session_index > 0) ? session_index - 1 : 0;
+        ec.SetActiveIndex(newIdx);
+    }
+    else if (active > session_index)
+    {
+        ec.SetActiveIndex(active - 1);
+    }
+}
+
+// ── Scene file management (Scene Browser) ─────────────────────────────────────
+
+void SceneViewLayerIO::OpenSceneFile(Sandbox::EditorContext& ec, const std::string& relOrAbsPath)
+{
+    if (relOrAbsPath.empty())
+        return;
+
+    namespace fs = std::filesystem;
+    std::string absPath = relOrAbsPath;
+    std::string rel = relOrAbsPath;
+
+    Ref<ProjectManager> proj_manager = ec.Projects;
+
+    if (proj_manager->HasProject())
+    {
+        Project* proj = proj_manager->Current();
+        if (fs::path(relOrAbsPath).is_absolute())
+        {
+            rel = fs::path(proj->ToRelativePath(relOrAbsPath)).generic_string();
+        }
+        else
+        {
+            absPath = (proj->RootDir() / relOrAbsPath).string();
+        }
+    }
+
+    // If a session already shows this scene, just focus it.
+    auto world_list = ec.Worlds.get();
+    for (size_t i = 0; i < world_list->Size(); ++i)
+    {
+        auto session = static_cast<EditorWorldContext*>(world_list->GetForIndex(i));
+        if (session->SceneRelPath == rel)
+        {
+            ec.SetActiveIndex(i);
+            return;
+        }
+    }
+
+    // If the active session is empty/untitled, reuse it; otherwise open a new tab.
+    auto cur = ec.ActiveCtx();
+    if (!cur->SceneRelPath.empty())
+        AddSceneSession(ec);
+
+    LoadSceneSilent(ec, absPath);
+}
+
+void SceneViewLayerIO::NewSceneFile(Sandbox::EditorContext& ec)
+{
+    Ref<ProjectManager> proj_manager = ec.Projects;
+    if (!proj_manager->HasProject())
+        return;
+    const std::string rel = proj_manager->Current()->CreateScene();
+    if (!rel.empty())
+        OpenSceneFile(ec, rel);
+}
+
+void SceneViewLayerIO::DeleteSceneFile(Sandbox::EditorContext& ec, const std::string& rel)
+{
+    Ref<ProjectManager> proj_manager = ec.Projects;
+    if (!proj_manager->HasProject() || rel.empty())
+        return;
+
+    if (!proj_manager->Current()->DeleteScene(rel))
+        return;
+
+    // Close any tabs bound to it (but keep at least one session alive).
+    auto* wl = ec.Worlds.get();
+    for (size_t i = wl->Size(); i-- > 0;)
+    {
+        auto* s = static_cast<EditorWorldContext*>(wl->GetForIndex(i));
+        if (s->SceneRelPath == rel)
+        {
+            if (wl->Size() > 1)
+                CloseSceneSession(ec, i);
+            else
+                s->SceneRelPath.clear();
+        }
+    }
+}
+
+void SceneViewLayerIO::RenameSceneFile(Sandbox::EditorContext& ec, const std::string& oldRel, const std::string& newName)
+{
+    Ref<ProjectManager> proj_manager = ec.Projects;
+    if (!proj_manager->HasProject() || oldRel.empty() || newName.empty())
+        return;
+
+    const std::string newRel = proj_manager->Current()->RenameScene(oldRel, newName);
+    if (newRel.empty())
+        return;
+
+    // Update any open tabs.
+    auto* wl = ec.Worlds.get();
+    wl->ForEach([&](CHEngine::World& w) {
+        auto& s = static_cast<EditorWorldContext&>(w);
+        if (s.SceneRelPath == oldRel)
+            s.SceneRelPath = newRel;
+    });
+}
+
+void SceneViewLayerIO::SetStartupSceneFile(Sandbox::EditorContext& ec, const std::string& rel)
+{
+    Ref<ProjectManager> proj_manager = ec.Projects;
+    if (!proj_manager->HasProject() || rel.empty())
+        return;
+    Project* proj = proj_manager->Current();
+    proj->SetStartupScene(rel);
+    proj->Save();
+
+    // Move the matching open session (if any) to index 0. Otherwise just record the pref.
+    auto* wl = ec.Worlds.get();
+    for (size_t i = 0; i < wl->Size(); ++i)
+    {
+        auto* s = static_cast<EditorWorldContext*>(wl->GetForIndex(i));
+        if (s->SceneRelPath == rel && i != 0)
+        {
+            wl->Swap(0, i);
+            const size_t active = ec.ActiveIndex;
+            if (active == 0)
+                ec.SetActiveIndex(i);
+            else if (active == i)
+                ec.SetActiveIndex(0);
+            break;
+        }
+    }
+}
+
+void SceneViewLayerIO::OpenImportModelDialog(Sandbox::EditorContext& ec)
+{
+    std::string path = CHEngine::FileDialog::OpenModelFile();
+    if (!path.empty())
+        ImportModel(ec, path);
+}
+
+void SceneViewLayerIO::SelectRendererApi(Sandbox::EditorContext& ec, CHEngine::ERenderAPI api)
+{
+    CHEngine::EngineConfig::SaveRendererPreference(api);
+    AutoSaveForRestart(ec);
+    CHEngine::Application::Get().RequestRestart();
 }

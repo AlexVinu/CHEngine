@@ -1,8 +1,6 @@
 #include "SceneViewLayer_GizmoBar.h"
 
-#include "SceneViewLayer.h"
-#include "SceneViewLayerAccess.h"
-#include "SceneViewLayerHost.h"
+#include "EditorContext.h"
 #include "SetTransformCommand.h"
 #include "UIThemeActive.h"
 
@@ -41,11 +39,11 @@ static ImTextureID ToImTex(CHEngine::TextureHandle h)
     return f ? static_cast<ImTextureID>(f->GetTextureNativeID(h)) : static_cast<ImTextureID>(0);
 }
 
-void Draw(SceneViewLayer& layer)
+void Draw(Sandbox::EditorContext& ec)
 {
     EnsureIcons();
 
-    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* ctx = ec.ActiveCtx();
     if (ctx->GetSessionState() != SceneSession::State::Edit)
         return;
 
@@ -133,21 +131,19 @@ void Draw(SceneViewLayer& layer)
         return clicked;
     };
 
-    Sandbox::SceneViewLayerHost host(layer);
-
     // Translate
     if (gizmoBtn("##gizmo_tra", "Translate  [T]", s_IconTranslate, "T", ImGuizmo::TRANSLATE))
-        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+        ctx->CommandStack.Push(MakeScope<Sandbox::CallbackCommand>(
             [&ctx] { ctx->GizmoOperation = ImGuizmo::TRANSLATE; }, [] {}, false));
 
     // Rotate
     if (gizmoBtn("##gizmo_rot", "Rotate  [R]", s_IconRotate, "R", ImGuizmo::ROTATE))
-        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+        ctx->CommandStack.Push(MakeScope<Sandbox::CallbackCommand>(
             [&ctx] { ctx->GizmoOperation = ImGuizmo::ROTATE; }, [] {}, false));
 
     // Scale
     if (gizmoBtn("##gizmo_scl", "Scale  [S]", s_IconScale, "S", ImGuizmo::SCALE))
-        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+        ctx->CommandStack.Push(MakeScope<Sandbox::CallbackCommand>(
             [&ctx] { ctx->GizmoOperation = ImGuizmo::SCALE; }, [] {}, false));
 
     // Separator
@@ -162,12 +158,12 @@ void Draw(SceneViewLayer& layer)
     if (toggleBtn(local ? "L" : "W",
                   local ? "Local space  (click → World)" : "World space  (click → Local)",
                   local))
-        host.GetCommandStack().Push(MakeScope<Sandbox::CallbackCommand>(
+        ctx->CommandStack.Push(MakeScope<Sandbox::CallbackCommand>(
             [&ctx, local] { ctx->GizmoMode = local ? ImGuizmo::WORLD : ImGuizmo::LOCAL; },
             [] {}, false));
 
     // Grid
-    bool& showGrid = SceneViewLayerAccess::Viewport(layer).ShowGrid();
+    bool& showGrid = ec.Viewport.ShowGrid();
     if (toggleBtn("#", showGrid ? "Grid ON" : "Grid OFF", showGrid))
         showGrid = !showGrid;
 

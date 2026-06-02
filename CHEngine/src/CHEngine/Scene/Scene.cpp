@@ -3,17 +3,11 @@
 #include "Entity.h"
 #include "Components.h"
 
+#include <unordered_set>
 #include <entt/entt.hpp>
 namespace CHEngine {
 
-	namespace {
-		UUID GenerateEntityUUID()
-		{
-			return UUID::Generate();
-		}
-
-		static const std::string kEmptyString{};
-	} // namespace
+	static const std::string kEmptyString{};
 
 	// ── String pool ──────────────────────────────────────────────────────────
 
@@ -71,6 +65,55 @@ namespace CHEngine {
 		if (id == INVALID_ID<ScriptsID>) return;
 		ScriptPool[id] = std::move(scripts);
 		if (id >= m_NextScriptsID) m_NextScriptsID = id + 1;
+	}
+
+	void Scene::CollectGarbage()
+	{
+		auto& reg = m_SceneRegistry->Registry;
+
+		std::unordered_set<StringID>  liveStrings;
+		std::unordered_set<ScriptsID> liveScripts;
+
+		auto markString = [&](StringID id) {
+			if (id != INVALID_ID<StringID>) liveStrings.insert(id);
+		};
+
+		// Gather every StringID still referenced by a live component.
+		reg.view<TagComponent>().each([&](TagComponent& c)      { markString(c.Name); });
+		reg.view<MeshComponent>().each([&](MeshComponent& c)    { markString(c.SourcePath); });
+		reg.view<UIImageComponent>().each([&](UIImageComponent& c) { markString(c.TexturePath); });
+		reg.view<UITextComponent>().each([&](UITextComponent& c) {
+			markString(c.Text);
+			markString(c.FontPath);
+		});
+
+		// Gather every ScriptsID still referenced by a live component.
+		reg.view<ScriptComponent>().each([&](ScriptComponent& c) {
+			if (c.Scripts != INVALID_ID<ScriptsID>) liveScripts.insert(c.Scripts);
+		});
+
+		// Sweep StringPool, keeping m_StringLookup in sync (it is keyed by the string).
+		for (auto it = StringPool.begin(); it != StringPool.end(); )
+		{
+			if (liveStrings.find(it->first) == liveStrings.end())
+			{
+				m_StringLookup.erase(it->second);
+				it = StringPool.erase(it);
+			}
+			else
+			{
+				++it;
+			}
+		}
+
+		// Sweep ScriptPool.
+		for (auto it = ScriptPool.begin(); it != ScriptPool.end(); )
+		{
+			if (liveScripts.find(it->first) == liveScripts.end())
+				it = ScriptPool.erase(it);
+			else
+				++it;
+		}
 	}
 
 	Scene::Scene()
@@ -238,7 +281,7 @@ namespace CHEngine {
 
 	EntityHandle Scene::CreateEntity(const std::string& name)
 	{
-		return CreateEntity(name, GenerateEntityUUID());
+		return CreateEntity(name, UUID::Generate());
 	}
 
 	void Scene::DestroyEntity(EntityHandle entityHandle)
@@ -282,6 +325,31 @@ namespace CHEngine {
 		if (!Registry.all_of<IDComponent>(handle))
 			return UUID::Nil();
 		return Registry.get<IDComponent>(handle).Value;
+	}
+
+	const CHEngine::UUID Scene::GetUUIDByString(const std::string_view name) const
+	{
+		const auto it = m_StringLookup.find(name);
+		if (it == m_StringLookup.end())
+			return UUID::Nil();
+
+		const StringID stringID = it->second;
+		for (const auto& [uuid, handle] : m_SceneRegistry->EntityHandlersStore)
+		{
+			const Entity* entity = m_SceneRegistry->EntityPool.Get(handle);
+			if (!entity || !entity->IsValid())
+				continue;
+
+			const entt::entity enttEntity = entity->GetEnttHandle();
+			if (!m_SceneRegistry->Registry.all_of<TagComponent>(enttEntity))
+				continue;
+
+			const TagComponent& tag = m_SceneRegistry->Registry.get<TagComponent>(enttEntity);
+			if (tag.Name == stringID)
+				return uuid;
+		}
+
+		return UUID::Nil();
 	}
 
 	Entity* Scene::TryGetEntity(const EntityHandle entityHandle)

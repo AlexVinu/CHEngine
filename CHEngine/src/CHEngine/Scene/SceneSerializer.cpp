@@ -104,6 +104,9 @@ static void SerializePools(json& j, const Ref<Scene>& scene)
 // ── In-memory snapshot ────────────────────────────────────────────────────────
 
 nlohmann::json SceneSerializer::BuildJson(Ref<Scene> scene) {
+    // Drop pool entries left behind by destroyed entities so saved files stay compact.
+    scene->CollectGarbage();
+
     json sceneJson = json::object();
     json entitiesJson = json::array();
 

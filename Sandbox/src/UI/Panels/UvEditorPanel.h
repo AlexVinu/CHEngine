@@ -1,7 +1,5 @@
 #pragma once
 
-#include "SceneViewLayerHost.h"
-
 #include <CHEngine.h>
 
 #include <imgui.h>
@@ -9,10 +7,12 @@
 
 namespace Sandbox {
 
+struct EditorContext;
+
 class UvEditorPanel
 {
 public:
-    void Draw(SceneViewLayerHost& host);
+    void Draw(EditorContext& ctx);
 
 private:
     int m_SelectedVertex = -1;

@@ -1,57 +1,55 @@
 #include "SceneViewLayer_Play.h"
 
-#include "SceneViewLayer.h"
-#include "SceneViewLayerAccess.h"
+#include "EditorContext.h"
 
 #include <CHEngine/Application.h>
 
 #include <CHEngine/World/ISystem.h>
 #include <CHEngine/World/World.h>
 
-void SceneViewLayerPlay::EnterPlayMode(SceneViewLayer& layer)
+void SceneViewLayerPlay::EnterPlayMode(Sandbox::EditorContext& ctx)
 {
-    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
-    if (ctx->GetSessionState() != SceneSession::State::Edit)
+    EditorWorldContext* session = ctx.ActiveCtx();
+    if (session->GetSessionState() != SceneSession::State::Edit)
         return;
 
-    ctx->CommandStack.Clear();
+    session->CommandStack.Clear();
 
     // One world = one scene. Play just runs a copy of the current tab's scene.
-    ctx->ActivateActiveScene();
-    ctx->UpdateState(SceneSession::State::Play);
+    session->ActivateActiveScene();
+    session->UpdateState(SceneSession::State::Play);
 
     if (!CHEngine::Application::Get().InputSystem()->IsActiveContext("Game"))
         CHEngine::Application::Get().InputSystem()->PushContext("Game");
 }
 
-void SceneViewLayerPlay::EnterPauseMode(SceneViewLayer& layer)
+void SceneViewLayerPlay::EnterPauseMode(Sandbox::EditorContext& ctx)
 {
-    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* activeSession = ctx.ActiveCtx();
     if (activeSession->GetSessionState() != SceneSession::State::Play)
         return;
 
     activeSession->UpdateState(SceneSession::State::Pause);
 }
 
-void SceneViewLayerPlay::ResumeFromPause(SceneViewLayer& layer)
+void SceneViewLayerPlay::ResumeFromPause(Sandbox::EditorContext& ctx)
 {
-    EditorWorldContext* activeSession = SceneViewLayerAccess::ActiveWorldCtx(layer);
+    EditorWorldContext* activeSession = ctx.ActiveCtx();
     if (activeSession->GetSessionState() != SceneSession::State::Pause)
         return;
 
     activeSession->UpdateState(SceneSession::State::Play);
 }
 
-void SceneViewLayerPlay::StopPlayMode(SceneViewLayer& layer)
+void SceneViewLayerPlay::StopPlayMode(Sandbox::EditorContext& ctx)
 {
-    EditorWorldContext* ctx = SceneViewLayerAccess::ActiveWorldCtx(layer);
-    if (ctx->GetSessionState() == SceneSession::State::Edit)
+    EditorWorldContext* session = ctx.ActiveCtx();
+    if (session->GetSessionState() == SceneSession::State::Edit)
         return;
 
-    ctx->ActivateEditorScene();
-    ctx->SelectedEntity = {};
-    ctx->UpdateState(SceneSession::State::Edit);
+    session->ActivateEditorScene();
+    session->SelectedEntity = {};
+    session->UpdateState(SceneSession::State::Edit);
 
     CHEngine::Application::Get().InputSystem()->PopContext("Game");
 }
-

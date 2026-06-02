@@ -6,7 +6,7 @@
 class GameLayer : public CHEngine::Layer
 {
 public:
-	explicit GameLayer(CHEngine::WorldsList& worlds);
+	explicit GameLayer(Ref<CHEngine::WorldsList> worlds);
 	void OnUpdate(CHEngine::Timestep dt) override;
 	void OnImGuiRender() override;
 	void OnEvent(CHEngine::Event& e) override;
