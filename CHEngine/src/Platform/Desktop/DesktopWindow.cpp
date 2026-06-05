@@ -2,8 +2,6 @@
 #include "DesktopWindow.h"
 
 #include "CHEngine/Events/ApplicationEvent.h"
-#include "CHEngine/Events/MouseEvent.h"
-#include "CHEngine/Events/KeyEvent.h"
 
 namespace CHEngine {
 
@@ -88,57 +86,8 @@ namespace CHEngine {
             window->m_Data.EventCallback(event);
         };
 
-        ctx.KeyCallback = [](void* user, int key, int /*scancode*/, int action, int /*mods*/) {
-            auto* window = (DesktopWindow*)user;
-            switch (action)
-            {
-            case (int)EventType::KeyPressed: {
-                KeyPressedEvent event(key, 0);
-                window->m_Data.EventCallback(event);
-                break;
-            }
-            case (int)EventType::KeyReleased: {
-                KeyReleasedEvent event(key);
-                window->m_Data.EventCallback(event);
-                break;
-            }
-            case (int)EventType::KeyRepeat: {
-                KeyPressedEvent event(key, 1);
-                window->m_Data.EventCallback(event);
-                break;
-            }
-            }
-        };
-
-        ctx.MouseButtonCallback = [](void* user, int button, int action, int /*mods*/) {
-            auto* window = (DesktopWindow*)user;
-            switch (action)
-            {
-            case (int)EventType::KeyPressed: {
-                MouseButtonPressedEvent event(button);
-                window->m_Data.EventCallback(event);
-                break;
-            }
-            case (int)EventType::KeyReleased: {
-                MouseButtonReleasedEvent event(button);
-                window->m_Data.EventCallback(event);
-                break;
-            }
-            }
-        };
-
-        ctx.ScrollCallback = [](void* user, float xOffset, float yOffset) {
-            auto* window = (DesktopWindow*)user;
-            MouseScrolledEvent event(xOffset, yOffset);
-            window->m_Data.EventCallback(event);
-        };
-
-        ctx.CursorPosCallback = [](void* user, float x, float y) {
-            auto* window = (DesktopWindow*)user;
-            MouseMovedEvent event(x, y);
-            window->m_Data.EventCallback(event);
-        };
-
+        // Клавиатура/мышь не транслируются в события: ввод читается через
+        // polling (Input / InputSystem). Сюда приходят только оконные события.
         m_PlatformWindow->SetWindowContext(ctx);
     }
 

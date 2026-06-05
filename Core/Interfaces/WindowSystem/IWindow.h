@@ -11,25 +11,19 @@ namespace CHEngine
         using ErrorCallbackFn       = void(*)(int, const char*);
         using ResizeCallbackFn      = void(*)(void*, int, int);
         using CloseCallbackFn       = void(*)(void*);
-        using KeyCallbackFn         = void(*)(void*, int, int, int, int);
-        using MouseButtonCallbackFn = void(*)(void*, int, int, int);
-        using ScrollCallbackFn      = void(*)(void*, float, float);
-        using CursorPosCallbackFn   = void(*)(void*, float, float);
     }
 
     using namespace WindowCallbacks;
 
-    // Контекст коллбэков окна (аналог старого RendererWindowContext)
+    // Контекст коллбэков окна. Несёт только оконные (push) события: ресайз и
+    // закрытие. Ввод клавиатуры/мыши читается через polling-методы ниже
+    // (IsKeyDown / GetMousePosition / GetScrollDelta), а не через коллбэки.
     struct WindowContext
     {
         void* UserPointer = nullptr;
 
-        ResizeCallbackFn       ResizeCallback      = nullptr;
-        CloseCallbackFn        CloseCallback       = nullptr;
-        KeyCallbackFn          KeyCallback         = nullptr;
-        MouseButtonCallbackFn  MouseButtonCallback = nullptr;
-        ScrollCallbackFn       ScrollCallback      = nullptr;
-        CursorPosCallbackFn    CursorPosCallback   = nullptr;
+        ResizeCallbackFn  ResizeCallback = nullptr;
+        CloseCallbackFn   CloseCallback  = nullptr;
     };
 
     // Платформенное окно (GLFW, Win32 и т.д.)

@@ -14,8 +14,6 @@
 
 // Events -------------------------
 #include "CHEngine/Events/Event.h"
-#include "CHEngine/Events/KeyEvent.h"
-#include "CHEngine/Events/MouseEvent.h"
 #include "CHEngine/Events/ApplicationEvent.h"
 // ================================
 

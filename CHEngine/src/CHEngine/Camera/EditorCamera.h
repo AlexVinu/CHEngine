@@ -4,8 +4,6 @@
 #include "PerspectiveCamera.h"
 #include "OrthographicCamera.h"
 #include "Timestep.h"
-#include "CHEngine/Events/Event.h"
-#include "CHEngine/Events/MouseEvent.h"
 
 #include <glm/glm.hpp>
 #include <glm/gtc/quaternion.hpp>

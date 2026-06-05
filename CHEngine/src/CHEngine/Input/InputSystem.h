@@ -14,7 +14,6 @@ namespace CHEngine {
     class Window;
 
 // Centralised input → action mapping.  Owns all state as member fields (RAII).
-// Принадлежит Application (см. Application::InputSystem()).
 class CHENGINE_API InputSystem {
 public:
     InputSystem(Ref<Window>);

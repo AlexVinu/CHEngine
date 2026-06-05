@@ -1,14 +1,16 @@
 #pragma once
 
+#include <Core.h>
+
 #include <cstdint>
 
 namespace CHEngine {
 
 enum ModBits : uint8_t {
     Mod_None  = 0,
-    Mod_Ctrl  = 1 << 0,  // unified with Super (Cmd on macOS)
-    Mod_Shift = 1 << 1,
-    Mod_Alt   = 1 << 2,
+    Mod_Ctrl  = BIT(0),  // unified with Super (Cmd on macOS)
+    Mod_Shift = BIT(1),
+    Mod_Alt   = BIT(2),
 };
 
 enum class TriggerType {

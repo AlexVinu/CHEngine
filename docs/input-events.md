@@ -78,21 +78,27 @@ namespace CHEngine::Mouse {
 
 ---
 
-## Event System — событийная система
+## Event System — оконные события
 
-События используются для **нечастых** действий: изменение размера окна, закрытие, нажатие клавиши в UI.  
-Для постоянного ввода в игровой логике используйте `Input` (см. выше).
+Push-система событий несёт **только оконные/системные** события (ресайз, закрытие,
+фокус). **Ввод клавиатуры и мыши через события не доставляется** — для любого ввода
+используйте polling: `Input` (низкий уровень) или `InputSystem` (action-mapping).
+Это сознательное решение: один источник истины по вводу, без дублирующего канала.
 
 ### Поток событий
 
 ```
-Window/GLFW → Application::OnEvent()
+Window/GLFW колбэки → DesktopWindow → Application::OnEvent()
                   │
-                  ├─ World::OnEvent() → SystemScheduler → системы
+                  ├─ Dispatch<WindowCloseEvent / WindowResizeEvent>  (обрабатываются в Application)
                   │
-                  └─ LayerStack (в обратном порядке) → слои
+                  └─ LayerStack (в обратном порядке) → Layer::OnEvent()
                        Если e.Handled = true → дальше не передаётся
 ```
+
+> Клавиатурные/мышиные GLFW-колбэки в события **не транслируются**. Скролл-дельта
+> копится в окне (нет polling-функции в GLFW) и вычитывается через
+> `Input::GetMouseWheel()`.
 
 ### EventDispatcher
 
@@ -101,18 +107,10 @@ void OnEvent(Event& e) override {
     EventDispatcher dispatcher(e);
 
     // Диспетчер вызывает лямбду только если тип события совпадает
-    dispatcher.Dispatch<WindowResizedEvent>([this](WindowResizedEvent& e) {
+    dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& e) {
         m_Width  = e.GetWidth();
         m_Height = e.GetHeight();
         return false;  // Не поглощать событие
-    });
-
-    dispatcher.Dispatch<KeyPressedEvent>([this](KeyPressedEvent& e) {
-        if (e.GetKeyCode() == Key::Escape) {
-            m_ShowMenu = !m_ShowMenu;
-            return true;  // Поглотить событие
-        }
-        return false;
     });
 }
 ```
@@ -122,31 +120,17 @@ void OnEvent(Event& e) override {
 
 ### Типы событий
 
-**Клавиатура:**
+**Приложение/Окно** (только эти; ввод — через `Input`/`InputSystem`):
 ```cpp
-KeyPressedEvent   e;  // e.GetKeyCode(), e.IsRepeat()
-KeyReleasedEvent  e;  // e.GetKeyCode()
-KeyRepeatedEvent  e;  // e.GetKeyCode()
+WindowResizeEvent e;  // e.GetWidth(), e.GetHeight()
+WindowCloseEvent  e;  // (без данных)
+AppTickEvent      e;
+AppUpdateEvent    e;
+AppRenderEvent    e;
 ```
 
-**Мышь:**
-```cpp
-MouseMovedEvent          e;  // e.GetX(), e.GetY()
-MouseScrolledEvent       e;  // e.GetXOffset(), e.GetYOffset()
-MouseButtonPressedEvent  e;  // e.GetMouseButton()
-MouseButtonReleasedEvent e;  // e.GetMouseButton()
-```
-
-**Приложение/Окно:**
-```cpp
-WindowResizedEvent  e;  // e.GetWidth(), e.GetHeight()
-WindowClosedEvent   e;  // (без данных)
-WindowFocusEvent    e;
-WindowLostFocusEvent e;
-AppTickEvent        e;
-AppUpdateEvent      e;
-AppRenderEvent      e;
-```
+> Для дискретных хоткеев (нажал именно в этом кадре) используйте
+> `InputSystem::Triggered("Action")` или `Input::IsKeyPressed(Key::X)`, а не события.
 
 ---
 

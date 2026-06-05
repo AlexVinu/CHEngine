@@ -40,8 +40,6 @@ namespace CHModules {
         float GetScrollDelta() const override  { return m_ScrollDelta; }
         void  ClearScrollDelta()       override { m_ScrollDelta = 0.0f; }
 
-        static CHEngine::EventType ConvertFromGLFW(int action);
-
     private:
         GLFWwindow* m_Window = nullptr;
         CHEngine::WindowContext m_Context;

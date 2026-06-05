@@ -159,7 +159,7 @@ namespace CHEngine {
         if (config.AppName && config.AppName[0] != '\0')
             m_AppName = config.AppName;
 
-        m_ModuleManager = std::make_unique<ModuleManager>();
+        m_ModuleManager = MakeScope<ModuleManager>();
         CHE_CORE_ASSERT(!s_Instance, "Application already exists!");
 
         // Set working directory to executable location so relative paths
@@ -241,24 +241,24 @@ namespace CHEngine {
 
         // ─── 3. Initialise render subsystem (GLAD / device / FrameGraph) ─────────
         RendererInitInfo renderInitInfo = m_Window->GetPlatformWindow()->GetRenderInitInfo(render_api);
-        m_Render = std::make_unique<RenderSubsystem>(render_factory, renderInitInfo);
+        m_Render = MakeScope<RenderSubsystem>(render_factory, renderInitInfo);
 
         // ─── 3b. ResourceManager (must init after Render, destructs before it) ──
-        m_Resources = std::make_unique<ResourceManager>();
+        m_Resources = MakeScope<ResourceManager>();
 
         // ─── 3c. InputSystem (RAII; биндинги грузит клиент через LoadFromDirectory) ─
-        m_InputSystem = std::make_unique<::CHEngine::InputSystem>(m_Window);
+        m_InputSystem = MakeScope<::CHEngine::InputSystem>(m_Window);
 
         // ─── 4. Create ImGui layer ────────────────────────────────────────────────
         if (m_ImGuiFactory)
         {
             IImGuiLayer* layer = m_ImGuiFactory->CreateImGuiLayer(m_Window->GetPlatformWindow(),
                                                                   render_factory);
-            m_UI = std::make_unique<UISubsystem>(m_ImGuiFactory, layer);
+            m_UI = MakeScope<UISubsystem>(m_ImGuiFactory, layer);
         }
 
         // ─── 4b. Native UI backend (MSDF text, quad batching) ─────────────────────
-        m_NativeUI = std::make_unique<UIRendererBackend>();
+        m_NativeUI = MakeScope<UIRendererBackend>();
         m_NativeUI->Init(render_factory);
 
         // ─── 5. Load default shader ───────────────────────────────────────────────
@@ -269,7 +269,7 @@ namespace CHEngine {
 
         // ─── 6. Physics ────────────────────────────────────────────────────────────
         if (m_PhysicsFactory)
-            m_Physics = std::make_unique<PhysicsSubsystem>(m_PhysicsFactory);
+            m_Physics = MakeScope<PhysicsSubsystem>(m_PhysicsFactory);
 
         // ─── 7. Register component types (for serialization) ──────────────────────────────────────────────────────────── 
         RegisterAllComponents();

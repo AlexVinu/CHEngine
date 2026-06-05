@@ -12,17 +12,6 @@ namespace CHModules {
     static int  s_GLFWRefCount     = 0;
     static CHEngine::ErrorCallbackFn s_ErrorCallbackFn = nullptr;
 
-    CHEngine::EventType WindowGLFW::ConvertFromGLFW(int action)
-    {
-        switch (action)
-        {
-        case GLFW_PRESS:   return CHEngine::EventType::KeyPressed;
-        case GLFW_RELEASE: return CHEngine::EventType::KeyReleased;
-        case GLFW_REPEAT:  return CHEngine::EventType::KeyRepeat;
-        }
-        return CHEngine::EventType::None;
-    }
-
     WindowGLFW::WindowGLFW(uint32_t width, uint32_t height, const char* title,
                            CHEngine::ErrorCallbackFn errorCallbackFn, CHEngine::ERenderAPI renderApi)
         : m_RenderAPI(renderApi), m_Width(width), m_Height(height)
@@ -242,29 +231,11 @@ namespace CHModules {
                 self->m_Context.CloseCallback(self->m_Context.UserPointer);
         });
 
-        glfwSetKeyCallback(m_Window, [](GLFWwindow* window, int key, int scancode, int action, int mods) {
-            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
-            if (self->m_Context.KeyCallback)
-                self->m_Context.KeyCallback(self->m_Context.UserPointer, key, scancode, (int)ConvertFromGLFW(action), mods);
-        });
-
-        glfwSetMouseButtonCallback(m_Window, [](GLFWwindow* window, int button, int action, int mods) {
-            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
-            if (self->m_Context.MouseButtonCallback)
-                self->m_Context.MouseButtonCallback(self->m_Context.UserPointer, button, (int)ConvertFromGLFW(action), mods);
-        });
-
-        glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double x, double y) {
+        // Скролл не имеет polling-функции в GLFW, поэтому копим дельту здесь;
+        // Input::BeginFrame дренажит её через GetScrollDelta/ClearScrollDelta.
+        glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double /*x*/, double y) {
             auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
             self->m_ScrollDelta += (float)y;
-            if (self->m_Context.ScrollCallback)
-                self->m_Context.ScrollCallback(self->m_Context.UserPointer, (float)x, (float)y);
-        });
-
-        glfwSetCursorPosCallback(m_Window, [](GLFWwindow* window, double x, double y) {
-            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
-            if (self->m_Context.CursorPosCallback)
-                self->m_Context.CursorPosCallback(self->m_Context.UserPointer, (float)x, (float)y);
         });
     }
 
