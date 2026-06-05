@@ -86,6 +86,13 @@ namespace CHEngine {
             window->m_Data.EventCallback(event);
         };
 
+        ctx.MinimizeCallback = [](void* user, bool minimized) {
+            auto* window = (DesktopWindow*)user;
+			window->m_Data.Minimized = minimized;
+            WindowMinimizedEvent event(minimized);
+            window->m_Data.EventCallback(event);
+		};
+
         // Клавиатура/мышь не транслируются в события: ввод читается через
         // polling (Input / InputSystem). Сюда приходят только оконные события.
         m_PlatformWindow->SetWindowContext(ctx);

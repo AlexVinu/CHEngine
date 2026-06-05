@@ -200,6 +200,12 @@ namespace CHEngine {
 
     void RenderSystem::Run(World& world, DeferredOps& /*deferred_ops*/, Timestep /*ts*/)
     {
+        // Frame skipped this iteration (window minimized / 0×0 / swapchain
+        // out-of-date): the frame graph isn't active. Skip all GPU work —
+        // the Simulation phase still runs, so logic/physics keep ticking.
+        if (!Application::Get().Render().IsFrameGraphActive())
+            return;
+
         auto scene = world.GetSceneRef();
 
         UBOCamera cameraUBO{};

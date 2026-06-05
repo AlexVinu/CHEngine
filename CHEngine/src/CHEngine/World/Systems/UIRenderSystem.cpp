@@ -158,6 +158,10 @@ void UIRenderSystem::DrawElement(UIRendererBackend* backend,
 
 void UIRenderSystem::Run(World& world, DeferredOps& /*deferred*/, Timestep /*ts*/)
 {
+    // Frame skipped (minimized / 0×0): frame graph inactive, don't record UI passes.
+    if (!Application::Get().Render().IsFrameGraphActive())
+        return;
+
     auto scene = world.GetSceneRef();
     if (!scene) return;
 

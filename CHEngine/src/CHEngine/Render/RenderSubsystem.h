@@ -41,13 +41,16 @@ namespace CHEngine
         RenderSubsystem& operator=(const RenderSubsystem&) = delete;
 
         // ── Per-frame ─────────────────────────────────────────────────────────
-        void BeginFrame();
+        // Returns false if the frame must be skipped (minimized / 0×0 / swapchain
+        // out-of-date) — caller must then skip BeginFrameGraph/EndFrameGraph/EndFrame.
+        bool BeginFrame();
         void EndFrame();
 
         // ── Frame graph ───────────────────────────────────────────────────────
         void          BeginFrameGraph();
         IRenderGraph& GetFrameGraph();
         void          EndFrameGraph();
+        bool          IsFrameGraphActive() const { return m_GraphActive; }
 
         // ── Resource creation ─────────────────────────────────────────────────
         ShaderHandle  CreateShader(const String& slangSource,

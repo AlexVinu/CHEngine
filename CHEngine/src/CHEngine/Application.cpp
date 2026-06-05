@@ -13,6 +13,7 @@
 #include <imgui.h>
 
 #include <filesystem>
+#include <thread>
 #if defined(CHE_PLATFORM_APPLE)
 #include <mach-o/dyld.h>
 #elif defined(CHE_PLATFORM_WINDOWS)
@@ -305,6 +306,7 @@ namespace CHEngine {
         EventDispatcher dispatcher(e);
         dispatcher.Dispatch<WindowCloseEvent>([this](WindowCloseEvent& event) { return OnWindowClosed(event); });
         dispatcher.Dispatch<WindowResizeEvent>([this](WindowResizeEvent& event) { return OnWindowResized(event); });
+		dispatcher.Dispatch<WindowMinimizedEvent>([this](WindowMinimizedEvent& event) { return OnWindowMinimized(event); });
 
         for (auto it = m_LayerStack.end(); it != m_LayerStack.begin();)
         {
@@ -327,7 +329,13 @@ namespace CHEngine {
         return false;
     }
 
-    void Application::RequestRestart()
+	bool Application::OnWindowMinimized(WindowMinimizedEvent& e)
+	{
+		m_Minimized = e.IsMinimized();
+        return false;
+	}
+
+	void Application::RequestRestart()
     {
         m_RestartRequested = true;
         m_Running = false;
@@ -368,39 +376,49 @@ namespace CHEngine {
             Input::BeginFrame(m_Window->GetPlatformWindow());
             m_InputSystem->BeginFrame();
 
-            m_Render->BeginFrame();
-            m_Render->BeginFrameGraph();
+            const bool rendering = !m_Minimized && m_Render->BeginFrame();
+
+            if (rendering)
+                m_Render->BeginFrameGraph();
 
             for (Scope<Layer>& layer : m_LayerStack)
                 layer->OnUpdate(dt);
 
-            m_Render->EndFrameGraph();
-
-            if (m_UI)
+            if (rendering)
             {
-                m_UI->Begin();
-                for (Scope<Layer>& layer : m_LayerStack)
-                    layer->OnImGuiRender();
-                m_UI->End();
+                m_Render->EndFrameGraph();
+
+                if (m_UI)
+                {
+                    m_UI->Begin();
+                    for (Scope<Layer>& layer : m_LayerStack)
+                        layer->OnImGuiRender();
+                    m_UI->End();
+                }
+                else if (IRenderFactory* factory = m_Render->GetRenderFactory())
+                {
+                    // ImGui-less runtime (Player): blit the viewport texture straight
+                    // to the backbuffer instead of compositing it through ImGui::Image.
+                    factory->PresentToBackbuffer(m_Render->GetViewportOutputTexture(),
+                                                 m_Render->GetViewportWidth(),
+                                                 m_Render->GetViewportHeight());
+                }
+
+                m_Render->EndFrame();
+                m_Window->OnUpdate();
             }
-            else if (IRenderFactory* factory = m_Render->GetRenderFactory())
+            else
             {
-                // ImGui-less runtime (Player): blit the viewport texture straight
-                // to the backbuffer instead of compositing it through ImGui::Image.
-                factory->PresentToBackbuffer(m_Render->GetViewportOutputTexture(),
-                                             m_Render->GetViewportWidth(),
-                                             m_Render->GetViewportHeight());
+                constexpr auto kTargetPeriod = std::chrono::milliseconds(16);
+                const auto spent = std::chrono::steady_clock::now() - now;
+                if (spent < kTargetPeriod)
+                    std::this_thread::sleep_for(kTargetPeriod - spent);
             }
-
-            m_Render->EndFrame();
-
-            m_Window->OnUpdate();
         }
 
         // ── Overlay «Restarting...» — one final frame ────────────────────────
-        if (m_RestartRequested && m_UI)
+        if (m_RestartRequested && m_UI && m_Render && m_Render->BeginFrame())
         {
-            m_Render->BeginFrame();
             m_Render->BeginFrameGraph();
             m_Render->EndFrameGraph();
 

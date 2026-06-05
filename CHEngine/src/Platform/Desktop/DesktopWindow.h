@@ -31,6 +31,7 @@ namespace CHEngine {
             unsigned int Width, Height;
             bool VSync;
             bool Mouse;
+			bool Minimized = false;
 
             EventCallbackFn EventCallback;
         };

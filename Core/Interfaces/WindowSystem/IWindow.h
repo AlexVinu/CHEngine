@@ -11,6 +11,7 @@ namespace CHEngine
         using ErrorCallbackFn       = void(*)(int, const char*);
         using ResizeCallbackFn      = void(*)(void*, int, int);
         using CloseCallbackFn       = void(*)(void*);
+		using MinimizeCallbackFn    = void(*)(void*, bool);
     }
 
     using namespace WindowCallbacks;
@@ -24,6 +25,7 @@ namespace CHEngine
 
         ResizeCallbackFn  ResizeCallback = nullptr;
         CloseCallbackFn   CloseCallback  = nullptr;
+		MinimizeCallbackFn MinimizeCallback = nullptr;
     };
 
     // Платформенное окно (GLFW, Win32 и т.д.)

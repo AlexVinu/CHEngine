@@ -231,6 +231,13 @@ namespace CHModules {
                 self->m_Context.CloseCallback(self->m_Context.UserPointer);
         });
 
+        glfwSetWindowIconifyCallback(m_Window, [](GLFWwindow* window, int iconified) {
+            if (!iconified) return;
+            auto* self = (WindowGLFW*)glfwGetWindowUserPointer(window);
+            if (self->m_Context.MinimizeCallback)
+                self->m_Context.MinimizeCallback(self->m_Context.UserPointer, iconified);
+		});
+
         // Скролл не имеет polling-функции в GLFW, поэтому копим дельту здесь;
         // Input::BeginFrame дренажит её через GetScrollDelta/ClearScrollDelta.
         glfwSetScrollCallback(m_Window, [](GLFWwindow* window, double /*x*/, double y) {

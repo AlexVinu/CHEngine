@@ -103,6 +103,7 @@ namespace CHEngine {
 
         bool OnWindowClosed(WindowCloseEvent& e);
         bool OnWindowResized(WindowResizeEvent& e);
+		bool OnWindowMinimized(WindowMinimizedEvent& e);
 
         static Application* s_Instance;
 
@@ -131,6 +132,7 @@ namespace CHEngine {
         IPhysicsFactory* m_PhysicsFactory = nullptr;
 
         bool       m_Running = true;
+		bool       m_Minimized = false;
         LayerStack m_LayerStack;
 
         ShaderHandle m_Shader;

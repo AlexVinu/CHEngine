@@ -25,7 +25,7 @@ namespace CHModules {
         // ── API lifecycle ─────────────────────────────────────────────────────
         void Init(const CHEngine::RendererInitInfo& init) override;
         void Shutdown() override;
-        void BeginFrame() override;
+        bool BeginFrame() override;
         void EndFrame()   override;
 
         // ── Resource creation ─────────────────────────────────────────────────

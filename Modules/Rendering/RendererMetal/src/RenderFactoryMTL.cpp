@@ -143,13 +143,15 @@ namespace CHModules
         }
     }
 
-    void RenderFactoryMTL::BeginFrame()
+    bool RenderFactoryMTL::BeginFrame()
     {
-        if (!m_RenderApi) return;
-        m_RenderApi->BeginFrame();
+        if (!m_RenderApi) return false;
+        // No drawable (window minimized / 0×0): skip the frame entirely.
+        if (!m_RenderApi->BeginFrame()) return false;
         // Provide ImGui with the current Metal command buffer + encoder
         if (auto* ui = CHEngine::Application::Get().UI())
             ui->SetRenderContext(m_RenderApi->GetRenderContext());
+        return true;
     }
 
     void RenderFactoryMTL::EndFrame()

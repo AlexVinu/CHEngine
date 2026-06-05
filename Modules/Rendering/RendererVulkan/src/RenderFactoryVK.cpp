@@ -74,9 +74,12 @@ namespace CHModules {
         m_Initialized = false;
     }
 
-    void RenderFactoryVK::BeginFrame()
+    bool RenderFactoryVK::BeginFrame()
     {
-        m_Context.BeginFrame();
+        // Frame skipped (window minimized / 0×0 / swapchain out-of-date): do not
+        // touch shared state or let the caller record/submit anything.
+        if (!m_Context.BeginFrame())
+            return false;
 
         // Keep per-frame shared state up to date for ImGuiVK.
         auto& vk                 = VKGlobals::g_SharedContext;
@@ -85,6 +88,7 @@ namespace CHModules {
         VkExtent2D ext           = m_Context.GetSwapchainExtent();
         vk.SwapchainWidth        = ext.width;
         vk.SwapchainHeight       = ext.height;
+        return true;
     }
 
     void RenderFactoryVK::EndFrame()

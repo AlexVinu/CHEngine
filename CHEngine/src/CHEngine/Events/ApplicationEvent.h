@@ -37,6 +37,19 @@ namespace CHEngine {
 		EVENT_CLASS_CATEGORY(EventCategoryApplication)
 	};
 
+	class CHENGINE_API WindowMinimizedEvent : public Event
+	{
+	public:
+		WindowMinimizedEvent(bool minimized) : m_Minimized(minimized) {}
+
+		inline bool IsMinimized() const { return m_Minimized; }
+
+		EVENT_CLASS_TYPE(WindowMinimized)
+		EVENT_CLASS_CATEGORY(EventCategoryApplication)
+	private:
+		bool m_Minimized;
+	};
+
 	class CHENGINE_API AppTickEvent : public Event
 	{
 	public:

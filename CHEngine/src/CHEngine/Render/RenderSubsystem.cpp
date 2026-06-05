@@ -56,11 +56,13 @@ namespace CHEngine
 
     // ── Per-frame ─────────────────────────────────────────────────────────────
 
-    void RenderSubsystem::BeginFrame()
+    bool RenderSubsystem::BeginFrame()
     {
         m_SceneCameraValid = false;
         if (m_Factory)
-            m_Factory->BeginFrame();
+            return m_Factory->BeginFrame();
+		CHE_CORE_WARN("RenderSubsystem::BeginFrame called without a valid factory");
+        return false;
     }
 
     void RenderSubsystem::EndFrame()

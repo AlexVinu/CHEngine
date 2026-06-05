@@ -64,7 +64,10 @@ namespace CHEngine {
         // Called each frame by RenderFacade::BeginFrame / EndFrame.
         // Metal: starts/ends command buffer + sets render context for ImGui.
         // OGL: no-op (state is managed implicitly).
-        virtual void BeginFrame() {}
+        // BeginFrame returns false when the frame must be skipped (e.g. window
+        // minimized / 0×0 framebuffer / swapchain out-of-date). When it returns
+        // false the caller must NOT record a frame graph or call EndFrame.
+        virtual bool BeginFrame() { return true; }
         virtual void EndFrame()   {}
 
         // Backend-native ID for the texture (OGL: GLuint; VK: VkImage; ...).
