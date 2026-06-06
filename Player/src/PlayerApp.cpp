@@ -69,6 +69,15 @@ public:
     {
         if (!m_World) return;
 
+        // Логика/симуляция — вне scope фрейм-графа.
+        m_World->Simulate(dt);
+        m_World->PostUpdate();
+    }
+
+    void OnRenderUpdate(CHEngine::Timestep dt) override
+    {
+        if (!m_World) return;
+
         auto* win = CHEngine::Application::Get().GetWindow();
         if (win)
         {
@@ -77,12 +86,12 @@ public:
                 CHEngine::Application::Get().Render().SetViewportSize(w, h);
         }
         CHEngine::Application::Get().Render().ClearPreSceneCallback();
-        m_World->Update(dt);
+        m_World->Render(dt);
     }
 
     // Презент кадра выполняется движком через RenderFactory::PresentToBackbuffer
     // (blit-пасс) — ImGui в рантайме Player не используется, поэтому
-    // OnImGuiRender не переопределяется.
+    // OnUIUpdate не переопределяется.
 
 private:
     Ref<CHEngine::World> m_World;

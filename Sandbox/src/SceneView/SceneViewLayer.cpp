@@ -97,7 +97,30 @@ void SceneViewLayer::Finish()
 	m_Ctx.Gizmo.BindCommandStack(&m_Ctx.ActiveCtx()->CommandStack);
 }
 
-void SceneViewLayer::OnImGuiRender()
+void SceneViewLayer::OnRenderUpdate(CHEngine::Timestep /*dt*/)
+{
+    CHE_PROFILE_FUNCTION();
+
+    if (!m_Ctx.Worlds || m_Ctx.Worlds->IsEmpty())
+        return;
+
+    EditorWorldContext* active = m_Ctx.ActiveCtx();
+    if (!active)
+        return;
+
+    m_Ctx.Gizmo.BindCommandStack(&active->CommandStack);
+
+    // Thats fine if we draw only one scene per update
+    // TODO: Do it in proper way
+    m_Ctx.Viewport.BeginSceneRender(active);
+}
+
+void SceneViewLayer::OnEvent(CHEngine::Event& e)
+{
+    m_Ctx.Gizmo.OnEvent(e);
+}
+
+void SceneViewLayer::OnUIUpdate()
 {
     if (!m_ProjectManager->HasProject())
     {

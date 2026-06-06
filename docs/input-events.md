@@ -122,11 +122,9 @@ void OnEvent(Event& e) override {
 
 **Приложение/Окно** (только эти; ввод — через `Input`/`InputSystem`):
 ```cpp
-WindowResizeEvent e;  // e.GetWidth(), e.GetHeight()
-WindowCloseEvent  e;  // (без данных)
-AppTickEvent      e;
-AppUpdateEvent    e;
-AppRenderEvent    e;
+WindowResizeEvent    e;  // e.GetWidth(), e.GetHeight()
+WindowCloseEvent     e;  // (без данных)
+WindowMinimizedEvent e;  // e.IsMinimized()
 ```
 
 > Для дискретных хоткеев (нажал именно в этом кадре) используйте
@@ -163,7 +161,7 @@ public:
         // Если установить e.Handled = true — вышестоящие слои не получат событие
     }
 
-    void OnImGuiRender() override {
+    void OnUIUpdate() override {
         // Вызывается каждый кадр между UISubsystem::Begin/End
         ImGui::Begin("My Panel");
         ImGui::End();

@@ -46,7 +46,16 @@ namespace CHEngine
         // (World:LoadScene) for runtime level changes.
         void RequestSceneLoad(const std::string& relPath);
 
-        void Update(Timestep dt);
+        // ── Фазовый тик (1:1 с SystemPhase) ──────────────────────────────────
+        // Simulate: применяет отложенную смену состояния, затем гоняет фазу
+        //   Simulation (только в Simulating / SimulatingWithoutPresenting).
+        void Simulate(Timestep dt);
+        // Render: гоняет фазу Presentation (только в Presenting / Simulating).
+        void Render(Timestep dt);
+        // PostUpdate: флаш DeferredOps + отложенная загрузка сцены. Вызывается в
+        //   конце Update-фазы слоя ВСЕГДА, независимо от WorldState.
+        void PostUpdate();
+
         void OnEvent(Event& event);
 
         // Re-upload object transform UBOs from current TransformComponents.

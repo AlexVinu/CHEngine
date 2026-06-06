@@ -16,8 +16,12 @@ namespace CHEngine
 		virtual void OnAttach() {}
 		virtual void OnDetach() {}
 		virtual void OnUpdate(Timestep /*dt*/) {}
+		// Запись GPU-работы в открытый фрейм-граф. Вызывается между
+		// BeginFrameGraph/EndFrameGraph, после OnUpdate всех слоёв.
+		virtual void OnRenderUpdate(Timestep /*dt*/) {}
 		virtual void OnEvent(Event& /*event*/) {}
-		virtual void OnImGuiRender() {}
+		// UI-фаза: ImGui-композиция. Вызывается внутри UISubsystem::Begin/End.
+		virtual void OnUIUpdate() {}
 
 		inline const std::string& GetName() const { return m_DebugName; }
 

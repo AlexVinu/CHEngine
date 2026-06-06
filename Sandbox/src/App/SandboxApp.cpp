@@ -2,8 +2,6 @@
 #define CHE_INCLUDE_ENTRY_POINT
 #include <CHEngine.h>
 #include "SceneViewLayer.h"
-#include "EditorRenderLayer.h"
-#include "EditorInputLayer.h"
 #include "GameLayer.h"
 #include "ProjectManager.h"
 #include "EditorContext.h"
@@ -48,9 +46,7 @@ public:
 		m_EditorContext->Worlds   = m_Worlds;
 		m_EditorContext->Projects = m_ProjectManager;
 
-		PushLayer(new EditorRenderLayer(*m_EditorContext)); 
-		PushLayer(new EditorInputLayer(*m_EditorContext)); 
-		PushLayer(new SceneViewLayer(*m_EditorContext));   
+		PushLayer(new SceneViewLayer(*m_EditorContext));
 		PushLayer(new GameLayer(m_Worlds));
 	}
 

@@ -246,7 +246,7 @@ if (model && model->mesh.IsValid())
 Базовая проверка через ImGui:
 
 ```cpp
-void OnImGuiRender() override {
+void OnUIUpdate() override {
     ImGui::Begin("Renderer Info");
     ImGui::Text("API: %d", (int)Application::Get().GetRenderAPIType());
     // Превью результата сцены (выходная текстура viewport'а)

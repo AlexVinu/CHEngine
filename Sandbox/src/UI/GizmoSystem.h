@@ -17,8 +17,6 @@ public:
 
     void BindCommandStack(CommandStack* command_stack) { m_CommandStack = command_stack; }
 
-    void OnEvent(CHEngine::Event& e);
-
     void Draw(SceneSession* scene_session,
               ImGuizmo::OPERATION gizmo_operation,
               ImGuizmo::MODE gizmo_mode,

@@ -8,10 +8,6 @@
 
 namespace Sandbox {
 
-void GizmoSystem::OnEvent(CHEngine::Event& /*e*/)
-{
-}
-
 void GizmoSystem::TransformToMatrix(const CHEngine::Transform& transform, float out_matrix[16])
 {
     float translation[3] = { transform.Position.x, transform.Position.y, transform.Position.z };

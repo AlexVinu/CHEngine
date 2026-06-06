@@ -50,7 +50,6 @@ public:
                       float radius,
                       CHEngine::EditorCamera* viewport_camera,
                       EditorCameraState& camera_state);
-    void OnEvent(CHEngine::Event& e);
     void OnUpdate(CHEngine::EditorCamera* viewport_camera,
                   EditorCameraState& camera_state,
                   Ref<CHEngine::Scene> editor_scene,

@@ -81,10 +81,15 @@ public:
 
     void OnUpdate(Timestep dt) override {
         m_LastDt = dt;
-        m_World.Update(dt);   // прогоняет фазы Simulation + Presentation
+        m_World.Simulate(dt);   // фаза Simulation (вне scope фрейм-графа)
+        m_World.PostUpdate();   // флаш DeferredOps + отложенная загрузка сцены
     }
 
-    void OnImGuiRender() override {
+    void OnRenderUpdate(Timestep dt) override {
+        m_World.Render(dt);     // фаза Presentation (внутри Begin/EndFrameGraph)
+    }
+
+    void OnUIUpdate() override {
         ImGui::Begin("Debug");
         ImGui::Text("FPS: %.1f", m_LastDt > 0.0f ? 1.0f / m_LastDt : 0.0f);
         ImGui::End();

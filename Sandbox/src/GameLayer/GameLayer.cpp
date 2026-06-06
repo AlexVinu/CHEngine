@@ -10,16 +10,15 @@ GameLayer::GameLayer(Ref<CHEngine::WorldsList> worldsRef)
 void GameLayer::OnUpdate(CHEngine::Timestep dt)
 {
 	m_Worlds.ForEach([dt](CHEngine::World& world) {
-		world.Update(dt);
+		world.Simulate(dt);
+		world.PostUpdate();
 	});
 }
 
-void GameLayer::OnImGuiRender()
+void GameLayer::OnRenderUpdate(CHEngine::Timestep dt)
 {
-
-}
-
-void GameLayer::OnEvent(CHEngine::Event& e)
-{
-
+	// Презентация (запись в фрейм-граф) — внутри scope BeginFrameGraph/EndFrameGraph.
+	m_Worlds.ForEach([dt](CHEngine::World& world) {
+		world.Render(dt);
+	});
 }

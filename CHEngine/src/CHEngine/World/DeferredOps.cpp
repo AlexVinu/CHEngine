@@ -304,7 +304,7 @@ namespace CHEngine
         }
 
         // If the subtree carried the active camera, adjust world states.
-        // SetState() only sets m_PendingState — applied safely at next World::Update().
+        // SetState() only sets m_PendingState — applied safely at next World::Simulate().
         if (transferredActiveCamera)
         {
             srcWorld.SetState(WorldState::SimulatingWithoutPresenting);
@@ -478,7 +478,7 @@ namespace CHEngine
 
 		Clear();
 	}
-
+    // Calls every frame
 	void DeferredOps::Clear()
 	{
 		m_CreateCommands.clear();

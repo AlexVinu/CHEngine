@@ -149,11 +149,6 @@ void EditorCameraController::UpdateCameraInput(const InputSnapshot& input_snapsh
     }
 }
 
-void EditorCameraController::OnEvent(CHEngine::Event& e)
-{
-    (void)e;
-}
-
 void EditorCameraController::OnUpdate(CHEngine::EditorCamera* viewport_camera,
                                       EditorCameraState& camera_state,
                                       Ref<CHEngine::Scene> editor_scene,

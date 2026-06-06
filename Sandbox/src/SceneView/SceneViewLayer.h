@@ -28,10 +28,14 @@ class SceneViewLayer : public CHEngine::Layer
 {
 public:
     explicit SceneViewLayer(Sandbox::EditorContext& ctx);
-    void OnImGuiRender() override;
+
+    // Единый редакторный слой: ввод (камера/gizmo), подготовка рендера вьюпорта
+    // и ImGui-композиция. Раньше это были три отдельных слоя.
+    void OnRenderUpdate(CHEngine::Timestep dt) override;
+    void OnEvent(CHEngine::Event& e) override;
+    void OnUIUpdate() override;
 
     void OnProjectOpened();
-    CHEngine::WorldsList& GetWorldsList() { return *m_Ctx.Worlds; }
 
 private:
 	void RunSceneViewImGuiFrame();
@@ -49,7 +53,6 @@ private:
     ContentBrowserPanel m_ContentBrowser;
 
     Sandbox::UvEditorPanel m_UvEditor;
-    bool m_ShowUVEditor = false;
 
     ProjectBrowserWindow m_ProjectBrowser;
 

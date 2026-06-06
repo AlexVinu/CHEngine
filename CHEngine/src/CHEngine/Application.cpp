@@ -378,21 +378,24 @@ namespace CHEngine {
 
             const bool rendering = !m_Minimized && m_Render->BeginFrame();
 
-            if (rendering)
-                m_Render->BeginFrameGraph();
-
+            // ── Update: логика/симуляция — ВСЕГДА (даже при minimized) ───────
             for (Scope<Layer>& layer : m_LayerStack)
                 layer->OnUpdate(dt);
 
             if (rendering)
             {
+                // ── RenderUpdate: запись GPU-работы внутри scope фрейм-графа ──
+                m_Render->BeginFrameGraph();
+                for (Scope<Layer>& layer : m_LayerStack)
+                    layer->OnRenderUpdate(dt);
                 m_Render->EndFrameGraph();
 
+                // ── UIUpdate: ImGui-композиция ───────────────────────────────
                 if (m_UI)
                 {
                     m_UI->Begin();
                     for (Scope<Layer>& layer : m_LayerStack)
-                        layer->OnImGuiRender();
+                        layer->OnUIUpdate();
                     m_UI->End();
                 }
                 else if (IRenderFactory* factory = m_Render->GetRenderFactory())

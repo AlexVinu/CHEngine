@@ -59,7 +59,7 @@ namespace CHEngine
         m_PhysicsWorldDesc = world_desc;
     }
 
-    void World::Update(Timestep dt)
+    void World::Simulate(Timestep dt)
     {
         if (!m_Scene)
             return;
@@ -70,9 +70,21 @@ namespace CHEngine
 
         if (m_State == WorldState::Simulating || m_State == WorldState::SimulatingWithoutPresenting)
             m_Scheduler.RunPhase(SystemPhase::Simulation, *this, m_DeferredOps, dt);
+    }
+
+    void World::Render(Timestep dt)
+    {
+        if (!m_Scene)
+            return;
 
         if (m_State == WorldState::Presenting || m_State == WorldState::Simulating)
             m_Scheduler.RunPhase(SystemPhase::Presentation, *this, m_DeferredOps, dt);
+    }
+
+    void World::PostUpdate()
+    {
+        if (!m_Scene)
+            return;
 
         // Processing deffered operations like components changes/creations/deletions
         m_DeferredOps.Flush(*this, m_Scene);
